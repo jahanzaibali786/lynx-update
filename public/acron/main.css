@@ -1,0 +1,6 @@
+/* This file is reserved for overriding and extending the template styles. */
+
+@font-face {
+  font-family: "Edwardian Script ITC";
+  src: url("../fonts/edwardianscriptitc.ttf");
+}

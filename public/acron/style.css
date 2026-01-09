@@ -1,0 +1,342 @@
+@font-face {
+  font-family: 'CS-Interface';
+  src:
+    url('fonts/CS-Interface.ttf?2eqyst') format('truetype'),
+    url('fonts/CS-Interface.woff?2eqyst') format('woff'),
+    url('fonts/CS-Interface.svg?2eqyst#CS-Interface') format('svg');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+[class^="cs-"],
+[class*=" cs-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'CS-Interface' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.cs-circle:before {
+  content: "\e922";
+}
+
+.cs-scissors:before {
+  content: "\e902";
+}
+
+.cs-question-hexagon:before {
+  content: "\e900";
+}
+
+.cs-save:before {
+  content: "\e901";
+}
+
+.cs-search:before {
+  content: "\e906";
+}
+
+.cs-send:before {
+  content: "\e907";
+}
+
+.cs-settings-2:before {
+  content: "\e908";
+}
+
+.cs-sort:before {
+  content: "\e909";
+}
+
+.cs-star:before {
+  content: "\e90a";
+}
+
+.cs-star-full:before {
+  content: "\e90b";
+}
+
+.cs-user:before {
+  content: "\e90c";
+}
+
+.cs-warning-hexagon:before {
+  content: "\e90d";
+}
+
+.cs-archive:before {
+  content: "\e90e";
+}
+
+.cs-arrow-double-left:before {
+  content: "\e90f";
+}
+
+.cs-arrow-double-right:before {
+  content: "\e910";
+}
+
+.cs-bin:before {
+  content: "\e911";
+}
+
+.cs-calendar:before {
+  content: "\e912";
+}
+
+.cs-check:before {
+  content: "\e913";
+}
+
+.cs-check-square:before {
+  content: "\e914";
+}
+
+.cs-chevron-bottom:before {
+  content: "\e915";
+}
+
+.cs-chevron-left:before {
+  content: "\e916";
+}
+
+.cs-chevron-right:before {
+  content: "\e917";
+}
+
+.cs-chevron-top:before {
+  content: "\e918";
+}
+
+.cs-clipboard:before {
+  content: "\e919";
+}
+
+.cs-clock:before {
+  content: "\e91a";
+}
+
+.cs-close:before {
+  content: "\e91b";
+}
+
+.cs-close-circle:before {
+  content: "\e91c";
+}
+
+.cs-duplicate:before {
+  content: "\e91d";
+}
+
+.cs-edit-square:before {
+  content: "\e91e";
+}
+
+.cs-error-hexagon:before {
+  content: "\e91f";
+}
+
+.cs-file-text:before {
+  content: "\e920";
+}
+
+.cs-gear:before {
+  content: "\e921";
+}
+
+.cs-info-hexagon:before {
+  content: "\e903";
+}
+
+.cs-menu:before {
+  content: "\e904";
+}
+
+.cs-more-horizontal:before {
+  content: "\e905";
+}
+
+/* //Custome Table Styling/ */
+table {
+  /* border-collapse: separate !important;
+  border-spacing: 0 15px; */
+  width: 100%;
+  margin-top: 10px;
+}
+.report_table th,td{
+  overflow-y: visible !important;
+  width:auto !important;
+}
+
+
+th,
+td {
+  /* padding: 6px; */
+  padding: 12px !important;
+  text-align: left;
+  font-size:0.8rem !important;
+  /* font-size: 12px; */
+  /* width: 100%; */
+  overflow-y: hidden;
+}
+
+tr {
+  /* border-radius: 12px !important; */
+  box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.1);
+  margin-bottom: 15px;
+  margin-top: 10px;
+  /* display: flex; */
+  justify-content: space-between;
+  align-items: center;
+  overflow: hidden;
+  background-color: #fff;
+}
+
+tr td:first-child {
+  padding: 0px 0px 0px 20px;
+}
+
+tr td:last-child {
+  padding: 0px 20px 0px 0px;
+}
+thead tr th:first-child {
+  padding: 0px 0px 0px 20px;
+  border-radius: 10px 0px 0px 0px;
+}
+
+thead tr th:last-child {
+  /* padding: 0px 20px 0px 0px; */
+  /* text-align: center; */
+  border-radius: 0px 10px 0px 0px;
+}
+
+
+.dataTable-pagination, .dataTable-pagination ul ,.pagination ul ,.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer !important;
+}
+
+table tbody tr:nth-child(even) {
+  background-color: #f5f5f5;
+  td{
+    background-color: #f5f5f5;
+  }
+}
+
+/* Or for even cells within each row */
+/* table tbody tr td:nth-child(even) {
+  background-color: #f5f5f5;
+} */
+
+.table_heads {
+  margin-bottom: -10px;
+  /* background-color: transparent !important; */
+  background-color: var(--primary-darker);
+  color: #fff !important;
+  font-weight: bolder;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.table_heads th {
+  font-weight: bold;
+}
+.table_heads th{
+  background-color: var(--primary-darker) !important;
+  color: #fff !important;
+}
+.table_heads th a{
+  color: #fff !important;
+}
+
+.dataTable-pagination ul ,.pagination ul {
+  gap: 5px;
+  margin-top: 1rem;
+}
+
+.dataTable-pagination ul li , .pagination ul li {
+  list-style: none;
+  padding: 5px 10px;
+  border-radius: 10px;
+  box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.1);
+  background-color: #fff;
+
+}
+.dataTable-pagination ul li:hover , .pagination ul li:hover {
+  background-color: var(--primary);
+  a{
+    color: #fff;
+  }
+  a:hover{
+    color: #fff;
+  }
+}
+
+.dataTable-pagination ul li.active , .pagination ul li.active{
+  background-color: var(--primary);
+  a {
+    color: #fff;
+  }
+}
+
+.dataTable-pagination ul li a , .pagination ul li a {
+  text-decoration: none;
+  color: #fff;
+}
+
+/* .dataTable-pagination ul li.disabled {
+  pointer-events: none;
+  background-color: #fff;
+  color: var(--primary);
+} */
+
+
+
+@media print {
+  table {
+    color: #000; /* Change the color to black for printing */
+    border-spacing: 0; /* Remove the spacing between table cells */
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  tr,
+  td,
+  th {
+    page-break-inside: avoid; /* Avoid page breaks inside table rows and cells */
+  }
+
+  tr {
+    border-radius: 0!important; /* Remove the border radius for printing */
+    box-shadow: none!important; /* Remove the box shadow for printing */
+    margin-bottom: 0;
+    margin-top: 0;
+    overflow: visible; /* Make the table cells visible for printing */
+    background-color: #fff;
+    
+  }
+
+  tr td:first-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  tr td:last-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+ .table_heads {
+    display: none; /* Hide the table headers for printing */
+  }
+}

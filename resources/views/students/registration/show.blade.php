@@ -1,0 +1,934 @@
+@extends('layouts.admin')
+@section('page-title')
+    {{ __('Student Detail') }}
+@endsection
+@push('script-page')
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script>
+        function formatCNIC(input) {
+            var value = input.value.replace(/\D/g, '');
+            if (value.length > 13) {
+                value = value.substring(0, 13);
+            }
+            if (value.length > 5) {
+                value = value.substring(0, 5) + '-' + value.substring(5);
+            }
+            if (value.length > 13) {
+                value = value.substring(0, 13) + '-' + value.substring(13);
+            }
+            input.value = value;
+        }
+
+        document.getElementById('fathercnic').addEventListener('keyup', function() {
+            formatCNIC(this);
+        });
+
+        document.getElementById('mothercnic').addEventListener('keyup', function() {
+            formatCNIC(this);
+        });
+        document.getElementById('guardiancnic').addEventListener('keyup', function() {
+            formatCNIC(this);
+        });
+    </script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        var checkAllCheckbox = document.getElementById('checkAll');
+        var rowCheckboxes = document.querySelectorAll('input[name="checked[]"]');
+        checkAllCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                rowCheckboxes.forEach(function(checkbox) {
+                    checkbox.checked = true;
+                });
+            } else {
+                rowCheckboxes.forEach(function(checkbox) {
+                    checkbox.checked = false;
+                });
+            }
+        });
+        rowCheckboxes.forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                if (!this.checked) {
+                    checkAllCheckbox.checked = false;
+                }
+            });
+        });
+    </script>
+    <script>
+        function getCheckedRowData() {
+            var challanDate = document.getElementById('challan_date').value;
+            var issueDate = document.getElementById('issueDate').value;
+            var dueDate = document.getElementById('dueDate').value;
+
+            // Check if any of the date inputs is empty
+            if (!challanDate || !issueDate || !dueDate) {
+                alert('Please select all dates before proceeding.');
+                return;
+            }
+
+            var checkedRowsData = [];
+            var checkboxes = document.getElementsByName("checked[]");
+            checkboxes.forEach(function(checkbox) {
+                if (checkbox.checked) {
+                    var rowData = [];
+                    var row = checkbox.closest("tr");
+                    var cells = row.querySelectorAll("td");
+                    cells.forEach(function(cell) {
+                        var cellContent;
+                        var input = cell.querySelector("input");
+                        var label = cell.querySelector("label");
+                        if (input && input.tagName.toLowerCase() === "input") {
+                            cellContent = input.value;
+                        } else if (label && label.tagName.toLowerCase() === "label") {
+                            cellContent = label.textContent.trim();
+                        } else {
+                            cellContent = cell.textContent.trim();
+                        }
+                        rowData.push(cellContent);
+                    });
+                    checkedRowsData.push(rowData);
+                }
+            });
+            // console.log("Data of Checked Rows:", checkedRowsData);
+            // console.log("challan date:", challanDate);
+            // console.log("issuedate:", issueDate);
+            // console.log("due date:", dueDate);
+            url = '{{ route('generateChallan') }}';
+            var appurl = '{{ env('APP_URL') }}';
+   
+            var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", url, true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.setRequestHeader("X-CSRF-TOKEN", csrfToken); // Move this line after xhr.open
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (xhr.status === 200) {
+                        var response = JSON.parse(xhr.responseText); // Parse the JSON response
+                        const basePath = window.location.pathname.split('/')[1];
+                        window.location.href = `${appurl}/installments/${response.data.id}`;
+                    } else if (xhr.status === 422) { // ✅ Correct way to check HTTP status
+                        console.error('Challan already generated.');
+                        var response = JSON.parse(xhr.responseText);
+                        alert(response.message); // Optionally show a message to the user
+                    } else {
+                        console.error("Error generating challan:", xhr.responseText);
+                    }
+                }
+            };
+            var student_id = {{ $student->id }}
+            var requestData = {
+                checkedRowsData: checkedRowsData,
+                challanDate: challanDate,
+                issueDate: issueDate,
+                dueDate: dueDate,
+                student_id: student_id
+            };
+            xhr.send(JSON.stringify(requestData));
+
+        }
+    </script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+        document.getElementById('copyAddressBtn').addEventListener('click', function() {
+            var presentAddress = document.getElementById('presentAddress').value;
+            document.getElementById('permanentAddress').value = presentAddress;
+        });
+        $(document).ready(function() {
+            // Function to handle AJAX request
+            function sendFormData(formData) {
+                var csrfToken = $('meta[name="csrf-token"]').attr('content');
+                $.ajaxSetup({
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                $.ajax({
+                    url: '{{ route('registration.update', $student->id) }}',
+                    method: 'PUT',
+                    data: formData,
+                    success: function(response) {
+                        show_toastr('success', response.success, 'success');
+                        window.location.reload();
+                    },
+                    error: function(xhr, status, error) {
+                        // Handle error
+                        show_toastr('error', error, 'error');
+                        // alert('asdas')
+                    }
+                });
+            }
+            $('#submitBtnSection1').click(function() {
+                var formData = {
+                    sectionName: 'section1',
+                    sectionData: $('#section1 :input').serializeArray()
+                };
+                sendFormData(formData);
+            });
+
+            $('#submitBtnSection2').click(function() {
+                var formData = {
+                    sectionName: 'section2',
+                    sectionData: $('#section2 :input').serializeArray()
+                };
+                sendFormData(formData);
+            });
+
+            $('#submitBtnSection3').click(function() {
+                var checkedRowsData = [];
+                var uncheckedRowsData = [];
+                var checkboxes = document.getElementsByName("checked[]");
+
+                checkboxes.forEach(function(checkbox) {
+                    var rowData = [];
+                    var row = checkbox.closest("tr");
+                    var cells = row.querySelectorAll("td");
+
+                    cells.forEach(function(cell) {
+                        var cellContent;
+                        var input = cell.querySelector("input");
+                        var label = cell.querySelector("label");
+                        if (input && input.tagName.toLowerCase() === "input") {
+                            if (input.classList.contains('discount') && input.disabled) {
+                                cellContent = 0;
+                            } else {
+                                cellContent = input.value;
+                            }
+                            console.log(input);
+                        } else if (label && label.tagName.toLowerCase() === "label") {
+                            cellContent = label.textContent.trim();
+                        } else {
+                            cellContent = cell.textContent.trim();
+                        }
+                        rowData.push(cellContent);
+                    });
+
+                    if (checkbox.checked) {
+                        checkedRowsData.push(rowData);
+                    } else {
+                        uncheckedRowsData.push(rowData);
+                    }
+                });
+
+                var formData = {
+                    sectionName: 'section3',
+                    checkedRows: checkedRowsData,
+                    uncheckedRows: uncheckedRowsData,
+                    sectionData: $('#section3 :input').serializeArray()
+                };
+                sendFormData(formData);
+            });
+        });
+        // $(document).ready(function() {
+        //     $('#submitBtn').click(function() {
+        //         var checkedRowsData = [];
+        //         var checkboxes = document.getElementsByName("checked[]");
+        //         checkboxes.forEach(function(checkbox) {
+        //             if (checkbox.checked) {
+        //                 var rowData = [];
+        //                 var row = checkbox.closest("tr");
+        //                 var cells = row.querySelectorAll("td");
+        //                 cells.forEach(function(cell) {
+        //                     var cellContent;
+        //                     var input = cell.querySelector("input");
+        //                     var label = cell.querySelector("label");
+        //                     if (input && input.tagName.toLowerCase() === "input") {
+        //                         cellContent = input.value;
+        //                     } else if (label && label.tagName.toLowerCase() === "label") {
+        //                         cellContent = label.textContent.trim();
+        //                     } else {
+        //                         cellContent = cell.textContent.trim();
+        //                     }
+        //                     rowData.push(cellContent);
+        //                 });
+        //                 checkedRowsData.push(rowData);
+        //             }
+        //         });
+        //         console.log("Data of Checked Rows:", checkedRowsData);
+        //         var formData = {};
+        //         formData['checkedRows'] = checkedRowsData;
+        //         $('.tab-pane').each(function(index) {
+        //             var tabId = $(this).attr('id');
+        //             var tabData = {};
+        //             $(this).find('input, select, textarea').each(function() {
+        //                 var fieldName = $(this).attr('name');
+        //                 var fieldValue = $(this).val();
+        //                 tabData[fieldName] = fieldValue;
+        //             });
+        //             formData[tabId] = tabData;
+        //         });
+        //         // console.log(formData);
+        //         var csrfToken = $('meta[name="csrf-token"]').attr('content');
+        //         $.ajaxSetup({
+        //             headers: {
+        //                 'X-CSRF-TOKEN': csrfToken
+        //             }
+        //         });
+        //         $.ajax({
+        //             url: '{{ route('registration.update', $student->id) }}',
+        //             method: 'PUT',
+        //             data: formData,
+        //             success: function(response) {
+        //               alert(response.success);
+        //               window.location.reload();
+        //             },
+        //             error: function(xhr, status, error) {
+        //                 // Handle error
+        //             }
+        //         });
+        //     });
+        // });
+
+        function formatCellNumber(value) {
+    // strip non‑digits
+    value = value.replace(/\D/g, '');
+
+    // limit total digits
+    if (value.length > 44) {
+      value = value.substring(0, 44);
+    }
+
+    // insert commas after 11th, 23rd, 35th digits
+    // note: do this in descending order so indexes don't shift
+    if (value.length > 35) {
+      value = value.slice(0, 35) + ',' + value.slice(35);
+    }
+    if (value.length > 23) {
+      value = value.slice(0, 23) + ',' + value.slice(23);
+    }
+    if (value.length > 11) {
+      value = value.slice(0, 11) + ',' + value.slice(11);
+    }
+
+    return value;
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const cellInput = document.getElementById('fathercell');
+
+    // 1️⃣ On page load, re‑format whatever came from the DB
+    cellInput.value = formatCellNumber(cellInput.value);
+
+    // 2️⃣ On each keyup, re‑format live
+    cellInput.addEventListener('keyup', function() {
+      this.value = formatCellNumber(this.value);
+    });
+  });
+        document.getElementById('fatherphone').addEventListener('keyup', function() {
+            // Remove all non-digit characters
+            var value = this.value.replace(/\D/g, '');
+            // Limit the length to 23 digits
+            if (value.length > 11) {
+                value = value.substring(0, 11);
+            }
+            this.value = value;
+        });
+    </script>
+@endpush
+@section('breadcrumb')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
+    <li class="breadcrumb-item">{{ __('Student Detail') }}</li>
+@endsection
+@section('content')
+    <style>
+        .row>* {
+            padding: 0px !important;
+        }
+
+        .head {
+            padding: 10px;
+            color: white;
+        }
+
+        .sec1>div,
+        .sec2>div {
+            border-radius: 20px;
+        }
+
+        .head {
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+        }
+    </style>
+<style>
+            #paddingModal{
+                display:none !important;
+            }
+        </style>
+    <div class="card py-2 px-4 mt-4">
+        <div class="container">
+            <!-- <button id="submitBtn" class="btn btn-primary mt-3" style="position: relative; left: 90%;">Save</button> -->
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="section1-tab" data-toggle="tab" href="#section1" role="tab"
+                        aria-controls="section1" aria-selected="true">General Details</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="section2-tab" data-toggle="tab" href="#section2" role="tab"
+                        aria-controls="section2" aria-selected="false">Family & Guardian Details</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="section3-tab" data-toggle="tab" href="#section3" role="tab"
+                        aria-controls="section3" aria-selected="false">Fee Structure</a>
+                </li>
+            </ul>
+            <div class="tab-content" id="myTabContent">
+                <div class="tab-pane fade show active" id="section1" role="tabpanel" aria-labelledby="section1-tab">
+                    ` <div class="header px-3 row">
+                        <div class="text col-12 col-md-6 col-lg-6">
+                            <p style="color:red;">Fields with * Mandatory </p>
+                            <div class="form-group">
+                                {{ Form::label('regdate', __('Registration Date '), ['class' => 'form-label']) }}
+                                {{ Form::date('regdate', date('Y-m-d'), ['class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly']) }}
+                            </div>
+                            <div class="form-group">
+                                {{ Form::label('regby', __('Register By '), ['class' => 'form-label']) }}
+                                {{ Form::text('regby', Auth::user()->name, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                            </div>
+                            <div class="form-group">
+                                {{ Form::label('student_status', __('Student Status'), ['class' => 'form-label']) }}
+                                {{ Form::text('student_status', $student->student_status, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                            </div>
+                            {{-- <div class="form-group">
+                            {!! Form::label('description', __('Description'), ['class' => 'form-label']) !!}
+                            {!! Form::textarea('description', null, ['class' => 'form-control', 'rows' => 3]) !!}
+                        </div>
+                        <div class="form-group">
+                            {{ Form::label('pass_out_date', __('Passed Out Date'), ['class' => 'form-label']) }}
+                            {{ Form::date('pass_out_date', date('Y-m-d'), ['class' => 'form-control', 'required' => 'required']) }}
+                        </div>
+                        <div class="form-group">
+                            <button class="btn btn-sm btn-success"><input type="checkbox" name="is_active" id="">Is
+                                Active</button>
+                            <button class="btn btn-sm btn-danger"><input type="checkbox" name="is_withdarawl" id="">Is
+                                Withdrawal</button>
+                        </div> --}}
+                        </div>
+                        <div class="img col-6 col-md-6 col-lg-6 d-flex justify-content-end align-items-start"
+                            style="margin-top: 70px;">
+
+                            <img src="{{ asset('assets/images/Student_profile.png') }}" alt=""
+                                style="border:1px solid var(--primary);">
+                        </div>
+                    </div>
+                    <div class="general-details col-12 col-md-12 col-lg-12">
+                        <div class="mt-2 px-2">
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap:10px;">
+                                    <div class="col-lg-6">
+                                        {{ Form::label('branchname', __('Branch'), ['class' => 'form-label']) }}<span
+                                            style="color: red"> *</span>
+                                        <select name="branch" id="branch" class="form-control select" @if($student->student_status == 'Registered') @else disabled @endif>
+                                            @foreach ($branches as $key => $values)
+                                                <option value="{{ $key }}"
+                                                    {{ $key == $student->owned_by ? 'selected' : '' }}>{{ $values }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        {{ Form::label('admission_date', __('Admission Date '), ['class' => 'form-label']) }}
+                                        {{ Form::date('admission_date', isset($student->enrollment) ? date('Y-m-d', strtotime($student->enrollment->adm_date)) : null, ['class' => 'form-control', 'readonly' => 'readonly']) }}
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-lg-6">
+                                        {{ Form::label('reg_no', __('Registration No'), ['class' => 'form-label']) }}
+                                        {{ Form::text('reg_no', $student->reg_no, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                                    </div>
+                                    <div class="col-lg-6">
+                                        {{ Form::label('roll_no', __('Roll No'), ['class' => 'form-label']) }}
+                                        {{ Form::text('roll_no', @$student->roll_no, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-lg-6">
+                                        {{ Form::label('name', __('Name'), ['class' => 'form-label']) }}
+                                        {{ Form::text('name', $student->stdname, ['class' => 'form-control', 'required' => 'required', 'style' => 'text-transform: uppercase;']) }}
+                                    </div>
+                                    <div class="col-lg-6">
+                                        {{ Form::label('dob', __('D.O.B'), ['class' => 'form-label']) }}<span
+                                            style="color: red">*</s>
+                                            {{ Form::date('dob', $student->dob, ['class' => 'form-control', 'id' => 'dob', 'required' => 'required']) }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-lg-6">
+                                        {!! Form::label('gender', __('Gender'), ['class' => 'form-label']) !!}
+                                        <span style="color: red">*</span>
+                                        {!! Form::select('gender', ['' => 'Select Gender', 'male' => 'Male', 'female' => 'Female'], $student->gender, [
+                                            'class' => 'form-control',
+                                            'required' => 'required',
+                                        ]) !!}
+                                    </div>
+                                    <div class="col-lg-6">
+                                        {{ Form::label('birth_place', __('Birth Place'), ['class' => 'form-label']) }}
+                                        {{ Form::text('birth_place', $student->birth_place, ['class' => 'form-control', 'required' => 'required']) }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-lg-6">
+                                        {{ Form::label('religion', __('Religion'), ['class' => 'form-label']) }}
+                                        {{ Form::text('religion', $student->religion, ['class' => 'form-control', 'required' => 'required']) }}
+                                    </div>
+                                    <div class="col-lg-6">
+                                        {{ Form::label('nationality', __('Nationality'), ['class' => 'form-label']) }}
+                                        {{ Form::text('nationality', $student->nationality, ['class' => 'form-control', 'required' => 'required']) }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-md-6">
+                                        {!! Form::label('register_option', __('Register Option'), ['class' => 'form-label']) !!}<span style="color: red"> *</span>
+                                        {!! Form::select('register_option', $registerOption, $selectedOptionId, [
+                                            'class' => 'form-control',
+                                            'required' => 'required',
+                                        ]) !!}
+                                    </div>
+                                    <div class="col-lg-6">
+                                        {{ Form::label('mobile_phone', __('Phone Mobile'), ['class' => 'form-label']) }}
+                                        {{ Form::text('mobile_phone', $student->fatherphone, ['class' => 'form-control', 'required' => 'required', 'id' => 'fatherphone']) }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-lg-6">
+                                        {{ Form::label('mobile_cell', __('Father Cell'), ['class' => 'form-label']) }}
+<!-- in your Blade -->
+<input type="text"
+       name="mobile_cell"
+       id="fathercell"
+       value="{{ $student->fathercell }}"
+       class="form-control"
+       required>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        {{ Form::label('prevschool', __('Previous School'), ['class' => 'form-label']) }}
+                                        {{ Form::text('prevschool', $student->prevschool, ['class' => 'form-control', 'placeholder' => __('Previous School'), 'required' => 'required']) }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-lg-6">
+                                        {{ Form::label('city', __('City'), ['class' => 'form-label']) }}
+                                        {{ Form::text('city', $student->city, ['class' => 'form-control', 'required' => 'required']) }}
+                                    </div>
+                                    <div class="col-lg-6">
+                                        {{ Form::label('district', __('District'), ['class' => 'form-label']) }}
+                                        {{ Form::text('district', @$student->district, ['class' => 'form-control', 'required' => 'required']) }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-lg-6">
+                                        {!! Form::label('present_address', __('Present Address'), ['class' => 'form-label']) !!}
+                                        {!! Form::textarea('present_address', $student->address, [
+                                            'class' => 'form-control',
+                                            'id' => 'presentAddress',
+                                            'rows' => 5,
+                                            'required',
+                                            'style' => 'text-transform: uppercase;',
+                                        ]) !!}
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <button id="copyAddressBtn" class="btn btn-sm btn-info">Same As Present
+                                            Address</button><br>
+                                        {!! Form::textarea('permanent_address', @$student->permanent_address, [
+                                            'class' => 'form-control',
+                                            'id' => 'permanentAddress',
+                                            'placeholder' => 'Permanent Address',
+                                            'rows' => 5,
+                                            'style' => 'text-transform: uppercase;',
+                                        ]) !!}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class='d-flex justify-content-end'>
+                                <button id="submitBtnSection1" class="btn btn-primary mt-3">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-pane fade mt-3" id="section2" role="tabpanel" aria-labelledby="section2-tab">
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('father_name', __('Father Name'), ['class' => 'form-label']) }}
+                                {{ Form::text('father_name', $student->fathername, ['class' => 'form-control', 'id' => 'fathername', 'required' => 'required']) }}
+                            </div>
+                            <div class="col-lg-6">
+                                {!! Form::label('father_cnic', __('Father CNIC'), ['class' => 'form-label']) !!}
+                                {!! Form::text('father_cnic', $student->fathercnic, [
+                                    'class' => 'form-control',
+                                    'required' => 'required',
+                                    'id' => 'fathercnic',
+                                ]) !!}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('father_occupation', __('Father Occupation'), ['class' => 'form-label']) }}
+                                {{ Form::text('father_occupation', $student->fatherprofession, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                            <div class="col-lg-6">
+                                {{ Form::label('home_phone', __('Phone Home'), ['class' => 'form-label']) }}
+                                {{ Form::text('home_phone', $student->fathercell, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('mother_name', __('Mother Name'), ['class' => 'form-label']) }}
+                                {{ Form::text('mother_name', $student->mothername, ['class' => 'form-control', 'id' => 'mothername', 'required' => 'required']) }}
+                            </div>
+                            <div class="col-lg-6">
+                                {!! Form::label('mother_cnic', __('Mother CNIC'), ['class' => 'form-label']) !!}
+                                {!! Form::text('mother_cnic', $student->mothercnic, [
+                                    'class' => 'form-control',
+                                    'required' => 'required',
+                                    'id' => 'mothercnic',
+                                ]) !!}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('mother_occupation', __('Mother Occupation'), ['class' => 'form-label']) }}
+                                {{ Form::text('mother_occupation', $student->motherprofession, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                            <div class="col-lg-6">
+                                {{ Form::label('is_alive', __('Is Alive'), ['class' => 'form-label']) }}
+                                {!! Form::select('is_alive', ['alive' => 'Alive', 'died' => 'Died'], null, [
+                                    'class' => 'form-control',
+                                    'required' => 'required',
+                                ]) !!}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('guardian_name', __('Guardian Name'), ['class' => 'form-label']) }}
+                                {{ Form::text('guardian_name', $student->guardianname, ['class' => 'form-control', 'id' => 'guardianname', 'required' => 'required']) }}
+                            </div>
+                            <div class="col-lg-6">
+                                {{ Form::label('guardian_relation', __('Guardian Relation'), ['class' => 'form-label']) }}
+                                {{ Form::text('guardian_relation', $student->guardianrelation, ['class' => 'form-control', 'id' => 'guardianname', 'required' => 'required']) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('guardian_occupation', __('Guardian Occupation'), ['class' => 'form-label']) }}
+                                {{ Form::text('guardian_occupation', $student->guardianprofession, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                            <div class="col-lg-6">
+                                {!! Form::label('guardian_cnic', __('Guardian CNIC'), ['class' => 'form-label']) !!}
+                                {!! Form::text('guardian_cnic', $student->guardiancnic, [
+                                    'class' => 'form-control',
+                                    'required' => 'required',
+                                    'id' => 'guardiancnic',
+                                ]) !!}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('guardian_phone', __('Guardian Phone'), ['class' => 'form-label']) }}
+                                {{ Form::text('guardian_phone', $student->guardianphone, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                            <div class="col-lg-6">
+                                {!! Form::label('guardian_address', __('Guardian Address'), ['class' => 'form-label']) !!}
+                                {!! Form::textarea('guardian_address', $student->guardianaddress, ['class' => 'form-control', 'rows' => 3]) !!}
+                            </div>
+                        </div>
+                    </div>
+                    {{-- <div class="form-group">
+                    <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                        <div class="col-md-6 col-lg-6">
+                            {{ Form::label('no_of_brothers', __('No of Brothers'), ['class' => 'form-label']) }}
+                            {!! Form::select('no_of_brothers', [ '1' => '1', '2' => '2', '3' => '3', '4' => '4', '5'
+                            =>
+                            '5'], null, ['class' => 'form-control', 'required' => 'required']) !!}
+                        </div>
+                        <div class="col-md-6 col-lg-6">
+                            {{ Form::label('no_of_sisters', __('No of Sisters'), ['class' => 'form-label']) }}
+                            {!! Form::select('no_of_sisters', [ '1' => '1', '2' => '2', '3' => '3', '4' => '4', '5'
+                            =>
+                            '5'],
+                            null, ['class' => 'form-control', 'required' => 'required']) !!}
+                        </div>
+                    </div>
+                </div> --}}
+                    <div class="form-group">
+                        {!! Form::label('remarks', __('Remarks'), ['class' => 'form-label']) !!}
+                        {!! Form::textarea('remarks', $student->remarks, ['class' => 'form-control', 'rows' => 6]) !!}
+                    </div>
+                    <div class='d-flex justify-content-end'>
+                        <button id="submitBtnSection2" class="btn btn-primary mt-3">Save</button>
+                    </div>
+                </div>
+                <div class="tab-pane fade mt-3" id="section3" role="tabpanel" aria-labelledby="section3-tab">
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            {{-- <div class="col-lg-6">
+                            {!! Form::label('school_address', __('School Address'), ['class' => 'form-label']) !!}
+                            {!! Form::textarea('school_address', null, ['class' => 'form-control', 'rows' =>1]) !!}
+                        </div> --}}
+                            <div class="col-lg-6">
+                                {{ Form::label('adm_session', __('Adm Session'), ['class' => 'form-label']) }}
+                                {!! Form::text(
+                                    'adm_session', @$student->session ? $student->session->year : '2023',
+                                    ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
+                                ) !!}
+                            </div>
+                            <div class="col-lg-6">
+                                {{ Form::label('adm_class', __('Adm Class'), ['class' => 'form-label']) }}
+                                 <select name="adm_class" class="form-control select " required @if($student->student_status == 'Registered') @else readonly @endif>
+                                    @foreach ($classes as $key => $values)
+                                        <option value="{{ $key }}"
+                                            {{ $key == $student->reg_class ? 'selected' : '' }}>{{ $values }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('current_session', __('Current Session'), ['class' => 'form-label']) }}
+                                {!! Form::text(
+                                    'current_session', @$student->enrollment ? $student->enrollment->session->year : $student->session->year,
+                                    ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
+                                ) !!}
+                            </div>
+                            <div class="col-lg-6">
+                                {{ Form::label('current_class', __('Current Class'), ['class' => 'form-label']) }}
+                                {!! Form::text(
+                                    'current_class', @$student->class->name ? $student->class->name : '',
+                                    ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
+                                ) !!}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                            <div class="col-lg-6">
+                                {{ Form::label('section', __('Section'), ['class' => 'form-label']) }}
+                                {!! Form::text('section',  @$student->enrollment->section ? @$student->enrollment->section->name : '',
+                                   [ 'class' => 'form-control','required' => 'required','disabled' => 'disabled',]) !!}
+                            </div>
+                            <div class="col-lg-6">
+                                {{ Form::label('discount_policy', __('Discount Policy'), ['class' => 'form-label']) }}
+                                {{ Form::text('discount_policy', @$concession->concession->title, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                                {{ Form::text('discount_policy_id', @$concession->concession_id, ['hidden' => 'hidden', 'class' => 'form-control']) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex " style="justify-content: space-between;">
+                    <div class="form-group">
+                        <a href="{{ route('student.fee_generate', $student->id) }}"
+                            class="btn btn-sm btn-success">Generate
+                            fee structure for this class in this session</a>
+                    </div>
+                    <div class=''>
+                        <button id="submitBtnSection3" class="btn btn-primary m-1">Save</button>
+                    </div>
+                    </div>
+                    @if ($studentchallanexist == null)
+                        <div class="card py-4 px-4">
+                            <div class=" row" style="gap:20px; align-items: center;">
+                                <div class="col-md-3 col-lg-3">
+                                    {{ Form::label('challan_date', __('Billing Month'), ['class' => 'form-label']) }}<span
+                                        style="color: red">&nbsp;(for the month date)</span>
+                                    {!! Form::Month('challan_date', date('Y-m'), ['class' => 'form-control', 'id' => 'challan_date']) !!}
+                                </div>
+                                <div class="col-md-3 col-lg-3">
+                                    {!! Form::label('issueDate', __('Issue Date'), ['class' => 'form-label']) !!}<span style="color: red">
+                                        *</span>
+                                    {!! Form::date('issueDate', date('Y-m-d'), ['class' => 'form-control', 'id' => 'issueDate']) !!}
+                                </div>
+                                <div class="col-md-3 col-lg-3">
+                                    {!! Form::label('dueDate', __('Due Date'), ['class' => 'form-label']) !!}<span style="color: red"> *</span>
+                                    {!! Form::date('dueDate', date('Y-m-d', strtotime('+3 days')), ['class' => 'form-control', 'id' => 'dueDate']) !!}
+                                </div>
+                                <div class="col-md-2 col-lg-2" style="position: relative; top:10px;">
+                                    <button onclick="getCheckedRowData()" class="btn btn-primary">Generate Challan</button>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                    <table class="">
+                        <thead>
+                            <tr>
+                                {{-- <th>Update</th> --}}
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Discount (%)</th> <!-- Updated heading -->
+                                <th>Net Amount</th>
+                                <th><input type="checkbox" id="checkAll"></th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($classfee as $fee)
+                                <tr>
+                                    @php
+                                        $i=0;
+                                        $headNames = ['TUITION FEE', 'ADMISSION FEE', 'SECURITY FEE'];
+                                    @endphp
+                                    @if (!empty($fee->feehead->fee_head) && in_array($fee->feehead->fee_head, $headNames))
+                                        @php
+                                            $i = 1;
+                                        @endphp
+                                    @endif
+                                    <td>
+                                        <label>{{ !empty($fee->feehead->fee_head) ? $fee->feehead->fee_head : '-' }}</label>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="amount" class="form-control amount"
+                                            value="{{ !empty($fee->amount) ? $fee->amount : '0' }}" disabled {{ $i == 1 ? 'disabled' : '' }}>
+                                    </td>
+                                    <td>
+    @php
+        $concessionPolicyHeads = null;
+        $amount = !empty($fee->amount) ? $fee->amount : 0;
+        $discountPercentage = 0;
+        $discountedAmount = 0; // Initialize this variable
+
+        // Check if student has concession
+        if ($concession) {
+            $concessionPolicyHeads = \App\Models\ConcessionPolicyHead::where(
+                'concession_id',
+                $concession->concession_id,
+            )->where('head_id', @$fee->head_id)->first();
+        }
+
+        // Determine discount percentage
+        if ($concessionPolicyHeads && $concessionPolicyHeads->percentage > 0) {
+            // Use concession policy percentage
+            $discountPercentage = $concessionPolicyHeads->percentage;
+        } else {
+            // Use individual fee structure discount
+            $discountPercentage = !empty($fee->discount) ? $fee->discount : 0;
+        }
+
+        // Calculate the discounted amount (final amount after discount)
+        $discountAmount = round(($amount * $discountPercentage) / 100);
+        $discountedAmount = $amount - $discountAmount;
+    @endphp
+
+    @if ($concessionPolicyHeads && $concessionPolicyHeads->percentage > 0)
+        {{-- Policy has discount for this head - use policy percentage and disable input --}}
+        <label for="discount" class="discountLabel" style="color: red;">
+            Discounted Amount : {{ $discountedAmount }}
+        </label>
+        <input type="text" class="form-control discount"
+            value="{{ $concessionPolicyHeads->percentage }}"
+            disabled
+            {{ $i == 1 ? 'disabled' : '' }}
+        >
+    @else
+        {{-- No policy OR policy has 0% for this head - use fee structure discount and enable input --}}
+        <label for="discount" class="discountLabel" style="color: red;">
+            Discounted Amount : {{ $discountedAmount }}
+        </label>
+        <input type="text" class="form-control discount" 
+            value="{{ !empty($fee->discount) ? $fee->discount : '0' }}" 
+            {{ $i == 1 ? 'disabled' : '' }}
+        >
+    @endif
+</td>
+
+                                    <td>
+                                        <input type="number" class="form-control discounted-amount"
+                                            value="{{ round($discountedAmount) }}" disabled {{ $i == 1 ? 'disabled' : '' }}>
+                                    </td>
+
+                                    <td>
+                                        <input type="checkbox" name="checked[]"
+                                            value="{{ !empty($fee->account_id) ? $fee->account_id : '-' }}"
+                                            @if(\Auth::user()->type != 'company')
+                                            {{ $fee->checked_status == 1 ? 'checked' : '' }} {{ $i == 1 ? 'disabled' : '' }}
+                                            @else
+                                           {{ $fee->checked_status == 1 ? 'checked' : '' }} 
+                                        @endif
+                                           >
+
+                                    </td>
+                                    <td style="display: none;">
+                                        <input type="hidden" name="headid"
+                                            value="{{ !empty($fee->feehead->id) ? $fee->feehead->id : '-' }}">
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+
+                    </table>
+
+                    <div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class DiscountCalculator {
+            constructor() {
+                this.discountInputs = document.querySelectorAll('.discount');
+                this.amountInputs = document.querySelectorAll('.amount');
+                this.discountedAmountInputs = document.querySelectorAll('.discounted-amount');
+                this.discountLabel = document.querySelectorAll('.discountLabel');
+                this.initialize();
+            }
+            initialize() {
+                this.discountInputs.forEach((discountInput, index) => {
+                    discountInput.addEventListener('input', () => this.calculateDiscount(index));
+                });
+            }
+            calculateDiscount(index) {
+                this.discountLabel[index].innerHTML = 'Discounted Amount : ' + this.amountInputs[index].value * (this.discountInputs[index].value / 100);
+                let discountPercentage = parseFloat(this.discountInputs[index].value) || 0;
+                if (discountPercentage > 100) {
+                    discountPercentage = 100;
+                    this.discountInputs[index].value = Math.round(discountPercentage);
+                }
+                const amount = parseFloat(this.amountInputs[index].value) || 0;
+                const discount = Math.round( amount * (discountPercentage / 100));
+                const finalAmount = amount - discount;
+                this.discountedAmountInputs[index].value = finalAmount < 0 ? 0 : finalAmount.toFixed(1);
+            }
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            new DiscountCalculator();
+        });
+    </script>
+
+
+@endsection
