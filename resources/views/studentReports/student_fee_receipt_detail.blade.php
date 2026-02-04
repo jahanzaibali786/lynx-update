@@ -7,7 +7,170 @@
     <script src="{{ asset('js/jquery.min.js') }}"></script>
 
     <script>
-        // Branch -> load classes
+        $(document).ready(function() {
+            // Auto-populate dropdowns on page load if parameters exist
+            var branchId = "{{ request()->get('branches') }}";
+            var classId = "{{ request()->get('class') }}";
+            var studentId = "{{ request()->get('student') }}";
+
+            // If branch is selected, load classes
+            if (branchId && branchId !== '') {
+                loadClasses(branchId, classId, studentId);
+            } else if (classId && classId !== '') {
+                // If only class is selected (without branch), load students
+                loadStudents(classId, studentId);
+            }
+        });
+
+        // Function to load classes and then students if needed
+        function loadClasses(branchId, selectedClassId, selectedStudentId) {
+            $.ajax({
+                url: "{{ route('branch.class') }}",
+                type: "POST",
+                data: {
+                    branch_id: branchId,
+                    _token: "{{ csrf_token() }}"
+                },
+                dataType: 'json',
+                success: function(result) {
+                    var $classSelect = $('#class_select');
+
+                    // Remove previous custom select wrapper and instance
+                    if ($classSelect[0] && $classSelect[0].customSelectInstance) {
+                        try { $classSelect[0].customSelectInstance.destroy(); } catch(e) { /* ignored */ }
+                        delete $classSelect[0].customSelectInstance;
+                    }
+                    if ($classSelect.next('.custom-select-wrapper').length) {
+                        $classSelect.next('.custom-select-wrapper').remove();
+                    }
+                    $classSelect.removeClass('custom-select');
+
+                    // Clear and append new options
+                    $classSelect.empty();
+                    $classSelect.append($('<option>', {
+                        value: '',
+                        text: 'Select Class'
+                    }));
+
+                    // Populate classes
+                    if (Array.isArray(result)) {
+                        for (var j = 0; j < result.length; j++) {
+                            var cls = result[j];
+                            $classSelect.append($('<option>', {
+                                value: cls.id,
+                                text: cls.name
+                            }));
+                        }
+                    } else if (result.data && Array.isArray(result.data)) {
+                        for (var j = 0; j < result.data.length; j++) {
+                            var cls = result.data[j];
+                            $classSelect.append($('<option>', {
+                                value: cls.id,
+                                text: cls.name
+                            }));
+                        }
+                    }
+
+                    // Set selected class if exists
+                    if (selectedClassId) {
+                        $classSelect.val(selectedClassId);
+                    }
+
+                    // Re-add class and re-init custom select
+                    $classSelect.addClass('custom-select');
+                    $classSelect.show();
+                    if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
+                        try { window.CustomSelect.create($classSelect[0]); } catch(e) { /* ignored */ }
+                    }
+
+                    // If class was selected, load students
+                    if (selectedClassId) {
+                        loadStudents(selectedClassId, selectedStudentId);
+                    }
+                },
+                error: function(xhr, status, err) {
+                    console.error('branch.class ajax error', err, xhr.responseText);
+                }
+            });
+        }
+
+        // Function to load students
+        function loadStudents(classId, selectedStudentId) {
+            $.ajax({
+                url: "{{ route('class.student_head') }}",
+                type: "POST",
+                data: {
+                    class_id: classId,
+                    _token: "{{ csrf_token() }}"
+                },
+                dataType: 'json',
+                success: function(data) {
+                    var $studentSelect = $('#student_select');
+
+                    // Remove previous custom select wrapper and instance
+                    if ($studentSelect[0] && $studentSelect[0].customSelectInstance) {
+                        try { $studentSelect[0].customSelectInstance.destroy(); } catch(e) {}
+                        delete $studentSelect[0].customSelectInstance;
+                    }
+                    if ($studentSelect.next('.custom-select-wrapper').length) {
+                        $studentSelect.next('.custom-select-wrapper').remove();
+                    }
+                    $studentSelect.removeClass('custom-select');
+
+                    // Clear and append new options
+                    $studentSelect.empty();
+                    $studentSelect.append($('<option>', {
+                        value: '',
+                        text: 'Select Student'
+                    }));
+
+                    // Populate students
+                    if (data && Array.isArray(data.student)) {
+                        for (var j = 0; j < data.student.length; j++) {
+                            var std = data.student[j];
+                            $studentSelect.append($('<option>', {
+                                value: std.roll_no,
+                                text: std.roll_no + ' - ' + std.stdname + (std.fathername ? ' s/d/o ' + std.fathername : '')
+                            }));
+                        }
+                    } else if (data && data.students && Array.isArray(data.students)) {
+                        for (var j = 0; j < data.students.length; j++) {
+                            var std = data.students[j];
+                            $studentSelect.append($('<option>', {
+                                value: std.roll_no || std.id,
+                                text: (std.roll_no ? std.roll_no + ' - ' : '') + std.stdname + (std.fathername ? ' s/d/o ' + std.fathername : '')
+                            }));
+                        }
+                    } else if (data && typeof data === 'object') {
+                        for (var id in data) {
+                            if (data.hasOwnProperty(id)) {
+                                $studentSelect.append($('<option>', {
+                                    value: id,
+                                    text: data[id]
+                                }));
+                            }
+                        }
+                    }
+
+                    // Set selected student if exists
+                    if (selectedStudentId) {
+                        $studentSelect.val(selectedStudentId);
+                    }
+
+                    // Re-init custom select
+                    $studentSelect.addClass('custom-select');
+                    $studentSelect.show();
+                    if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
+                        try { window.CustomSelect.create($studentSelect[0]); } catch(e) {}
+                    }
+                },
+                error: function(xhr, status, err) {
+                    console.error('class.student_head ajax error', err, xhr.responseText);
+                }
+            });
+        }
+
+        // Branch -> load classes (on change event)
         $(document).on('change', '#branch', function() {
             let branch = $(this).val();
             $.ajax({
@@ -82,14 +245,9 @@
             });
         });
 
-        // Class -> load students
+        // Class -> load students (on change event)
         $(document).on('change', '#class_select', function() {
             let classId = $(this).val();
-            // if you want to ignore blank or "all" values, uncomment next lines
-            // if (!classId || classId === 'all') {
-            //     $('#student_select').html('<option value="">Select Student</option>');
-            //     return;
-            // }
 
             $.ajax({
                 url: "{{ route('class.student_head') }}",
@@ -163,20 +321,54 @@
         });
 
         function exportToExcel() {
-            var form = document.getElementById('student_receipt_list');
-            var formData = new FormData(form);
-            formData.append('export', 'excel');
-            var queryString = new URLSearchParams(formData).toString();
-
+            // Get all values using jQuery to handle custom selects
+            var params = {
+                from_date: $('[name="from_date"]').val() || '',
+                to_date: $('[name="to_date"]').val() || '',
+                default_bank: $('#default_bank').val() || '',
+                head: $('[name="head"]').val() || '',
+                voucher: $('[name="voucher"]').val() || '',
+                branches: $('#branch').val() || '',
+                class: $('#class_select').val() || '',
+                student: $('#student_select').val() || '',
+                export: 'excel'
+            };
+            
+            console.log('Export Excel Params:', params);
+            
+            // Build query string from all parameters
+            var queryString = Object.keys(params)
+                .filter(key => params[key] !== '')
+                .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
+                .join('&');
+            
+            console.log('Export Excel Query:', queryString);
             window.location.href = "{{ route('student_fee_receipt_detail.report') }}?" + queryString;
         }
 
         function exceltopdf() {
-            var form = document.getElementById('student_receipt_list');
-            var formData = new FormData(form);
-            formData.append('export', 'pdf');
-            var queryString = new URLSearchParams(formData).toString();
-
+            // Get all values using jQuery to handle custom selects
+            var params = {
+                from_date: $('[name="from_date"]').val() || '',
+                to_date: $('[name="to_date"]').val() || '',
+                default_bank: $('#default_bank').val() || '',
+                head: $('[name="head"]').val() || '',
+                voucher: $('[name="voucher"]').val() || '',
+                branches: $('#branch').val() || '',
+                class: $('#class_select').val() || '',
+                student: $('#student_select').val() || '',
+                export: 'pdf'
+            };
+            
+            console.log('Export PDF Params:', params);
+            
+            // Build query string from all parameters
+            var queryString = Object.keys(params)
+                .filter(key => params[key] !== '')
+                .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
+                .join('&');
+            
+            console.log('Export PDF Query:', queryString);
             window.location.href = "{{ route('student_fee_receipt_detail.report') }}?" + queryString;
         }
     </script>
@@ -229,7 +421,7 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('vouchers', __('Voucher'), ['class' => 'form-label']) }}
-                                    {{ Form::select('voucher', $vouchers, request()->get('voucher'), ['class' => 'form-control select custom-select']) }}
+                                    {{ Form::select('voucher', $voucherOptions, request()->get('voucher'), ['class' => 'form-control select custom-select']) }}
                                 </div>
                             </div>
 
@@ -331,8 +523,10 @@
                     <tbody>
 @php $globalSr = 1; @endphp
 
-@foreach ($vouchers as $branchId => $branchVouchers)
-    @php $branchSr = 1; @endphp
+@foreach ($groupedVouchers as $branchId => $branchVouchers)
+    @php $branchSr = 1; 
+        $branchTotal = 0;
+    @endphp
     <tr style="background-color: #f0f0f0;">
         <td colspan="16" style="font-weight: bold;">
             {{ $branchNames[$branchId] ?? 'Unknown Branch' }}
@@ -347,7 +541,7 @@
                 {{ \Carbon\Carbon::parse($voucher['receipts']->first()->recipt_date)->format('d-M-Y') }}
             </td>
             <td>{{ $voucher['challan']?->challan_type }}</td>
-            <td>{{ $voucher['challan']?->enrollstudent?->id }}</td>
+            <td>{{ $voucher['challan']?->enrollstudent?->enrollId ?? $voucher['challan']?->student?->roll_no }}</td>
             <td>{{ $voucher['challan']?->student?->stdname }}</td>
             <td>{{ $voucher['challan']?->class?->name }}</td>
             <td>{{ $voucher['challan']?->challanNo }}</td>
@@ -368,9 +562,19 @@
                 @endforeach
             </td>
             <td>{{ $voucher['voucher_items']->sum('credit') }}</td>
+            @php
+                $branchTotal += $voucher['voucher_items']->sum('credit');
+            @endphp
             <td>0.0</td>
         </tr>
     @endforeach
+    <tr style="background-color: #f0f0f0;">
+        <td colspan="14" style="font-weight: bold;">
+            Total
+        </td>
+        <td>{{ $branchTotal }}</td>
+        <td>0.0</td>
+    </tr>
 @endforeach
 </tbody>
 

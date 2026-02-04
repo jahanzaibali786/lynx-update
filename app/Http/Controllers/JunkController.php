@@ -7,6 +7,7 @@ use App\Models\StudentEnrollments;
 use App\Models\StudentHistory;
 use App\Models\StudentRegistration;
 use App\Models\Challans;
+use App\Models\Utility;
 use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\ChallanHead;
@@ -140,35 +141,201 @@ class JunkController extends Controller
         // }
         return redirect()->back()->with('success', 'Student Enrollment History Status Updated Successfully');
     }
+//     public function deleteReceipts()
+// {
+//     // Check if already running
+//     $lockKey = 'receipt_deletion_nov_2025_lock';
+    
+//     if (\Cache::has($lockKey)) {
+//         \Log::warning('Deletion already running - blocked duplicate request');
+//         return redirect()->back()->with('error', 'Deletion process is already running. Please wait.');
+//     }
+    
+//     // Set lock for 30 minutes
+//     \Cache::put($lockKey, now(), 1800);
+    
+//     try {
+//         set_time_limit(0);
+//         ini_set('memory_limit', '512M');
+        
+//         \Log::info('==== Receipt Deletion STARTED (Nov 2025) ====');
+        
+//         // Get challans
+//         $challans = \DB::table('challans')
+//             ->where('fee_month', 'like', '2025-11%')
+//             ->where('status', '!=', 'Issued')
+//             ->pluck('id')
+//             ->toArray();
+        
+//         \Log::info('Challans fetched', ['count' => count($challans)]);
+        
+//         if (empty($challans)) {
+//             \Log::info('No challans to process');
+//             \Cache::forget($lockKey);
+//             return redirect()->back()->with('success', 'No receipts found to delete.');
+//         }
+        
+//         $processedCount = 0;
+//         $errorCount = 0;
+        
+//         // Process one challan at a time
+//         foreach ($challans as $challanId) {
+//             try {
+//                 // Use a transaction for each complete challan
+//                 \DB::transaction(function() use ($challanId) {
+                    
+//                     // Get receipts for this challan
+//                     $receipts = \DB::table('student_receipts')
+//                         ->where('challan_id', $challanId)
+//                         ->get();
+                    
+//                     if ($receipts->isEmpty()) {
+//                         return;
+//                     }
+                    
+//                     foreach ($receipts as $receipt) {
+//                         // Delete journal items
+//                         \DB::table('journal_items')
+//                             ->where('journal', $receipt->voucher_id)
+//                             ->delete();
+                        
+//                         // Delete journal entry
+//                         \DB::table('journal_entries')
+//                             ->where('id', $receipt->voucher_id)
+//                             ->delete();
+                        
+//                         // Revert bank balance
+//                         if (!empty($receipt->bank_id)) {
+//                             Utility::bankAccountBalance(
+//                                 $receipt->bank_id,
+//                                 $receipt->recipt_amount,
+//                                 'debit'
+//                             );
+//                         }
+                        
+//                         // Delete receipt
+//                         \DB::table('student_receipts')
+//                             ->where('id', $receipt->id)
+//                             ->delete();
+//                     }
+                    
+//                     // Update challan heads
+//                     \DB::table('challan_heads')
+//                         ->where('challan_id', $challanId)
+//                         ->update(['paid' => 0]);
+                    
+//                     // Update challan
+//                     \DB::table('challans')
+//                         ->where('id', $challanId)
+//                         ->update([
+//                             'paid_amount' => 0,
+//                             'paid_date' => null,
+//                             'status' => 'Issued'
+//                         ]);
+                        
+//                 }, 5); // 5 deadlock retry attempts
+                
+//                 $processedCount++;
+                
+//                 if ($processedCount % 10 == 0) {
+//                     \Log::info('Progress update', [
+//                         'processed' => $processedCount,
+//                         'total' => count($challans)
+//                     ]);
+//                 }
+                
+//             } catch (\Exception $e) {
+//                 $errorCount++;
+//                 \Log::error('Challan processing failed', [
+//                     'challan_id' => $challanId,
+//                     'error' => $e->getMessage()
+//                 ]);
+                
+//                 // Continue with next challan
+//                 continue;
+//             }
+//         }
+        
+//         \Log::info('==== Receipt Deletion COMPLETED ====', [
+//             'total_challans' => count($challans),
+//             'processed' => $processedCount,
+//             'errors' => $errorCount
+//         ]);
+        
+//         \Cache::forget($lockKey);
+        
+//         return redirect()->back()->with('success', 
+//             "Deletion completed. Processed: {$processedCount}, Errors: {$errorCount}"
+//         );
+        
+//     } catch (\Exception $e) {
+//         \Log::error('Fatal error in deletion process', [
+//             'error' => $e->getMessage(),
+//             'trace' => $e->getTraceAsString()
+//         ]);
+        
+//         \Cache::forget($lockKey);
+        
+//         return redirect()->back()->with('error', 'Deletion failed: ' . $e->getMessage());
+//     }
+// }
+
     public function deleteReceipts()
     {
         set_time_limit(0);
-       
-        $receipts = StudentReceipt::where('recipt_date','like', '%2025-12%')->orWhere('recipt_date','like', '%2026-01%')->get();
-        // dd($receipts);
-
-        foreach($receipts as $receipt){
-            $journal = JournalEntry::where('id', $receipt->voucher_id)->delete();
-            $journalItem = JournalItem::where('journal', $receipt->voucher_id)->delete();
-            $challan = Challans::where('id', $receipt->challan_id)->first();
-            // challan heads paid amount
-            $challanheads = ChallanHead::where('challan_id', $challan->id)->get();
-            foreach($challanheads as $head){
-                $head->paid = 0;
-                $head->save();
-            }
-            $challan->paid_amount = $challan->paid_amount - $receipt->recipt_amount;
-            if($challan->paid_amount == 0){
+        $challanNos = [
+            '132747',
+        ];
+        $challans = Challans::whereIn('challanNo', $challanNos)->get();
+        foreach($challans as $challan){
+            $receipts = StudentReceipt::where('challan_id', $challan->id)->get();
+            foreach($receipts as $receipt){
+                $journal = JournalEntry::where('id', $receipt->voucher_id)->delete();
+                $journalItem = JournalItem::where('journal', $receipt->voucher_id)->delete();
+                // challan heads paid amount
+                $challanheads = ChallanHead::where('challan_id', $challan->id)->get();
+                foreach($challanheads as $head){
+                    $head->paid = 0;
+                    $head->save();
+                }
                 $challan->status = 'Issued';
-            }else{
-                $challan->status = 'Partial Paid';
+                $challan->paid_amount = null;
+                $challan->paid_date = null;
+                $challan->save();
+                $receipt->delete();
             }
-            $challan->paid_amount = null;
-            $challan->paid_date = null;
-            $challan->save();
-            $receipt->delete();
-            // dd('Done');
         }
         return redirect()->back()->with('success', 'Student Receipts Deleted Successfully');
     }
+    // public function deleteReceipts()
+    // {
+    //     set_time_limit(0);
+       
+    //     $receipts = StudentReceipt::where('recipt_date','like', '%2025-12%')->orWhere('recipt_date','like', '%2026-01%')->get();
+    //     // dd($receipts);
+
+    //     foreach($receipts as $receipt){
+    //         $journal = JournalEntry::where('id', $receipt->voucher_id)->delete();
+    //         $journalItem = JournalItem::where('journal', $receipt->voucher_id)->delete();
+    //         $challan = Challans::where('id', $receipt->challan_id)->first();
+    //         // challan heads paid amount
+    //         $challanheads = ChallanHead::where('challan_id', $challan->id)->get();
+    //         foreach($challanheads as $head){
+    //             $head->paid = 0;
+    //             $head->save();
+    //         }
+    //         $challan->paid_amount = $challan->paid_amount - $receipt->recipt_amount;
+    //         if($challan->paid_amount == 0){
+    //             $challan->status = 'Issued';
+    //         }else{
+    //             $challan->status = 'Partial Paid';
+    //         }
+    //         $challan->paid_amount = null;
+    //         $challan->paid_date = null;
+    //         $challan->save();
+    //         $receipt->delete();
+    //         // dd('Done');
+    //     }
+    //     return redirect()->back()->with('success', 'Student Receipts Deleted Successfully');
+    // }
 }

@@ -89,7 +89,7 @@
             <div class="form-group">
                 {{ Form::label('concession_type', __('Concession Type'), ['class' => 'form-label']) }}<span
                     style="color: red"> *</span>
-                {{ Form::select('concession_type', ['regular' => 'Regular Concession', 'registration' => 'Registration Concession'], null, ['class' => 'form-control select', 'id' => 'type', 'required' => 'required']) }}
+                {{ Form::select('concession_type', ['regular' => 'Regular Concession', 'registration' => 'Registration Concession'], null, ['class' => 'form-control select', 'id' => 'concession_type', 'required' => 'required']) }}
             </div>
         </div>
         <div class="col-4">
@@ -217,9 +217,9 @@
     });
 </script>
 
-{{-- <script>
+<script>
         function classStudents(id) {
-            var type = $('#type').val();
+            var type = $('#concession_type').val();
             $.ajax({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -270,7 +270,7 @@
                 $('#student_select').empty();
             }
         });
-        $(document).on('change', '#type', function() {
+        $(document).on('change', '#concession_type', function() {
             var classId = $('#class_id').val();
             console.log(classId);
             if (classId) {
@@ -332,4 +332,4 @@
                 detailsDiv.innerHTML = '<p>No details available for this student.</p>';
             }
         }
-    </script> --}}
+    </script>

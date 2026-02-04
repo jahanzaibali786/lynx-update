@@ -102,6 +102,7 @@ class StudentWithdrawalController extends Controller
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
         } else {
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+            $branches->prepend('Select Branch', '');
         }
             $document_no = $this->Documentno();
         return view('students.student_withdrawal.create', compact('branches','document_no'));

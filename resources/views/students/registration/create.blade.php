@@ -78,8 +78,8 @@
                     {{ Form::text('fathercell', null, ['class' => 'form-control', 'id' => 'fathercell', 'placeholder' => '03xxxxxxxxx,03xxxxxxxxx']) }}
                 </div>
                 <div class="col-md-6">
-                    {{ Form::label('fatherphone', __('Phone'), ['class' => 'form-label']) }}
-                    {{ Form::text('fatherphone', null, ['class' => 'form-control', 'id' => 'fatherphone', 'placeholder' => '03xxxxxxxxx']) }}
+                    {{ Form::label('fatherphone', __('Phone / International'), ['class' => 'form-label']) }}
+                    {{ Form::text('fatherphone', null, ['class' => 'form-control', 'id' => 'fatherphone', 'placeholder' => '03xxxxxxxxx,+92xxxxxxxxx']) }}
                 </div>
             </div>
         </div>
@@ -374,8 +374,8 @@
             // Remove all non-digit characters
             var value = this.value.replace(/\D/g, '');
             // Limit the length to 23 digits
-            if (value.length > 11) {
-                value = value.substring(0, 11);
+            if (value.length > 44) {
+                value = value.substring(0, 44);
             }
             this.value = value;
         });

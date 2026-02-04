@@ -5484,7 +5484,7 @@ class Utility extends Model
                 $journalItem->entry_id = @$data['items'][$i]['prod_id'];
                 $journalItem->types = 'Challan';
                 $journalItem->credit = 0;
-                $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']);
+                $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) ;
                 $journalItem->save();
 
                 if ($data['items'][$i]['concession'] > 0) {
@@ -6046,7 +6046,7 @@ public static function brv_entry($data)
                     'user_type' => 'Student',
                     'types' => 'Challan Payment',
                     'branch_id' => $data['branch_id'] ?? null,
-                    'description' => 'Receive of Challan no: '.$data['no'],
+                    'description' => 'Receive of Challan no: '.$data['no'].'- Bank :'.$data['bank_name'],
                     'credit' => ((float)$quantity * (float)$price) - (float)$concession,
                     'debit' => 0
                 ]);
@@ -6070,10 +6070,15 @@ public static function brv_entry($data)
                 'branch_id' => $data['branch_id'] ?? null,
                 'types' => 'Challan Payment',
                 'user_type' => 'Student',
-                'description' => 'Receive of Challan no: '.$data['no'],
+                'description' => 'Receive of Challan no: '.$data['no'].' - Bank :'.$data['bank_name'],
                 'credit' => 0,
                 'debit' => $data['total']
             ]);
+        }
+
+        // Update Bank Balance
+        if (isset($data['bank_id']) && $data['total'] > 0) {
+            self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
         }
 
         return true;
@@ -6140,7 +6145,7 @@ public static function crv_entry($data)
                     'user_type' => $data['user_type'] ?? 'Student',
                     'types' => 'Challan Payment',
                     'branch_id' => $data['branch_id'] ?? null,
-                    'description' => 'Receive of Challan no: '.$data['no'],
+                    'description' => 'Receive of Challan no: '.$data['no'].'- Bank :' . $data['bank_name'],
                     'credit' => ((float)$quantity * (float)$price) - (float)$concession,
                     'debit' => 0
                 ]);
@@ -6163,10 +6168,15 @@ public static function crv_entry($data)
                 'bank_id' => $data['bank_id'],
                 'branch_id' => $data['branch_id'] ?? null,
                 'types' => 'Challan Payment',
-                'description' => 'Receive of Challan no: '.$data['no'],
+                'description' => 'Receive of Challan no: '.$data['no'].'- Bank :' . $data['bank_name'],
                 'credit' => 0,
                 'debit' => $data['total']
             ]);
+        }
+
+        // Update Bank Balance
+        if (isset($data['bank_id']) && $data['total'] > 0) {
+            self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
         }
 
         return true;
@@ -6186,7 +6196,7 @@ public static function crv_entry($data)
         $journal = new JournalEntry;
         $journal->journal_id = $latest;
         $journal->date = $data['date'];
-        $journal->reference = $data['reference'];
+        $journal->reference = @$data['reference'];
         $journal->description = $data['category'].' id : '.@$data['no'];
         $journal->reference_id = $data['id'];
         $journal->category = $data['category'];

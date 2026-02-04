@@ -21,6 +21,8 @@ class JournalItem extends Model
         'branch_id',
         'debit',
         'credit',
+        'created_at',
+        'updated_at',
     ];
 
     public function accounts()

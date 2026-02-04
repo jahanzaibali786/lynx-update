@@ -30,23 +30,38 @@ $(function () {
 <div class="p-4">
     <div class="row mb-3">
         <div class="col-md-3">
-            {{ Form::label('recipt_date', __('Receipt Date'), ['class' => 'form-label']) }}
-            {{ Form::date('recipt_date', null, ['class' => 'form-control', 'required', 'readonly' => 'readonly']) }}
+            {{ Form::label('recipt_date', __('Receipt Date.'), ['class' => 'form-label']) }}
+            {{ Form::date('recipt_date', $recipt->recipt_date, ['class' => 'form-control', 'required' => 'required']) }}
         </div>
         <div class="col-md-3">
             {{ Form::label('challan_id', __('Challan No.'), ['class' => 'form-label']) }}
-            {{ Form::text('challan_id', null, ['class' => 'form-control', 'readonly']) }}
+            {{ Form::text('challan_id', @$recipt->challan->challanNo, ['class' => 'form-control', 'readonly']) }}
         </div>
         <div class="col-md-3">
-            {{ Form::label('recipt_amount', __('Receipt Amount'), ['class' => 'form-label']) }}
+            {{ Form::label('recipt_amount', __('Receipt Amount.'), ['class' => 'form-label']) }}
             {{ Form::number('recipt_amount', $recipt->recipt_amount, ['class' => 'form-control', 'id' => 'recipt_amount', 'required', 'readonly' => 'readonly']) }}
             @error('recipt_amount')
                 <div class="text-danger">{{ $message }}</div>
             @enderror
         </div>
         <div class="col-md-3">
-            {{ Form::label('challan_amount', __('Challan Amt'), ['class' => 'form-label']) }}
-            {{ Form::text('challan_amount', null, ['class' => 'form-control', 'readonly']) }}
+            {{ Form::label('challan_amount', __('Challan Amt.'), ['class' => 'form-label']) }}
+            {{ Form::text('challan_amount', $recipt->challan_amount, ['class' => 'form-control', 'readonly']) }}
+        </div>
+        <div class="col-md-4 mt-2">
+            {{ Form::label('bank_id', __('Bank'), ['class' => 'form-label']) }}
+            {{ Form::select('bank_id', $accounts, $recipt->bank_id, ['class' => 'form-select', 'placeholder' => __('Select Bank'), 'required']) }}
+        </div>
+        @php
+            $options = ['DD', 'OL', 'CHQ', 'CD'];
+        @endphp
+        <div class="col-md-4 mt-2">
+            {{ Form::label('payment_method', __('Payment Method'), ['class' => 'form-label']) }}
+            {{ Form::select('payment_method', array_combine($options, $options), $recipt->receive_type, ['class' => 'form-select', 'placeholder' => __('Select Payment Method'), 'required']) }}
+        </div>
+        <div class="col-md-4 mt-2">
+            {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
+            {{ Form::text('reference', $recipt->referance, ['class' => 'form-control']) }}
         </div>
     </div>
 

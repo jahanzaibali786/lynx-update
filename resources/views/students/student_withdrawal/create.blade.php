@@ -74,118 +74,134 @@
 {{ Form::close() }}
 
 <script>
-    // --- Helpers -------------------------------------------------------------
-    function destroyCustomSelect($el) {
-        if ($el && $el[0] && $el[0].customSelectInstance) {
-            $el[0].customSelectInstance.destroy();
-            delete $el[0].customSelectInstance;
-        }
-        if ($el && $el.next('.custom-select-wrapper').length) {
-            $el.next('.custom-select-wrapper').remove();
-        }
-        $el.removeClass('custom-select');
+/* --------------------------------------------------------------------------
+   Helpers for custom-select plugin
+--------------------------------------------------------------------------- */
+function destroyCustomSelect($el) {
+    if (!$el || !$el.length) return;
+
+    if ($el[0].customSelectInstance) {
+        $el[0].customSelectInstance.destroy();
+        delete $el[0].customSelectInstance;
     }
 
-    // Aggressive removal of any legacy JsSearch wrappers/classes if present
-    function purgeJsSearch($el) {
-        if (!$el || !$el.length) return;
-        $el.removeClass('js-searchBox'); // prevent re-init
-        // common wrappers / artifacts used by JsSearch-like plugins
-        $el.siblings('.searchBoxElement, .searchbox-container, .js-search-wrapper').remove();
-        if ($el.parent().hasClass('searchBoxElement') || $el.parent().hasClass('js-search-wrapper')) {
-            $el.unwrap();
-        }
-        // make sure the original select is visible
-        $el.show();
+    $el.removeClass('custom-select');
+    $el.next('.custom-select-wrapper').remove();
+}
+
+function reInitCustomSelect($el) {
+    if (!$el || !$el.length) return;
+
+    $el.addClass('custom-select').show();
+
+    if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
+        window.CustomSelect.create($el[0]);
     }
+}
 
-    function reinitCustomSelect($el) {
-        $el.addClass('custom-select').show();
-        if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
-            window.CustomSelect.create($el[0]);
-        }
-    }
+/* --------------------------------------------------------------------------
+   On document ready
+--------------------------------------------------------------------------- */
+$(document).ready(function () {
+    // Ensure selects start clean
+    destroyCustomSelect($('#class_from'));
+    destroyCustomSelect($('#class_students'));
 
-    // --- On load: sanitize and kick off branch -> class cascade --------------
-    $(document).ready(function () {
-        // Rebuild student block to ensure no leftover JS-search markup from server-side render
-        $('.std_data').html(`
-            {!! str_replace("\n", "", Form::label('student_id', __('Student'), ['class' => 'form-label'])->toHtml()) !!}<span style="color:red"> *</span>
-            <select id="class_students" name="student_id" class="form-control custom-select" required>
-                <option value="">{{ __('Select Student') }}</option>
-            </select>
-        `);
+    reInitCustomSelect($('#class_from'));
+    reInitCustomSelect($('#class_students'));
+});
 
-        purgeJsSearch($('#class_students'));
-        destroyCustomSelect($('#class_students'));
-        reinitCustomSelect($('#class_students'));
+/* --------------------------------------------------------------------------
+   Branch → Classes
+--------------------------------------------------------------------------- */
+$(document).on('change', '#branch_from', function () {
+    let branchId = $(this).val();
+    let $classSelect = $('#class_from');
+    let $studentSelect = $('#class_students');
 
-        // Trigger branch change to populate classes
-        $('#branch_from').trigger('change');
-    });
+    $.ajax({
+        url: '{{ route('branch.class') }}',
+        type: 'POST',
+        data: {
+            branch_id: branchId,
+            _token: "{{ csrf_token() }}"
+        },
+        dataType: 'json',
+        success: function (data) {
 
-    // --- Branch -> Class -----------------------------------------------------
-    $(document).on('change', '#branch_from', function () {
-        var branch = $(this).val();
+            /* Reset Class select */
+            destroyCustomSelect($classSelect);
+            $classSelect.empty().append(
+                $('<option>', { value: '', text: 'Select Class' })
+            );
 
-        $.ajax({
-            url: '{{ route('branch.class') }}',
-            type: 'POST',
-            data: { branch_id: branch, _token: "{{ csrf_token() }}" },
-            dataType: 'json',
-            success: function (data) {
-                var $classSelect = $('#class_from');
-
-                // clean any plugins
-                purgeJsSearch($classSelect);
-                destroyCustomSelect($classSelect);
-
-                // rebuild options
-                $classSelect.empty().append($('<option>', { value: '', text: "{{ __('Select Class') }}" }));
-                for (var i = 0; i < data.length; i++) {
-                    $classSelect.append($('<option>', { value: data[i].id, text: data[i].name }));
-                }
-
-                reinitCustomSelect($classSelect);
-
-                // reset students select
-                var $studentSelect = $('#class_students');
-                purgeJsSearch($studentSelect);
-                destroyCustomSelect($studentSelect);
-                $studentSelect.empty().append($('<option>', { value: '', text: "{{ __('Select Student') }}" }));
-                reinitCustomSelect($studentSelect);
+            if (Array.isArray(data)) {
+                data.forEach(function (cls) {
+                    $classSelect.append(
+                        $('<option>', {
+                            value: cls.id,
+                            text: cls.name
+                        })
+                    );
+                });
             }
-        });
+
+            reInitCustomSelect($classSelect);
+
+            /* Reset Student select */
+            destroyCustomSelect($studentSelect);
+            $studentSelect.empty().append(
+                $('<option>', { value: '', text: 'Select Student' })
+            );
+            reInitCustomSelect($studentSelect);
+        }
     });
+});
 
-    // --- Class -> Students ---------------------------------------------------
-    $(document).on('change', '#class_from', function () {
-        var class_id = $(this).val();
+/* --------------------------------------------------------------------------
+   Class → Students
+--------------------------------------------------------------------------- */
+$(document).on('change', '#class_from', function () {
+    let classId = $(this).val();
+    let $studentSelect = $('#class_students');
 
-        $.ajax({
-            url: '{{ route('class.student_head') }}',
-            type: 'POST',
-            data: { class_id: class_id, _token: "{{ csrf_token() }}" },
-            dataType: 'json',
-            success: function (data) {
-                var $studentSelect = $('#class_students');
+    if (!classId) {
+        destroyCustomSelect($studentSelect);
+        $studentSelect.empty().append(
+            $('<option>', { value: '', text: 'Select Student' })
+        );
+        reInitCustomSelect($studentSelect);
+        return;
+    }
 
-                purgeJsSearch($studentSelect);
-                destroyCustomSelect($studentSelect);
+    $.ajax({
+        url: '{{ route('class.student_head') }}',
+        type: 'POST',
+        data: {
+            class_id: classId,
+            _token: "{{ csrf_token() }}"
+        },
+        dataType: 'json',
+        success: function (response) {
 
-                $studentSelect.empty()
-                    .append($('<option>', { value: '', text: "{{ __('Select Student') }}" }));
+            destroyCustomSelect($studentSelect);
+            $studentSelect.empty().append(
+                $('<option>', { value: '', text: 'Select Student' })
+            );
 
-                for (var j = 0; j < data.student.length; j++) {
-                    var s = data.student[j];
-                    $studentSelect.append($('<option>', {
-                        value: s.roll_no,
-                        text: s.roll_no + ' - ' + s.stdname + ' s/d/o ' + s.fathername
-                    }));
-                }
-
-                reinitCustomSelect($studentSelect);
+            if (response.student && response.student.length) {
+                response.student.forEach(function (s) {
+                    $studentSelect.append(
+                        $('<option>', {
+                            value: s.id, // ✅ correct value
+                            text: s.roll_no + ' - ' + s.stdname + ' s/d/o ' + s.fathername
+                        })
+                    );
+                });
             }
-        });
+
+            reInitCustomSelect($studentSelect);
+        }
     });
+});
 </script>

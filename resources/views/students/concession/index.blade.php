@@ -556,41 +556,82 @@
                                 @endif
                             </div>
                         </td>
-                        <td>
-                            <div class="action-btn ms-2">
-                                @if (\Auth::user()->type != 'company')
-                                    <a href="{{ route('concession.change_status', [$concession->id, 'For Approval']) }}"
-                                        class="mx-1 btn mx-1 btn-sm btn-outline-warning"
-                                        data-bs-title="{{ __('Send For Approval') }}">
-                                        <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
-                                    </a>
-                                @endif
-                                @if ($concession->status != 'Approved' || $concession->status != 'Canceled' || $concession->status != 'Rejected')
-                                    <a href="#!" data-url="{{ route('concession.edit', $concession->id) }}"
-                                        data-ajax-popup="true"data-size='xl'
-                                        class="mx-1 btn mx-1 btn-sm btn-outline-primary"
-                                        data-bs-title="{{ __('Edit') }}" data-bs-title="{{ __('Edit') }}">
-                                        <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                                    </a>
-                                @endif
-                                @if ($concession->status == 'Approved')
-                                    <form action="{{ route('concession-order', $concession->id) }}" method="POST"
-                                        style="display:inline;">
-                                        @csrf
-                                        <button type="submit" class="mx-1 btn mx-1 btn-sm btn-outline-success"
-                                            data-bs-title="{{ __('Concession Order') }}">
-                                            <span class="btn-inner--icon">Generate</span>
-                                        </button>
-                                    </form>
-                                    <a href="#!" data-url="{{ route('concession.cancel', $concession->id) }}"
-                                        class="mx-1 btn mx-1 btn-sm btn-outline-danger" data-ajax-popup="true"
-                                        data-bs-title="{{ __('Cancel Concession') }}"
-                                        data-bs-title="{{ __('Cancel Concession') }}">
-                                        <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
-                                    </a>
-                                @endif
-                            </div>
-                        </td>
+                        @php
+    $isAdmin   = Auth::user()->type === 'company';
+    $isApproved = $concession->status === 'Approved';
+    $hasOrder  = !empty($concession->concession_id);
+@endphp
+
+<td>
+    <div class="action-btn ms-2">
+
+        {{-- USER --}}
+        @if(!$isAdmin)
+            @if(!$isApproved)
+                <a href="{{ route('concession.change_status', [$concession->id, 'For Approval']) }}"
+                   class="btn btn-sm btn-outline-warning"
+                   title="Send For Approval">
+                    <i class="ti ti-send"></i>
+                </a>
+
+                <a href="#"
+                   data-url="{{ route('concession.edit', $concession->id) }}"
+                   data-ajax-popup="true"
+                   data-size="xl"
+                   class="btn btn-sm btn-outline-primary"
+                   title="Edit">
+                    <i class="ti ti-pencil"></i>
+                </a>
+            @endif
+        @endif
+
+        {{-- ADMIN --}}
+        @if($isAdmin)
+
+            {{-- Edit allowed only BEFORE approval --}}
+            @if(!$isApproved)
+                <a href="#"
+                   data-url="{{ route('concession.edit', $concession->id) }}"
+                   data-ajax-popup="true"
+                   data-size="xl"
+                   class="btn btn-sm btn-outline-primary"
+                   title="Edit">
+                    <i class="ti ti-pencil"></i>
+                </a>
+            @endif
+
+            {{-- Approved but order NOT generated --}}
+            @if($isApproved && !$hasOrder)
+                <form action="{{ route('concession-order', $concession->id) }}"
+                      method="POST"
+                      class="d-inline">
+                    @csrf
+                    <button type="submit"
+                            class="btn btn-sm btn-outline-success"
+                            title="Generate Order">
+                        Generate
+                    </button>
+                </form>
+
+                <a href="#"
+                   data-url="{{ route('concession.cancel', $concession->id) }}"
+                   data-ajax-popup="true"
+                   class="btn btn-sm btn-outline-danger"
+                   title="Cancel">
+                    <i class="ti ti-ban"></i>
+                </a>
+            @endif
+
+            {{-- Approved AND order exists → FULL LOCK --}}
+            @if($isApproved && $hasOrder)
+                <span class="badge bg-success">Order Generated</span>
+            @endif
+
+        @endif
+
+    </div>
+</td>
+
                     </tr>
                 @endforeach
             </tbody>

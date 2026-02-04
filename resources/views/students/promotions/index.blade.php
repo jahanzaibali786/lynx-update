@@ -68,27 +68,6 @@
 
         }
 
-        // updateDropdown();
-        // function updateDropdown() {
-        //     const branch1 = document.getElementById("class_id").value;
-        //     const branch2 = document.getElementById("class_to");
-        //     const options = branch2.options;
-        //     // Enable all options first
-        //     for (let i = 0; i < options.length; i++) {
-        //         options[i].disabled = false;
-        //     }
-
-        //     // Disable the option that matches the value of the first dropdown
-        //     if (branch1) {
-        //         for (let i = 0; i < options.length; i++) {
-        //             if (options[i].value === branch1) {
-        //                 options[i].disabled = true;
-        //                 break;
-        //             }
-        //         }
-        //     }
-        // }
-
         function updateFeeHeads() {
             let feeData = [];
             $('tbody tr').each(function() {
@@ -131,6 +110,7 @@
                 }
             });
         }
+
         // Submit checked student data with filters
         function submitChecked() {
             var form = document.getElementById('concession_submit');
@@ -139,17 +119,20 @@
                 form.reportValidity();
             }
             let studentData = [];
-            let checkedBoxes = $('table input[type="checkbox"]:checked');
+            let checkedBoxes = $('.student-checkbox:checked');
             if (checkedBoxes.length === 0) {
                 alert('Please check entries to promote.');
                 return;
             }
             checkedBoxes.each(function() {
                 let row = $(this).closest('tr');
-                let enrollId = row.find('td').eq(0).text();
+                let studentId = $(this).data('student-id'); // Get actual student ID from data attribute
+                let enrollId = $(this).data('enroll-id'); // Get enrollment ID from data attribute
                 let sectionTo = row.find('select').val();
+                
                 studentData.push({
-                    enrollId: enrollId,
+                    student_id: studentId, // Send actual student ID
+                    enrollId: enrollId, // Also send enrollId if needed
                     section_to: sectionTo
                 });
             });
@@ -176,7 +159,6 @@
                     } else {
                         alert('Error: ' + response.message);
                         show_toastr('error', response.message, 'error');
-                        // window.location.reload();
                     }
                 },
                 error: function(xhr, status, error) {
@@ -189,7 +171,7 @@
         }
 
         function Checked(e) {
-            e.perventDefult;
+            e.preventDefault();
             var form = document.getElementById('concession_submit');
             // Trigger form validation
             if (form.checkValidity()) {
@@ -200,6 +182,22 @@
                 form.reportValidity();
             }
         }
+
+        // Select/Deselect all checkboxes
+        $(document).ready(function() {
+            $('#select-all').on('change', function() {
+                $('.student-checkbox').prop('checked', $(this).prop('checked'));
+            });
+
+            // Update select-all checkbox when individual checkboxes change
+            $('.student-checkbox').on('change', function() {
+                if ($('.student-checkbox:checked').length === $('.student-checkbox').length) {
+                    $('#select-all').prop('checked', true);
+                } else {
+                    $('#select-all').prop('checked', false);
+                }
+            });
+        });
     </script>
 @endpush
 @section('breadcrumb')
@@ -244,7 +242,6 @@
                             <div class="col-auto float-end ms-2 mt-4">
 
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
-
                                      onclick="Checked(event)" title="Search data" data-bs-title="{{ __('apply') }}">
                                     <span class="btn-inner--icon">Search</span>
                                 </a>
@@ -311,7 +308,6 @@
             <div class="">
                 <table class="">
                     <thead class="table_heads">
-
                         <tr>
                             <th>Sr. No</th>
                             <th>Roll No</th>
@@ -320,26 +316,34 @@
                             <th>Class</th>
                             <th>Section</th>
                             <th>Section To</th>
-                            <th><input type="checkbox" name="" id=""></th>
+                            <th><input type="checkbox" name="" id="select-all"></th>
                         </tr>
                     </thead>
-                    @foreach ($students as $student)
-                        <tr>
-                            <td>{{ $loop->iteration }}</td>
-                            <td>{{ @$student->enrollId }}</td>
-                            <td>{{ @$student->StudentRegistration->stdname }}</td>
-                            <td>{{ @$student->StudentRegistration->fathername }}</td>
-                            <td>{{ @$student->class->name }}</td>
-                            <td>{{ @$student->section->name }}</td>
-                            <td> {!! Form::select('section_to', @$section ?? ['' => 'select Section'], null, [
-                                'class' => 'form-control',
-                                'required' => 'required',
-                                'id' => 'section_to',
-                            ]) !!}
-                            </td>
-                            <td><input type="checkbox" name="" id=""></td>
-                        </tr>
-                    @endforeach
+                    <tbody>
+                        @foreach ($students as $student)
+                            <tr>
+                                <td>{{ $loop->iteration }}</td>
+                                <td>{{ @$student->enrollId }}</td>
+                                <td>{{ @$student->StudentRegistration->stdname }}</td>
+                                <td>{{ @$student->StudentRegistration->fathername }}</td>
+                                <td>{{ @$student->class->name }}</td>
+                                <td>{{ @$student->section->name }}</td>
+                                <td> 
+                                    {!! Form::select('section_to', @$section ?? ['' => 'select Section'], null, [
+                                        'class' => 'form-control',
+                                        'required' => 'required',
+                                        'id' => 'section_to',
+                                    ]) !!}
+                                </td>
+                                <td>
+                                    <input type="checkbox" 
+                                           class="student-checkbox" 
+                                           data-student-id="{{ @$student->id }}" 
+                                           data-enroll-id="{{ @$student->enrollId }}">
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
                 </table>
             </div>
         </div>

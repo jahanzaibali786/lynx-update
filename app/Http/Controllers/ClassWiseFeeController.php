@@ -361,6 +361,9 @@ class ClassWiseFeeController extends Controller
     public function student_fee_generate($id)
     {
         $student = StudentRegistration::where('id', $id)->first();
+        if(!$student){
+            return redirect()->back()->with('error', 'Student not found.');
+        }
         $classfee = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->get();
         if (!empty($classfee)) {
             foreach ($classfee as $fee) {

@@ -2920,6 +2920,7 @@ class DataImportController extends Controller
                                 $created_at = date('Y-m-d H:i:s', $timestamp);
                             } catch (\Exception $e) {
                                 $error_reason = 'Invalid date format: '.$all_data[12];
+                                dd($all_data, $error_reason);
                                 $error_counter++;
                                 $error_records[] = [$count, $all_data[2], $all_data[12] ?? 'N/A', $error_reason];
                                 $skipped_records[] = $all_data; // Store the skipped data
@@ -2927,6 +2928,8 @@ class DataImportController extends Controller
 
                                 continue;
                             }
+                        }else{
+                            $created_at = date('Y-m-d H:i:s');
                         }
 
                         $class = Classes::where('name', 'like', '%'.$all_data[4].'%')->where('owned_by', $branch->id)->first();
@@ -3059,6 +3062,7 @@ class DataImportController extends Controller
                                         $enr->session_id = 2;
                                         $enr->owned_by = $branch->id;
                                         $enr->created_at = $created_at;
+                                        $enr->active_status = $all_data[20];
                                         $enr->save();
                                         $reg->roll_no = $all_data[1];
                                         $reg->save();
@@ -3190,6 +3194,7 @@ class DataImportController extends Controller
                                             $enr->session_id = 2;
                                             $enr->owned_by = $branch->id;
                                             $enr->created_at = $created_at;
+                                            $enr->active_status = $all_data[20];
                                             $enr->save();
                                             $reg->roll_no = $all_data[1];
                                             $reg->save();
@@ -3323,6 +3328,7 @@ class DataImportController extends Controller
                                                 $enr->session_id = 2;
                                                 $enr->owned_by = $branch->id;
                                                 $enr->created_at = $created_at;
+                                                $enr->active_status = $all_data[20];
                                                 $enr->save();
                                                 $reg->roll_no = $all_data[1];
                                                 $reg->save();
@@ -3457,6 +3463,7 @@ class DataImportController extends Controller
                                                     $enr->session_id = 2;
                                                     $enr->owned_by = $branch->id;
                                                     $enr->created_at = $created_at;
+                                                    $enr->active_status = $all_data[20];
                                                     $enr->save();
                                                     $reg->roll_no = $all_data[1];
                                                     $reg->save();
@@ -4159,17 +4166,21 @@ class DataImportController extends Controller
                 // index 17 => readamission head amount
                 // index 18 => monthly care head amount
                 // index 19 => AC head amount
-                // index 20 => extra care fee
-                // index 21 => Monthly care head amount
-                // index 22 => stationary head amount
-                // index 23 => study pack amount
-                // index 24 => late fee charges
-                // index 25 => transport charges
-                // index 26 => Arrears
-                // index 27 => Net Receivable
-                // index 28 => Discount
-                // index 29 => Category
-                // index 30 => RegId
+                // index 20 => ac discount %
+                // index 21 => ac final amount
+                // index 22 => extra care fee
+                // index 23 => extra care discount %
+                // index 24 => extra care final amount                
+                // index 25 => Monthly care head amount
+                // index 26 => stationary head amount
+                // index 27 => study pack amount
+                // index 28 => MONTHLY CARE-LATE STAY FEE
+                // index 29 => transport charges
+                // index 30 => Arrears
+                // index 31 => Net Receivable
+                // index 32 => Discount
+                // index 33 => Category
+                // index 34 => RegId
                 while (($all_data = fgetcsv($handle, 7000, ',')) !== false) {
                     if ($count > 0) {
                         if ($all_data[1] == '' || $all_data[3] == '' || $all_data[4] == '' || $all_data[5] == '' || $all_data[6] == '') {
@@ -4182,8 +4193,9 @@ class DataImportController extends Controller
                         $reason = '';
                         $all_data = array_map('trim', $all_data);
                         $branch = User::where('name', 'like', '%'.$all_data[1].'%')->first();
-                        if (! $branch) {
+                        if (!$branch) {
                             $reason = 'Branch not found: '.$all_data[1];
+                            dd($all_data, $count, $branch,$reason);
                             $error_counter++;
                             $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
                             $count++;
@@ -4192,20 +4204,20 @@ class DataImportController extends Controller
                         }
                         // class
                         $class = Classes::where('name', 'like', '%'.$all_data[6].'%')->where('owned_by', $branch->id)->first();
-                        if (! $class) {
+                        if (!$class) {
                             $class = new Classes;
                             $class->name = $all_data[6];
                             $class->owned_by = $branch->id;
                             $class->created_by = auth()->user()->id;
                             $class->save();
                         }
-                        if (! empty($all_data[30])) {
-                            $regclean = preg_replace('/\s*\(.*?\)/', '', $all_data[30]);
+                        if (!empty($all_data[34])) {
+                            $regclean = preg_replace('/\s*\(.*?\)/', '', $all_data[34]);
                             $rollclean = preg_replace('/\s*\(.*?\)/', '', $all_data[4]);
                             $reg = StudentRegistration::where('reg_no', $regclean)->where('roll_no', $rollclean)->first();
-                            if (! $reg) {
+                            if (!$reg) {
                                 // dd('Student not found', $all_data, $count, 'rollno ' . $rollclean, 'regno ' . $regclean);
-                                $reason = 'Student not found against roll no :'.$all_data[4].' and reg no: '.$all_data[30];
+                                $reason = 'Student not found against roll no :'.$all_data[4].' and reg no: '.$all_data[34];
                                 $error_counter++;
                                 $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
                                 $count++;
@@ -4216,7 +4228,7 @@ class DataImportController extends Controller
                             dd('registration number empty', $all_data, $count);
                         }
                         $enr = StudentEnrollments::where('enrollId', $reg->roll_no)->first();
-                        if (! $enr) {
+                        if (!$enr) {
                             dd('enrollment not found', $all_data, $count);
                         }
                         // if (!$enr) {
@@ -4283,14 +4295,14 @@ class DataImportController extends Controller
 
                         if ($challan) {
                             if (strtolower($reg->stdname) != strtolower($all_data[5])) {
-                                $reason = 'Challan already exists for another student with same roll no and reg: '.$all_data[30].' and name: '.$all_data[5];
+                                $reason = 'Challan already exists for another student with same roll no and reg: '.$all_data[34].' and name: '.$all_data[5];
                                 $duplication_counter++;
                                 $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
                                 $count++;
 
                                 continue;
                             } else {
-                                dd('challan exist', $count, $all_data);
+                                // dd('challan exist', $count, $all_data);
                             }
                             $reason = 'Challan already exists for student: '.$reg->id;
                             $duplication_counter++;
@@ -4356,22 +4368,32 @@ class DataImportController extends Controller
                             ['index' => 19, 'type' => 'ac'],
                             ['index' => 15, 'type' => 'security'],
                             ['index' => 16, 'type' => 'security adjustment'],
-                            ['index' => 14, 'type' => 'computer'],            // AC head
-                            ['index' => 17, 'type' => 'readmission'],            // AC head
-                            ['index' => 20, 'type' => 'extra care'],     // Extra care
-                            ['index' => 22, 'type' => 'stationary'],     // Stationary
-                            ['index' => 23, 'type' => 'study pack'],
-                            ['index' => 24, 'type' => 'late fee'],
-                            ['index' => 25, 'type' => 'transport'],
+                            ['index' => 14, 'type' => 'computer'],            
+                            ['index' => 17, 'type' => 'readmission'],            
+                            ['index' => 22, 'type' => 'extra care'],     // Extra care
+                            ['index' => 26, 'type' => 'stationary'],     // Stationary
+                            ['index' => 27, 'type' => 'study pack'],
+                            ['index' => 28, 'type' => 'MONTHLY CARE-LATE STAY FEE'],
+                            ['index' => 29, 'type' => 'transport'],
                         ];
+
+                        // Define which heads should NOT be multiplied for advance challans
+                        $non_recurring_heads = ['admission', 'security', 'security adjustment', 'annual', 'readmission'];
+
                         $total_fees = 0;
                         $item = [];
                         $itemIndex = 0;
-                        $fee_head_mappings = array_filter(array_map(function ($mapping) use ($all_data, &$total_fees) {
+                        $fee_head_mappings = array_filter(array_map(function ($mapping) use ($all_data, &$total_fees, $otherMonthCount, $non_recurring_heads) {
                             $index = $mapping['index'];
 
                             if (isset($all_data[$index]) && is_numeric($all_data[$index]) && $all_data[$index] > 0) {
                                 $amount = $all_data[$index];
+                                
+                                // Multiply by number of months if it's an advance challan AND the head is recurring
+                                if ($otherMonthCount > 1 && !in_array($mapping['type'], $non_recurring_heads)) {
+                                    $amount = $amount * $otherMonthCount;
+                                }
+                                
                                 $mapping['amount'] = $amount;
                                 $total_fees += $amount;
 
@@ -4380,7 +4402,9 @@ class DataImportController extends Controller
 
                             return null;
                         }, $fee_head_mappings));
+
                         $totalReceivedAmnt = 0;
+
                         foreach ($fee_head_mappings as $mapping) {
                             $index = $mapping['index'];
                             $type = $mapping['type'];
@@ -4388,13 +4412,46 @@ class DataImportController extends Controller
                             if ($fee_head) {
                                 $head_amount = $mapping['amount'];
                                 $concession = 0;
+                                
+                                // Tuition discount (existing logic)
                                 if ($type == 'tuition' && isset($all_data[12])) {
-                                    // dd($all_data);
                                     $concession = $all_data[12];
-                                    // $head_amount += $concession;
+                                    // Multiply concession by months for advance challans
+                                    if ($otherMonthCount > 1) {
+                                        $concession = $concession * $otherMonthCount;
+                                    }
                                 }
+                                
+                                // AC head discount (index 19 amount, 20 discount %, 21 final amount)
+                                if ($type == 'ac' && isset($all_data[19]) && isset($all_data[21])) {
+                                    $ac_original = $all_data[19];
+                                    $ac_final = $all_data[21];
+                                    $concession = $ac_original - $ac_final;
+                                    $head_amount = $ac_original;
+                                    
+                                    // Multiply by months for advance challans
+                                    if ($otherMonthCount > 1) {
+                                        $concession = $concession * $otherMonthCount;
+                                        $head_amount = $head_amount * $otherMonthCount;
+                                    }
+                                }
+                                
+                                // Extra care discount (index 22 amount, 23 discount %, 24 final amount)
+                                if ($type == 'extra care' && isset($all_data[22]) && isset($all_data[24])) {
+                                    $extra_care_original = $all_data[22];
+                                    $extra_care_final = $all_data[24];
+                                    $concession = $extra_care_original - $extra_care_final;
+                                    $head_amount = $extra_care_original;
+                                    
+                                    // Multiply by months for advance challans
+                                    if ($otherMonthCount > 1) {
+                                        $concession = $concession * $otherMonthCount;
+                                        $head_amount = $head_amount * $otherMonthCount;
+                                    }
+                                }
+                                
                                 $totalReceivedAmnt += $head_amount;
-                                // dd('out');
+                                
                                 $challan_head = new ChallanHead;
                                 $challan_head->challan_id = $challan->id;
                                 $challan_head->head_id = $fee_head->id;
@@ -4404,6 +4461,7 @@ class DataImportController extends Controller
                                 $challan_head->created_at = date('Y-m-d H:i:s', strtotime($billingMonth));
                                 $challan_head->updated_at = date('Y-m-d H:i:s', strtotime($billingMonth));
                                 $challan_head->save();
+                                
                                 // add discount item as well
                                 $item[$itemIndex]['prod_id'] = $challan_head->id;
                                 $item[$itemIndex]['head'] = $fee_head->id;
@@ -4417,7 +4475,7 @@ class DataImportController extends Controller
                         // if ($count == 176) {
                         //     dd($totalReceivedAmnt, $all_data,$item);
                         // }
-                        // dd($totalReceivedAmnt);
+                        // dd($totalReceivedAmnt,$item);
                         $challan->total_amount = $totalReceivedAmnt;
                         $challan->save();
                         // dd($item, $challan,$enr);
@@ -4426,7 +4484,7 @@ class DataImportController extends Controller
                         $data['date'] = $challan->challan_date;
                         $data['reference'] = $challan->student_id;
                         $data['category'] = 'Regular';
-                        $data['user_id'] = $reg->roll_no;
+                        $data['user_id'] = $reg->id;
                         $data['std_name'] = @$reg->stdname ?? '';
                         $data['branch_name'] = $branch->name;
                         $data['fee_month'] = date('M-y', strtotime($challan->fee_month));
@@ -4439,124 +4497,124 @@ class DataImportController extends Controller
                         $dataret = Utility::jrentry($data);
                         $challan->voucher_id = $dataret;
                         $challan->save();
-                        if ($all_data[29] != 'Discount Policy' || $all_data[29] != '') {
+                        // if ($all_data[29] != 'Discount Policy' || $all_data[29] != '') {
 
-                            $parsedConcessions = [];
+                        //     $parsedConcessions = [];
 
-                            $policyString = $all_data[29]; // Example: '15%T.FEE+15%ADM+50%SECURITY'
+                        //     $policyString = $all_data[29]; // Example: '15%T.FEE+15%ADM+50%SECURITY'
 
-                            $headNameMappings = [
-                                'T.FEE' => 'TUITION',
-                                'TUT' => 'TUITION',
-                                'TUITION' => 'TUITION',
-                                // add more mappings as needed
-                            ];
+                        //     $headNameMappings = [
+                        //         'T.FEE' => 'TUITION',
+                        //         'TUT' => 'TUITION',
+                        //         'TUITION' => 'TUITION',
+                        //         // add more mappings as needed
+                        //     ];
 
-                            $policyParts = explode('+', $policyString);
-                            $extractedHeads = [];
+                        //     $policyParts = explode('+', $policyString);
+                        //     $extractedHeads = [];
 
-                            foreach ($policyParts as $part) {
-                                if (preg_match('/^([\d.]+)%(.+)$/', trim($part), $matches)) {
-                                    $percentage = (float) $matches[1];
-                                    $fullHeadName = trim($matches[2]);
-                                    $headName = preg_replace('/\([^)]+\)/', '', $fullHeadName);
-                                    $headName = trim($headName);
-                                    $cleanHeadName = strtoupper($headName);
+                        //     foreach ($policyParts as $part) {
+                        //         if (preg_match('/^([\d.]+)%(.+)$/', trim($part), $matches)) {
+                        //             $percentage = (float) $matches[1];
+                        //             $fullHeadName = trim($matches[2]);
+                        //             $headName = preg_replace('/\([^)]+\)/', '', $fullHeadName);
+                        //             $headName = trim($headName);
+                        //             $cleanHeadName = strtoupper($headName);
 
-                                    if (array_key_exists($cleanHeadName, $headNameMappings)) {
-                                        $headName = $headNameMappings[$cleanHeadName];
-                                    }
+                        //             if (array_key_exists($cleanHeadName, $headNameMappings)) {
+                        //                 $headName = $headNameMappings[$cleanHeadName];
+                        //             }
 
-                                    $feeHead = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($headName).'%'])->first();
+                        //             $feeHead = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($headName).'%'])->first();
 
-                                    if ($feeHead) {
-                                        $extractedHeads[] = [
-                                            'head_id' => $feeHead->id,
-                                            'percentage' => $percentage,
-                                        ];
-                                    }
-                                }
-                            }
+                        //             if ($feeHead) {
+                        //                 $extractedHeads[] = [
+                        //                     'head_id' => $feeHead->id,
+                        //                     'percentage' => $percentage,
+                        //                 ];
+                        //             }
+                        //         }
+                        //     }
 
-                            $matchingPolicies = ConcessionPolicy::with('policy_head') // Assuming relation to pivot table
-                                ->get()
-                                ->filter(function ($policy) use ($extractedHeads) {
+                        //     $matchingPolicies = ConcessionPolicy::with('policy_head') // Assuming relation to pivot table
+                        //         ->get()
+                        //         ->filter(function ($policy) use ($extractedHeads) {
 
-                                    // Step 2.1: Compare total number of heads
-                                    if (count($policy->policy_head) !== count($extractedHeads)) {
-                                        return false;
-                                    }
+                        //             // Step 2.1: Compare total number of heads
+                        //             if (count($policy->policy_head) != count($extractedHeads)) {
+                        //                 return false;
+                        //             }
 
-                                    foreach ($extractedHeads as $extractedHead) {
-                                        $match = $policy->policy_head->firstWhere('head_id', $extractedHead['head_id']);
+                        //             foreach ($extractedHeads as $extractedHead) {
+                        //                 $match = $policy->policy_head->firstWhere('head_id', $extractedHead['head_id']);
 
-                                        // Head not found or percentage does not match
-                                        if (! $match || $match->percentage != $extractedHead['percentage']) {
-                                            return false;
-                                        }
-                                    }
+                        //                 // Head not found or percentage does not match
+                        //                 if (!$match || $match->percentage != $extractedHead['percentage']) {
+                        //                     return false;
+                        //                 }
+                        //             }
 
-                                    return true; // All heads and percentages matched
-                                });
-                            $a = $matchingPolicies->pluck('id')->toArray();
-                            // dd($a,$extractedHeads,$policyParts,$policyString);
-                            // if no policies found, error throw error
-                            if (count($a) == 0) {
-                                // create new policy
-                                $policy = new ConcessionPolicy;
-                                $policy->order_no = 1;
-                                $policy->title = $all_data[39];
-                                $policy->description = $all_data[39];
-                                $policy->owned_by = \Auth::user()->ownedId();
-                                $policy->created_by = \Auth::user()->creatorId();
-                                $policy->save();
-                                foreach ($extractedHeads as $extractedHead) {
-                                    $policy_head = new ConcessionPolicyHead;
-                                    $policy_head->concession_id = $policy->id;
-                                    $policy_head->head_id = $extractedHead['head_id'];
-                                    $policy_head->percentage = $extractedHead['percentage'];
-                                    $policy_head->save();
-                                }
-                                $a[] = $policy->id;
-                                // $reason = 'Concession Policy not found: ' . $all_data[2];
-                                // $error_counter++;
-                                // $skip_data[] = array_merge([$all_data[0], $all_data[1], $all_data[2], $all_data[39]], ['Status' => $record_status, 'Reason' => $reason]);
-                                // $count++;
-                                // continue;
-                            }
+                        //             return true; // All heads and percentages matched
+                        //         });
+                        //     $a = $matchingPolicies->pluck('id')->toArray();
+                        //     // dd($a,$extractedHeads,$policyParts,$policyString);
+                        //     // if no policies found, error throw error
+                        //     if (count($a) == 0) {
+                        //         // create new policy
+                        //         $policy = new ConcessionPolicy;
+                        //         $policy->order_no = 1;
+                        //         $policy->title = $all_data[39];
+                        //         $policy->description = $all_data[39];
+                        //         $policy->owned_by = \Auth::user()->ownedId();
+                        //         $policy->created_by = \Auth::user()->creatorId();
+                        //         $policy->save();
+                        //         foreach ($extractedHeads as $extractedHead) {
+                        //             $policy_head = new ConcessionPolicyHead;
+                        //             $policy_head->concession_id = $policy->id;
+                        //             $policy_head->head_id = $extractedHead['head_id'];
+                        //             $policy_head->percentage = $extractedHead['percentage'];
+                        //             $policy_head->save();
+                        //         }
+                        //         $a[] = $policy->id;
+                        //         // $reason = 'Concession Policy not found: ' . $all_data[2];
+                        //         // $error_counter++;
+                        //         // $skip_data[] = array_merge([$all_data[0], $all_data[1], $all_data[2], $all_data[39]], ['Status' => $record_status, 'Reason' => $reason]);
+                        //         // $count++;
+                        //         // continue;
+                        //     }
 
-                            // Concession::where('student_id', $reg->id)->update([
-                            //     'end_date' => '2024-01-01', // Update the end date to 2024-01-01
-                            //     'active_status' => '0',
-                            // ]);
-                            $con = Concession::where('student_id', $reg->id)->wherein('concession_id', $a)->first();
-                            // if no concession found, create new concession
-                            if (! $con) {
-                                $con = new Concession;
-                                $con->student_id = $reg->id;
-                                $con->class_id = $reg->class_id;
-                                $con->concession_id = $a[0];
-                                $con->concession_by = 'MOHSIN FIAZ';
-                                $con->apply_date = '2016-01-01';
-                                $con->start_date = '2016-01-01';
-                                $con->end_date = '2024-01-01';
-                                $con->remarks = 'Imported';
-                                $con->status = 'Approved';
-                                $con->owned_by = $reg->owned_by;
-                                $con->created_by = \Auth::user()->creatorId();
-                                $con->save();
-                            }
-                            if (! $con) {
-                                $reason = 'Concession not found: '.$all_data[2];
-                                $error_counter++;
-                                $skip_data[] = array_merge([$all_data[0], $all_data[1], $all_data[2], $all_data[39]], ['Status' => $record_status, 'Reason' => $reason]);
-                                $count++;
-                                // continue;
-                            }
-                            $challan->concession_id = $con->id;
-                            $challan->save();
-                            // dd($con);
-                        }
+                        //     // Concession::where('student_id', $reg->id)->update([
+                        //     //     'end_date' => '2024-01-01', // Update the end date to 2024-01-01
+                        //     //     'active_status' => '0',
+                        //     // ]);
+                        //     $con = Concession::where('student_id', $reg->id)->wherein('concession_id', $a)->first();
+                        //     // if no concession found, create new concession
+                        //     if (!$con) {
+                        //         $con = new Concession;
+                        //         $con->student_id = $reg->id;
+                        //         $con->class_id = $reg->class_id;
+                        //         $con->concession_id = $a[0];
+                        //         $con->concession_by = 'MOHSIN FIAZ';
+                        //         $con->apply_date = '2016-01-01';
+                        //         $con->start_date = '2016-01-01';
+                        //         $con->end_date = '2024-01-01';
+                        //         $con->remarks = 'Imported';
+                        //         $con->status = 'Approved';
+                        //         $con->owned_by = $reg->owned_by;
+                        //         $con->created_by = \Auth::user()->creatorId();
+                        //         $con->save();
+                        //     }
+                        //     if (!$con) {
+                        //         $reason = 'Concession not found: '.$all_data[2];
+                        //         $error_counter++;
+                        //         $skip_data[] = array_merge([$all_data[0], $all_data[1], $all_data[2], $all_data[39]], ['Status' => $record_status, 'Reason' => $reason]);
+                        //         $count++;
+                        //         // continue;
+                        //     }
+                        //     $challan->concession_id = $con->id;
+                        //     $challan->save();
+                        //     // dd($con);
+                        // }
                         $processed_records[] = array_merge($all_data, ['Status' => 'Success', 'Reason' => '']);
                         $success_counter++;
                     } else {
@@ -4569,7 +4627,7 @@ class DataImportController extends Controller
                 }
                 fclose($handle);
                 DB::commit();
-                if (! empty($skip_data)) {
+                if (!empty($skip_data)) {
                     $export_filename = 'regular_challan_import_errors_'.time().'.csv';
                     $error_filepath = public_path('assets/import/csv_file/'.$export_filename);
                     $error_file = fopen($error_filepath, 'w+');
@@ -4586,12 +4644,479 @@ class DataImportController extends Controller
             }
         } catch (\Exception $e) {
             DB::rollBack();
-            dd($e, $count, $all_data);
+            // dd($e, $count, $all_data);
             \Log::error('Regular Challan Import Error: '.$e->getMessage()."\n".$e->getTraceAsString());
 
             return redirect()->back()->with('error', 'An error occurred: '.$e->getMessage());
         }
     }
+    // private function RegularChallanImport($file, $request)
+    // {
+    //     set_time_limit(0);
+    //     $filename = $file->getClientOriginalName();
+    //     $file->move(public_path('assets/import/csv_file/'), $filename);
+    //     $filepath = public_path('assets/import/csv_file/'.$filename);
+    //     $success_counter = 0;
+    //     $error_counter = 0;
+    //     $duplication_counter = 0;
+    //     $skip_data = [];
+    //     $processed_records = [];
+
+    //     DB::beginTransaction();
+    //     try {
+    //         if (($handle = fopen($filepath, 'r')) !== false) {
+    //             $count = 0;
+    //             // index 1 => BRANCH name
+    //             // index 3 => challan no
+    //             // index 4 => roll no
+    //             // index 5 => student name
+    //             // index 6 => class name
+    //             // index 7 => billing month
+    //             // index 8 => class month fee
+    //             // index 9 => admission head amount
+    //             // index 10 => annual head amount
+    //             // index 11 => tuition total amount
+    //             // index 12 => tuition discounted amount
+    //             // index 13 => tuition paid amount
+    //             // index 14 => Computer haed amount
+    //             // index 15 => SECURITY HEAD amount
+    //             // index 16 => Security Adjustemnt
+    //             // index 17 => readamission head amount
+    //             // index 18 => monthly care head amount
+    //             // index 19 => AC head amount
+    //             // index 20 => extra care fee
+    //             // index 21 => Monthly care head amount
+    //             // index 22 => stationary head amount
+    //             // index 23 => study pack amount
+    //             // index 24 => late fee charges
+    //             // index 25 => transport charges
+    //             // index 26 => Arrears
+    //             // index 27 => Net Receivable
+    //             // index 28 => Discount
+    //             // index 29 => Category
+    //             // index 30 => RegId
+    //             while (($all_data = fgetcsv($handle, 7000, ',')) !== false) {
+    //                 if ($count > 0) {
+    //                     if ($all_data[1] == '' || $all_data[3] == '' || $all_data[4] == '' || $all_data[5] == '' || $all_data[6] == '') {
+    //                         continue;
+    //                     }
+    //                     $dates = $all_data[7];
+    //                     $billingMonth = array_values(array_filter(explode(', ', $dates)))[0];
+    //                     $otherMonthCount = count(array_values(array_filter(explode(', ', $dates))));
+    //                     $record_status = 'Error';
+    //                     $reason = '';
+    //                     $all_data = array_map('trim', $all_data);
+    //                     $branch = User::where('name', 'like', '%'.$all_data[1].'%')->first();
+    //                     if (!$branch) {
+    //                         $reason = 'Branch not found: '.$all_data[1];
+    //                         $error_counter++;
+    //                         $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+    //                         $count++;
+
+    //                         continue;
+    //                     }
+    //                     // class
+    //                     $class = Classes::where('name', 'like', '%'.$all_data[6].'%')->where('owned_by', $branch->id)->first();
+    //                     if (!$class) {
+    //                         $class = new Classes;
+    //                         $class->name = $all_data[6];
+    //                         $class->owned_by = $branch->id;
+    //                         $class->created_by = auth()->user()->id;
+    //                         $class->save();
+    //                     }
+    //                     if (!empty($all_data[30])) {
+    //                         $regclean = preg_replace('/\s*\(.*?\)/', '', $all_data[30]);
+    //                         $rollclean = preg_replace('/\s*\(.*?\)/', '', $all_data[4]);
+    //                         $reg = StudentRegistration::where('reg_no', $regclean)->where('roll_no', $rollclean)->first();
+    //                         if (!$reg) {
+    //                             // dd('Student not found', $all_data, $count, 'rollno ' . $rollclean, 'regno ' . $regclean);
+    //                             $reason = 'Student not found against roll no :'.$all_data[4].' and reg no: '.$all_data[30];
+    //                             $error_counter++;
+    //                             $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+    //                             $count++;
+
+    //                             continue;
+    //                         }
+    //                     } else {
+    //                         dd('registration number empty', $all_data, $count);
+    //                     }
+    //                     $enr = StudentEnrollments::where('enrollId', $reg->roll_no)->first();
+    //                     if (!$enr) {
+    //                         dd('enrollment not found', $all_data, $count);
+    //                     }
+    //                     // if (!$enr) {
+    //                     //     $reg = StudentRegistration::where('reg_no', $all_data[30])
+    //                     //         // ->where('stdname', 'like', '%' . $all_data[5] . '%')
+    //                     //         ->first();
+    //                     //     if (!$reg) {
+    //                     //         $reason = 'Registration not found: ' . $all_data[30];
+    //                     //         $error_counter++;
+    //                     //         $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+    //                     //         $count++;
+    //                     //         continue;
+    //                     //     }
+    //                     //     $enr = StudentEnrollments::where('regId', $reg->id)->first();
+    //                     //     if ($enr) {
+    //                     //         $enr->enrollId = $all_data[4];
+    //                     //         $enr->save();
+    //                     //         $reg->roll_no = $all_data[4];
+    //                     //         if ($reg->student_status != 'withdrawl' && $reg->student_status != 'Enrolled') {
+    //                     //             $reg->student_status = 'other';
+    //                     //         }
+    //                     //         $reg->save();
+    //                     //     } else {
+    //                     //         $enr = new StudentEnrollments();
+    //                     //         $enr->adm_date = date('Y-m-d', strtotime($billingMonth));
+    //                     //         $enr->class_id = $reg->class_id;
+    //                     //         $enr->session_id = $reg->session_id;
+    //                     //         $enr->adm_session = $reg->session_id;
+    //                     //         $enr->adm_branch = $branch->id;
+    //                     //         $enr->enrollId = $all_data[4];
+    //                     //         $enr->regId = $reg->id;
+    //                     //         $enr->active_status = 0;
+    //                     //         $enr->owned_by = $branch->id;
+    //                     //         $enr->created_by = \Auth::user()->creatorId();
+    //                     //         $enr->save();
+    //                     //         $reg->roll_no = $all_data[4];
+    //                     //         if ($reg->student_status != 'withdrawl' && $reg->student_status != 'Enrolled') {
+    //                     //             $reg->student_status = 'other';
+    //                     //         }
+    //                     //         $reg->save();
+    //                     //     }
+    //                     // } else {
+    //                     //     $reg = StudentRegistration::where('roll_no', $all_data[4])->first();
+    //                     //     if ($reg) {
+    //                     //         $enr->regId = $reg->id;
+    //                     //         $enr->save();
+    //                     //         $reg->roll_no = $all_data[4];
+    //                     //         $reg->reg_no = $all_data[30];
+    //                     //         if ($reg->student_status != 'withdrawl' && $reg->student_status != 'Enrolled') {
+    //                     //             $reg->student_status = 'other';
+    //                     //         }
+    //                     //         $reg->save();
+    //                     //     }
+    //                     // }
+
+    //                     $timestamp = strtotime($billingMonth);
+    //                     $year = date('Y', $timestamp);
+    //                     $month = date('m', $timestamp);
+    //                     $challan = Challans::where('student_id', $reg->id)
+    //                         ->where('challan_type', 'Regular')
+    //                         ->whereYear('challan_date', $year)
+    //                         ->whereMonth('challan_date', $month)
+    //                         ->exists();
+
+    //                     if ($challan) {
+    //                         if (strtolower($reg->stdname) != strtolower($all_data[5])) {
+    //                             $reason = 'Challan already exists for another student with same roll no and reg: '.$all_data[30].' and name: '.$all_data[5];
+    //                             $duplication_counter++;
+    //                             $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+    //                             $count++;
+
+    //                             continue;
+    //                         } else {
+    //                             dd('challan exist', $count, $all_data);
+    //                         }
+    //                         $reason = 'Challan already exists for student: '.$reg->id;
+    //                         $duplication_counter++;
+    //                         $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+    //                         $count++;
+
+    //                         continue;
+    //                     }
+    //                     if ($otherMonthCount > 1) {
+    //                         $advance = Challans::where('student_id', $reg->id)
+    //                             ->where('challan_type', 'Advance')
+    //                             ->whereYear('challan_date', $year)
+    //                             ->whereMonth('challan_date', $month)
+    //                             ->exists();
+    //                         if ($advance) {
+    //                             // dd('advance exist');
+    //                             $reason = 'Advance challan already exists for student: '.$reg->id;
+    //                             $duplication_counter++;
+    //                             $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+    //                             $count++;
+
+    //                             continue;
+    //                         }
+    //                     }
+    //                     $challan = new Challans;
+    //                     $challan->student_id = $reg->id;
+    //                     $challan->rollno = $reg->roll_no;
+    //                     $challan->class_id = $class->id;
+    //                     $challan->challanNo = $all_data[3];
+    //                     $challan->challan_date = date('Y-m-d', strtotime($billingMonth));
+    //                     $challan->fee_month = date('Y-m-d', strtotime($billingMonth));
+    //                     $challan->challan_type = 'Regular';
+    //                     $challan->concession_amount = $all_data[12];
+    //                     $challan->total_amount = $all_data[27] + $all_data[28];
+    //                     $challan->paid_amount = 0;
+    //                     $challan->issue_date = date('Y-m-d', strtotime($billingMonth));
+    //                     if ($otherMonthCount > 1) {
+    //                         $months = explode(',', $all_data[7]);
+    //                         $formattedMonths = [];
+    //                         foreach ($months as $month) {
+    //                             $timestamp = strtotime('01-'.trim($month));
+    //                             if ($timestamp) {
+    //                                 $formattedMonths[] = date('Y-m-d', $timestamp);
+    //                             }
+    //                         }
+    //                         $challan->other_months = implode(',', $formattedMonths);
+    //                         $challan->challan_type = 'Advance';
+    //                     }
+    //                     $challan->due_date = date('Y-m-d', strtotime($billingMonth.' +7 days'));
+    //                     $challan->status = 'issued';
+    //                     $challan->session_id = $reg->session_id;
+    //                     $challan->owned_by = $branch->id;
+    //                     $challan->created_by = \Auth::user()->creatorId();
+    //                     $challan->save();
+    //                     $challan->created_at = date('Y-m-d H:i:s', strtotime($billingMonth));
+    //                     $challan->updated_at = date('Y-m-d H:i:s', strtotime($billingMonth));
+    //                     $challan->save();
+    //                     // dd($challan, $all_data);
+    //                     $fee_head_mappings = [
+    //                         ['index' => 9, 'type' => 'admission'],        // Admission fee
+    //                         ['index' => 11, 'type' => 'tuition'],         // Tuition fee
+    //                         ['index' => 18, 'type' => 'monthly care'],   // Monthly care
+    //                         ['index' => 19, 'type' => 'ac'],
+    //                         ['index' => 15, 'type' => 'security'],
+    //                         ['index' => 16, 'type' => 'security adjustment'],
+    //                         ['index' => 14, 'type' => 'computer'],            // AC head
+    //                         ['index' => 17, 'type' => 'readmission'],            // AC head
+    //                         ['index' => 20, 'type' => 'extra care'],     // Extra care
+    //                         ['index' => 22, 'type' => 'stationary'],     // Stationary
+    //                         ['index' => 23, 'type' => 'study pack'],
+    //                         ['index' => 24, 'type' => 'late fee'],
+    //                         ['index' => 25, 'type' => 'transport'],
+    //                     ];
+    //                     $total_fees = 0;
+    //                     $item = [];
+    //                     $itemIndex = 0;
+    //                     $fee_head_mappings = array_filter(array_map(function ($mapping) use ($all_data, &$total_fees) {
+    //                         $index = $mapping['index'];
+
+    //                         if (isset($all_data[$index]) && is_numeric($all_data[$index]) && $all_data[$index] > 0) {
+    //                             $amount = $all_data[$index];
+    //                             $mapping['amount'] = $amount;
+    //                             $total_fees += $amount;
+
+    //                             return $mapping;
+    //                         }
+
+    //                         return null;
+    //                     }, $fee_head_mappings));
+    //                     $totalReceivedAmnt = 0;
+    //                     foreach ($fee_head_mappings as $mapping) {
+    //                         $index = $mapping['index'];
+    //                         $type = $mapping['type'];
+    //                         $fee_head = FeeHead::where('fee_head', 'LIKE', '%'.$type.'%')->first();
+    //                         if ($fee_head) {
+    //                             $head_amount = $mapping['amount'];
+    //                             $concession = 0;
+    //                             if ($type == 'tuition' && isset($all_data[12])) {
+    //                                 // dd($all_data);
+    //                                 $concession = $all_data[12];
+    //                                 // $head_amount += $concession;
+    //                             }
+    //                             $totalReceivedAmnt += $head_amount;
+    //                             // dd('out');
+    //                             $challan_head = new ChallanHead;
+    //                             $challan_head->challan_id = $challan->id;
+    //                             $challan_head->head_id = $fee_head->id;
+    //                             $challan_head->price = $head_amount;
+    //                             $challan_head->concession = $concession;
+    //                             $challan_head->save();
+    //                             $challan_head->created_at = date('Y-m-d H:i:s', strtotime($billingMonth));
+    //                             $challan_head->updated_at = date('Y-m-d H:i:s', strtotime($billingMonth));
+    //                             $challan_head->save();
+    //                             // add discount item as well
+    //                             $item[$itemIndex]['prod_id'] = $challan_head->id;
+    //                             $item[$itemIndex]['head'] = $fee_head->id;
+    //                             $item[$itemIndex]['price'] = $head_amount ? $head_amount : 0;
+    //                             $item[$itemIndex]['quantity'] = 1;
+    //                             $item[$itemIndex]['concession'] = $concession;
+    //                             $item[$itemIndex]['total'] = $head_amount;
+    //                             $itemIndex++;
+    //                         }
+    //                     }
+    //                     // if ($count == 176) {
+    //                     //     dd($totalReceivedAmnt, $all_data,$item);
+    //                     // }
+    //                     // dd($totalReceivedAmnt);
+    //                     $challan->total_amount = $totalReceivedAmnt;
+    //                     $challan->save();
+    //                     // dd($item, $challan,$enr);
+    //                     $data['id'] = $challan->id;
+    //                     $data['no'] = $challan->challanNo;
+    //                     $data['date'] = $challan->challan_date;
+    //                     $data['reference'] = $challan->student_id;
+    //                     $data['category'] = 'Regular';
+    //                     $data['user_id'] = $reg->roll_no;
+    //                     $data['std_name'] = @$reg->stdname ?? '';
+    //                     $data['branch_name'] = $branch->name;
+    //                     $data['fee_month'] = date('M-y', strtotime($challan->fee_month));
+    //                     $data['user_type'] = 'Student';
+    //                     $data['owned_by'] = $challan->owned_by;
+    //                     $data['created_by'] = $challan->created_by;
+    //                     $data['created_at'] = date('Y-m-d H:i:s', strtotime($billingMonth));
+    //                     $data['updated_at'] = date('Y-m-d H:i:s', strtotime($billingMonth));
+    //                     $data['items'] = $item;
+    //                     $dataret = Utility::jrentry($data);
+    //                     $challan->voucher_id = $dataret;
+    //                     $challan->save();
+    //                     if ($all_data[29] != 'Discount Policy' || $all_data[29] != '') {
+
+    //                         $parsedConcessions = [];
+
+    //                         $policyString = $all_data[29]; // Example: '15%T.FEE+15%ADM+50%SECURITY'
+
+    //                         $headNameMappings = [
+    //                             'T.FEE' => 'TUITION',
+    //                             'TUT' => 'TUITION',
+    //                             'TUITION' => 'TUITION',
+    //                             // add more mappings as needed
+    //                         ];
+
+    //                         $policyParts = explode('+', $policyString);
+    //                         $extractedHeads = [];
+
+    //                         foreach ($policyParts as $part) {
+    //                             if (preg_match('/^([\d.]+)%(.+)$/', trim($part), $matches)) {
+    //                                 $percentage = (float) $matches[1];
+    //                                 $fullHeadName = trim($matches[2]);
+    //                                 $headName = preg_replace('/\([^)]+\)/', '', $fullHeadName);
+    //                                 $headName = trim($headName);
+    //                                 $cleanHeadName = strtoupper($headName);
+
+    //                                 if (array_key_exists($cleanHeadName, $headNameMappings)) {
+    //                                     $headName = $headNameMappings[$cleanHeadName];
+    //                                 }
+
+    //                                 $feeHead = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($headName).'%'])->first();
+
+    //                                 if ($feeHead) {
+    //                                     $extractedHeads[] = [
+    //                                         'head_id' => $feeHead->id,
+    //                                         'percentage' => $percentage,
+    //                                     ];
+    //                                 }
+    //                             }
+    //                         }
+
+    //                         $matchingPolicies = ConcessionPolicy::with('policy_head') // Assuming relation to pivot table
+    //                             ->get()
+    //                             ->filter(function ($policy) use ($extractedHeads) {
+
+    //                                 // Step 2.1: Compare total number of heads
+    //                                 if (count($policy->policy_head) != count($extractedHeads)) {
+    //                                     return false;
+    //                                 }
+
+    //                                 foreach ($extractedHeads as $extractedHead) {
+    //                                     $match = $policy->policy_head->firstWhere('head_id', $extractedHead['head_id']);
+
+    //                                     // Head not found or percentage does not match
+    //                                     if (!$match || $match->percentage != $extractedHead['percentage']) {
+    //                                         return false;
+    //                                     }
+    //                                 }
+
+    //                                 return true; // All heads and percentages matched
+    //                             });
+    //                         $a = $matchingPolicies->pluck('id')->toArray();
+    //                         // dd($a,$extractedHeads,$policyParts,$policyString);
+    //                         // if no policies found, error throw error
+    //                         if (count($a) == 0) {
+    //                             // create new policy
+    //                             $policy = new ConcessionPolicy;
+    //                             $policy->order_no = 1;
+    //                             $policy->title = $all_data[39];
+    //                             $policy->description = $all_data[39];
+    //                             $policy->owned_by = \Auth::user()->ownedId();
+    //                             $policy->created_by = \Auth::user()->creatorId();
+    //                             $policy->save();
+    //                             foreach ($extractedHeads as $extractedHead) {
+    //                                 $policy_head = new ConcessionPolicyHead;
+    //                                 $policy_head->concession_id = $policy->id;
+    //                                 $policy_head->head_id = $extractedHead['head_id'];
+    //                                 $policy_head->percentage = $extractedHead['percentage'];
+    //                                 $policy_head->save();
+    //                             }
+    //                             $a[] = $policy->id;
+    //                             // $reason = 'Concession Policy not found: ' . $all_data[2];
+    //                             // $error_counter++;
+    //                             // $skip_data[] = array_merge([$all_data[0], $all_data[1], $all_data[2], $all_data[39]], ['Status' => $record_status, 'Reason' => $reason]);
+    //                             // $count++;
+    //                             // continue;
+    //                         }
+
+    //                         // Concession::where('student_id', $reg->id)->update([
+    //                         //     'end_date' => '2024-01-01', // Update the end date to 2024-01-01
+    //                         //     'active_status' => '0',
+    //                         // ]);
+    //                         $con = Concession::where('student_id', $reg->id)->wherein('concession_id', $a)->first();
+    //                         // if no concession found, create new concession
+    //                         if (!$con) {
+    //                             $con = new Concession;
+    //                             $con->student_id = $reg->id;
+    //                             $con->class_id = $reg->class_id;
+    //                             $con->concession_id = $a[0];
+    //                             $con->concession_by = 'MOHSIN FIAZ';
+    //                             $con->apply_date = '2016-01-01';
+    //                             $con->start_date = '2016-01-01';
+    //                             $con->end_date = '2024-01-01';
+    //                             $con->remarks = 'Imported';
+    //                             $con->status = 'Approved';
+    //                             $con->owned_by = $reg->owned_by;
+    //                             $con->created_by = \Auth::user()->creatorId();
+    //                             $con->save();
+    //                         }
+    //                         if (!$con) {
+    //                             $reason = 'Concession not found: '.$all_data[2];
+    //                             $error_counter++;
+    //                             $skip_data[] = array_merge([$all_data[0], $all_data[1], $all_data[2], $all_data[39]], ['Status' => $record_status, 'Reason' => $reason]);
+    //                             $count++;
+    //                             // continue;
+    //                         }
+    //                         $challan->concession_id = $con->id;
+    //                         $challan->save();
+    //                         // dd($con);
+    //                     }
+    //                     $processed_records[] = array_merge($all_data, ['Status' => 'Success', 'Reason' => '']);
+    //                     $success_counter++;
+    //                 } else {
+    //                     $header = $all_data;
+    //                     $header[] = 'Status';
+    //                     $header[] = 'Reason';
+    //                     $processed_records[] = $header;
+    //                 }
+    //                 $count++;
+    //             }
+    //             fclose($handle);
+    //             DB::commit();
+    //             if (!empty($skip_data)) {
+    //                 $export_filename = 'regular_challan_import_errors_'.time().'.csv';
+    //                 $error_filepath = public_path('assets/import/csv_file/'.$export_filename);
+    //                 $error_file = fopen($error_filepath, 'w+');
+    //                 fputcsv($error_file, ['Enrollment ID', 'Registration No', 'Student Name', 'Status', 'Reason']);
+    //                 foreach ($skip_data as $row) {
+    //                     fputcsv($error_file, $row);
+    //                 }
+    //                 fclose($error_file);
+
+    //                 return response()->download($error_filepath)->deleteFileAfterSend(true);
+    //             }
+
+    //             return redirect()->back()->with('message', "{$success_counter} Regular Challan(s) added successfully. {$error_counter} rows skipped due to errors. {$duplication_counter} duplicates found.");
+    //         }
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         dd($e, $count, $all_data);
+    //         \Log::error('Regular Challan Import Error: '.$e->getMessage()."\n".$e->getTraceAsString());
+
+    //         return redirect()->back()->with('error', 'An error occurred: '.$e->getMessage());
+    //     }
+    // }
 
     private function SecurityChallanImport($file, $request)
     {
@@ -4780,11 +5305,11 @@ class DataImportController extends Controller
     //                     }
     //                     $itemIndex = 0;
     //                     $item = [];
-    //                     dd($chaln->heads);
+    //                     // dd($chaln->heads);
     //                     foreach ($chaln->heads as $head) {
     //                         if (($head->price - ($head->concession ?? 0)) == $head->paid) {
     //                             continue;
-    //                         }
+    //                             }
     //                         $dueAmount = $head->price - ($head->concession ?? 0);
     //                         $alreadyPaid = $head->paid ?? 0;
     //                         $remainingDue = $dueAmount - $alreadyPaid;
@@ -4804,7 +5329,7 @@ class DataImportController extends Controller
     //                             break;
     //                         }
     //                         $head->save();
-    //                         // dd($head);
+    //                         // dd($head,'m');
     //                         $item[$itemIndex]['head'] = $head->head_id;
     //                         $item[$itemIndex]['price'] = $head->paid;
     //                         $item[$itemIndex]['quantity'] = 1;
@@ -4935,7 +5460,7 @@ class DataImportController extends Controller
     //                         $data['items'] = $item;
     //                         $data['total'] = $all_data[13];
     //                         // $dataret = Utility::brv_entry($data);
-    //                         dd($data);
+    //                         // dd($data);
     //                         if (ucwords($all_data[2]) == 'CD') {
     //                             $dataret = Utility::crv_entry($data);
     //                         } else {
@@ -5001,372 +5526,937 @@ class DataImportController extends Controller
     //         return redirect()->back()->with('error', 'An error occurred: '.$e->getMessage());
     //     }
     // }
-    private function ReceiptsImport($file, $request)
+private function ReceiptsImport($file, $request)
 {
     set_time_limit(0);
+
     $file = $request->file('excel_file');
     $filename = $file->getClientOriginalName();
     $file->move(public_path('assets/import/csv_file/'), $filename);
-    $filepath = public_path('assets/import/csv_file/'.$filename);
+    $filepath = public_path('assets/import/csv_file/' . $filename);
 
-    // Initialize counters and tracking arrays
     $success_counter = 0;
     $error_counter = 0;
     $duplication_counter = 0;
     $skip_data = [];
     $processed_records = [];
+    $processedCombinations = [];
 
-    DB::beginTransaction();
-    try {
-        if (($handle = fopen($filepath, 'r')) !== false) {
-            $count = 0;
-            $processedCombinations = []; // Track processed challan+date+reference+head combinations
+    if (($handle = fopen($filepath, 'r')) === false) {
+        return redirect()->back()->with('error', 'Unable to open file.');
+    }
 
-            while (($all_data = fgetcsv($handle, 30000, ',')) !== false) {
-                if ($count > 0) {
-                    $record_status = 'Error';
-                    $reason = '';
-                    
-                    // 0 index => branch name
-                    // 1 index => rpt. date
-                    // 2 index => ch type
-                    // 3 index => rollno
-                    // 4 index => student name
-                    // 5 index => class
-                    // 6 index => challan no
-                    // 7 index => biling period
-                    // 8 index => fee subs
-                    // 9 index => bank
-                    // 10 index => D status
-                    // 11 index => T.head (Fee Head Name)
-                    // 12 index => Reference
-                    // 13 index => Amount
-                    // 14 index => Over receipt
-                    
-                    if (empty($all_data[6])) {
-                        $reason = 'Empty Challan No';
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
+    $count = 0;
+
+    while (($all_data = fgetcsv($handle, 30000, ',')) !== false) {
+        
+        // HEADER
+        if ($count == 0) {
+            $header = $all_data;
+            $header[] = 'Status';
+            $header[] = 'Reason';
+            $processed_records[] = $header;
+            $count++;
+            continue;
+        }
+
+        try {
+            DB::transaction(function () use (
+                $all_data,
+                &$processedCombinations,
+                &$success_counter,
+                &$error_counter,
+                &$duplication_counter,
+                &$skip_data,
+                $count
+            ) {
+
+                \Log::info('Processing receipt import row', [
+                    'row' => $count,
+                    'challan_no' => $all_data[6] ?? 'N/A',
+                    'amount' => $all_data[13] ?? 'N/A'
+                ]);
+
+                /* ===============================
+                 * BASIC VALIDATION
+                 * =============================== */
+                if (empty($all_data[6])) {
+                    throw new \Exception('Empty Challan No');
+                }
+
+                $uniqueKey = $all_data[6] . '|' . $all_data[1] . '|' . $all_data[11] . '|' . $all_data[12] . '|' . $all_data[13];
+
+                // if (in_array($uniqueKey, $processedCombinations)) {
+                //     $duplication_counter++;
+                //     throw new \Exception('Duplicate entry in same import');
+                // }
+
+                $processedCombinations[] = $uniqueKey;
+
+                /* ===============================
+                 * CHALLAN
+                 * =============================== */
+                $chaln = Challans::where('challanNo', $all_data[6])->lockForUpdate()->first();
+                if (!$chaln) {
+                    throw new \Exception('Challan Not Exist: ' . $all_data[6]);
+                }
+
+                // Calculate unpaid amount BEFORE late fee calculation
+                $unpaidAmountBeforeLateFee = ($chaln->total_amount ?? 0) - (($chaln->paid_amount ?? 0) + ($chaln->concession_amount ?? 0));
+
+                \Log::info('Challan loaded', [
+                    'challan_no' => $chaln->challanNo,
+                    'total_amount' => $chaln->total_amount,
+                    'paid_amount' => $chaln->paid_amount,
+                    'concession_amount' => $chaln->concession_amount,
+                    'unpaid_before_late_fee' => $unpaidAmountBeforeLateFee,
+                    'status' => $chaln->status
+                ]);
+
+                // Calculate late fee if needed
+                if ($unpaidAmountBeforeLateFee > 0) {
+                    $this->calculateAndUpdateLateFee($chaln, date('Y-m-d', strtotime($all_data[1])));
+                }
+
+                // IMPORTANT: Refresh challan after late fee calculation
+                $chaln->refresh();
+
+                \Log::info('Challan after late fee calculation', [
+                    'challan_no' => $chaln->challanNo,
+                    'total_amount' => $chaln->total_amount,
+                    'paid_amount' => $chaln->paid_amount,
+                    'concession_amount' => $chaln->concession_amount
+                ]);
+
+                /* ===============================
+                 * AMOUNT VALIDATION
+                 * =============================== */
+                $amount = (float)$all_data[13];
+                if ($amount <= 0) {
+                    throw new \Exception('Amount is 0 or negative');
+                }
+
+                /* ===============================
+                 * FEE HEAD
+                 * =============================== */
+                $feeHeadName = trim($all_data[11]);
+                
+                $isLateFee = (trim(strtolower($feeHeadName)) == 'late fee');
+                
+                // Check if this is an OVER RECEIPT fee head
+                $isOverReceipt = (stripos($feeHeadName, 'over receipt') !== false || 
+                                  stripos($feeHeadName, 'overreceipt') !== false);
+                $feeHead = FeeHead::where('fee_head', 'like', '%' . $feeHeadName . '%')->first();
+                if (!$feeHead) {
+                    if(!$isLateFee || !$isOverReceipt){
+                        throw new \Exception('Fee Head Not Found: ' . $feeHeadName);
                     }
+                }
 
-                    // Create unique key for this transaction
-                    $uniqueKey = $all_data[6] . '|' . $all_data[1] . '|' . $all_data[11] . '|' . $all_data[12] . '|' . $all_data[13];
-                    
-                    // Check if we've already processed this exact combination
-                    if (in_array($uniqueKey, $processedCombinations)) {
-                        $reason = 'Duplicate entry - already processed in this import';
-                        $duplication_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => 'Skipped', 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-                    
-                    // Mark this combination as processed
-                    $processedCombinations[] = $uniqueKey;
 
-                    $chaln = Challans::with('heads')->where('challanNo', $all_data[6])->first();
-                    if (!$chaln) {
-                        $reason = 'Challan Not Exist';
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-
-                    $remainingAmount = floatval($all_data[13]);
-                    $challanBeforePaid = $chaln->total_amount - ($chaln->paid_amount + $chaln->concession_amount);
+                /* ===============================
+                 * GET OR CREATE CHALLAN HEAD
+                 * =============================== */
+                // Query DIRECTLY from DB to get the latest state
+                // For OVER RECEIPT: always get the existing head if any (we'll expand it)
+                // For REGULAR heads: get the head with remaining balance first, or any existing one
+                
+                if ($isOverReceipt) {
+                    // For over-receipt, just get any existing head (we'll expand if needed)
+                    $challanHead = ChallanHead::where('challan_id', $chaln->id)
+                        ->where('head_id', $feeHead->id)
+                        ->first();
+                } else {
+                    // For regular heads, prefer one with remaining balance
+                    $challanHead = ChallanHead::where('challan_id', $chaln->id)
+                        ->where('head_id', $feeHead->id)
+                        ->whereRaw('price - (paid + concession) > 0.01')
+                        ->first();
                     
-                    if ($remainingAmount <= 0) {
-                        $reason = 'Amount is 0';
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-                    
-                    // challan already paid.
-                    if (($chaln->paid_amount + $chaln->concession_amount) == $chaln->total_amount) {
-                        $reason = 'Challan Already Paid';
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-
-                    // Find the fee head from the sheet
-                    $feeHeadName = trim($all_data[11]);
-                    $feeHead = FeeHead::where('fee_head', 'like', '%'.$feeHeadName.'%')->first();
-                    
-                    if (!$feeHead) {
-                        $reason = 'Fee Head Not Found: ' . $feeHeadName;
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-
-                    // Find the challan head with this fee head
-                    $challanHead = $chaln->heads->where('head_id', $feeHead->id)->first();
-                    
+                    // If no head with remaining balance, get any existing one
                     if (!$challanHead) {
-                        $reason = 'Fee Head not found in Challan: ' . $feeHeadName;
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
+                        $challanHead = ChallanHead::where('challan_id', $chaln->id)
+                            ->where('head_id', $feeHead->id)
+                            ->first();
                     }
+                }
 
-                    $item = [];
-                    $itemIndex = 0;
-                    $amountToDistribute = $remainingAmount;
+                $isNewHead = false;
 
-                    // Calculate remaining due for this specific head
-                    $dueAmount = $challanHead->price - ($challanHead->concession ?? 0);
-                    $alreadyPaid = $challanHead->paid ?? 0;
-                    $remainingDue = $dueAmount - $alreadyPaid;
+                if (!$challanHead) {
+                    \Log::info('Challan head not found, creating new', [
+                        'challan_no' => $chaln->challanNo,
+                        'fee_head' => $feeHeadName,
+                        'is_late_fee' => $isLateFee,
+                        'is_over_receipt' => $isOverReceipt
+                    ]);
 
-                    if ($remainingDue <= 0) {
-                        $reason = 'Fee Head Already Paid: ' . $feeHeadName;
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
+                    $isNewHead = true;
 
-                    // Apply payment to the specific head
-                    if ($amountToDistribute >= $remainingDue) {
-                        // Full payment for this head
-                        $challanHead->paid += $remainingDue;
-                        $chaln->paid_amount += $remainingDue;
-                        
-                        $item[$itemIndex]['head'] = $challanHead->head_id;
-                        $item[$itemIndex]['price'] = $remainingDue;
-                        $item[$itemIndex]['quantity'] = 1;
-                        $item[$itemIndex]['concession'] = 0;
-                        $item[$itemIndex]['total'] = $remainingDue;
-                        $itemIndex++;
-                        
-                        $amountToDistribute -= $remainingDue;
-                        $challanHead->save();
-                    } else {
-                        // Partial payment for this head
-                        $challanHead->paid += $amountToDistribute;
-                        $chaln->paid_amount += $amountToDistribute;
-                        
-                        $item[$itemIndex]['head'] = $challanHead->head_id;
-                        $item[$itemIndex]['price'] = $amountToDistribute;
-                        $item[$itemIndex]['quantity'] = 1;
-                        $item[$itemIndex]['concession'] = 0;
-                        $item[$itemIndex]['total'] = $amountToDistribute;
-                        $itemIndex++;
-                        
-                        $amountToDistribute = 0;
-                        $challanHead->save();
-                    }
-
-                    // Handle remaining amount as late fee
-                    if ($amountToDistribute > 0) {
-                        // Check if late fee exceeds 1200
-                        if ($amountToDistribute > 1200) {
-                            DB::rollBack();
-                            $reason = 'Late Fee exceeds 1200 limit. Late Fee Amount: ' . $amountToDistribute;
-                            $error_counter++;
-                            $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                            $count++;
-                            continue;
-                        }
-
+                    if ($isLateFee) {
+                        // Creating late fee head
+                        $remainingAmount = $amount;
                         $latefeeHead = FeeHead::where('fee_head', 'like', '%Late Fee%')->first();
                         
-                        if (!$latefeeHead) {
-                            $reason = 'Late Fee Head Not Found in System';
-                            $error_counter++;
-                            $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                            $count++;
-                            continue;
-                        }
-
                         $latehead = new ChallanHead;
                         $latehead->challan_id = $chaln->id;
                         $latehead->head_id = $latefeeHead->id;
-                        $latehead->price = $amountToDistribute;
+                        $latehead->price = $remainingAmount;
                         $latehead->concession = 0;
-                        $latehead->paid = $amountToDistribute;
+                        $latehead->paid = 0;
                         $latehead->save();
-
-                        $chaln->total_amount += $amountToDistribute;
-                        $chaln->paid_amount += $amountToDistribute;
+                        
+                        $chaln->total_amount = ($chaln->total_amount ?? 0) + $remainingAmount;
                         $chaln->save();
-
-                        // Add late fee to items
-                        $item[$itemIndex]['head'] = $latehead->head_id;
-                        $item[$itemIndex]['price'] = $amountToDistribute;
-                        $item[$itemIndex]['quantity'] = 1;
-                        $item[$itemIndex]['concession'] = 0;
-                        $item[$itemIndex]['total'] = $amountToDistribute;
-                        $itemIndex++;
-
-                        // Create journal entries for late fee
-                        if ($chaln->voucher_id) {
+                        
+                        if ($latehead) {
                             $feeHeads = FeeHead::where('id', $latefeeHead->id)->first();
                             
-                            // Income Account Entry
-                            $journalItem = new JournalItem;
-                            $journalItem->journal = $chaln->voucher_id;
-                            $journalItem->account = $feeHeads->account_id;
-                            $journalItem->head = $latefeeHead->id;
-                            $journalItem->entry_id = $latehead->id;
-                            $journalItem->description = 'Income Account: Roll no '.$all_data[3].' Challan no '.$all_data[6].' - '.$all_data[4].' - '.date('M-y', strtotime($all_data[7])).' - '.$all_data[0];
-                            $journalItem->types = 'Challan';
-                            $journalItem->user_id = $chaln->student_id;
-                            $journalItem->user_type = 'Student';
-                            $journalItem->credit = $amountToDistribute;
-                            $journalItem->debit = 0;
-                            $journalItem->save();
-                            $journalItem->created_at = $chaln->created_at;
-                            $journalItem->updated_at = $chaln->updated_at;
-                            $journalItem->save();
+                            // Check for existing income journal entry for this challan head
+                            $incomeJournal = JournalItem::where('journal', $chaln->voucher_id)
+                                ->where('account', $feeHeads->account_id)
+                                ->where('head', $latefeeHead->id)
+                                ->where('entry_id', $latehead->id)
+                                ->where('types', 'Challan')
+                                ->where('debit', 0)
+                                ->first();
                             
-                            // Receivable Entry
-                            $journalItem = new JournalItem;
-                            $journalItem->journal = $chaln->voucher_id;
-                            $journalItem->account = $feeHeads->receivable_account_id;
-                            $journalItem->head = $latefeeHead->id;
-                            $journalItem->description = 'Account Receivable: Roll no '.$all_data[3].' Challan no '.$all_data[6].' - '.$all_data[4].' - '.date('M-y', strtotime($all_data[7])).' - '.$all_data[0];
-                            $journalItem->entry_id = $latehead->id;
-                            $journalItem->types = 'Challan';
-                            $journalItem->user_id = $chaln->student_id;
-                            $journalItem->user_type = 'Student';
-                            $journalItem->credit = 0;
-                            $journalItem->debit = $amountToDistribute;
-                            $journalItem->save();
-                            $journalItem->created_at = $chaln->created_at;
-                            $journalItem->updated_at = $chaln->updated_at;
-                            $journalItem->save();
+                            if ($incomeJournal) {
+                                // Update existing income entry
+                                $incomeJournal->credit = ($incomeJournal->credit ?? 0) + $remainingAmount;
+                                $incomeJournal->save();
+                                \Log::info('Updated existing late fee income journal entry', [
+                                    'journal_id' => $incomeJournal->id,
+                                    'new_credit' => $incomeJournal->credit
+                                ]);
+                            } else {
+                                // Create new income entry
+                                $journalItem = new JournalItem;
+                                $journalItem->journal = @$chaln->voucher_id;
+                                $journalItem->account = @$feeHeads->account_id;
+                                $journalItem->head = @$latefeeHead->id;
+                                $journalItem->entry_id = @$latehead->id;
+                                $journalItem->description = 'Income Account: Roll no ' . $all_data[3] . ' Challan no ' . $all_data[6] . ' - ' . @$all_data[4] . ' - ' . @$all_data[7] . ' - ' . @$all_data[0];
+                                $journalItem->types = 'Challan';
+                                $journalItem->user_id = $chaln->student_id;
+                                $journalItem->user_type = 'Student';
+                                $journalItem->credit = $remainingAmount;
+                                $journalItem->debit = 0;
+                                $journalItem->save();
+                                $journalItem->created_at = @$chaln->created_at;
+                                $journalItem->updated_at = @$chaln->updated_at;
+                                $journalItem->save();
+                            }
+                            
+                            // Check for existing receivable journal entry for this challan head
+                            $receivableJournal = JournalItem::where('journal', $chaln->voucher_id)
+                                ->where('account', $feeHeads->receivable_account_id)
+                                ->where('head', $latefeeHead->id)
+                                ->where('entry_id', $latehead->id)
+                                ->where('types', 'Challan')
+                                ->where('credit', 0)
+                                ->first();
+                            
+                            if ($receivableJournal) {
+                                // Update existing receivable entry
+                                $receivableJournal->debit = ($receivableJournal->debit ?? 0) + $remainingAmount;
+                                $receivableJournal->save();
+                                \Log::info('Updated existing late fee receivable journal entry', [
+                                    'journal_id' => $receivableJournal->id,
+                                    'new_debit' => $receivableJournal->debit
+                                ]);
+                            } else {
+                                // Create new receivable entry
+                                $journalItem = new JournalItem;
+                                $journalItem->journal = @$chaln->voucher_id;
+                                $journalItem->account = @$feeHeads->receivable_account_id;
+                                $journalItem->head = @$latefeeHead->id;
+                                $journalItem->description = 'Account Receivable: Roll no ' . $all_data[3] . ' Challan no ' . $all_data[6] . ' - ' . @$all_data[4] . ' - ' . @$all_data[7] . ' - ' . @$all_data[0];
+                                $journalItem->entry_id = @$latehead->id;
+                                $journalItem->types = 'Challan';
+                                $journalItem->user_id = $chaln->student_id;
+                                $journalItem->user_type = 'Student';
+                                $journalItem->credit = 0;
+                                $journalItem->debit = $remainingAmount;
+                                $journalItem->save();
+                                $journalItem->created_at = @$chaln->created_at;
+                                $journalItem->updated_at = @$chaln->updated_at;
+                                $journalItem->save();
+                            }
                         }
-                    }
-
-                    // Bank account lookup
-                    $clean_title = trim(preg_replace('/\s*\(.*?\)/', '', $all_data[9]), " \t\n\r\0\x0B-");
-                    $normalizedInput = ltrim($clean_title, '0');
-                    $bankAccount = BankAccount::whereRaw("TRIM(LEADING '0' FROM account_number) = ?", [$normalizedInput])->first();
-
-                    if (!$bankAccount) {
-                        $reason = 'Bank Account Not Found: ' . $all_data[9];
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-
-                    // Create receipt
-                    $recipts = new StudentReceipt;
-                    $recipts->recipt_date = date('Y-m-d', strtotime($all_data[1]));
-                    $recipts->challan_id = $chaln->id;
-                    $recipts->recipt_amount = $all_data[13];
-                    $recipts->student_id = $chaln->student_id;
-                    $recipts->challan_amount = $challanBeforePaid;
-                    $recipts->late_amount = 0;
-                    $recipts->arrears = 0;
-                    $recipts->bank_id = $bankAccount->id;
-                    $recipts->account_id = $bankAccount->chart_account_id;
-                    $recipts->referance = $all_data[12];
-                    $recipts->receive_type = $all_data[2];
-                    $recipts->received_by = $chaln->owned_by;
-                    $recipts->owned_by = $chaln->owned_by;
-                    $recipts->created_by = \Auth::user()->creatorId();
-                    $recipts->save();
-                    $recipts->created_at = date('Y-m-d H:i:s', strtotime($all_data[1]));
-                    $recipts->updated_at = date('Y-m-d H:i:s', strtotime($all_data[1]));
-                    $recipts->save();
-
-                    if ($recipts) {
-                        // Update challan status
-                        if (($chaln->paid_amount + $chaln->concession_amount) >= $chaln->total_amount) {
-                            $chaln->status = 'paid';
-                        } else {
-                            $chaln->status = 'partial';
-                        }
-                        $chaln->paid_date = date('Y-m-d', strtotime($all_data[1]));
+                        
+                        $challanHead = $latehead;
+                    } else {
+                        // Creating regular fee head (including over-receipt if first time)
+                        $challan_head = new ChallanHead;
+                        $challan_head->challan_id = $chaln->id;
+                        $challan_head->head_id = $feeHead->id;
+                        $challan_head->price = $amount;
+                        $challan_head->concession = 0;
+                        $challan_head->paid = 0;
+                        $challan_head->save();
+                        
+                        $challanHead = $challan_head;
+                        $chaln->total_amount = ($chaln->total_amount ?? 0) + $amount;
                         $chaln->save();
-
-                        // Prepare data for voucher entry
-                        $data['id'] = $chaln->id;
-                        $data['no'] = $chaln->challanNo;
-                        $data['prod_id'] = $recipts->id;
-                        $data['bank_id'] = $bankAccount->id;
-                        $data['branch_id'] = $chaln->owned_by;
-                        $data['date'] = $chaln->paid_date;
-                        $data['reference'] = $all_data[12];
-                        $data['description'] = $chaln->description;
-                        $data['user_id'] = $chaln->student_id;
-                        $data['user_type'] = 'Student';
-                        $data['amount'] = $all_data[13];
-                        $data['category'] = $chaln->challan_type;
-                        $data['owned_by'] = $chaln->owned_by;
-                        $data['branch_name'] = @$chaln->student->branch->name ?? 'N/A';
-                        $data['std_name'] = $all_data[4];
-                        $data['fee_month'] = date('M-y', strtotime($all_data[7]));
-                        $data['recipt'] = $recipts->id;
-                        $data['bank_name'] = $bankAccount->bank_name;
-                        $data['created_by'] = \Auth::user()->creatorId();
-                        $data['account_id'] = $bankAccount->chart_account_id;
-                        $data['items'] = $item;
-                        $data['total'] = $all_data[13];
-
-                        // Create voucher entry based on receipt type
-                        if (ucwords($all_data[2]) == 'CD') {
-                            $dataret = Utility::crv_entry($data);
-                        } else {
-                            $dataret = Utility::brv_entry($data);
+                        
+                        // Journal entry
+                        if ($challan_head) {
+                            $feeHeads = FeeHead::where('id', $feeHead->id)->first();
+                            
+                            // Check for existing income journal entry
+                            $incomeJournal = JournalItem::where('journal', $chaln->voucher_id)
+                                ->where('account', $feeHeads->account_id)
+                                ->where('head', $feeHead->id)
+                                ->where('entry_id', $challan_head->id)
+                                ->where('types', 'Challan')
+                                ->where('debit', 0)
+                                ->first();
+                            
+                            if ($incomeJournal) {
+                                // Update existing income entry
+                                $incomeJournal->credit = ($incomeJournal->credit ?? 0) + $amount;
+                                $incomeJournal->save();
+                                \Log::info('Updated existing income journal entry', [
+                                    'journal_id' => $incomeJournal->id,
+                                    'new_credit' => $incomeJournal->credit
+                                ]);
+                            } else {
+                                // Create new income entry
+                                $journalItem = new JournalItem;
+                                $journalItem->journal = @$chaln->voucher_id;
+                                $journalItem->account = @$feeHeads->account_id;
+                                $journalItem->head = @$feeHead->id;
+                                $journalItem->entry_id = @$challan_head->id;
+                                $journalItem->description = 'Income Account: Roll no ' . $all_data[3] . ' Challan no ' . $all_data[6] . ' - ' . @$all_data[4] . ' - ' . @$all_data[7] . ' - ' . @$all_data[0];
+                                $journalItem->types = 'Challan';
+                                $journalItem->user_id = $chaln->student_id;
+                                $journalItem->user_type = 'Student';
+                                $journalItem->credit = $amount;
+                                $journalItem->debit = 0;
+                                $journalItem->save();
+                                $journalItem->created_at = @$chaln->created_at;
+                                $journalItem->updated_at = @$chaln->updated_at;
+                                $journalItem->save();
+                            }
+                            
+                            // Check for existing receivable journal entry
+                            $receivableJournal = JournalItem::where('journal', $chaln->voucher_id)
+                                ->where('account', $feeHeads->receivable_account_id)
+                                ->where('head', $feeHead->id)
+                                ->where('entry_id', $challan_head->id)
+                                ->where('types', 'Challan')
+                                ->where('credit', 0)
+                                ->first();
+                            
+                            if ($receivableJournal) {
+                                // Update existing receivable entry
+                                $receivableJournal->debit = ($receivableJournal->debit ?? 0) + $amount;
+                                $receivableJournal->save();
+                                \Log::info('Updated existing receivable journal entry', [
+                                    'journal_id' => $receivableJournal->id,
+                                    'new_debit' => $receivableJournal->debit
+                                ]);
+                            } else {
+                                // Create new receivable entry
+                                $journalItem = new JournalItem;
+                                $journalItem->journal = @$chaln->voucher_id;
+                                $journalItem->account = @$feeHeads->receivable_account_id;
+                                $journalItem->head = @$feeHead->id;
+                                $journalItem->entry_id = @$challan_head->id;
+                                $journalItem->description = 'Account Receivable: Roll no ' . $all_data[3] . ' Challan no ' . $all_data[6] . ' - ' . @$all_data[4] . ' - ' . @$all_data[7] . ' - ' . @$all_data[0];
+                                $journalItem->types = 'Challan';
+                                $journalItem->user_id = $chaln->student_id;
+                                $journalItem->user_type = 'Student';
+                                $journalItem->credit = 0;
+                                $journalItem->debit = $amount;
+                                $journalItem->save();
+                                $journalItem->created_at = @$chaln->created_at;
+                                $journalItem->updated_at = @$chaln->updated_at;
+                                $journalItem->save();
+                            }
                         }
                     }
 
+                    // Reload challan after creating new head
+                    $chaln->refresh();
+                }
+
+                /* ===============================
+                 * CHECK FEE HEAD PAYMENT STATUS
+                 * =============================== */
+                $headPrice = $challanHead->price ?? 0;
+                $headPaid = $challanHead->paid ?? 0;
+                $headConcession = $challanHead->concession ?? 0;
+                $remainingDue = $headPrice - ($headPaid + $headConcession);
+
+                \Log::info('Fee head payment status', [
+                    'challan_no' => $chaln->challanNo,
+                    'fee_head' => $feeHeadName,
+                    'price' => $headPrice,
+                    'paid' => $headPaid,
+                    'concession' => $headConcession,
+                    'remaining_due' => $remainingDue,
+                    'is_over_receipt' => $isOverReceipt,
+                    'is_new_head' => $isNewHead
+                ]);
+
+                /* ===============================
+                 * HANDLE OVER-RECEIPT EXPANSION
+                 * =============================== */
+                // ONLY expand for OVER RECEIPT heads when they need more capacity
+                // Regular heads (Tuition, etc.) should NEVER be expanded
+                
+                $expansionAmount = 0;
+                
+                if ($isOverReceipt && !$isNewHead && $remainingDue < 0.01) {
+                    // OVER RECEIPT head is already fully paid - expand by the full new amount
+                    $expansionAmount = $amount;
+                    
+                    \Log::info('OVER RECEIPT head fully paid, expanding by new amount', [
+                        'challan_no' => $chaln->challanNo,
+                        'fee_head' => $feeHeadName,
+                        'current_price' => $headPrice,
+                        'current_paid' => $headPaid,
+                        'new_amount' => $amount,
+                        'expansion_amount' => $expansionAmount
+                    ]);
+
+                    // Increase head price
+                    $challanHead->price = ($challanHead->price ?? 0) + $expansionAmount;
+                    $challanHead->save();
+
+                    // Increase challan total to match
+                    $chaln->total_amount = ($chaln->total_amount ?? 0) + $expansionAmount;
                     $chaln->save();
 
-                    // Add to successful records
-                    $processed_records[] = array_merge($all_data, ['Status' => 'Success', 'Reason' => '']);
-                    $success_counter++;
+                    // Update or create journal entries for the expansion
+                    $feeHeads = FeeHead::where('id', $feeHead->id)->first();
+
+                    // Check for existing income journal entry
+                    $incomeJournal = JournalItem::where('journal', $chaln->voucher_id)
+                        ->where('account', $feeHeads->account_id)
+                        ->where('head', $feeHead->id)
+                        ->where('entry_id', $challanHead->id)
+                        ->where('types', 'Challan')
+                        ->where('debit', 0)
+                        ->first();
+                    
+                    if ($incomeJournal) {
+                        // Update existing income entry
+                        $incomeJournal->credit = ($incomeJournal->credit ?? 0) + $expansionAmount;
+                        $incomeJournal->save();
+                        \Log::info('Updated existing over-receipt income journal entry', [
+                            'journal_id' => $incomeJournal->id,
+                            'new_credit' => $incomeJournal->credit
+                        ]);
+                    } else {
+                        // Create new income entry for expansion
+                        $journalItem = new JournalItem;
+                        $journalItem->journal = @$chaln->voucher_id;
+                        $journalItem->account = @$feeHeads->account_id;
+                        $journalItem->head = @$feeHead->id;
+                        $journalItem->entry_id = @$challanHead->id;
+                        $journalItem->description = 'Income Account (Over-receipt Expansion): Roll no ' . $all_data[3] . ' Challan no ' . $all_data[6] . ' - ' . @$all_data[4] . ' - ' . @$all_data[7] . ' - ' . @$all_data[0];
+                        $journalItem->types = 'Challan';
+                        $journalItem->user_id = $chaln->student_id;
+                        $journalItem->user_type = 'Student';
+                        $journalItem->credit = $expansionAmount;
+                        $journalItem->debit = 0;
+                        $journalItem->save();
+                        $journalItem->created_at = @$chaln->created_at;
+                        $journalItem->updated_at = @$chaln->updated_at;
+                        $journalItem->save();
+                    }
+
+                    // Check for existing receivable journal entry
+                    $receivableJournal = JournalItem::where('journal', $chaln->voucher_id)
+                        ->where('account', $feeHeads->receivable_account_id)
+                        ->where('head', $feeHead->id)
+                        ->where('entry_id', $challanHead->id)
+                        ->where('types', 'Challan')
+                        ->where('credit', 0)
+                        ->first();
+                    
+                    if ($receivableJournal) {
+                        // Update existing receivable entry
+                        $receivableJournal->debit = ($receivableJournal->debit ?? 0) + $expansionAmount;
+                        $receivableJournal->save();
+                        \Log::info('Updated existing over-receipt receivable journal entry', [
+                            'journal_id' => $receivableJournal->id,
+                            'new_debit' => $receivableJournal->debit
+                        ]);
+                    } else {
+                        // Create new receivable entry for expansion
+                        $journalItem = new JournalItem;
+                        $journalItem->journal = @$chaln->voucher_id;
+                        $journalItem->account = @$feeHeads->receivable_account_id;
+                        $journalItem->head = @$feeHead->id;
+                        $journalItem->entry_id = @$challanHead->id;
+                        $journalItem->description = 'Account Receivable (Over-receipt Expansion): Roll no ' . $all_data[3] . ' Challan no ' . $all_data[6] . ' - ' . @$all_data[4] . ' - ' . @$all_data[7] . ' - ' . @$all_data[0];
+                        $journalItem->types = 'Challan';
+                        $journalItem->user_id = $chaln->student_id;
+                        $journalItem->user_type = 'Student';
+                        $journalItem->credit = 0;
+                        $journalItem->debit = $expansionAmount;
+                        $journalItem->save();
+                        $journalItem->created_at = @$chaln->created_at;
+                        $journalItem->updated_at = @$chaln->updated_at;
+                        $journalItem->save();
+                    }
+
+                    \Log::info('Journal entries updated/created for expansion', [
+                        'challan_no' => $chaln->challanNo,
+                        'expansion_amount' => $expansionAmount
+                    ]);
+
+                    // Refresh so payment section below sees the new price
+                    $challanHead->refresh();
+                    $chaln->refresh();
+                    $remainingDue = $challanHead->price - (($challanHead->paid ?? 0) + ($challanHead->concession ?? 0));
+
+                    \Log::info('Over-receipt head expanded successfully', [
+                        'challan_no' => $chaln->challanNo,
+                        'fee_head' => $feeHeadName,
+                        'new_price' => $challanHead->price,
+                        'new_remaining_due' => $remainingDue
+                    ]);
+                }
+
+                /* ===============================
+                 * VALIDATE PAYMENT AGAINST REMAINING DUE
+                 * =============================== */
+                // For regular heads (non-over-receipt), payment cannot exceed remaining due
+                // For over-receipt heads, we've already expanded above if needed
+                
+                if (!$isOverReceipt && !$isNewHead && $amount > $remainingDue + 0.01) {
+                    throw new \Exception(
+                        'Payment exceeds remaining due for ' . $feeHeadName . 
+                        '. Remaining: ' . number_format($remainingDue, 2) . 
+                        ', Attempting: ' . number_format($amount, 2)
+                    );
+                }
+
+                /* ===============================
+                 * CALCULATE PAYMENT
+                 * =============================== */
+                $payAmount = $amount;
+
+                \Log::info('Applying payment', [
+                    'challan_no' => $chaln->challanNo,
+                    'fee_head' => $feeHeadName,
+                    'requested_amount' => $amount,
+                    'remaining_due' => $remainingDue,
+                    'pay_amount' => $payAmount
+                ]);
+
+                $challanHead->paid = ($challanHead->paid ?? 0) + $payAmount;
+                $challanHead->save();
+
+                $chaln->paid_amount = ($chaln->paid_amount ?? 0) + $payAmount;
+                $chaln->paid_date = date('Y-m-d', strtotime($all_data[1]));
+                
+                // Calculate status
+                $totalAmount = $chaln->total_amount ?? 0;
+                $paidAmount = $chaln->paid_amount ?? 0;
+                $concessionAmount = $chaln->concession_amount ?? 0;
+                $totalPaidWithConcession = $paidAmount + $concessionAmount;
+                
+                if ($totalPaidWithConcession >= $totalAmount - 0.01) {
+                    $chaln->status = 'paid';
+                } elseif ($paidAmount > 0) {
+                    $chaln->status = 'partial';
                 } else {
-                    // Save the header row with additional columns
-                    $header = $all_data;
-                    $header[] = 'Status';
-                    $header[] = 'Reason';
-                    $processed_records[] = $header;
+                    $chaln->status = 'unpaid';
                 }
-                $count++;
-                Session::put('counter', $success_counter);
-            }
-            fclose($handle);
-            DB::commit();
+                
+                $chaln->save();
+
+                \Log::info('Payment applied successfully', [
+                    'challan_no' => $chaln->challanNo,
+                    'new_paid_amount' => $chaln->paid_amount,
+                    'new_status' => $chaln->status
+                ]);
+
+                /* ===============================
+                 * BANK
+                 * =============================== */
+                $clean_title = trim(preg_replace('/\s*\(.*?\)/', '', $all_data[9]));
+                $normalizedInput = ltrim($clean_title, '0');
+
+                $bankAccount = BankAccount::whereRaw(
+                    "TRIM(LEADING '0' FROM account_number) = ?",
+                    [$normalizedInput]
+                )->first();
+
+                if (!$bankAccount) {
+                    throw new \Exception('Bank Account Not Found: ' . $all_data[9]);
+                }
+
+                /* ===============================
+                 * RECEIPT
+                 * =============================== */
+                $receipt = StudentReceipt::create([
+                    'recipt_date'     => date('Y-m-d', strtotime($all_data[1])),
+                    'challan_id'      => $chaln->id,
+                    'student_id'      => $chaln->student_id,
+                    'recipt_amount'   => $amount,
+                    'challan_amount'  => $chaln->total_amount,
+                    'bank_id'         => $bankAccount->id,
+                    'account_id'      => $bankAccount->chart_account_id,
+                    'referance'       => $all_data[12],
+                    'receive_type'    => $all_data[2],
+                    'received_by'     => $chaln->owned_by,
+                    'owned_by'        => $chaln->owned_by,
+                    'created_by'      => auth()->user()->creatorId(),
+                ]);
+
+                /* ===============================
+                 * VOUCHER ENTRY
+                 * =============================== */
+                $data = [
+                    'id'          => $chaln->id,
+                    'no'          => $chaln->challanNo,
+                    'prod_id'     => $receipt->id,
+                    'bank_id'     => $bankAccount->id,
+                    'branch_id'   => $chaln->owned_by,
+                    'date'        => $chaln->paid_date,
+                    'reference'   => $all_data[12],
+                    'description' => $chaln->description,
+                    'user_id'     => $chaln->student_id,
+                    'branch_name' => $chaln->student->branch_name ? $chaln->student->branch_name->name : '',
+                    'std_name'    => $all_data[4],
+                    'recipt'      => $receipt->id,
+                    'bank_name'   => $bankAccount->bank_name,
+                    'user_type'   => 'Student',
+                    'amount'      => $amount,
+                    'category'    => $chaln->challan_type,
+                    'owned_by'    => $chaln->owned_by,
+                    'created_by'  => auth()->user()->creatorId(),
+                    'account_id'  => $bankAccount->chart_account_id,
+                    'items'       => [[
+                        'head'      => $feeHead->id,
+                        'price'     => $payAmount,
+                        'quantity'  => 1,
+                        'concession'=> 0,
+                        'total'     => $payAmount,
+                    ]],
+                    'total' => $payAmount,
+                ];
+
+                ucwords($all_data[2]) === 'CD'
+                    ? Utility::crv_entry($data)
+                    : Utility::brv_entry($data);
+
+                $success_counter++;
+
+                \Log::info('Receipt import successful', [
+                    'row' => $count,
+                    'challan_no' => $chaln->challanNo,
+                    'receipt_id' => $receipt->id
+                ]);
+
+            }, 5);
+
+        } catch (\Throwable $e) {
+            $error_counter++;
             
-            if (!empty($skip_data)) {
-                $export_filename = 'receipts_import_errors_'.time().'.csv';
-                $error_filepath = public_path('assets/import/csv_file/'.$export_filename);
-                $error_file = fopen($error_filepath, 'w+');
-                fputcsv($error_file, ['Branch', 'Date', 'Type', 'Roll No', 'Student Name', 'Class', 'Challan No', 'Billing Period', 'Fee Subs', 'Bank', 'Status', 'Fee Head', 'Reference', 'Amount', 'Over Receipt', 'Status', 'Reason']);
-                foreach ($skip_data as $row) {
-                    fputcsv($error_file, $row);
-                }
-                fclose($error_file);
+            \Log::error('Receipt import failed', [
+                'row' => $count,
+                'challan_no' => $all_data[6] ?? 'N/A',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ]);
 
-                return response()->download($error_filepath)->deleteFileAfterSend(true);
-            }
-            Session::forget('counter');
-
-            return redirect()->back()->with('message', "{$success_counter} Receipt(s) added successfully. {$error_counter} rows skipped due to errors. {$duplication_counter} duplicates found.");
+            $skip_data[] = array_merge($all_data, [
+                'Status' => 'Error',
+                'Reason' => $e->getMessage()
+            ]);
         }
-    } catch (\Exception $e) {
-        DB::rollBack();
-        dd($e, $count, $all_data);
-        \Log::error('Receipts Import Error: '.$e->getMessage()."\n".$e->getTraceAsString());
 
-        return redirect()->back()->with('error', 'An error occurred: '.$e->getMessage());
+        $count++;
     }
+
+    fclose($handle);
+
+    if (!empty($skip_data)) {
+        $export = 'receipts_import_errors_' . time() . '.csv';
+        $path = public_path('assets/import/csv_file/' . $export);
+        $fp = fopen($path, 'w+');
+        
+        // Write header if available
+        if (!empty($processed_records)) {
+            fputcsv($fp, $processed_records[0]);
+        }
+        
+        foreach ($skip_data as $row) {
+            fputcsv($fp, $row);
+        }
+        fclose($fp);
+
+        \Log::info('Import completed with errors', [
+            'success' => $success_counter,
+            'errors' => $error_counter,
+            'duplicates' => $duplication_counter,
+            'error_file' => $export
+        ]);
+
+        return response()->download($path)->deleteFileAfterSend(true);
+    }
+
+    \Log::info('Import completed successfully', [
+        'success' => $success_counter,
+        'errors' => $error_counter,
+        'duplicates' => $duplication_counter
+    ]);
+
+    return redirect()->back()->with(
+        'message',
+        "{$success_counter} receipts imported successfully. {$error_counter} failed. {$duplication_counter} duplicates skipped."
+    );
 }
-    private function challanNo()
+private function calculateAndUpdateLateFee($challan, $paymentDate)
+{
+    \Log::info('=== START calculateAndUpdateLateFee ===', [
+        'challan_id' => $challan->id,
+        'challan_no' => $challan->challanNo,
+        'payment_date' => $paymentDate,
+        'challan_status' => $challan->status,
+        'due_date' => $challan->due_date
+    ]);
+
+    // Skip if challan is already paid or partially paid
+    $status = strtolower($challan->status ?? '');
+    if (in_array($status, ['paid', 'partial', 'partial paid'])) {
+        \Log::info('Skipping - Challan already paid/partial', ['challan_id' => $challan->id]);
+        return;
+    }
+
+    // Get the due date from challan
+    $dueDate = \Carbon\Carbon::parse($challan->due_date);
+    $today = \Carbon\Carbon::parse($paymentDate);
+    
+    \Log::info('Date comparison', [
+        'challan_id' => $challan->id,
+        'due_date' => $dueDate->toDateString(),
+        'payment_date' => $today->toDateString(),
+        'is_overdue' => $today->gt($dueDate)
+    ]);
+
+    // Check if due date has passed
+    if ($today->lte($dueDate)) {
+        \Log::info('Not overdue yet', ['challan_id' => $challan->id]);
+        return; // Not overdue yet
+    }
+
+    // Calculate days overdue (maximum 10 days)
+    $daysOverdue = $today->diffInDays($dueDate);
+    \Log::info('Days overdue calculated', [
+        'challan_id' => $challan->id,
+        'days_overdue_raw' => $daysOverdue
+    ]);
+    
+    $daysOverdue = min($daysOverdue, 10); // Cap at 10 days
+    
+    \Log::info('Days overdue after cap', [
+        'challan_id' => $challan->id,
+        'days_overdue_capped' => $daysOverdue
+    ]);
+
+    // Calculate late fee amount
+    $lateFeePerDay = 120;
+    $lateFeeAmount = $daysOverdue * $lateFeePerDay;
+    
+    \Log::info('Late fee calculated', [
+        'challan_id' => $challan->id,
+        'days_overdue' => $daysOverdue,
+        'late_fee_per_day' => $lateFeePerDay,
+        'late_fee_amount' => $lateFeeAmount
+    ]);
+    
+    if ($lateFeeAmount <= 0) {
+        \Log::warning('Late fee amount is zero or negative', [
+            'challan_id' => $challan->id,
+            'late_fee_amount' => $lateFeeAmount
+        ]);
+        return;
+    }
+    
+    // Find the LATE FEE head in FeeHead table
+    $lateFeeHead = FeeHead::where('fee_head', 'LATE FEE')->first();
+    
+    if (!$lateFeeHead) {
+        \Log::error('Late fee head not found in FeeHead table', ['challan_id' => $challan->id]);
+        return;
+    }
+    
+    \Log::info('Late fee head found', [
+        'challan_id' => $challan->id,
+        'late_fee_head_id' => $lateFeeHead->id
+    ]);
+
+    // Check if late fee already exists for this challan
+    $existingLateFee = ChallanHead::where('challan_id', $challan->id)
+        ->where('head_id', $lateFeeHead->id)
+        ->first();
+
+    \Log::info('Existing late fee check', [
+        'challan_id' => $challan->id,
+        'existing_late_fee_id' => $existingLateFee ? $existingLateFee->id : 'NONE',
+        'existing_price' => $existingLateFee ? $existingLateFee->price : 'N/A',
+        'challan_total_amount_before' => $challan->total_amount
+    ]);
+
+    if ($existingLateFee) {
+        \Log::info('Updating existing late fee', [
+            'challan_id' => $challan->id,
+            'old_price' => $existingLateFee->price,
+            'new_price' => $lateFeeAmount
+        ]);
+
+        $oldPrice = $existingLateFee->price ?? 0;
+        $challan->total_amount = ($challan->total_amount ?? 0) - $oldPrice;
+        
+        \Log::info('Challan total after removing old late fee', [
+            'challan_id' => $challan->id,
+            'total_amount' => $challan->total_amount
+        ]);
+        
+        // Update existing late fee and journal entry
+        $existingLateFee->update([
+            'price' => $lateFeeAmount,
+            'updated_at' => now(),
+        ]);
+        
+        \Log::info('Late fee updated', ['challan_id' => $challan->id]);
+        
+        // income entry
+        $journalItem = JournalItem::where('journal', $challan->voucher_id)
+            ->where('head', $lateFeeHead->id)
+            ->where('debit', 0)
+            ->first();
+            
+        \Log::info('Income journal item', [
+            'challan_id' => $challan->id,
+            'journal_item_found' => $journalItem ? 'YES' : 'NO'
+        ]);
+        
+        if ($journalItem) {
+            $journalItem->update([
+                'credit' => $lateFeeAmount,
+                'updated_at' => now(),
+            ]);
+        }
+        
+        // reciveable entry
+        $journalItem = JournalItem::where('journal', $challan->voucher_id)
+            ->where('head', $lateFeeHead->id)
+            ->where('credit', 0)
+            ->first();
+            
+        \Log::info('Receivable journal item', [
+            'challan_id' => $challan->id,
+            'journal_item_found' => $journalItem ? 'YES' : 'NO'
+        ]);
+        
+        if ($journalItem) {
+            $journalItem->update([
+                'debit' => $lateFeeAmount,
+                'updated_at' => now(),
+            ]);
+        }
+        
+        $challan->total_amount = ($challan->total_amount ?? 0) + $lateFeeAmount;
+        $challan->save();
+        
+        \Log::info('Challan total after adding new late fee', [
+            'challan_id' => $challan->id,
+            'total_amount' => $challan->total_amount
+        ]);
+        
+    } else {
+        \Log::info('Creating new late fee entry', ['challan_id' => $challan->id]);
+        
+        // Create new late fee entry and journal entry
+        $latehead = ChallanHead::create([
+            'challan_id' => $challan->id,
+            'head_id' => $lateFeeHead->id,
+            'price' => $lateFeeAmount,
+            'concession' => 0,
+            'paid' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        
+        \Log::info('Late fee challan head created', [
+            'challan_id' => $challan->id,
+            'latehead_id' => $latehead->id,
+            'price' => $latehead->price
+        ]);
+        
+        if ($latehead) {
+            $account_name = ChartOfAccount::where('id', $lateFeeHead->account_id)->first();
+            $feeHeads = FeeHead::where('id', $lateFeeHead->id)->first();
+            
+            // Income journal entry
+            $journalItem = new JournalItem;
+            $journalItem->journal = @$challan->voucher_id;
+            $journalItem->account = @$feeHeads->account_id;
+            $journalItem->head = @$lateFeeHead->id;
+            $journalItem->entry_id = @$latehead->id;
+            $journalItem->user_id = @$challan->student_id;
+            $journalItem->user_type = 'Student';
+            $journalItem->description = 'Income Account: Roll no ' . (@$challan->student->roll_no ?? 'N/A') . ' Challan no ' . $challan->challanNo . ' - ' . (@$challan->student->stdname ?? 'N/A') . ' - ' . date('M-y', strtotime($challan->fee_month ?? now())) . ' - ' . (@$challan->student->branch->name ?? 'N/A');
+            $journalItem->types = 'Challan';
+            $journalItem->credit = $lateFeeAmount;
+            $journalItem->debit = 0;
+            $journalItem->save();
+            $journalItem->created_at = @$challan->created_at;
+            $journalItem->updated_at = @$challan->updated_at;
+            $journalItem->save();
+            
+            \Log::info('Income journal item created', [
+                'challan_id' => $challan->id,
+                'journal_item_id' => $journalItem->id
+            ]);
+            
+            //  reciveable entry
+            $journalItem = new JournalItem;
+            $journalItem->journal = @$challan->voucher_id;
+            $journalItem->account = @$feeHeads->receivable_account_id;
+            $journalItem->head = @$lateFeeHead->id;
+            $journalItem->description = 'Account Receivable: Roll no ' . (@$challan->student->roll_no ?? 'N/A') . ' Challan no ' . $challan->challanNo . ' - ' . (@$challan->student->stdname ?? 'N/A') . ' - ' . (@$challan->fee_month ?? 'N/A') . ' - ' . (@$challan->student->branch->name ?? 'N/A');
+            $journalItem->entry_id = @$latehead->id;
+            $journalItem->user_id = @$challan->student_id;
+            $journalItem->user_type = 'Student';
+            $journalItem->types = 'Challan';
+            $journalItem->credit = 0;
+            $journalItem->debit = $lateFeeAmount;
+            $journalItem->save();
+            $journalItem->created_at = @$challan->created_at;
+            $journalItem->updated_at = @$challan->updated_at;
+            $journalItem->save();
+            
+            \Log::info('Receivable journal item created', [
+                'challan_id' => $challan->id,
+                'journal_item_id' => $journalItem->id
+            ]);
+        }
+        
+        $challan->total_amount = ($challan->total_amount ?? 0) + $lateFeeAmount;
+        $challan->save();
+        
+        \Log::info('Challan total updated with new late fee', [
+            'challan_id' => $challan->id,
+            'total_amount' => $challan->total_amount
+        ]);
+    }
+    
+    \Log::info('=== END calculateAndUpdateLateFee ===', [
+        'challan_id' => $challan->id
+    ]);
+}
+private function challanNo()
     {
         $latest = Challans::where('created_by', '=', \Auth::user()->creatorId())->orderBY('id', 'desc')->latest()->first();
         if (! $latest) {
@@ -6249,8 +7339,7 @@ class DataImportController extends Controller
     //         return redirect()->back()->with('error', 'An error occurred: '.$e->getMessage());
     //     }
     // }
-
-    private function ConcessionListImport($file, $request)
+private function ConcessionListImport($file, $request)
 {
     set_time_limit(0);
     $filename = $file->getClientOriginalName();
@@ -6261,6 +7350,29 @@ class DataImportController extends Controller
     $duplication_counter = 0;
     $skip_data = [];
     $processed_records = [];
+
+    // Helper function to clean decimal formatting
+    $cleanDecimal = function($value) {
+        $value = trim($value);
+        if ($value === '' || $value === null) {
+            return '0';
+        }
+        
+        // Convert to float then to string to normalize
+        $floatVal = (float)$value;
+        
+        // If it's a whole number (like 38.0000), return without decimals
+        if ($floatVal == floor($floatVal)) {
+            return (string)intval($floatVal);
+        }
+        
+        // Otherwise, format with up to 8 decimals and remove trailing zeros
+        $formatted = number_format($floatVal, 8, '.', '');
+        $formatted = rtrim($formatted, '0');
+        $formatted = rtrim($formatted, '.'); // Remove decimal point if no decimals left
+        
+        return $formatted;
+    };
 
     DB::beginTransaction();
     try {
@@ -6325,14 +7437,15 @@ class DataImportController extends Controller
                         'TRANSPORT FEE' => ['amount_idx' => 35, 'discount_idx' => 36, 'check_idx' => 38, 'short_name' => 'Tran'],
                     ];
 
-                    // Extract and round discount percentages from CSV
+                    // Extract discount percentages from CSV - Clean decimal formatting
                     $discountData = [];
                     foreach ($feeHeadMappings as $headName => $mapping) {
                         $feeHead = FeeHead::where('fee_head', 'like', '%'.$headName.'%')->first();
                         if ($feeHead) {
-                            $discountPercentage = isset($all_data[$mapping['discount_idx']]) ? trim($all_data[$mapping['discount_idx']]) : 0;
-                            // Round to whole number (18.923 becomes 19)
-                            $discountPercentage = round((float)$discountPercentage);
+                            $discountPercentage = isset($all_data[$mapping['discount_idx']]) ? trim($all_data[$mapping['discount_idx']]) : '0';
+                            
+                            // Clean the decimal formatting (remove trailing zeros)
+                            $discountPercentage = $cleanDecimal($discountPercentage);
                             
                             $discountData[] = [
                                 'head_id' => $feeHead->id,
@@ -6349,9 +7462,10 @@ class DataImportController extends Controller
                         return $a['head_id'] <=> $b['head_id'];
                     });
 
-                    // Build policy title from discount data (only include heads with discount > 0)
+                    // Build policy title from discount data with exact percentages
                     $policyTitleParts = [];
                     foreach ($discountData as $disc) {
+                        // Use exact percentage value from CSV
                         $policyTitleParts[] = $disc['percentage'].'%'.$disc['short_name'];
                     }
                     $generatedPolicyTitle = implode('+', $policyTitleParts);
@@ -6369,12 +7483,12 @@ class DataImportController extends Controller
                         // Sort policy heads for comparison
                         $policyHeads = $policy->policy_head->sortBy('head_id')->values();
                         
-                        // Check if all heads and percentages match
+                        // Check if all heads and percentages match (with tolerance for floating point)
                         $allMatch = true;
                         foreach ($discountData as $index => $disc) {
                             if (!isset($policyHeads[$index]) || 
                                 $policyHeads[$index]->head_id != $disc['head_id'] ||
-                                round((float)$policyHeads[$index]->percentage) != $disc['percentage']) {
+                                abs((float)$policyHeads[$index]->percentage - (float)$disc['percentage']) > 0.00000001) {
                                 $allMatch = false;
                                 break;
                             }
@@ -6397,11 +7511,14 @@ class DataImportController extends Controller
                         $newPolicy->save();
                         
                         foreach ($discountData as $disc) {
-                            $policyHead = new ConcessionPolicyHead;
-                            $policyHead->concession_id = $newPolicy->id;
-                            $policyHead->head_id = $disc['head_id'];
-                            $policyHead->percentage = $disc['percentage'];
-                            $policyHead->save();
+                            // Use direct DB insert to preserve exact decimal precision
+                            DB::table('concession_policy_heads')->insert([
+                                'concession_id' => $newPolicy->id,
+                                'head_id' => $disc['head_id'],
+                                'percentage' => $disc['percentage'],
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]);
                         }
                         
                         $matchingPolicy = $newPolicy;
@@ -6410,7 +7527,7 @@ class DataImportController extends Controller
                     // Check if any discount exists
                     $hasDiscount = false;
                     foreach ($discountData as $disc) {
-                        if ($disc['percentage'] > 0) {
+                        if ((float)$disc['percentage'] > 0) {
                             $hasDiscount = true;
                             break;
                         }
@@ -6477,12 +7594,16 @@ class DataImportController extends Controller
                         $feeHead = FeeHead::where('fee_head', 'like', '%'.$headName.'%')->first();
                         if ($feeHead) {
                             $amount = isset($all_data[$mapping['amount_idx']]) ? $all_data[$mapping['amount_idx']] : 0;
-                            $discount = isset($all_data[$mapping['discount_idx']]) ? round((float)$all_data[$mapping['discount_idx']]) : 0;
+                            
+                            // Get exact discount value from CSV and clean it
+                            $discount = isset($all_data[$mapping['discount_idx']]) ? trim($all_data[$mapping['discount_idx']]) : '0';
+                            $discount = $cleanDecimal($discount);
+                            
                             $checkStatus = isset($all_data[$mapping['check_idx']]) ? $all_data[$mapping['check_idx']] : 0;
                             
                             // If concession exists, set discount to 0 (policy handles it)
                             if ($concession) {
-                                $discount = 0;
+                                $discount = '0';
                             }
                             
                             StudentFeeStructure::updateOrCreate(
@@ -6523,7 +7644,10 @@ class DataImportController extends Controller
                             ]
                         );
                     }
-
+                    //only for shifa branch set register option to 2
+                    $student->update([
+                        'register_option' => 2,
+                    ]);
                     $processed_records[] = array_merge($all_data, ['Status' => 'Success', 'Reason' => '']);
                     $success_counter++;
                 } else {
@@ -6561,7 +7685,6 @@ class DataImportController extends Controller
         return redirect()->back()->with('error', 'An error occurred: '.$e->getMessage());
     }
 }
-
     //  private function WithdrawImport($file, $request)
     // {
     //     set_time_limit(0);

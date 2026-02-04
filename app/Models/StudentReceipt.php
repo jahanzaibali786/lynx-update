@@ -26,6 +26,8 @@ class StudentReceipt extends Model
         'received_by',
         'owned_by',
         'created_by',
+        'created_at',
+        'updated_at',
     ];
 
     public function challan()

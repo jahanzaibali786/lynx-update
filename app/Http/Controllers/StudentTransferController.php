@@ -101,7 +101,9 @@ class StudentTransferController extends Controller
         } else {
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
         }
-        return view('students.student_transfer.create', compact('branches'));
+        $allbranches = User::where('type', '=', 'branch')->where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $allbranches->prepend('Select Branch', '');
+        return view('students.student_transfer.create', compact('branches','allbranches'));
         // }
         // else
         // {
@@ -116,137 +118,158 @@ class StudentTransferController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
-    {
-        // dd($request->all());
-        // if(\Auth::user()->can('create session'))
-        // {
-            $validator = \Validator::make(
-                $request->all(),[
-                    'student_id' => 'required',
-                    'transfer_date' => 'required|date',
-                    'transfer_type' => 'required|string',
-                    'branch_from' => 'required',
-                    'class_from' => 'required',
-                    'branch_to' => 'required',
-                    'class_to' => 'required',
-                    'section_to' => 'required',
-                    'issue_date' => 'required|date',
-                    'due_date' => 'required|date',
-                    'reason' => 'required|string',
-                ]
-            );
-
-
-            if($validator->fails())
-            {
-                $messages = $validator->getMessageBag();
-                return redirect()->back()->with('error', $messages->first());
-            }
-            DB::beginTransaction();
-            try {
-                $total = 0;
-                $concession = 0;
-                $item = [];
-                $session = Session::orderBy('id','Desc')->where('active_status','1')->where('created_by', '=', \Auth::user()->creatorId())->first();
-                $std_enroll = StudentEnrollments::where('enrollId', $request->student_id)->first();
-                $std_reg = StudentRegistration::where('roll_no',$std_enroll->enrollId)->first();
-                // dd($std_enroll,$std_reg);
-                if($request->transfer_type == 'inter branch'){
-                    $challan = new Challans();
-                    $challan->student_id = $std_enroll->regId;
-                    $challan->rollno = $std_enroll->enrollId;
-                    $challan->class_id = $request->class_from;
-                    $challan->challanNo =  $this->challanNo();
-                    $challan->challan_date = $request->transfer_date;
-                    $challan->challan_type = 'Transfer';
-                    $challan->fee_month = date('Y-m-01',strtotime($request->issue_date));
-                    $challan->issue_date = $request->issue_date;
-                    $challan->due_date = $request->due_date;
-                    $challan->status = 'Issued';
-                    $challan->session_id = $session->id;
-                    $challan->owned_by = $std_enroll->owned_by;
-                    $challan->created_by = \Auth::user()->creatorId();
-                    $challan->save();
-
-                    $concessionAmount=0;
-                    $itemIndex = 0;
-
-                    $pattern = '%transfer fee%';
-                    $adm_fee_head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($pattern)])->first();
-                    $fee = StudentFeeStructure::where('head_id', $adm_fee_head->id)->where('reg_id',$std_reg->id)->orderBy('id','Desc')->first();
-                    
-                    if(!$fee){
-                        return redirect()->back()->with('error', 'Student Fee Structure Not Attached !');
-                    }
-                    $challan_head = new ChallanHead();
-                    $challan_head->challan_id = $challan->id;
-                    $challan_head->head_id = $adm_fee_head->id;
-                    $challan_head->price = $fee ? $fee->amount : 0;
-                    $challan_head->concession =  round(($fee->amount / 100) * $fee->discount);
-                    $challan_head->save();
-
-                    $total += $fee->amount;
-                    $concession += round(($fee->amount / 100) * $fee->discount);
-                    $item[$itemIndex]['prod_id'] = $challan_head->id;
-                    $item[$itemIndex]['head'] = $adm_fee_head->id;
-                    $item[$itemIndex]['price'] = $fee? $fee->amount : 0 ;
-                    // $item[$itemIndex]['quantity'] = $concessiondata ? $concessiondata->concession_id : '';
-                    $item[$itemIndex]['quantity'] = 1;
-                    $item[$itemIndex]['concession'] = round(($fee->amount / 100) * $fee->discount);
-                    $item[$itemIndex]['total'] = $total ;
-                    $itemIndex++;
-
-                    $challan->total_amount = $total;
-                    $challan->save();
-                }
-
-                $transfer = new StudentTransfer();
-                $transfer->student_id = $request->student_id;
-                $transfer->challan_id = @$challan->id;
-                $transfer->transfer_date = $request->transfer_date;
-                $transfer->transfer_type = $request->transfer_type;
-                $transfer->branch_from = $request->branch_from;
-                $transfer->class_from = $request->class_from;
-                $transfer->section_from = $std_enroll->section_id;
-                $transfer->branch_to = $request->branch_to;
-                $transfer->class_to = $request->class_to;
-                $transfer->section_to = $request->section_to;
-                $transfer->reason = $request->reason;
-                $transfer->session_id = $session->id;
-                $transfer->owned_by = $std_enroll->owned_by;
-                $transfer->created_by = \Auth::user()->creatorId();
-                $transfer->save();
-
-
-                if($request->transfer_type == 'inter branch'){
-                    $data['id'] =$challan->id;
-                    $data['no'] =$challan->challanNo;
-                    $data['date'] =$challan->challan_date;
-                    $data['reference'] =$std_enroll->regId;
-                    $data['category'] = 'Transfer';
-                    $data['user_id'] =$std_enroll->regId;
-                    $data['user_type'] ='Student';
-                    $data['owned_by'] =$challan->owned_by;
-                    $data['created_by'] =$challan->created_by;
-                    $data['items'] =$item;
-
-                    $dataret  = Utility::jrentry($data);
-                    $challan->voucher_id = $dataret;
-                    $challan->save();
-                }
-                DB::commit();
-                return redirect()->route('transferstudent.index')->with('success', 'Student Transfer has been created successfully.');
-            } catch (\Exception $e) {
-                DB::rollback();
-                dd($e);
-                return redirect()->back()->with('error', $e);
-            }
-            // }
-            // else
-            // {
-            //     return redirect()->back()->with('error', 'Permission denied.');
-            // }
+{
+    // Validation rules
+    $rules = [
+        'student_id' => 'required',
+        'transfer_date' => 'required|date',
+        'transfer_type' => 'required|string|in:intra-city,inter-city',
+        'branch_from' => 'required',
+        'class_from' => 'required',
+        'branch_to' => 'required',
+        'class_to' => 'required',
+        'section_to' => 'required',
+        'reason' => 'required|string',
+    ];
+    
+    // Add challan field validation only for inter-city transfers
+    if ($request->transfer_type === 'inter-city') {
+        $rules['issue_date'] = 'required|date';
+        $rules['due_date'] = 'required|date';
     }
+    
+    $validator = \Validator::make($request->all(), $rules);
+
+    if($validator->fails())
+    {
+        $messages = $validator->getMessageBag();
+        return redirect()->back()->with('error', $messages->first());
+    }
+    
+    DB::beginTransaction();
+    try {
+        $challan = null;
+        $session = Session::orderBy('id','Desc')
+            ->where('active_status','1')
+            ->where('created_by', '=', \Auth::user()->creatorId())
+            ->first();
+            
+        $std_enroll = StudentEnrollments::where('enrollId', $request->student_id)->first();
+        $std_reg = StudentRegistration::where('roll_no', $std_enroll->enrollId)->first();
+        
+        // Create challan only for inter-city transfers
+        if($request->transfer_type === 'inter-city') {
+            $total = 0;
+            $concession = 0;
+            $item = [];
+            
+            $challan = new Challans();
+            $challan->student_id = $std_enroll->regId;
+            $challan->rollno = $std_enroll->enrollId;
+            $challan->class_id = $request->class_from;
+            $challan->challanNo = $this->challanNo();
+            $challan->challan_date = $request->transfer_date;
+            $challan->challan_type = 'Transfer';
+            $challan->fee_month = date('Y-m-01', strtotime($request->issue_date));
+            $challan->issue_date = $request->issue_date;
+            $challan->due_date = $request->due_date;
+            $challan->status = 'Issued';
+            $challan->session_id = $session->id;
+            $challan->owned_by = $std_enroll->owned_by;
+            $challan->created_by = \Auth::user()->creatorId();
+            $challan->save();
+
+            $itemIndex = 0;
+
+            $pattern = '%transfer fee%';
+            $adm_fee_head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($pattern)])->first();
+            
+            if(!$adm_fee_head) {
+                DB::rollback();
+                return redirect()->back()->with('error', 'Transfer fee head not found in system!');
+            }
+            
+            $fee = StudentFeeStructure::where('head_id', $adm_fee_head->id)
+                ->where('reg_id', $std_reg->id)
+                ->orderBy('id','Desc')
+                ->first();
+            
+            if(!$fee){
+                DB::rollback();
+                return redirect()->back()->with('error', 'Student Fee Structure Not Attached!');
+            }
+            
+            $challan_head = new ChallanHead();
+            $challan_head->challan_id = $challan->id;
+            $challan_head->head_id = $adm_fee_head->id;
+            $challan_head->price = $fee->amount;
+            $challan_head->concession = round(($fee->amount / 100) * $fee->discount);
+            $challan_head->save();
+
+            $total += $fee->amount;
+            $concession += round(($fee->amount / 100) * $fee->discount);
+            
+            $item[$itemIndex]['prod_id'] = $challan_head->id;
+            $item[$itemIndex]['head'] = $adm_fee_head->id;
+            $item[$itemIndex]['price'] = $fee->amount;
+            $item[$itemIndex]['quantity'] = 1;
+            $item[$itemIndex]['concession'] = round(($fee->amount / 100) * $fee->discount);
+            $item[$itemIndex]['total'] = $total;
+            $itemIndex++;
+
+            $challan->total_amount = $total;
+            $challan->save();
+        }
+
+        // Create transfer record
+        $transfer = new StudentTransfer();
+        $transfer->student_id = $request->student_id;
+        $transfer->challan_id = $challan ? $challan->id : null;
+        $transfer->transfer_date = $request->transfer_date;
+        $transfer->transfer_type = $request->transfer_type;
+        $transfer->branch_from = $request->branch_from;
+        $transfer->class_from = $request->class_from;
+        $transfer->section_from = $std_enroll->section_id;
+        $transfer->branch_to = $request->branch_to;
+        $transfer->class_to = $request->class_to;
+        $transfer->section_to = $request->section_to;
+        $transfer->reason = $request->reason;
+        $transfer->session_id = $session->id;
+        $transfer->owned_by = $std_enroll->owned_by;
+        $transfer->created_by = \Auth::user()->creatorId();
+        $transfer->save();
+
+        // Create journal entry only for inter-city transfers (with challan)
+        if($request->transfer_type === 'inter-city' && $challan) {
+            $data['id'] = $challan->id;
+            $data['no'] = $challan->challanNo;
+            $data['date'] = $challan->challan_date;
+            $data['reference'] = $std_enroll->regId;
+            $data['category'] = 'Transfer';
+            $data['user_id'] = $std_enroll->regId;
+            $data['user_type'] = 'Student';
+            $data['owned_by'] = $challan->owned_by;
+            $data['created_by'] = $challan->created_by;
+            $data['items'] = $item;
+
+            $dataret = Utility::jrentry($data);
+            $challan->voucher_id = $dataret;
+            $challan->save();
+        }
+        
+        DB::commit();
+        
+        $transferTypeText = $request->transfer_type === 'inter-city' ? 'Inter-City' : 'Intra-City';
+        $message = 'Student ' . $transferTypeText . ' Transfer has been created successfully.';
+        
+        return redirect()->route('transferstudent.index')->with('success', $message);
+        
+    } catch (\Exception $e) {
+        DB::rollback();
+        \Log::error('Student Transfer Error: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'An error occurred while creating the transfer: ' . $e->getMessage());
+    }
+}
 
     /**
      * Display the specified resource.

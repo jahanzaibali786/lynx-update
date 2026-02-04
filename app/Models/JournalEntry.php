@@ -19,6 +19,8 @@ class JournalEntry extends Model
         'category',
         'owned_by',
         'created_by',
+        'created_at',
+        'updated_at',
     ];
 
 
@@ -76,5 +78,9 @@ class JournalEntry extends Model
     public function recipt()
     {
         return $this->hasOne('App\Models\StudentReceipt', 'id', 'reference_id');
+    }
+    public function branch()
+    {
+        return $this->hasOne('App\Models\User', 'id', 'owned_by');
     }
 }

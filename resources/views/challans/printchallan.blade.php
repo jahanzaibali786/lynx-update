@@ -456,10 +456,25 @@
                                 <td class="detail-value" style="text-transform: uppercase;">{{ $challan->challanNo }}
                                 </td>
                             </tr>
+                            @php
+                                $fromMonth = \Carbon\Carbon::parse($challan->fee_month);
+
+                                $toMonth = null;
+                                if (!empty($challan->other_months)) {
+                                    $months = array_map('trim', explode(',', $challan->other_months));
+                                    $lastMonth = end($months);
+                                    $toMonth = \Carbon\Carbon::parse($lastMonth);
+                                }
+                            @endphp
                             <tr>
                                 <td class="detail-label"><b>Billing Month:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ \Carbon\Carbon::parse($challan->fee_month)->format('F,Y') }}</td>
+                                    {{ $fromMonth->format('F, Y') }}
+
+                                    @if ($toMonth)
+                                        - {{ $toMonth->format('F, Y') }}
+                                    @endif
+                                </td>
                             </tr>
                             <tr>
                                 <td class="detail-label"><b>Name:</b></td>
@@ -534,7 +549,7 @@
                     @php
                         $totalAmount = 0;
                         foreach ($heads as $head) {
-                            $totalAmount += $head['amount'] - $head['concession'];
+                            $totalAmount += $head['headamount'] - $head['concession'];
                         }
                         $grandTotal = $totalAmount - $challan->paid_amount + $arrearsTotal;
                     @endphp
@@ -548,7 +563,7 @@
                                     @endif
                                 </td>
                                 <td class="fee-value-cell" style="">Rs.
-                                    {{ $head['amount'] - $head['concession'] }}</td>
+                                    {{ $head['headamount'] - $head['concession'] }}</td>
                             </tr>
                         </table>
                     @endforeach
@@ -696,10 +711,25 @@
                                 <td class="detail-value" style="text-transform: uppercase;">{{ $challan->challanNo }}
                                 </td>
                             </tr>
+                            @php
+                                $fromMonth = \Carbon\Carbon::parse($challan->fee_month);
+
+                                $toMonth = null;
+                                if (!empty($challan->other_months)) {
+                                    $months = array_map('trim', explode(',', $challan->other_months));
+                                    $lastMonth = end($months);
+                                    $toMonth = \Carbon\Carbon::parse($lastMonth);
+                                }
+                            @endphp
                             <tr>
                                 <td class="detail-label"><b>Billing Month:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ \Carbon\Carbon::parse($challan->fee_month)->format('F,Y') }}</td>
+                                    {{ $fromMonth->format('F, Y') }}
+
+                                    @if ($toMonth)
+                                        - {{ $toMonth->format('F, Y') }}
+                                    @endif
+                                </td>
                             </tr>
                             <tr>
                                 <td class="detail-label"><b>Name:</b></td>
@@ -779,7 +809,7 @@
                                     @endif
                                 </td>
                                 <td class="fee-value-cell" style="">Rs.
-                                    {{ $head['amount'] - $head['concession'] }}</td>
+                                    {{ $head['headamount'] - $head['concession'] }}</td>
                             </tr>
                         </table>
                     @endforeach
@@ -927,10 +957,25 @@
                                 <td class="detail-value" style="text-transform: uppercase;">{{ $challan->challanNo }}
                                 </td>
                             </tr>
+                            @php
+                                $fromMonth = \Carbon\Carbon::parse($challan->fee_month);
+
+                                $toMonth = null;
+                                if (!empty($challan->other_months)) {
+                                    $months = array_map('trim', explode(',', $challan->other_months));
+                                    $lastMonth = end($months);
+                                    $toMonth = \Carbon\Carbon::parse($lastMonth);
+                                }
+                            @endphp
                             <tr>
                                 <td class="detail-label"><b>Billing Month:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ \Carbon\Carbon::parse($challan->fee_month)->format('F,Y') }}</td>
+                                    {{ $fromMonth->format('F, Y') }}
+
+                                    @if ($toMonth)
+                                        - {{ $toMonth->format('F, Y') }}
+                                    @endif
+                                </td>
                             </tr>
                             <tr>
                                 <td class="detail-label"><b>Name:</b></td>
@@ -1004,7 +1049,7 @@
                     @php
                         $totalAmount = 0;
                         foreach ($heads as $head) {
-                            $totalAmount += $head['amount'] - $head['concession'];
+                            $totalAmount += $head['headamount'] - $head['concession'];
                         }
                         $grandTotal = $totalAmount - $challan->paid_amount + $arrearsTotal;
                     @endphp
@@ -1019,7 +1064,7 @@
                                     @endif
                                 </td>
                                 <td class="fee-value-cell" style="">Rs.
-                                    {{ $head['amount'] - $head['concession'] }}</td>
+                                    {{ $head['headamount'] - $head['concession'] }}</td>
                             </tr>
                         </table>
                     @endforeach

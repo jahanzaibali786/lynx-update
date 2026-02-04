@@ -294,6 +294,7 @@ Create
                         <th>{{ __('Challan Month') }}</th>
                     @endif 
                     <th>{{ __('Total Amount') }}</th>
+                    <th>{{ __('Receivable Amount') }}</th>
                     <th>{{ __('Rem Amount') }}</th>
                     <th>{{ __('status') }}</th>
                     <th>{{ __('Issue Date') }}</th>
@@ -324,7 +325,9 @@ Create
                             </td>
                         @else
                             <td>{{ \Carbon\Carbon::parse($challan->fee_month)->format('F,Y') }}</td>
-                        @endif                        <td>{{ $challan->total_amount }}</td>
+                        @endif                        
+                        <td>{{ $challan->total_amount }}</td>
+                        <td>{{ $challan->total_amount - $challan->concession_amount }}</td>
                         <td>{{ $challan->total_amount - ($challan->paid_amount + $challan->concession_amount) }}</td>
                         <td>{{ $challan->status }}</td>
                         <td>{{ $challan->issue_date }}</td>

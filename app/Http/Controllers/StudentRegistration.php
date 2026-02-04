@@ -236,7 +236,7 @@ class StudentRegistration extends Controller
             $registration->city = $request->input('city');
             $registration->mothername = $request->input('mothername');
             $registration->mothercnic = $request->input('mothercnic');
-            // $registration->motherprofession = $request->input('motherprofession');
+            $registration->motherprofession = $request->input('motherprofession');
             $registration->register_option = $request->input('register_option');
             $registration->email = $request->input('email');
             $registration->address = strtoupper($request->input('address'));
@@ -433,12 +433,14 @@ class StudentRegistration extends Controller
         $concession = Concession::with('concession')->where('student_id', $id)
             ->where('end_date', '>=', date('Y-m-d'))
             ->orderBy('id', 'desc')
+            ->where('active_status' ,'!=',0)
             ->where('status', 'Approved')
             ->first();
             if(!$concession){
                 $concession = Concession::with('concession')->where('student_id', $id)
                 ->orderBy('id', 'desc')
                 ->whereNull( 'end_date')
+                ->where('active_status' ,'!=',0)
                 ->where('status', 'Approved')
                 ->first();
             }
@@ -568,6 +570,7 @@ class StudentRegistration extends Controller
                         'message' => 'Validation failed'
                     ], 422);
                 }
+                // dd($sectionData);
                 $student->fathername = $sectionData['father_name'];
                 $student->fathercnic = $sectionData['father_cnic'];
                 $student->fatherphone = isset($sectionData['home_phone']) ? $sectionData['home_phone'] : '';

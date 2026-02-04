@@ -25,8 +25,12 @@ class Challans extends Model
         'total_amount',
         'concession_amount',
         'status',
+        'session_id',
         'owned_by',
         'created_by',
+        'voucher_id',
+        'created_at',
+        'updated_at',
     ];
 
     public function class()

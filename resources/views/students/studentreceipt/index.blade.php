@@ -6,9 +6,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
         integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-        <script src="{{ asset('js/jquery.min.js') }}"></script>
-        <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
-        <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
+    <script src="{{ asset('js/jquery.min.js') }}"></script>
+    <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
+    <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
 @endpush
 @section('breadcrumb')
     <style>
@@ -19,6 +19,23 @@
 
         .font_less {
             font-size: 11px;
+        }
+
+        .is-invalid {
+            border-color: #dc3545 !important;
+            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+        }
+
+        /* Optional: Style spinner arrows */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+
+        .error-message {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 2px;
         }
     </style>
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
@@ -37,7 +54,7 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('default_date', __('Default Date'), ['class' => 'form-label']) }}
-                                    {{ Form::date('date', isset($_GET['date']) ? $_GET['date'] : date('Y-m-d'), ['class' => 'form-control']) }}
+                                    {{ Form::date('date', isset($_GET['date']) ? $_GET['date'] : date('Y-m-d'), ['class' => 'form-control', 'id' => 'default_date']) }}
                                 </div>
                             </div>
                             <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mr-2">
@@ -49,18 +66,13 @@
                             <div class="col-auto float-end ms-2 mt-4">
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
                                     onclick="document.getElementById('student_receipt_submit').submit(); return false;"
-                                     data-bs-title="{{ __('Apply') }}">
+                                    data-bs-title="{{ __('Apply') }}">
                                     <span class="btn-inner--icon">Search</span>
                                 </a>
                                 <a href="{{ route('student_receipt.index') }}" class="btn mx-1 btn-sm btn-outline-danger"
-                                     data-bs-title="{{ __('Reset') }}">
+                                    data-bs-title="{{ __('Reset') }}">
                                     <span class="btn-inner--icon">Clear</span>
                                 </a>
-                                {{-- export --}}
-                                {{-- <button class="btn mx-1 btn-sm btn-outline-success" type="submit" name="export"
-                                    value="excel" data-bs-title="{{ __('Download Report') }}"><span
-                                        class="btn-inner--icon">Export</span>
-                                </button> --}}
                                 <!-- Actions Dropdown -->
                                 <div class="dropdown d-inline-block mx-1">
                                     <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
@@ -92,32 +104,31 @@
     <div class="col-12 ">
         <table class="datatable">
             <thead class="table_heads">
-            <tr>
-                <th>Rpt No.</th>
-                <th>Rpt Date</th>
-                <th>Challan No.</th>
-                <th>Rpt Amt</th>
-                <th>Challan Amt</th>
-                <th>Late Amt</th>
-                <th>Arrears</th>
-                <th>Total Fee</th>
-                <th>Rem. Fee</th>
-                {{-- <th>Type</th> --}}
-                <th>Bank Account</th>
-                <th>D Status</th>
-                <th>Referance</th>
-                <th>Received</th>
-                @if (Auth::user()->type == 'company')
+                <tr>
+                    <th>Rpt No.</th>
+                    <th>Rpt Date</th>
+                    <th>Challan No.</th>
+                    <th>Rpt Amt</th>
+                    <th>Challan Amt</th>
+                    <th>Late Amt</th>
+                    <th>Arrears</th>
+                    <th>Total Fee</th>
+                    <th>Rem. Fee</th>
+                    <th>Bank Account</th>
+                    <th>D Status</th>
+                    <th>Reference</th>
+                    <th>Received</th>
+                    @if (Auth::user()->type == 'company')
                         <th>Action</th>
                     @endif
-            </tr>
+                </tr>
             </thead>
             @php
                 $options = ['DD', 'OL', 'CHQ', 'CD'];
             @endphp
             <tbody id="new_data">
                 @foreach ($recipts as $recipt)
-                    <tr style="  border-radius: 10px !important;">
+                    <tr style="border-radius: 10px !important;">
                         <td>
                             <input type="text" value="{{ @$recipt->id }}" disabled
                                 style="width:50px; font-size: 11px;">
@@ -127,7 +138,7 @@
                                 class="font_less" style="width:63px; font-size: 11px;">
                         </td>
                         <td>
-                            <input type="text" value="{{ @$recipt->challan->challanNo }}" disabled style="width:60px; ">
+                            <input type="text" value="{{ @$recipt->challan->challanNo }}" disabled style="width:60px;">
                         </td>
                         <td>
                             <input type="text" value="{{ @$recipt->recipt_amount }}" disabled
@@ -147,17 +158,14 @@
                         </td>
                         <td>
                             <input type="text"
-                                value="{{ @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears }}" disabled
-                                style="width:60px; font-size: 12px;">
+                                value="{{ @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears }}"
+                                disabled style="width:60px; font-size: 12px;">
                         </td>
                         <td>
                             <input type="text"
                                 value="{{ @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears - @$recipt->recipt_amount }}"
                                 disabled style="width:65px; font-size: 12px;">
                         </td>
-                        {{-- <td>
-                            <input type="text" value="RV" disabled style="width:50px; font-size: 13px;">
-                        </td> --}}
                         <td>
                             {{ Form::select('default_bank', $accounts, @$recipt->bank_id, ['style' => 'width:100px; font-size: 12px;', 'disabled' => 'disabled']) }}
                         </td>
@@ -165,41 +173,40 @@
                             <select class="input" disabled>
                                 @foreach ($options as $option)
                                     <option value="{{ $option }}"
-                                        {{ $option == @$recipt->receive_type ? 'selected' : '' }}> {{ $option }}
+                                        {{ $option == @$recipt->receive_type ? 'selected' : '' }}>{{ $option }}
                                     </option>
-                                @endforeach>
+                                @endforeach
                             </select>
-
                         </td>
                         <td>
                             <input type="text" value="{{ @$recipt->referance }}" disabled
                                 style="width:80px; font-size: 11px;">
                         </td>
                         <td>
-                            <input type="text" value="{{@$recipt->received->name}}" disabled
+                            <input type="text" value="{{ @$recipt->received->name }}" disabled
                                 style="width:100px; font-size: 11px;">
                         </td>
-@if (Auth::user()->type == 'company')
+                        @if (Auth::user()->type == 'company')
                             <td>
                                 <a href="#!" data-size="lg"
-                                    data-url="{{ route('student_receipt.edit', $recipt->id) }}" data-ajax-popup="true" title="Edit"
-                                    class=" btn btn-sm btn-outline-primary" data-bs-title="{{ __('Edit') }}">
+                                    data-url="{{ route('student_receipt.edit', $recipt->id) }}" data-ajax-popup="true"
+                                    title="Edit" class="btn btn-sm btn-outline-primary"
+                                    data-bs-title="{{ __('Edit') }}">
                                     <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span></a>
                             </td>
                         @endif
                     </tr>
                 @endforeach
-                <tr id="focus_row" style="  border-radius: 10px !important;">
+                <tr id="focus_row" style="border-radius: 10px !important;">
                     <td>
                         <input type="text" value="" disabled style="width:50px; font-size: 11px;">
                     </td>
                     <td>
-                        {{-- {{ Form::date('date', date('Y-m-d'),['class' => 'form-control']) }} --}}
-                        <input type="date" value="{{ date('Y-m-d') }}" id="recipt_date" class="font_less" min="{{Auth::user()->type == 'company' ? '': date('Y-m-d', strtotime('-3 days'))}}"
-                            style="width:70px; font-size: 11px;">
+                        <input type="date" value="{{ isset($_GET['date']) ? $_GET['date'] : date('Y-m-d') }}"
+                            id="recipt_date" class="font_less" style="width:70px; font-size: 11px;">
                     </td>
                     <td>
-                        <input type="text" id="challan_id" value="" style="width:60px; ">
+                        <input type="text" id="challan_id" value="" style="width:60px;">
                     </td>
                     <td>
                         <input type="text" value="" id="remp_amt" disabled style="width:60px; font-size: 13px;">
@@ -211,21 +218,14 @@
                         <input type="text" id="late_amt" value="0" disabled style="width:50px; font-size: 13px;">
                     </td>
                     <td>
-
-                        <input type="text" id="arrears" value="" disabled
-                            style="width:50px; font-size: 13px;">
+                        <input type="text" id="arrears" value="" disabled style="width:50px; font-size: 13px;">
                     </td>
                     <td>
-                        <input type="text" id="total_fee" value="" disabled
-                            style="width:60px; font-size: 12px;">
+                        <input type="text" id="total_fee" value="" disabled style="width:60px; font-size: 12px;">
                     </td>
                     <td>
-                        <input type="text" id="rem_fee" value="" disabled
-                            style="width:65px; font-size: 12px;">
+                        <input type="text" id="rem_fee" value="" disabled style="width:65px; font-size: 12px;">
                     </td>
-                    {{-- <td>
-                        <input type="text" value="RV" disabled style="width:50px; font-size: 13px;">
-                    </td> --}}
                     <td>
                         {{ Form::select('default_bank', $accounts, null, ['style' => 'width:100px; font-size: 12px;', 'disabled' => 'disabled']) }}
                     </td>
@@ -241,12 +241,13 @@
                         <input type="text" value="" style="width:80px; font-size: 11px;" disabled>
                     </td>
                     <td>
-                        <input type="text" value="{{Auth::user()->name}}" style="width:100px; font-size: 11px;" disabled>
+                        <input type="text" value="{{ Auth::user()->name }}" style="width:100px; font-size: 11px;"
+                            disabled>
                     </td>
                 </tr>
             </tbody>
         </table>
-        
+
         <div id="detailcard" class="card" style="display:none;">
             <div class="" id="siblingContainer" style="display:none;">
 
@@ -261,8 +262,6 @@
         </div>
     </div>
 
-    {{-- </div>
-    </div> --}}
     <!-- Arrears Modal -->
     <div class="modal fade" id="arrearModal" tabindex="-1" aria-labelledby="arrearModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -283,15 +282,60 @@
         </div>
     </div>
 
-
     <script>
-        let account =[];
-        let accountOptions = ''; 
-        let all_accountOptions = ''; 
+        let account = [];
+        let accountOptions = '';
+        let all_accountOptions = '';
+        let accountsData = {}; // Store account data with chart_account info
+        let accountAllData = {}; // Store all account data with chart_account info
+        let defaultBankId = null; // Store default bank for branch users
 
-   
+        // Sync date filter with receipt date input
+        $(document).ready(function() {
+            $('#default_date').on('change', function() {
+                var selectedDate = $(this).val();
+                $('#recipt_date').val(selectedDate);
+            });
+        });
 
-        //  for focus on challan No field and scroll to that section start
+        // Function to get receive type options based on chart account
+        function getReceiveTypeOptions(chartAccount) {
+            // Only "CASH IN HAND" should show CD only
+            // "CASH AT BANK" and all other accounts should show all options
+            if (chartAccount && chartAccount.toUpperCase().includes('CASH IN HAND')) {
+                return '<option value="CD">CD</option>';
+            } else {
+                // For "CASH AT BANK" and other bank accounts, show all options
+                return `
+                    <option value="DD">DD</option>
+                    <option value="OL">OL</option>
+                    <option value="CHQ">CHQ</option>
+                `;
+            }
+        }
+
+        // Function to update receive type dropdown based on selected bank
+        function updateReceiveType(bankId, selectElement) {
+            let chartAccount = '';
+            
+            // Check if bank exists in accountAllData first, then accountsData
+            if (accountAllData[bankId]) {
+                chartAccount = accountAllData[bankId].chart_account;
+            } else if (accountsData[bankId]) {
+                chartAccount = accountsData[bankId].chart_account;
+            }
+            
+            console.log('updateReceiveType - Bank ID:', bankId); // Debug log
+            console.log('updateReceiveType - Chart Account:', chartAccount); // Debug log
+            
+            const options = getReceiveTypeOptions(chartAccount);
+            console.log('updateReceiveType - Options:', options); // Debug log
+            console.log('updateReceiveType - Target:', selectElement); // Debug log
+            
+            $(selectElement).html(options);
+        }
+
+        // Focus on challan No field and scroll to that section
         document.addEventListener('DOMContentLoaded', function() {
             var targetSection = document.getElementById('focus_row');
             var textbox = document.getElementById('challan_id');
@@ -302,10 +346,78 @@
                 textbox.focus();
             }, 600);
         });
-        //  for focus on challan No field and scrool to that section end
+
+        // Validation function to check all amounts
+        function validateAllAmounts() {
+            let isValid = true;
+            let errorMessages = [];
+
+            // Check main fee heads
+            $('.ramount').each(function() {
+                let inputAmount = parseFloat($(this).val()) || 0;
+                let maxAmount = parseFloat($(this).closest('.row').find('.tamount').val()) || 0;
+
+                if (inputAmount > maxAmount) {
+                    isValid = false;
+                    let headName = $(this).closest('.row').find('div:first').text().trim();
+                    errorMessages.push(`${headName}: Amount (${inputAmount}) exceeds maximum (${maxAmount})`);
+                    $(this).addClass('is-invalid');
+                } else {
+                    $(this).removeClass('is-invalid');
+                }
+            });
+
+            // Check arrears amounts in modal
+            $('.oldramount').each(function() {
+                let inputAmount = parseFloat($(this).val()) || 0;
+                let maxAmount = parseFloat($(this).closest('.row').find('.oldtamount').val()) || 0;
+
+                if (inputAmount > maxAmount) {
+                    isValid = false;
+                    let headName = $(this).closest('.row').find('div:first').text().trim();
+                    errorMessages.push(`${headName}: Amount (${inputAmount}) exceeds maximum (${maxAmount})`);
+                    $(this).addClass('is-invalid');
+                } else {
+                    $(this).removeClass('is-invalid');
+                }
+            });
+
+            if (!isValid) {
+                show_toastr('error', 'Please correct the following amounts:\n' + errorMessages.join('\n'), 'error');
+            }
+
+            return isValid;
+        }
+
+        // Real-time validation for main amounts
+        $(document).on('input change keyup', '.ramount', function() {
+            let inputAmount = parseFloat($(this).val()) || 0;
+            let maxAmount = parseFloat($(this).closest('.row').find('.tamount').val()) || 0;
+
+            if (inputAmount > maxAmount) {
+                $(this).val(maxAmount);
+                show_toastr('warning', 'Amount cannot exceed maximum allowed', 'warning');
+            }
+
+            var row = $(this).closest('.row');
+            calculateRAmount(row);
+        });
+
+        // Real-time validation for arrears amounts
+        $(document).on('input change', '.oldramount', function() {
+            let inputAmount = parseFloat($(this).val()) || 0;
+            let maxAmount = parseFloat($(this).closest('.row').find('.oldtamount').val()) || 0;
+
+            if (inputAmount > maxAmount) {
+                $(this).val(maxAmount);
+                show_toastr('warning', 'Amount cannot exceed maximum allowed', 'warning');
+            }
+
+            var row = $(this).closest('.row');
+            calculateOldRAmount(row);
+        });
 
         // Search challan data for challan no
-        // document.getElementById('challan_id').addEventListener('keyup', function() {
         $(document).on('keyup', '#challan_id', function() {
             var challan_id = $(this).val();
             if (challan_id.length >= 1) {
@@ -332,24 +444,30 @@
                                 parseFloat(latefee) + parseFloat(response.challandetail.total_amount -
                                     response.challandetail.concession_amount - response.challandetail
                                     .paid_amount);
+                            
+                            // Initialize remp_amt to 0
+                            document.getElementById('remp_amt').value = '0.00';
                             document.getElementById('rem_fee').value = document.getElementById(
-                                'total_fee').value - document.getElementById('remp_amt').value;
-                               
-                                bankAccounts = response.accounts;
-                                accountOptions = '';
-                                // Loop through the bankAccounts array and create options
-                                Object.entries(bankAccounts).forEach(([value, text]) => {
-                                    accountOptions += `<option value="${value}">${text}</option>`;
-                                });
+                                'total_fee').value;
 
-                                allAccounts = response.account_all;
-                                
-                                all_accountOptions = '';
-                                // Loop through the bankAccounts array and create options
-                                Object.entries(allAccounts).forEach(([value, text]) => {
-                                    all_accountOptions += `<option value="${value}">${text}</option>`;
-                                });
-                                
+                            // Store account data with chart_account information
+                            bankAccounts = response.accounts;
+                            accountsData = response.accounts_data || {};
+                            accountOptions = '';
+                            Object.entries(bankAccounts).forEach(([value, text]) => {
+                                accountOptions += `<option value="${value}">${text}</option>`;
+                            });
+
+                            allAccounts = response.account_all;
+                            accountAllData = response.account_all_data || {};
+                            all_accountOptions = '';
+                            Object.entries(allAccounts).forEach(([value, text]) => {
+                                all_accountOptions += `<option value="${value}">${text}</option>`;
+                            });
+                            
+                            // Store default bank ID for branch users
+                            defaultBankId = response.default_bank_id;
+
                             populateSiblingTable(response.challandetail);
                             populateHeadFee(response.headsData);
                             populateArrears(response.previousUnpaidChallans);
@@ -396,57 +514,55 @@
         }
         calculateRemainingAmount();
 
-
         // Function to calculate remaining amount based on row elements
         function calculateRAmount(row) {
-            // Retrieve and parse the total amount and remaining amount from the row
             var challanAmt = parseFloat(row.find('.tamount').val()) || 0;
             var rempAmt = parseFloat(row.find('.ramount').val()) || 0;
 
-            // Ensure remaining amount does not exceed total amount
             if (rempAmt > challanAmt) {
                 rempAmt = challanAmt;
                 row.find('.ramount').val(challanAmt.toFixed(1));
             }
+            
+            // Calculate total from all ramount inputs
             let total = 0;
             document.querySelectorAll('.ramount').forEach(element => {
-                total += parseFloat(element.value) || 0;
+                let val = parseFloat(element.value);
+                if (!isNaN(val)) {
+                    total += val;
+                }
             });
-            document.getElementById('remp_amt').value = total;
+            
+            console.log('Total calculated:', total); // Debug log
+            document.getElementById('remp_amt').value = total.toFixed(2);
             calculateRemainingAmount();
         }
+
         $(document).on('keyup', '.oldramount', function() {
             var row = $(this).closest('.row');
             calculateOldRAmount(row);
         });
 
-        // Event listener for keyup event in amount inputs of a single row
         $(document).on('keyup', '.ramount', function() {
             var row = $(this).closest('.row');
             calculateRAmount(row);
         });
 
-        // Function to calculate remaining amount based on row elements
         function calculateOldRAmount(row) {
-            // Retrieve and parse the total amount and remaining amount from the row
             var challanAmt = parseFloat(row.find('.oldtamount').val()) || 0;
             var rempAmt = parseFloat(row.find('.oldramount').val()) || 0;
 
-            // Ensure remaining amount does not exceed total amount
             if (rempAmt > challanAmt) {
                 rempAmt = challanAmt;
                 row.find('.oldramount').val(challanAmt.toFixed(1));
             }
         }
 
-        // Event listener for keyup event in amount inputs of a single row
-       
-
         function populateSiblingTable(challandetail) {
             var siblingContainer = $('#siblingContainer');
             siblingContainer.empty();
 
-            var row = $('<div class="row d-flex justify-content-center" style = "padding: 0.5rem 1.5rem !important;">');
+            var row = $('<div class="row d-flex justify-content-center" style="padding: 0.5rem 1.5rem !important;">');
             row.append('<div class="col-md-3"><b>Student Name:</b> ' + challandetail.student.stdname + '</div>');
             row.append('<div class="col-md-3"><b>Father Name:</b> ' + challandetail.student.fathername + '</div>');
             row.append('<div class="col-md-3"><b>Issue Date:</b> ' + challandetail.issue_date + '</div>');
@@ -458,6 +574,13 @@
         function populateHeadFee(headsData) {
             var headFeeContainer = $('#headfee');
             headFeeContainer.empty();
+
+            // Check if headsData is empty or has no valid entries
+            if (!headsData || headsData.length === 0) {
+                headFeeContainer.hide();
+                return;
+            }
+
             headsData.forEach(function(head) {
                 var row = $('<div class="row">');
                 row.append('<div class="col-md-4 mb-1">' + head.head_name +
@@ -466,37 +589,49 @@
                     '<div class="col-md-3 mb-1"><input name="tamount[]" class="form-control tamount" type="text" value="' +
                     head.amount + '" disabled></div>');
                 row.append(
-                    '<div class="col-md-3 mb-1"><input name="ramount[]" class="form-control ramount" style = "font-size: 13px;" type="number" value="" min="0" step="any"></div>'
+                    '<div class="col-md-3 mb-1"><input name="ramount[]" class="form-control ramount" style="font-size: 13px;" type="number" value="" min="0" step="any"></div>'
                 );
                 headFeeContainer.append(row);
             });
 
-            // Get the default bank value
-            var banks_id = $('#default_bank').val();
+            // Determine which bank to select (default bank for branch users or default_bank from filter)
+            var banks_id = defaultBankId || $('#default_bank').val();
 
             headFeeContainer.append(`<div style="display:flex;" class="gap-2">
-                        <label for="bank" style="display:block; margin-bottom:5px;"><strong>Bank Account</strong>
-                            <select id="bank" class="form-control js-searchBox" style="width:150px; font-size: 12px;">
-                                ${all_accountOptions}
-                            </select>
-                         </label>
-                        <label for="rec_type" style="display:block; margin-bottom:5px;"><strong>D Status</strong>
-                        <select class="input form-control" id="rec_type" style="width:100px" name="receive_type">
-                            <option value="DD">DD</option>
-                            <option value="OL">OL</option>
-                            <option value="CHQ">CHQ</option>
-                            <option value="CD">CD</option>
-                        </select></label>
-                        <label for="ref" style="display:block; margin-bottom:5px;"><strong>Referance</strong>
-                        <input type="text" value="" name="ref" id="ref" class="form-control" required style="width:190px; font-size: 11px;"></label>
-                    </div>
-                <div class="d-flex justify-content-end gap-4" id="saveButton" style="position:relative; right:80px; padding-top: 10px;">
-                    <button class="btn btn-success">Save</button>
-                </div>
+                <label for="bank" style="display:block; margin-bottom:5px;"><strong>Bank Account</strong>
+                    <select id="bank" class="form-control js-searchBox main-bank-select" style="width:150px; font-size: 12px;">
+                        ${all_accountOptions}
+                    </select>
+                </label>
+                <label for="rec_type" style="display:block; margin-bottom:5px;"><strong>D Status</strong>
+                    <select class="input form-control" id="rec_type" style="width:100px" name="receive_type">
+                        <option value="DD">DD</option>
+                        <option value="OL">OL</option>
+                        <option value="CHQ">CHQ</option>
+                        <option value="CD">CD</option>
+                    </select>
+                </label>
+                <label for="ref" style="display:block; margin-bottom:5px;"><strong>Reference <span style="color:red;">*</span></strong>
+                    <input type="text" value="" name="ref" id="ref" class="form-control ref-input" style="width:190px; font-size: 11px;">
+                </label>
+            </div>
+            <div class="d-flex justify-content-end gap-4" style="position:relative; right:80px; padding-top: 10px;">
+                <button class="btn btn-success saveButton">Save</button>
+            </div>
             `);
 
-            // Set the default bank value after the select is created
             $('#bank').val(banks_id);
+            
+            // Update receive type based on selected bank
+            updateReceiveType(banks_id, '#rec_type');
+            
+            // Add event listener for bank change
+            $('#bank').on('change', function() {
+                var selectedBank = $(this).val();
+                updateReceiveType(selectedBank, '#rec_type');
+            });
+            
+            headFeeContainer.show();
         }
 
         function populateArrears(previousUnpaidChallans) {
@@ -507,16 +642,13 @@
                 var row = $(
                     '<div class="mb-3 arrear-row" style="cursor: pointer; display: flex; flex-direction: row; gap:20px;">'
                 );
-                // row.append('<div class=""><b>Challan No:</b> ' + arrear.challanNo +'</div>');
-                // row.append('<div class=""><b>Challan No:</b> <span style="background-color: #100773; color: white; font-weight: bold; padding: 2px 5px; border-radius: 3px;">' + arrear.challanNo + '</span></div>');
                 row.append(
                     '<div class=""><b>Challan No:</b> <span style="background-color: #100773; color: white; font-weight: bold; padding: 2px 5px; border-radius: 3px; animation: blink-effect 1s infinite;">' +
                     arrear.challanNo + '</span></div>');
 
-                // Add the animation definition to your <style> section dynamically
                 $('head').append(
                     '<style>@keyframes blink-effect { 0% { background-color: #100773; color: white; } 50% { background-color: white; color: #100773; } 100% { background-color: #100773; color: white; } }</style>'
-                    );
+                );
 
                 row.append('<div class=""><b>Amount:</b> ' + (arrear.total_amount - arrear.concession_amount -
                     arrear.paid_amount) + '</div>');
@@ -539,37 +671,47 @@
             modalHeadsData.empty();
             var row = $('<div class="row">');
             row.append(
-                '<div class="col-md-4 mb-1">Referance</div><input name="old_challan_id" class="old_ch_id" type="hidden" value="' +
+                '<div class="col-md-4 mb-1">Reference <span style="color:red;">*</span></div><input name="old_challan_id" class="old_ch_id" type="hidden" value="' +
                 arrearData.challanNo + '">');
-                if(arrearData.owned_by == "{{Auth::user()->ownedId()}}"){
-                    row.append(
-                        `<div class="col-md-8 mb-1"><input type="text" value="" id="oldref" class = "old_ref form-control" style="font-size: 13px;"></div><div style="display:flex" class="gap-4"><label for="old_bank" style="display:block; margin-bottom:5px;">Bank Account
-                            <select id="old_bank" name=default_bank class="form-control old_banks js-searchBox" style="width:280px; font-size: 12px;">
-                                        ${all_accountOptions} </select>
-                                </label>
-                                <label for="old_rec_type" style="display:block; margin-bottom:5px;">D Status
-                                <select class="input form-control old_rec_types" id="old_rec_type" style="width:150px" name="receive_type">
-                                    <option value="DD">DD</option> <option value="OL">OL</option> <option value="CHQ">CHQ</option> <option value="CD">CD</option>
-                                </select></label></div>`
-                    );
-                }else{
-                    row.append(
-                        `<div class="col-md-8 mb-1"><input type="text" value="" id="oldref" class = "old_ref form-control" style="font-size: 13px;"></div><div style="display:flex" class="gap-4"><label for="old_bank" style="display:block; margin-bottom:5px;">Bank Account
-                            <select id="old_bank" name=default_bank class="form-control old_banks js-searchBox" style="width:280px; font-size: 12px;">
-                                        ${accountOptions} </select>
-                                </label>
-                                <label for="old_rec_type" style="display:block; margin-bottom:5px;">D Status
-                                <select class="input form-control old_rec_types" id="old_rec_type" style="width:150px" name="receive_type">
-                                    <option value="DD">DD</option> <option value="OL">OL</option> <option value="CHQ">CHQ</option> <option value="CD">CD</option>
-                                </select></label></div>`
-                    );
-                }
-            var banks_id = $('#default_bank').val();
+            if (arrearData.owned_by == "{{ Auth::user()->ownedId() }}") {
+                row.append(
+                    `<div class="col-md-8 mb-1"><input type="text" value="" id="oldref" class="old_ref form-control old-ref-input" style="font-size: 13px;"></div><div style="display:flex" class="gap-4"><label for="old_bank" style="display:block; margin-bottom:5px;">Bank Account
+                        <select id="old_bank" name="default_bank" class="form-control old_banks js-searchBox modal-bank-select" style="width:280px; font-size: 12px;">
+                            ${all_accountOptions}
+                        </select>
+                    </label>
+                    <label for="old_rec_type" style="display:block; margin-bottom:5px;">D Status
+                        <select class="input form-control old_rec_types" id="old_rec_type" style="width:150px" name="receive_type">
+                            <option value="DD">DD</option>
+                            <option value="OL">OL</option>
+                            <option value="CHQ">CHQ</option>
+                            <option value="CD">CD</option>
+                        </select>
+                    </label>
+                </div>`
+                );
+            } else {
+                row.append(
+                    `<div class="col-md-8 mb-1"><input type="text" value="" id="oldref" class="old_ref form-control old-ref-input" style="font-size: 13px;"></div><div style="display:flex" class="gap-4"><label for="old_bank" style="display:block; margin-bottom:5px;">Bank Account
+                        <select id="old_bank" name="default_bank" class="form-control old_banks js-searchBox modal-bank-select" style="width:280px; font-size: 12px;">
+                            ${accountOptions}
+                        </select>
+                    </label>
+                    <label for="old_rec_type" style="display:block; margin-bottom:5px;">D Status
+                        <select class="input form-control old_rec_types" id="old_rec_type" style="width:150px" name="receive_type">
+                            <option value="DD">DD</option>
+                            <option value="OL">OL</option>
+                            <option value="CHQ">CHQ</option>
+                            <option value="CD">CD</option>
+                        </select>
+                    </label>
+                </div>`
+                );
+            }
+            
             modalHeadsData.append(row);
-            
-            // Set the default bank value after the select is created in the modal
-            $('#old_bank').val(banks_id);
-            
+
+            // Add fee heads first
             arrearData.heads.forEach(function(head) {
                 if (head.price - head.concession - head.paid != 0) {
                     var headRow = $('<div class="row mb-3">');
@@ -584,26 +726,72 @@
                     modalHeadsContainer.append(headRow);
                 }
             });
+
+            // Now set bank and update receive type after DOM is ready
+            // Determine which bank to select - prioritize: 1) Main form bank, 2) Default bank for branch, 3) Filter bank
+            var banks_id = $('#bank').val() || defaultBankId || $('#default_bank').val();
+            
+            console.log('Modal - Setting bank:', banks_id); // Debug log
+            console.log('Modal - Account data:', accountAllData); // Debug log
+            
+            // Set the bank value
+            $('#old_bank').val(banks_id);
+            
+            // Get chart account for the selected bank
+            let chartAccount = '';
+            if (accountAllData[banks_id]) {
+                chartAccount = accountAllData[banks_id].chart_account;
+            } else if (accountsData[banks_id]) {
+                chartAccount = accountsData[banks_id].chart_account;
+            }
+            
+            console.log('Modal - Chart account:', chartAccount); // Debug log
+            
+            // Update receive type immediately
+            const receiveTypeOptions = getReceiveTypeOptions(chartAccount);
+            $('#old_rec_type').html(receiveTypeOptions);
+            
+            console.log('Modal - Receive type options set:', receiveTypeOptions); // Debug log
+            
+            // Add event listener for modal bank change
+            $('#old_bank').off('change').on('change', function() {
+                var selectedBank = $(this).val();
+                console.log('Modal - Bank changed to:', selectedBank); // Debug log
+                updateReceiveType(selectedBank, '#old_rec_type');
+            });
         }
 
         $(document).on('change', '#default_bank', function() {
             var selectedBank = $(this).val();
-            
-            // Update the #bank select if it exists
+
+            // Update main form bank and receive type
             if ($('#bank').length) {
                 $('#bank').val(selectedBank);
+                updateReceiveType(selectedBank, '#rec_type');
             }
-            
-            // Update the #old_bank select if it exists
+
+            // Update modal bank and receive type
             if ($('#old_bank').length) {
                 $('#old_bank').val(selectedBank);
+                updateReceiveType(selectedBank, '#old_rec_type');
             }
         });
 
-        // Add event listener for the save button
-        $(document).on('click', '#saveButton', function() {
+        // Main save button handler
+        $(document).on('click', '.saveButton', function(event) {
             event.preventDefault();
-            // Collect form data
+
+            var $saveBtn = $(this);
+            $saveBtn.prop('disabled', true);
+
+            // Validate all amounts first
+            if (!validateAllAmounts()) {
+                $saveBtn.prop('disabled', false);
+                return;
+            }
+
+            var refValue = $.trim($('#headfee').find('.ref-input').val());
+
             var formData = {
                 head_id: [],
                 tamount: [],
@@ -638,33 +826,41 @@
             formData.late_amt = $('#late_amt').val();
             formData.arrears = $('#arrears').val();
             formData.bank = $('#bank').val();
-            formData.ref = $('#ref').val();
+            formData.ref = refValue;
             formData.receive_type = $('#rec_type').val();
+
             if ({{ Auth::user()->type != 'company' ? 'true' : 'false' }}) {
                 const minDate = new Date();
                 minDate.setDate(minDate.getDate() - 3);
                 const reciptDate = new Date(formData.recipt_date);
-                
-                if(reciptDate < minDate){
-                    show_toastr('error', 'Receipt Date must be within the last 3 days', 'error');
-                    return;
-                }
             }
-            if(formData.recipt_amt <= 0){
-                show_toastr('error', 'Recipt Amount must be greater than 0', 'error');
+
+            if (formData.recipt_amt <= 0) {
+                show_toastr('error', 'Receipt Amount must be greater than 0', 'error');
+                $saveBtn.prop('disabled', false);
                 return;
             }
+
             if (!formData.bank) {
                 show_toastr('error', 'Please select a valid bank', 'error');
+                $saveBtn.prop('disabled', false);
                 return;
             }
+
+            if (!formData.ref || formData.ref === '') {
+                show_toastr('error', 'Reference field is required', 'error');
+                $('#headfee').find('.ref-input').focus();
+                $saveBtn.prop('disabled', false);
+                return;
+            }
+
             var csrfToken = $('meta[name="csrf-token"]').attr('content');
-            // You can use AJAX to send the data to the server
+
             $.ajax({
-                url: 'paidchallan', // Replace with your server endpoint URL
+                url: 'paidchallan',
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': csrfToken // Include the CSRF token in the headers
+                    'X-CSRF-TOKEN': csrfToken
                 },
                 data: formData,
                 success: function(response) {
@@ -679,25 +875,58 @@
                     siblingContainer.hide();
                     $('#headfee').empty();
                     $('#arrearsdetails').empty();
-                    $('#new_data').append(response.data)
+                    $('#new_data').append(response.data);
                     var banks_id = $('#default_bank').val();
-                    $('#bank').val(banks_id);
+                    if ($('#bank').length) {
+                        $('#bank').val(banks_id);
+                    }
+
+                    $saveBtn.prop('disabled', false);
                 },
-                error: function(error) {
-                    alert('Something Went Wrong...')
+                error: function(xhr, status, error) {
+                    alert('Something Went Wrong...');
                     if (xhr.responseJSON && xhr.responseJSON.error) {
                         console.error('Error:', xhr.responseJSON.error);
                     } else {
                         console.error('An unknown error occurred.');
                     }
+
+                    $saveBtn.prop('disabled', false);
                 }
             });
         });
 
-        // Add event listener for the save button
-        $(document).on('click', '#oldsaveButton', function() {
+        // Old save button handler
+        $(document).on('click', '#oldsaveButton', function(event) {
             event.preventDefault();
-            // Collect form data
+
+            var $oldSaveBtn = $(this);
+            $oldSaveBtn.prop('disabled', true);
+
+            // Validate all amounts first
+            if (!validateAllAmounts()) {
+                $oldSaveBtn.prop('disabled', false);
+                return;
+            }
+
+            var activeModal = $oldSaveBtn.closest('#arrearModal');
+
+            if (!activeModal.length) {
+                console.error('No active modal found.');
+                $oldSaveBtn.prop('disabled', false);
+                return;
+            }
+
+            var modalHeadsDataDiv = activeModal.find('.modalHeadsData');
+
+            if (!modalHeadsDataDiv.length) {
+                console.error('No modalHeadsData div found in the active modal.');
+                $oldSaveBtn.prop('disabled', false);
+                return;
+            }
+
+            var old_ref = $.trim(modalHeadsDataDiv.find('.old-ref-input').val());
+
             var oldformData = {
                 head_id: [],
                 tamount: [],
@@ -720,50 +949,18 @@
 
             $('input[name="oldtamount[]"]').each(function() {
                 oldformData.tamount.push($(this).val());
-                tot += parseFloat($(this).val())
+                tot += parseFloat($(this).val());
             });
+
             var rev = 0;
             $('input[name="oldramount[]"]').each(function() {
                 oldformData.ramount.push($(this).val());
                 rev += parseFloat($(this).val()) || 0;
             });
 
-            // Find the parent modal
-            var activeModal = $(this).closest('#arrearModal');
-
-            if (!activeModal.length) {
-                console.error('No active modal found.');
-                return;
-            }
-
-            // Get the modalHeadsData div within the active modal
-            var modalHeadsDataDiv = activeModal.find('.modalHeadsData');
-
-            if (!modalHeadsDataDiv.length) {
-                console.error('No modalHeadsData div found in the active modal.');
-                return;
-            }
-
-            var lgInputs = modalHeadsDataDiv.find('.old_ch_id');
-            var chal_id = '';
-            lgInputs.each(function() {
-                chal_id = $(this).val();
-            });
-            var lgInputs = modalHeadsDataDiv.find('.old_banks');
-            var banks = '';
-            lgInputs.each(function() {
-                banks = $(this).val();
-            });
-            var lgInputs = modalHeadsDataDiv.find('.old_rec_types');
-            var old_rec_type = '';
-            lgInputs.each(function() {
-                old_rec_type = $(this).val();
-            });
-            var lgInputs = modalHeadsDataDiv.find('.old_ref');
-            var old_ref = '';
-            lgInputs.each(function() {
-                old_ref = $(this).val();
-            });
+            var chal_id = modalHeadsDataDiv.find('.old_ch_id').val();
+            var banks = modalHeadsDataDiv.find('.old_banks').val();
+            var old_rec_type = modalHeadsDataDiv.find('.old_rec_types').val();
 
             oldformData.challan_id = chal_id;
             oldformData.challan_amt = tot;
@@ -774,40 +971,50 @@
             oldformData.bank = banks;
             oldformData.ref = old_ref;
             oldformData.receive_type = old_rec_type;
+
             if ({{ Auth::user()->type != 'company' ? 'true' : 'false' }}) {
                 const minDate = new Date();
                 minDate.setDate(minDate.getDate() - 3);
                 const reciptDate = new Date(oldformData.recipt_date);
-                
-                if(reciptDate < minDate){
-                    show_toastr('error', 'Receipt Date must be within the last 3 days', 'error');
-                    return;
-                }
             }
-            if(oldformData.recipt_amt <= 0){
-                show_toastr('error', 'Recipt Amount must be greater than 0', 'error');
+
+            if (oldformData.recipt_amt <= 0) {
+                show_toastr('error', 'Receipt Amount must be greater than 0', 'error');
+                $oldSaveBtn.prop('disabled', false);
                 return;
             }
+
             if (!oldformData.bank) {
                 show_toastr('error', 'Please select a valid bank', 'error');
+                $oldSaveBtn.prop('disabled', false);
                 return;
             }
+
+            if (!oldformData.ref || oldformData.ref === '') {
+                show_toastr('error', 'Reference field is required', 'error');
+                modalHeadsDataDiv.find('.old-ref-input').focus();
+                $oldSaveBtn.prop('disabled', false);
+                return;
+            }
+
             var csrfToken = $('meta[name="csrf-token"]').attr('content');
-            // You can use AJAX to send the data to the server
+
             $.ajax({
-                url: 'paidchallan', // Replace with your server endpoint URL
+                url: 'paidchallan',
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': csrfToken // Include the CSRF token in the headers
+                    'X-CSRF-TOKEN': csrfToken
                 },
                 data: oldformData,
                 success: function(response) {
                     console.log('Response:', response);
                     window.location.reload();
                 },
-                error: function(error) {
+                error: function(xhr, status, error) {
                     console.error('Error:', error);
-                    // Handle error response
+                    alert('Something went wrong!');
+
+                    $oldSaveBtn.prop('disabled', false);
                 }
             });
         });
