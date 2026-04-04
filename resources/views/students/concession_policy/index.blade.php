@@ -60,16 +60,12 @@
                                     {{-- @can('edit session') --}}
                                     <a href="#!" data-size="lg" data-url="{{route('concession_policy.edit',$concession->id)}}"  data-ajax-popup="true" class="mx-1 btn mx-1 btn-sm btn-outline-primary"  data-bs-title="{{__('Edit')}}"
                                     data-bs-title="{{__('Edit')}}"><span class="btn-inner--icon"><i class="ti ti-pencil "></i></span></a>
-                                </div>
-
-                                {{-- @endcan
-                                @can('delete section') --}}
-                                {{-- <div class="action-btn bg-danger ms-2">
-                                {!! Form::open(['method' => 'DELETE', 'route' => ['fee_head.destroy', $head->id],'id'=>'delete-form-'.$head->id]) !!}
-                                    <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para"  data-bs-title="{{__('Delete')}}" data-bs-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$head->id}}').submit();"><i class="ti ti-trash text-white"></i></a>
+                                @if(\Auth::user()->type == 'company')
+                                {!! Form::open(['method' => 'DELETE', 'route' => ['concession_policy.destroy', $concession->id],'id'=>'delete-form-'.$concession->id]) !!} 
+                                    <a href="#" class="mx-3 btn btn-sm bg-danger align-items-center bs-pass-para"  data-bs-title="{{__('Delete')}}" data-bs-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$concession->id}}').submit();"><i class="ti ti-trash text-white"></i></a>
                                 {!! Form::close() !!}
-                                    {{-- @endcan --}}
                                 </div> 
+                                @endif
          
                         </td>
                     {{-- @endif --}}

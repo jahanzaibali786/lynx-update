@@ -259,7 +259,7 @@ class BranchesController extends Controller
             {
                 $validation = [
                     'name' => 'required',
-                    'email' => 'required|email|unique:users,email,' . $branch->id,
+                    // 'email' => 'required|email|unique:users,email,' . $branch->id,
                 ];
 
                 $post         = [];

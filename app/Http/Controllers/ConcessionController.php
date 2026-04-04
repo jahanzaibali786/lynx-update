@@ -409,55 +409,72 @@ class ConcessionController extends Controller
         try {
             $titleIds = $request->input('title_id');
             $concessions = $request->input('concession');
-            $head_name = $request->input('head_name');
 
-            // Filtered data array
+            // Build filtered data — only heads where user entered a non-zero percentage
             $filteredData = [];
             foreach ($concessions as $index => $concession) {
-                if ($concession != "" && $concession != 0) {
+                if ($concession !== "" && $concession != 0) {
                     $filteredData[] = [
                         'title_id' => $titleIds[$index],
-                        'concession' => $concession ?? 0,
+                        'concession' => $concession,
                     ];
                 }
             }
-            // dd($filteredData);
-            // Ensure filtered data is not empty
+
             if (empty($filteredData)) {
-                return response()->json(['message' => 'No data to filter'], 400); // Return a meaningful response
+                return response()->json(['message' => 'No data to filter'], 400);
             }
 
-            // Query the database for matching policies
-            // $policies = ConcessionPolicy::join('concession_policy_heads', 'concession_policies.id', '=', 'concession_policy_heads.concession_id')
-            //     ->select('concession_policies.id', 'concession_policies.title')
-            //     ->where(function($query) use ($filteredData) {
-            //         foreach ($filteredData as $data) {
-            //             $query->where('concession_policy_heads.head_id', $data['title_id'])->orWhere('concession_policy_heads.percentage', $data['concession']);
-            //         }
-            //     })
-            //     ->get();
-            $policies = ConcessionPolicy::join('concession_policy_heads', 'concession_policies.id', '=', 'concession_policy_heads.concession_id')
-                ->select('concession_policies.id', 'concession_policies.title')
-                ->where(function ($query) use ($filteredData) {
-                    foreach ($filteredData as $match) {
-                        $query->orWhere(function ($subQuery) use ($match) {
-                            $subQuery->where('concession_policy_heads.head_id', $match['title_id'])
-                                ->where('concession_policy_heads.percentage', $match['concession']);
-                        });
-                    }
-                })
+            $totalInputHeads = count($filteredData);
+
+            // For each concession policy, count how many of the user's
+            // (head_id + percentage) pairs exist in that policy's heads.
+            // Order: exact full match first, then descending partial matches.
+            $policies = ConcessionPolicy::join(
+                'concession_policy_heads',
+                'concession_policies.id',
+                '=',
+                'concession_policy_heads.concession_id'
+            )
+                ->select(
+                    'concession_policies.id',
+                    'concession_policies.title',
+                    'concession_policies.order_no',
+                    \DB::raw('SUM(CASE WHEN ' .
+                        $this->buildMatchCase($filteredData) .
+                        ' THEN 1 ELSE 0 END) as match_count')
+                )
                 ->groupBy('concession_policies.id', 'concession_policies.title')
-                ->havingRaw('COUNT(concession_policy_heads.id) = ?', [count($filteredData)])
-                ->get();
-            // dd($policies);
-            return response()->json($policies); // Return the filtered policies as JSON
+                ->havingRaw('match_count > 0')
+                ->orderByRaw('match_count DESC')
+                ->get()
+                ->map(function ($policy) use ($totalInputHeads) {
+                    $policy->is_exact = ($policy->match_count == $totalInputHeads);
+                    return $policy;
+                });
+
+            return response()->json($policies);
 
         } catch (\Exception $e) {
-            dd($e);
             \Log::error('Error filtering policies: ' . $e->getMessage());
             return response()->json(['error' => 'An error occurred while filtering policies'], 500);
         }
     }
+
+    /**
+     * Build a CASE expression that checks each (head_id, percentage) pair.
+     */
+    private function buildMatchCase(array $filteredData): string
+    {
+        $cases = [];
+        foreach ($filteredData as $match) {
+            $headId = (int) $match['title_id'];
+            $percentage = (float) $match['concession'];
+            $cases[] = "(concession_policy_heads.head_id = {$headId} AND concession_policy_heads.percentage = {$percentage})";
+        }
+        return implode(' OR ', $cases);
+    }
+
 
     public function concessionstatus($id)
     {

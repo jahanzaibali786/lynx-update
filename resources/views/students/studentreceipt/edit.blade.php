@@ -86,7 +86,7 @@ $(function () {
                 @if ($challanHead)
                     <tr>
                         <td>{{ $challanHead->feeHead->fee_head }}</td>
-                        <td>{{ number_format($challanHead->price, 2) }}</td>
+                        <td>{{ number_format(($challanHead->price - $challanHead->concession), 2) }}</td>
                         <td>{{ number_format($challanHead->paid, 2) }}</td>
                         {{ Form::hidden("items[{$vo->id}][journal_item_id]", $vo->id) }}
                         {{ Form::hidden("items[{$vo->id}][challan_head_id]", $challanHead->id) }}
@@ -95,9 +95,9 @@ $(function () {
                            {{ Form::number("items[{$vo->id}][credit]", old("items.{$vo->id}.credit", $vo->credit), [
                                     'class' => 'form-control receipt-credit',
                                     'min' => 0,
-                                    'max' => ($challanHead->price - $challanHead->paid) +$vo->credit,
+                                    'max' => ($challanHead->price - $challanHead->paid - $challanHead->concession) +$vo->credit,
                                     'step' => 1,
-                                    'data-max' => ($challanHead->price - $challanHead->paid) +$vo->credit,
+                                    'data-max' => ($challanHead->price - $challanHead->paid - $challanHead->concession) + $vo->credit,
                                     'data-paid' => $vo->credit,
                                 ]) }}
 

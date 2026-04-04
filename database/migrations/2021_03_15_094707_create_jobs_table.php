@@ -8,38 +8,22 @@ class CreateJobsTable extends Migration
 {
     /**
      * Run the migrations.
-     *
-     * @return void
      */
     public function up()
     {
-        Schema::create(
-            'jobs', function (Blueprint $table){
-            $table->id();
-            $table->string('title');
-            $table->text('description')->nullable();
-            $table->text('requirement')->nullable();
-            $table->integer('branch')->default(0);
-            $table->integer('category')->default(0);
-            $table->text('skill')->nullable();
-            $table->integer('position')->nullable();
-            $table->date('start_date')->nullable();
-            $table->date('end_date')->nullable();
-            $table->string('status')->nullable();
-            $table->string('applicant')->nullable();
-            $table->string('visibility')->nullable();
-            $table->string('code')->nullable();
-            $table->string('custom_question')->nullable();
-            $table->integer('created_by');
-            $table->timestamps();
-        }
-        );
+        Schema::create('jobs', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('queue')->index();
+            $table->longText('payload');
+            $table->unsignedTinyInteger('attempts');
+            $table->unsignedInteger('reserved_at')->nullable();
+            $table->unsignedInteger('available_at');
+            $table->unsignedInteger('created_at');
+        });
     }
 
     /**
      * Reverse the migrations.
-     *
-     * @return void
      */
     public function down()
     {

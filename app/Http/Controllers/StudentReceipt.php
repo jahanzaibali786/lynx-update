@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
 use App\Models\ChallanHead;
+use App\Models\ChartOfAccount;
+use App\Models\FeeHead;
 use App\Models\JournalEntry;
 use App\Models\Challans;
 use App\Models\JournalItem;
 use App\Models\StudentReceipt as Receipt;
 use App\Exports\StudentReceiptExport;
+use Carbon\Carbon;
+use Exception;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Models\User;
 use App\Models\Utility;
@@ -182,7 +186,7 @@ class StudentReceipt extends Controller
             $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
                 ->where('owned_by', \Auth::user()->ownedId())
                 ->get()
-                ->pluck('name', 'id');        
+                ->pluck('name', 'id');
         }
         $voucher = JournalItem::where('journal', $recipt->voucher_id)->where('credit', '!=', '0')->get();
         return view('students.studentreceipt.edit', compact('recipt', 'voucher', 'accounts'));
@@ -195,328 +199,635 @@ class StudentReceipt extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-   public function update(Request $request, $id)
+    public function update(Request $request, $id)
     {
         DB::beginTransaction();
         try {
             $receipt = Receipt::findOrFail($id);
-            $totalCredits = 0;
-            $hasNonZeroItems = false;
-            
-            // Store old values for bank balance adjustment
-            $oldBankId = $receipt->bank_id;
-            $oldAmount = $receipt->recipt_amount;
-            
-            // Get bank account details if bank_id is provided
-            $bankAccount = null;
-            $bankName = '';
-            if (!empty($request->bank_id)) {
-                $bankAccount = BankAccount::find($request->bank_id);
-                if ($bankAccount) {
-                    $bankName = $bankAccount->bank_name;
-                }
+            $oldAmount = (float) $receipt->recipt_amount;
+            $oldBankId = (int) $receipt->bank_id;
+            Utility::bankAccountBalance($oldBankId, $oldAmount, 'debit');
+            $oldReceiveType = $receipt->receive_type;
+            $oldDate = $receipt->recipt_date;
+
+            $challan = Challans::find($receipt->challan_id);
+            if (!$challan) {
+                throw new \Exception('Challan not found.');
             }
-            
-            // Get challan number from receipt relationship
-            $challanNo = $receipt->challan ? $receipt->challan->challanNo : '';
-            
-            // Use receipt date for timestamps
-            $receiptDateTime = !empty($request->recipt_date) 
-                ? \Carbon\Carbon::parse($request->recipt_date) 
-                : now();
-            
-            // Track challan IDs that need updating
-            $challansToUpdate = [];
-            
-            // Process each item and check for zero amounts
-            foreach ($request->items as $itemData) {
-                $creditAmount = floatval($itemData['credit']);
-                
-                // Skip items with 0 credit (will be removed)
-                if ($creditAmount == 0) {
-                    continue;
-                }
-                
-                $hasNonZeroItems = true;
-                
-                $journalItem = JournalItem::findOrFail($itemData['journal_item_id']);
-                $challanHead = ChallanHead::findOrFail($itemData['challan_head_id']);
-                
-                // Calculate maximum allowed credit
-                $maxCredit = $challanHead->price - $challanHead->paid + $journalItem->credit;
-                
-                if ($creditAmount > $maxCredit) {
-                    throw new \Exception("Credit for head {$challanHead->feeHead->fee_head} exceeds remaining balance.");
-                }
-                
-                // Update journal item
-                if (!empty($request->bank_id) && $bankAccount) {
-                    $journalItem->bank_id = $request->bank_id;
-                    $journalItem->account = $bankAccount->chart_account_id;
-                }
-                $journalItem->credit = $creditAmount;
-                $journalItem->created_at = $receiptDateTime;
-                $journalItem->updated_at = $receiptDateTime;
-                $journalItem->save();
-                
-                // Update challan head paid amount
-                $challanHead->paid = ($challanHead->paid + $creditAmount) - $itemData['voucher_old'];
-                $challanHead->created_at = $receiptDateTime;
-                $challanHead->updated_at = $receiptDateTime;
-                $challanHead->save();
-                
-                // Track challan for update
-                if (!isset($challansToUpdate[$challanHead->challan_id])) {
-                    $challansToUpdate[$challanHead->challan_id] = 0;
-                }
-                
-                $totalCredits += $creditAmount;
-            }
-            
-            // If all items are zero, delete receipt and rollback everything
-            if (!$hasNonZeroItems) {
-                $journalId = null;
-                
-                // Find journal ID from any item
-                foreach ($request->items as $itemData) {
-                    $journalItem = JournalItem::find($itemData['journal_item_id']);
-                    if ($journalItem) {
-                        $journalId = $journalItem->journal;
-                        break;
+
+            // ── Normalise items: unify 'credit' and 'amount' keys → 'amount' ────
+            $normaliseItems = function (array $items): array {
+                return array_map(function ($item) {
+                    if (!isset($item['amount']) && isset($item['credit'])) {
+                        $item['amount'] = $item['credit'];
                     }
-                }
-                
-                // Rollback all challan head amounts
-                foreach ($request->items as $itemData) {
-                    $journalItem = JournalItem::find($itemData['journal_item_id']);
-                    if ($journalItem) {
-                        $challanHead = ChallanHead::find($itemData['challan_head_id']);
+                    $item['amount'] = (float) ($item['amount'] ?? 0);
+
+                    // ── Resolve head_id from challan_head if missing ─────────────
+                    if (empty($item['head_id']) && !empty($item['challan_head_id'])) {
+                        $challanHead = ChallanHead::find($item['challan_head_id']);
                         if ($challanHead) {
-                            // Rollback the paid amount
-                            $challanHead->paid = $challanHead->paid - $itemData['voucher_old'];
-                            $challanHead->created_at = $receiptDateTime;
-                            $challanHead->updated_at = $receiptDateTime;
-                            $challanHead->save();
-                            
-                            // Track challan for update
-                            if (!isset($challansToUpdate[$challanHead->challan_id])) {
-                                $challansToUpdate[$challanHead->challan_id] = 0;
-                            }
+                            $item['head_id'] = (int) $challanHead->head_id;
                         }
                     }
-                }
-                
-                // Update all affected challans
-                foreach ($challansToUpdate as $challanId => $dummy) {
-                    $this->updateChallanTotals($challanId, $receiptDateTime);
-                }
-                
-                // Delete all journal items (receipt vouchers) for this journal
-                if ($journalId) {
-                    JournalItem::where('journal', $journalId)->delete();
-                    JournalEntry::where('id', $journalId)->delete();
-                }
-                
-                // Reverse bank balance (deduct the old amount)
-                if (!empty($oldBankId) && $oldAmount > 0) {
-                    Utility::bankAccountBalance($oldBankId, $oldAmount, 'debit');
-                }
-                
-                // Delete the receipt
-                $receipt->delete();
-                
-                DB::commit();
-                return redirect()
-                    ->route('student_receipt.index')
-                    ->with('success', __('Receipt deleted as all amounts were set to zero.'));
-            }
-            
-            // Remove journal items with 0 credit
-            foreach ($request->items as $itemData) {
-                $creditAmount = floatval($itemData['credit']);
-                
-                if ($creditAmount == 0) {
-                    $journalItem = JournalItem::find($itemData['journal_item_id']);
-                    if ($journalItem) {
-                        $challanHead = ChallanHead::find($itemData['challan_head_id']);
-                        if ($challanHead) {
-                            // Rollback the paid amount for this head
-                            $challanHead->paid = $challanHead->paid - $itemData['voucher_old'];
-                            $challanHead->created_at = $receiptDateTime;
-                            $challanHead->updated_at = $receiptDateTime;
-                            $challanHead->save();
-                            
-                            // Track challan for update
-                            if (!isset($challansToUpdate[$challanHead->challan_id])) {
-                                $challansToUpdate[$challanHead->challan_id] = 0;
-                            }
-                        }
-                        
-                        // Delete the journal item
-                        $journalItem->delete();
-                    }
-                }
-            }
-            
-            // Update receipt details (only if not empty)
-            if (!empty($request->recipt_date)) {
-                $receipt->recipt_date = $request->recipt_date;
-            }
-            $receipt->recipt_amount = $totalCredits;
-            if (!empty($request->bank_id)) {
-                $receipt->bank_id = $request->bank_id;
-            }
-            if (!empty($request->payment_method)) {
-                $receipt->receive_type = $request->payment_method;
-            }
-            if (!empty($request->reference)) {
-                $receipt->referance = $request->reference;
-            }
-            $receipt->created_at = $receiptDateTime;
-            $receipt->updated_at = $receiptDateTime;
-            $receipt->save();
-            
-            // Get journal ID from remaining items
-            $journalId = null;
-            foreach ($request->items as $itemData) {
-                if (floatval($itemData['credit']) > 0) {
-                    $journalItem = JournalItem::find($itemData['journal_item_id']);
-                    if ($journalItem) {
-                        $journalId = $journalItem->journal;
-                        break;
-                    }
-                }
-            }
-            
-            // Update debit line and all related records
-            if ($journalId) {
-                // Update debit line (bank account entry)
-                $debitLine = JournalItem::where('journal', $journalId)
-                    ->where('debit', '!=', 0)
-                    ->first();
-                
-                if (!$debitLine) {
-                    throw new \Exception("Debit line not found for journal #{$journalId}.");
-                }
-                
-                // Update bank account and description for debit line
-                if (!empty($request->bank_id) && $bankAccount) {
-                    $debitLine->bank_id = $request->bank_id;
-                    $debitLine->account = $bankAccount->chart_account_id;
-                    $debitLine->description = 'Receive of Challan no: ' . $challanNo . ' - Bank: ' . $bankName;
-                }
-                $debitLine->debit = $totalCredits;
-                $debitLine->created_at = $receiptDateTime;
-                $debitLine->updated_at = $receiptDateTime;
-                $debitLine->save();
-                
-                // Update bank_id, account, and timestamps for all credit lines in this journal
-                if (!empty($request->bank_id) && $bankAccount) {
-                    $creditLines = JournalItem::where('journal', $journalId)
-                        ->where('credit', '!=', 0)
+
+                    return $item;
+                }, $items);
+            };
+
+            $newItems = $normaliseItems($request->items ?? []);
+            $oldItems = $normaliseItems($request->old_items ?? []);
+
+            // ── If old_items not provided by frontend, derive from journal ───────
+            // Fetch per-head credit amounts from the journal tied to this receipt.
+            // Safe because:
+            //   - bank/type only changed  → amounts same → $amountsChanged = false
+            //   - amounts changed         → frontend must send old_items correctly
+            if (empty($oldItems)) {
+                $journalEntry = JournalEntry::find($receipt->voucher_id);
+                if ($journalEntry) {
+                    $creditLines = JournalItem::where('journal', $journalEntry->id)
+                        ->where('types', 'Challan Payment')
+                        ->where('credit', '>', 0)
+                        ->where('debit', 0)
                         ->get();
-                    
-                    foreach ($creditLines as $creditLine) {
-                        $creditLine->bank_id = $request->bank_id;
-                        $creditLine->account = $bankAccount->chart_account_id;
-                        
-                        // Update description to include bank name
-                        $creditLine->description = 'Receive of Challan no: ' . $challanNo . ' - Bank: ' . $bankName;
-                        
-                        $creditLine->created_at = $receiptDateTime;
-                        $creditLine->updated_at = $receiptDateTime;
-                        $creditLine->save();
+
+                    foreach ($creditLines as $line) {
+                        $challanHead = ChallanHead::where('challan_id', $receipt->challan_id)
+                            ->where('head_id', $line->head)
+                            ->first();
+
+                        if ($challanHead) {
+                            $oldItems[] = [
+                                'head_id' => (int) $line->head,
+                                'challan_head_id' => (int) $challanHead->id,
+                                'amount' => (float) $line->credit,
+                            ];
+                        }
                     }
-                } else {
-                    // Update only timestamps if bank_id is empty
-                    JournalItem::where('journal', $journalId)
-                        ->where('credit', '!=', 0)
-                        ->update([
-                            'created_at' => $receiptDateTime,
-                            'updated_at' => $receiptDateTime
-                        ]);
                 }
-                
-                // Update journal entry
-                $journal = JournalEntry::find($journalId);
-                if ($journal) {
-                    if (!empty($request->reference)) {
-                        $journal->reference = $request->reference;
+
+                // Final fallback: mirror newItems so $amountsChanged = false
+                // and ChallanHead paid amounts are not touched
+                if (empty($oldItems)) {
+                    $oldItems = $newItems;
+                }
+            }
+
+            /*
+            |---------------------------------------------
+            | If Amount = 0 → Delete Receipt & Reverse
+            |---------------------------------------------
+            */
+            if ((float) $request->recipt_amount == 0.0) {
+
+                $journalId = $receipt->voucher_id;
+
+                if ($journalId) {
+                    $otherReceipts = Receipt::where('voucher_id', $journalId)
+                        ->where('id', '!=', $receipt->id)
+                        ->count();
+
+                    if ($otherReceipts === 0) {
+                        // Only receipt on this journal — hard delete everything
+                        JournalItem::where('journal', $journalId)->delete();
+                        JournalEntry::where('id', $journalId)->delete();
+                    } else {
+                        // Shared journal — remove only this receipt's lines
+                        $this->reverseReceiptJournalItems($receipt, $oldItems);
                     }
-                    if (!empty($request->bank_id)) {
-                        $journal->bank_id = $request->bank_id;
+                }
+
+                // Reverse challan_head paid amounts
+                foreach ($oldItems as $item) {
+                    $challanHead = ChallanHead::find($item['challan_head_id']);
+                    if ($challanHead) {
+                        $challanHead->paid = max(0, $challanHead->paid - $item['amount']);
+                        $challanHead->save();
                     }
-                    $journal->created_at = $receiptDateTime;
-                    $journal->updated_at = $receiptDateTime;
-                    $journal->save();
+                }
+
+                // Reverse challan paid_amount
+                $challan->paid_amount = max(0, $challan->paid_amount - $oldAmount);
+                $this->recalculateChallanStatus($challan);
+                Utility::bankAccountBalance($oldBankId, $oldAmount, 'debit');
+                $receipt->delete();
+                DB::commit();
+                return back()->with('success', 'Receipt deleted successfully.');
+            }
+
+            $newTotal = array_sum(array_column($newItems, 'amount'));
+            Utility::bankAccountBalance($request->bank_id, $newTotal, 'credit');
+            /*
+            |---------------------------------------------
+            | Update Receipt Record
+            |---------------------------------------------
+            */
+            $timestamp = strtotime(str_replace('/', '-', $request->recipt_date));
+            $newDate = date('Y-m-d', $timestamp);
+
+            $receipt->recipt_date = $newDate;
+            $receipt->bank_id = $request->bank_id;
+            $receipt->receive_type = $request->payment_method;
+            $receipt->recipt_amount = $newTotal;
+            $receipt->challan_amount = $request->challan_amt ?? $receipt->challan_amount;
+            $receipt->late_amount = $request->late_amt ?? $receipt->late_amount;
+            $receipt->arrears = $request->arrears ?? $receipt->arrears;
+            $receipt->referance = $request->ref ?? $receipt->referance;
+
+            /*
+            |---------------------------------------------
+            | Determine new voucher type
+            |---------------------------------------------
+            */
+            $newVoucherType = (strtoupper($request->payment_method) === 'CD') ? 'CRV' : 'BRV';
+
+            $newBank = BankAccount::find($request->bank_id);
+            if (!$newBank || !$newBank->chart_account_id) {
+                throw new \Exception('Bank account does not have a Chart of Account attached.');
+            }
+
+            $oldJournal = JournalEntry::find($receipt->voucher_id);
+
+            $dateChanged = ($oldDate !== $newDate);
+            $bankChanged = ($oldBankId !== (int) $request->bank_id);
+            $typeChanged = ($oldReceiveType !== $request->payment_method);
+            $needsJournalMove = $dateChanged;
+
+            if ($needsJournalMove && $oldJournal) {
+                /*
+                |---------------------------------------------
+                | DATE CHANGED — move lines to correct journal
+                |---------------------------------------------
+                */
+
+                // Remove this receipt's credit lines from old journal
+                $this->removeReceiptCreditLines($oldJournal, $receipt, $oldItems);
+
+                // Reduce debit on old journal
+                $this->adjustBankDebitLine($oldJournal, $oldAmount, 'subtract');
+
+                // Delete old journal if now empty
+                $this->cleanupJournalIfEmpty($oldJournal);
+
+                // Find/create journal for new date + bank + type
+                $newJournal = $this->findOrCreateJournal(
+                    $challan,
+                    $newDate,
+                    (int) $request->bank_id,
+                    $newVoucherType,
+                    $receipt,
+                    $newBank
+                );
+
+                // Insert fresh credit lines (no old contribution — brand new journal)
+                $this->upsertCreditLines($newJournal, $newItems, $receipt, $newBank, []);
+
+                // Add debit line to new journal
+                $this->adjustBankDebitLine($newJournal, $newTotal, 'add', $newBank, $challan, $receipt);
+
+                $receipt->voucher_id = $newJournal->id;
+
+            } else {
+                /*
+                |---------------------------------------------
+                | SAME JOURNAL — update everything in place
+                |---------------------------------------------
+                */
+                if ($oldJournal) {
+
+                    /*
+                    |---------------------------------------------
+                    | Bank changed → update journal + both line
+                    | sides in place, no migration needed
+                    |---------------------------------------------
+                    */
+                    if ($bankChanged) {
+                        $oldJournal->bank_id = $newBank->id;
+                        $oldJournal->save();
+                        $newDescription = 'Receive of Challan no: ' . $challan->challanNo . ' - Bank: ' . $newBank->bank_name;
+
+                        // Update DEBIT line — chart account + bank_id
+                        JournalItem::where('journal', $oldJournal->id)
+                            ->where('debit', '>', 0)
+                            ->where('credit', 0)
+                            ->where('types', 'Challan Payment')
+                            ->update([
+                                'account' => $newBank->chart_account_id,
+                                'bank_id' => $newBank->id,
+                                'description' => $newDescription,
+                            ]);
+
+                        // Update CREDIT lines — bank_id only
+                        JournalItem::where('journal', $oldJournal->id)
+                            ->where('credit', '>', 0)
+                            ->where('debit', 0)
+                            ->where('types', 'Challan Payment')
+                            ->update(['bank_id' => $newBank->id, 'description' => $newDescription]);
+                    }
+
+                    /*
+                    |---------------------------------------------
+                    | Voucher type changed → update type AND
+                    | regenerate journal_id for new sequence
+                    |---------------------------------------------
+                    */
+                    if ($typeChanged) {
+                        $newJournalId = (JournalEntry::where('owned_by', $challan->owned_by)
+                            ->where('voucher_type', $newVoucherType)
+                            ->max('journal_id') ?? 0) + 1;
+
+                        $oldJournal->voucher_type = $newVoucherType;
+                        $oldJournal->journal_id = $newJournalId;
+                        $oldJournal->save();
+                    }
+
+                    /*
+                    |---------------------------------------------
+                    | Update credit line amounts
+                    |---------------------------------------------
+                    */
+                    $this->upsertCreditLines($oldJournal, $newItems, $receipt, $newBank, $oldItems);
+
+                    /*
+                    |---------------------------------------------
+                    | Adjust debit line amount only if total changed
+                    |---------------------------------------------
+                    */
+                    $diff = $newTotal - $oldAmount;
+                    if ($diff != 0.0) {
+                        $this->adjustBankDebitLine(
+                            $oldJournal,
+                            abs($diff),
+                            $diff > 0 ? 'add' : 'subtract',
+                            $newBank,
+                            $challan,
+                            $receipt
+                        );
+                    }
                 }
             }
-            
-            // Update all affected challans
-            foreach ($challansToUpdate as $challanId => $dummy) {
-                $this->updateChallanTotals($challanId, $receiptDateTime);
-            }
-            
-            // Handle Bank Balance Updates
-            $newBankId = !empty($request->bank_id) ? $request->bank_id : $oldBankId;
-            
-            // Case 1: Same bank, different amount
-            if ($oldBankId == $newBankId && !empty($oldBankId)) {
-                if ($oldAmount != $totalCredits) {
-                    // Reverse old amount
-                    Utility::bankAccountBalance($oldBankId, $oldAmount, 'debit');
-                    // Add new amount
-                    Utility::bankAccountBalance($newBankId, $totalCredits, 'credit');
+
+            /*
+            |---------------------------------------------
+            | Update ChallanHead paid amounts
+            | ONLY if amounts actually changed
+            |---------------------------------------------
+            */
+            $amountsChanged = false;
+
+            foreach ($newItems as $newItem) {
+                $oldContribution = 0.0;
+                foreach ($oldItems as $oldItem) {
+                    if (($oldItem['challan_head_id'] ?? null) == ($newItem['challan_head_id'] ?? null)) {
+                        $oldContribution = (float) ($oldItem['amount'] ?? 0);
+                        break;
+                    }
+                }
+                if ((float) $newItem['amount'] !== $oldContribution) {
+                    $amountsChanged = true;
+                    break;
                 }
             }
-            // Case 2: Different bank
-            elseif ($oldBankId != $newBankId) {
-                // Reverse from old bank
-                if (!empty($oldBankId) && $oldAmount > 0) {
-                    Utility::bankAccountBalance($oldBankId, $oldAmount, 'debit');
+
+            if ($amountsChanged) {
+                // Reverse old head amounts
+                foreach ($oldItems as $oldItem) {
+                    $challanHead = ChallanHead::find($oldItem['challan_head_id']);
+                    if ($challanHead) {
+                        $challanHead->paid = max(0, $challanHead->paid - $oldItem['amount']);
+                        $challanHead->save();
+                    }
                 }
-                // Add to new bank
-                if (!empty($newBankId) && $totalCredits > 0) {
-                    Utility::bankAccountBalance($newBankId, $totalCredits, 'credit');
+
+                // Apply new head amounts
+                foreach ($newItems as $newItem) {
+                    $challanHead = ChallanHead::find($newItem['challan_head_id']);
+                    if ($challanHead) {
+                        $challanHead->paid = $challanHead->paid + $newItem['amount'];
+                        $challanHead->save();
+                    }
                 }
             }
-            
+            // $oldItems;
+            /*
+            |---------------------------------------------
+            | Update Challan paid_amount and status
+            |---------------------------------------------
+            */
+            if ($newTotal !== $oldAmount) {
+                $challan->paid_amount = max(0, $challan->paid_amount - $oldAmount + $newTotal);
+            }
+            $this->recalculateChallanStatus($challan);
+
+            $receipt->save();
+
             DB::commit();
-            return redirect()
-                ->route('student_receipt.index')
-                ->with('success', __('Receipt updated successfully.'));
-                
+            return back()->with('success', 'Receipt updated successfully.');
+
         } catch (\Exception $e) {
             DB::rollback();
-            return back()->withErrors($e->getMessage());
+            dd($e);
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /*
+    |=============================================================
+    | HELPER METHODS
+    |=============================================================
+    */
+
+    /**
+     * Remove ONLY this receipt's credit contributions from a journal.
+     * Uses $oldItems (already normalised) — no request() access inside helpers.
+     */
+    private function removeReceiptCreditLines(
+        JournalEntry $journal,
+        Receipt $receipt,
+        array $oldItems
+    ): void {
+        foreach ($oldItems as $oldItem) {
+            $headId = $oldItem['head_id'] ?? null;
+            $contribution = (float) ($oldItem['amount'] ?? 0);
+
+            if (!$headId || $contribution <= 0)
+                continue;
+
+            $feeHead = FeeHead::find($headId);
+            if (!$feeHead)
+                continue;
+
+            $account = ChartOfAccount::find($feeHead->receivable_account_id);
+            if (!$account)
+                continue;
+
+            $line = JournalItem::where('journal', $journal->id)
+                ->where('account', $account->id)
+                ->where('head', $headId)
+                ->where('types', 'Challan Payment')
+                ->first();
+
+            if (!$line)
+                continue;
+
+            $line->credit = max(0, $line->credit - $contribution);
+            if ($line->credit <= 0) {
+                $line->delete();
+            } else {
+                $line->save();
+            }
+        }
+    }
+
+    /**
+     * Upsert credit lines for this receipt's items.
+     * $oldItems = [] when moving to a brand-new journal.
+     */
+    private function upsertCreditLines(
+        JournalEntry $journal,
+        array $items,
+        Receipt $receipt,
+        BankAccount $bank,
+        array $oldItems
+    ): void {
+        $challan = Challans::find($receipt->challan_id);
+
+        foreach ($items as $item) {
+            $newAmount = (float) ($item['amount'] ?? 0);
+            $headId = isset($item['head_id']) ? (int) $item['head_id'] : null;
+
+            if ($newAmount <= 0 || !$headId)
+                continue;
+
+            $feeHead = FeeHead::find($headId);
+            if (!$feeHead)
+                throw new \Exception('FeeHead not found: ' . $headId);
+
+            $account = ChartOfAccount::find($feeHead->receivable_account_id);
+            if (!$account)
+                throw new \Exception('Chart of Account not found for FeeHead: ' . $headId);
+
+            // ── Find old contribution by head_id (cast both sides to int) ────
+            $oldContribution = 0.0;
+            foreach ($oldItems as $oldItem) {
+                $oldHeadId = isset($oldItem['head_id']) ? (int) $oldItem['head_id'] : null;
+                if ($oldHeadId === $headId) {
+                    $oldContribution = (float) ($oldItem['amount'] ?? 0);
+                    break;
+                }
+            }
+
+            $existingLine = JournalItem::where('journal', $journal->id)
+                ->where('account', $account->id)
+                ->where('head', $headId)
+                ->where('types', 'Challan Payment')
+                ->first();
+
+            if ($existingLine) {
+                // Subtract old contribution, add new amount
+                $existingLine->credit = max(0, $existingLine->credit - $oldContribution) + $newAmount;
+                $existingLine->save();
+            } else {
+                JournalItem::create([
+                    'journal' => $journal->id,
+                    'account' => $account->id,
+                    'head' => $headId,
+                    'bank_id' => $bank->id,
+                    'user_id' => $receipt->student_id,
+                    'user_type' => 'Student',
+                    'types' => 'Challan Payment',
+                    'branch_id' => $challan->owned_by ?? null,
+                    'description' => 'Receive of Challan no: ' . ($challan->challanNo ?? '') . ' - Bank: ' . $bank->bank_name,
+                    'credit' => $newAmount,
+                    'debit' => 0,
+                ]);
+            }
         }
     }
     /**
-     * Update challan total_amount and paid_amount based on its heads
+     * Add or subtract from the bank DEBIT line of a journal.
+     * Never touches credit lines.
      */
-    private function updateChallanTotals($challanId, $receiptDateTime)
-    {
-        $challan = Challans::find($challanId);
-        if (!$challan) {
-            return;
+    private function adjustBankDebitLine(
+        JournalEntry $journal,
+        float $amount,
+        string $action,   // 'add' | 'subtract'
+        ?BankAccount $bank = null,
+        ?Challans $challan = null,
+        ?Receipt $receipt = null
+    ): void {
+        $debitLine = JournalItem::where('journal', $journal->id)
+            ->where('types', 'Challan Payment')
+            ->where('debit', '>', 0)
+            ->where('credit', 0)
+            ->first();
+
+        if ($debitLine) {
+            $debitLine->debit = $action === 'add'
+                ? $debitLine->debit + $amount
+                : max(0, $debitLine->debit - $amount);
+
+            if ($debitLine->debit <= 0) {
+                $debitLine->delete();
+                return;
+            }
+
+            if ($bank) {
+                $debitLine->account = $bank->chart_account_id;
+                $debitLine->bank_id = $bank->id;
+            }
+            $debitLine->save();
+
+        } elseif ($action === 'add' && $amount > 0 && $bank && $challan) {
+            JournalItem::create([
+                'journal' => $journal->id,
+                'account' => $bank->chart_account_id,
+                'bank_id' => $bank->id,
+                'branch_id' => $challan->owned_by ?? null,
+                'types' => 'Challan Payment',
+                'user_type' => 'Student',
+                'description' => 'Receive of Challan no: ' . $challan->challanNo . ' - Bank: ' . $bank->bank_name,
+                'credit' => 0,
+                'debit' => $amount,
+            ]);
         }
-        
-        // Calculate totals from challan heads
-        $heads = ChallanHead::where('challan_id', $challanId)->get();
-        
-        $totalAmount = $heads->sum('price') + $heads->sum('concession');
-        $concessionAmount = $heads->sum('concession');
-        $paidAmount = $heads->sum('paid');
-        
-        // Update challan
-        $challan->total_amount = $totalAmount;
-        $challan->concession_amount = $concessionAmount;
-        $challan->paid_amount = $paidAmount;
-        $challan->updated_at = $receiptDateTime;
+    }
+
+    /**
+     * Find existing journal or create a new one for new date/bank/type.
+     */
+    private function findOrCreateJournal(
+        Challans $challan,
+        string $date,
+        int $bankId,
+        string $voucherType,
+        Receipt $receipt,
+        BankAccount $bank
+    ): JournalEntry {
+        $journal = JournalEntry::firstOrCreate(
+            [
+                'owned_by' => $challan->owned_by,
+                'voucher_type' => $voucherType,
+                'date' => $date,
+                'challan_id' => $challan->id,
+                'bank_id' => $bankId,
+                'user_id' => $challan->student_id,
+            ],
+            [
+                'journal_id' => (JournalEntry::where('owned_by', $challan->owned_by)
+                    ->where('voucher_type', $voucherType)
+                    ->max('journal_id') ?? 0) + 1,
+                'description' => 'Challan No: ' . $challan->challanNo,
+                'reference_id' => $receipt->id,
+                'reference' => $receipt->referance,
+                'category' => $challan->challan_type,
+                'user_type' => 'Student',
+                'created_by' => $receipt->created_by,
+            ]
+        );
+
+        Receipt::where('id', $receipt->id)->update(['voucher_id' => $journal->id]);
+
+        return $journal;
+    }
+
+    /**
+     * Delete journal entry if it has no items left.
+     */
+    private function cleanupJournalIfEmpty(JournalEntry $journal): void
+    {
+        if (JournalItem::where('journal', $journal->id)->count() === 0) {
+            $journal->delete();
+        }
+    }
+
+    /**
+     * Recalculate and save challan status.
+     */
+    private function recalculateChallanStatus(Challans $challan): void
+    {
+        $due = $challan->total_amount - ($challan->paid_amount + $challan->concession_amount);
+
+        $challan->status = match (true) {
+            $due <= 0 => 'Paid',
+            $challan->paid_amount > 0 => 'Partial Paid',
+            default => 'Issued',
+        };
+
+        // If status becomes Issued, reset paid_date
+        if ($challan->status == 'Issued') {
+            $challan->paid_date = null;
+        }
+
         $challan->save();
     }
 
+    /**
+     * Reverse all journal items for a deleted receipt.
+     */
+    private function reverseReceiptJournalItems(Receipt $receipt, array $oldItems): void
+    {
+        $journal = JournalEntry::find($receipt->voucher_id);
+        if (!$journal)
+            return;
 
+        $hasValidItems = !empty($oldItems)
+            && isset($oldItems[0]['head_id'])
+            && isset($oldItems[0]['amount'])
+            && $oldItems[0]['amount'] > 0;
+
+        if ($hasValidItems) {
+            // Normal path — subtract per-head contributions
+            $this->removeReceiptCreditLines($journal, $receipt, $oldItems);
+        } else {
+            // Fallback — check if other receipts share this journal
+            $otherReceiptsOnJournal = Receipt::where('voucher_id', $journal->id)
+                ->where('id', '!=', $receipt->id)
+                ->count();
+
+            if ($otherReceiptsOnJournal === 0) {
+                JournalItem::where('journal', $journal->id)->delete();
+                $journal->delete();
+                return;
+            }
+
+            // Shared journal — subtract per challan head paid amounts
+            $challanHeads = ChallanHead::where('challan_id', $receipt->challan_id)->get();
+
+            foreach ($challanHeads as $challanHead) {
+                $feeHead = FeeHead::find($challanHead->head_id);
+                if (!$feeHead)
+                    continue;
+
+                $account = ChartOfAccount::find($feeHead->receivable_account_id);
+                if (!$account)
+                    continue;
+
+                $line = JournalItem::where('journal', $journal->id)
+                    ->where('account', $account->id)
+                    ->where('head', $challanHead->head_id)
+                    ->where('types', 'Challan Payment')
+                    ->first();
+
+                if (!$line)
+                    continue;
+
+                $line->credit = max(0, $line->credit - $challanHead->paid);
+                if ($line->credit <= 0) {
+                    $line->delete();
+                } else {
+                    $line->save();
+                }
+            }
+        }
+
+        // Always adjust debit line
+        $this->adjustBankDebitLine($journal, (float) $receipt->recipt_amount, 'subtract');
+
+        // Cleanup journal if now empty
+        $this->cleanupJournalIfEmpty($journal);
+    }
     /**
      * Remove the specified resource from storage.
      *

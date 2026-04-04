@@ -146,7 +146,7 @@ class StudentWithdrawalController extends Controller
         }
         DB::beginTransaction();
         try {
-            $std = StudentEnrollments::where('enrollId', $request->student_id)->first();
+            $std = StudentEnrollments::where('regId', $request->student_id)->first();
 
             $withdrawal = new StudentWithdrawal;
             $withdrawal->document_no = $this->Documentno();
@@ -167,6 +167,7 @@ class StudentWithdrawalController extends Controller
             if(!$reg){
                 $reg= StudentRegistration::where('reg_no', $std->regId)->first();
             }
+            $reg->active_status = 0;
             $reg->student_status = 'withdrawal';
             $reg->save();
             $enroll = StudentEnrollments::where('enrollId', $reg->roll_no)->first();

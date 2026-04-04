@@ -249,7 +249,8 @@ Route::get('/storage-link', function () {
     }
 });
 
-Route::get('/delete-receipts',[JunkController::class,'deleteReceipts'])->name('delete.receipts');
+Route::get('/delete-receipts', [JunkController::class, 'deleteReceipts'])->name('delete.receipts');
+Route::get('/remove-late', [JunkController::class, 'deleteLateFeeBulk'])->name('delete.deleteLateFeeBulk');
 
 Route::get('/add-probation', function () {
     try {
@@ -281,7 +282,7 @@ Route::get('/add-probation', function () {
     }
 });
 Route::post('/calculate-tax', [TaxSlabsController::class, 'calculateTax'])->name('calculate.tax');
-Route::resource('tax-slab',TaxSlabsController::class)->middleware(['auth', 'XSS']);
+Route::resource('tax-slab', TaxSlabsController::class)->middleware(['auth', 'XSS']);
 
 Route::get('/test-roll', function () {
     // Step 1: Get the enrollId + owned_by combinations that are duplicated
@@ -296,19 +297,19 @@ Route::get('/test-roll', function () {
         foreach ($duplicatePairs as $pair) {
             $query->orWhere(function ($subQuery) use ($pair) {
                 $subQuery->where('enrollId', $pair->enrollId)
-                        //  ->where('class_id', $pair->class_id)
-                        //  ->where('section_id', $pair->section_id)
-                         ->where('owned_by', $pair->owned_by);
+                    //  ->where('class_id', $pair->class_id)
+                    //  ->where('section_id', $pair->section_id)
+                    ->where('owned_by', $pair->owned_by);
             });
         }
     })->get();
     // Step 3: Delete the duplicates
-    
+
     dd($duplicates);
 });
-Route::get('/maintainenrollhis',[JunkController::class,'maintainEnrollHis']);
-Route::get('/hisstatus',[JunkController::class,'HisStatus']);
-Route::get('/regchange',[JunkController::class,'Regchange']);
+Route::get('/maintainenrollhis', [JunkController::class, 'maintainEnrollHis']);
+Route::get('/hisstatus', [JunkController::class, 'HisStatus']);
+Route::get('/regchange', [JunkController::class, 'Regchange']);
 Route::get('/register/{lang?}', [RegisteredUserController::class, 'showRegistrationForm'])->name('register');
 
 //company verification email
@@ -614,7 +615,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::resource('bank-account', BankAccountController::class);
         }
     );
-
+    Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'getReference'])
+        ->name('bank.transfer.reference');
     Route::group(
         [
             'middleware' => [
@@ -1122,7 +1124,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('employee/update/sallary/{id}', [SetSalaryController::class, 'employeeUpdateSalary'])->name('employee.salary.update')->middleware(['auth', 'XSS']);
     Route::get('salary/employeeSalary', [SetSalaryController::class, 'employeeSalary'])->name('employeesalary')->middleware(['auth', 'XSS']);
     Route::resource('setsalary', SetSalaryController::class)->middleware(['auth', 'XSS']);
-    
+
     Route::get('emp-final-settlement/finalize/{id}', [EmployeeSettlementController::class, 'finalize'])->name('emp-final-settlement.finalize');
     Route::post('emp-final-settlement-adjust', [EmployeeSettlementController::class, 'adjustchallan'])->name('EmployeeSettlement.adjustchallan');
     Route::post('rollback-challan-adjustment', [EmployeeSettlementController::class, 'rollbackChallanAdjustment'])->name('rollback.challan.adjustment');
@@ -2091,6 +2093,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/SiblingonFathercnic', [StudentRegistration::class, 'SiblingonFathercnic'])->name('SiblingonFathercnic');
             Route::get('/get-concession', [StudentRegistration::class, 'getconcession'])->name('get.concession');
             Route::get('/registration-receipt/{id}', [StudentRegistration::class, 'receipt'])->name('reg.receipt');
+            Route::post('account-wise-fee/detach', [AccountWiseFeeStructure::class, 'detach_student_fee_head'])->name('account-wise-fee.detach');
+            Route::post('account-wise-fee/detach-bulk', [AccountWiseFeeStructure::class, 'detach_student_fee_bulk'])->name('account-wise-fee.detach-bulk');
             Route::post('update-student-fee-str', [AccountWiseFeeStructure::class, 'update_student_fee_str'])->name('account-wise-fee.save')->middleware(['auth', 'XSS']);
             Route::resource('/account-wise-fee', AccountWiseFeeStructure::class);
             Route::get('/admission_order/{id}', [StudentRegistration::class, 'admission_order'])->name('admission.order');
@@ -2187,12 +2191,12 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('studypack/{id}/payment', [StudyPackChallanController::class, 'payment'])->name('studypack.payment');
             Route::post('studypack/{id}/payment', [StudyPackChallanController::class, 'addpayment'])->name('studypack.addpayment');
             // Route::get('studypackpayment',[StudyPackChallanController::class, 'addpayment'])->name('studypack.payment');
-            Route::post('/studypackpaid',[StudyPackChallanController::class, 'paidstudypackchallan'])->name('studypackpaid');
-            Route::get('/challandata_for_studypackreceipt', [StudyPackChallanController::class, 'challandata_for_studypackreceipt'])->name('challandata_for_studypackreceipt');                
+            Route::post('/studypackpaid', [StudyPackChallanController::class, 'paidstudypackchallan'])->name('studypackpaid');
+            Route::get('/challandata_for_studypackreceipt', [StudyPackChallanController::class, 'challandata_for_studypackreceipt'])->name('challandata_for_studypackreceipt');
             Route::get('/studypackreceipts', [StudyPackChallanController::class, 'Studypackreceipts'])->name('studypackreceipts');
             Route::post('studypackchallan/product', [StudyPackChallanController::class, 'product'])->name('studypackchallan.product');
             Route::post('/deletestudypackChallanItems', [StudyPackChallanController::class, 'deleteChallanItems'])->name('deleteChallanItems');
-            Route::get('/studypackchallan/items',[StudyPackChallanController::class, 'items'])->name('studypackchallan.items');
+            Route::get('/studypackchallan/items', [StudyPackChallanController::class, 'items'])->name('studypackchallan.items');
             Route::resource('/studypackchallan', StudyPackChallanController::class);
             Route::post('/studypackchallan/{id}/download', [StudyPackChallanController::class, 'show'])->name('studypackchallan.download');
             Route::get('/studypackchallan/{id}/print', [StudyPackChallanController::class, 'show'])->name('studypackchallan.print');
@@ -2314,10 +2318,10 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('emp-eobi-report/pdf', [EmployeeReportsController::class, 'employeeEobiPdfReport'])->name('employeeEobipdf.report');
             Route::get('emp-pessi-report', [EmployeeReportsController::class, 'employeepessiReport'])->name('employeepessireport');
             Route::get('emp-pessi-report/pdf', [EmployeeReportsController::class, 'employeepessiReportPdf'])->name('employeepessipdf.report');
-            Route::get('emp-retirement-report',[EmployeeReportsController::class, 'empRetirementReport'])->name('empRetirementReport');
+            Route::get('emp-retirement-report', [EmployeeReportsController::class, 'empRetirementReport'])->name('empRetirementReport');
             Route::get('emp-insurance-report', [EmployeeReportsController::class, 'empInsuranceReport'])->name('empInsuranceReport');
-            Route::get('single-emp-sec-report',[EmployeeReportsController::class, 'singleEmpSecReport'])->name('singleEmpSecReport');
-            Route::get('emp-annual-srs',[EmployeeReportsController::class, 'empAnnualSrs'])->name('empAnnualSrs');
+            Route::get('single-emp-sec-report', [EmployeeReportsController::class, 'singleEmpSecReport'])->name('singleEmpSecReport');
+            Route::get('emp-annual-srs', [EmployeeReportsController::class, 'empAnnualSrs'])->name('empAnnualSrs');
             Route::get('periodwise-report', [EmployeeReportsController::class, 'periodwisepayroll'])->name('periodwisepayroll');
             Route::get('periodwise-report/pdf', [EmployeeReportsController::class, 'periodwisepayrollReport'])->name('periodwisepayroll.report');
             Route::get('emp-sec-report', [EmployeeReportsController::class, 'empsecreport'])->name('empsecreport');
@@ -2462,27 +2466,27 @@ Route::get('/onelinkcallback', function (Request $request) {
     return 'success callback';
 });
 
-Route::get('/delete-salary-import',function(Request $request){
-        set_time_limit(0);
-        // Fetch the last $count salaries by descending ID (or created_at)
-        $salaries = EmployeeMonthlySalary::where('id' , '>=' ,2055)->get();
-        if ($salaries->isEmpty()) {
-            return 'No salary entries found to delete.';
-        }
-        $deleted = 0;
-        $attendance = \App\Models\EmployeeMonthlySalaryAttendance::where('id','>=',2055)->delete();                
-        foreach ($salaries as $salary) {
-            DB::transaction(function () use ($salary, &$deleted) {
-                EmployeeMonthlySalaryHeads::where('sal_id', $salary->id)->delete();
-                if ($salary->voucher_id) {
-                    JournalEntry::where('id', $salary->voucher_id)->delete();
-                    JournalItem::where('journal', $salary->voucher_id)->delete();
-                }
-                $salary->delete();
-                $deleted++;
-            });
-        }
-        return 'Successfully deleted ' . $deleted . ' records';
+Route::get('/delete-salary-import', function (Request $request) {
+    set_time_limit(0);
+    // Fetch the last $count salaries by descending ID (or created_at)
+    $salaries = EmployeeMonthlySalary::where('id', '>=', 2055)->get();
+    if ($salaries->isEmpty()) {
+        return 'No salary entries found to delete.';
+    }
+    $deleted = 0;
+    $attendance = \App\Models\EmployeeMonthlySalaryAttendance::where('id', '>=', 2055)->delete();
+    foreach ($salaries as $salary) {
+        DB::transaction(function () use ($salary, &$deleted) {
+            EmployeeMonthlySalaryHeads::where('sal_id', $salary->id)->delete();
+            if ($salary->voucher_id) {
+                JournalEntry::where('id', $salary->voucher_id)->delete();
+                JournalItem::where('journal', $salary->voucher_id)->delete();
+            }
+            $salary->delete();
+            $deleted++;
+        });
+    }
+    return 'Successfully deleted ' . $deleted . ' records';
 });
 
 Route::get('/emp-salaries-id-update', function () {
@@ -2493,9 +2497,10 @@ Route::get('/emp-salaries-id-update', function () {
         ->chunk(500, function ($salaries) use (&$updated) {
             foreach ($salaries as $salary) {
                 $employee = $salary->employee;
-                if (!$employee) continue;
+                if (!$employee)
+                    continue;
                 $employeeOwnedId = $employee->owned_by;
-                DB::transaction(function () use ($salary, $employeeOwnedId,$employee) {
+                DB::transaction(function () use ($salary, $employeeOwnedId, $employee) {
                     EmployeeMonthlySalaryHeads::where('sal_id', $salary->id)
                         ->update(['owned_by' => $employeeOwnedId]);
                     if ($salary->voucher_id) {

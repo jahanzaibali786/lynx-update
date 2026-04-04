@@ -46,6 +46,17 @@ class StudentReceipt extends Model
     {
         return $this->hasMany(JournalItem::class, 'journal', 'voucher_id');
     }
+
+    public function journalEntry()
+    {
+        return $this->belongsTo(JournalEntry::class, 'voucher_id');
+    }
+
+    public function journalItems()
+    {
+        return $this->hasMany(JournalItem::class, 'journal', 'voucher_id');
+    }
+
     // public function voucher()
     // {
     //     return $this->hasMany(JournalItem::class, 'journal', 'voucher_id')->where('credit','!=','0');

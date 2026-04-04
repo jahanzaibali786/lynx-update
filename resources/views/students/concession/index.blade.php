@@ -558,7 +558,7 @@
                         </td>
                         @php
     $isAdmin   = Auth::user()->type === 'company';
-    $isApproved = $concession->status === 'Approved';
+    $isApproved = $concession->status == 'Approved';
     $hasOrder  = !empty($concession->concession_id);
 @endphp
 
@@ -624,7 +624,16 @@
 
             {{-- Approved AND order exists → FULL LOCK --}}
             @if($isApproved && $hasOrder)
-                <span class="badge bg-success">Order Generated</span>
+                <<form action="{{ route('concession-order', $concession->id) }}"
+                      method="POST"
+                      class="d-inline">
+                    @csrf
+                    <button type="submit"
+                            class="btn btn-sm btn-outline-success"
+                            title="Generate Order">
+                        Generate
+                    </button>
+                </form>
             @endif
 
         @endif

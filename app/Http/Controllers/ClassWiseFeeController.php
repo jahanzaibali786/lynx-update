@@ -365,6 +365,7 @@ class ClassWiseFeeController extends Controller
             return redirect()->back()->with('error', 'Student not found.');
         }
         $classfee = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->get();
+
         if (!empty($classfee)) {
             foreach ($classfee as $fee) {
                 $keys = [

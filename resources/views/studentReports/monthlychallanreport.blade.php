@@ -40,6 +40,44 @@
 
         $(document).on('change', '#branch', function() {
             let branch = $(this).val();
+            
+            // Get the actual select element (not the wrapper)
+            var $classSelect = $('#class_select');
+            
+            // If "All Branches" is selected, reset class dropdown without AJAX
+            if (branch === 'all' || branch === null) {
+                // Remove previous custom select wrapper and instance
+                if ($classSelect[0] && $classSelect[0].customSelectInstance) {
+                    $classSelect[0].customSelectInstance.destroy();
+                    delete $classSelect[0].customSelectInstance;
+                }
+                if ($classSelect.next('.custom-select-wrapper').length) {
+                    $classSelect.next('.custom-select-wrapper').remove();
+                }
+                $classSelect.removeClass('custom-select');
+
+                // Clear and set to default
+                $classSelect.empty();
+                $classSelect.append($('<option>', {
+                    value: 'all',
+                    text: 'All Class'
+                }));
+
+                // Re-add class and re-init
+                $classSelect.addClass('custom-select');
+                $classSelect.show();
+                
+                // Directly create new CustomSelect instance for this select only
+                if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
+                    window.CustomSelect.create($classSelect[0]);
+                }
+
+                // Reset student dropdown
+                $('#student_select').html('<option value="">Select Student</option>');
+                return;
+            }
+            
+            // For specific branch, make AJAX call
             $.ajax({
                 url: "{{ route('branch.class') }}",
                 type: "POST",
@@ -50,6 +88,7 @@
                 dataType: 'json',
                 success: function(result) {
                     var $classSelect = $('#class_select');
+                    
                     // Remove previous custom select wrapper and instance
                     if ($classSelect[0] && $classSelect[0].customSelectInstance) {
                         $classSelect[0].customSelectInstance.destroy();
@@ -77,14 +116,47 @@
                     // Re-add class and re-init
                     $classSelect.addClass('custom-select');
                     $classSelect.show();
+                    
                     // Directly create new CustomSelect instance for this select only
                     if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
                         window.CustomSelect.create($classSelect[0]);
                     }
 
+                    // Reset student dropdown
                     $('#student_select').html('<option value="">Select Student</option>');
                 }
             });
+        });
+
+        // Handle export button clicks - preserve all form data
+        $(document).on('click', '[name="export"]', function(e) {
+            e.preventDefault();
+            var form = $('#monthlychallanreport');
+            var exportType = $(this).val();
+            
+            // Add export parameter
+            $('<input>').attr({
+                type: 'hidden',
+                name: 'export',
+                value: exportType
+            }).appendTo(form);
+            
+            form.submit();
+        });
+
+        $(document).on('click', '[name="print"]', function(e) {
+            e.preventDefault();
+            var form = $('#monthlychallanreport');
+            var printType = $(this).val();
+            
+            // Add print parameter
+            $('<input>').attr({
+                type: 'hidden',
+                name: 'print',
+                value: printType
+            }).appendTo(form);
+            
+            form.submit();
         });
     </script>
 @endpush
@@ -113,7 +185,7 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                    {{ Form::select('branches', $branches, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select custom-select', 'id' => 'branch']) }}
+                                    {{ Form::select('branches', $branches, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select', 'id' => 'branch']) }}
                                 </div>
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -149,21 +221,14 @@
                                     </button>
                                     <ul class="dropdown-menu" aria-labelledby="actionDropdown">
                                         <li>
-                                            <form method="post" style="display: inline;">
-                                                <button class="dropdown-item" type="submit" name="export" value="excel">
-                                                    <i class="ti ti-file me-2"></i>Excel
-                                                </button>
-                                            </form>
+                                            <button class="dropdown-item" type="button" name="export" value="excel">
+                                                <i class="ti ti-file me-2"></i>Excel
+                                            </button>
                                         </li>
                                         <li>
-                                            <form method="get" style="display: inline;">
-                                                @csrf
-                                                @method('GET')
-                                                <input type="hidden" name="export" value="pdf">
-                                                <button class="dropdown-item" type="submit" name="print" value="pdf">
-                                                    <i class="ti ti-download me-2"></i>Pdf
-                                                </button>
-                                            </form>
+                                            <button class="dropdown-item" type="button" name="print" value="pdf">
+                                                <i class="ti ti-download me-2"></i>Pdf
+                                            </button>
                                         </li>
                                     </ul>
                                 </div>
@@ -185,7 +250,7 @@
         </div>
         <div style="width: 100%; text-align: center;">
             <p style="font-size:1rem; text-align: center; font-weight: 800;">
-                {{ request()->get('branches') ? $branches[request()->get('branches')] : 'All Branches' }}</p>
+                {{ request()->get('branches') !== null && request()->get('branches') !== 'all' ? $branches[request()->get('branches')] : 'All Branches' }}</p>
         </div>
         <div class=" table-responsive maximumHeightNew" style="width:100%;">
             {{-- <table border="1"> --}}

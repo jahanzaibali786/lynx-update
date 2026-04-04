@@ -58,12 +58,11 @@ $options = ['DD', 'OL', 'CHQ', 'CD'];
 
     </tr>
 {{-- @endforeach --}}
-<tr id="focus_row" style="  border-radius: 10px !important;">
+{{-- <tr id="focus_row" style="  border-radius: 10px !important;">
     <td>
         <input type="text" value="" disabled style="width:50px; font-size: 11px;">
     </td>
     <td>
-        {{-- {{ Form::date('date', date('Y-m-d'),['class' => 'form-control']) }} --}}
         <input type="date" value="{{ date('Y-m-d') }}" id="recipt_date" class="font_less"
             style="width:70px; font-size: 11px;">
     </td>
@@ -93,9 +92,7 @@ $options = ['DD', 'OL', 'CHQ', 'CD'];
         <input type="text" id="rem_fee" value="" disabled
             style="width:65px; font-size: 12px;">
     </td>
-    {{-- <td>
-        <input type="text" value="RV" disabled style="width:50px; font-size: 13px;">
-    </td> --}}
+
     <td>
         {{ Form::select('default_bank', $accounts, null, [ 'style' => 'width:100px; font-size: 12px;','disabled'=>'disabled']) }}
     </td>
@@ -113,4 +110,4 @@ $options = ['DD', 'OL', 'CHQ', 'CD'];
     <td>
         <input type="text" value="{{Auth::user()->name}}" style="width:100px; font-size: 11px;" disabled>
     </td>
-</tr>
+</tr> --}}

@@ -44,7 +44,8 @@ class ChartOfAccountController extends Controller
             $types = ChartOfAccountType::where('created_by', '=', \Auth::user()->creatorId())->get();
 
             $accounts = ChartOfAccount::whereIn('type', $types->pluck('id'))
-            ->where('created_by', '=', \Auth::user()->creatorId())->where('parent',0)
+            ->where('created_by', '=', \Auth::user()->creatorId())
+            // ->where('parent',0)
             ->with(['subType', 'parentAccount','subAccounts','subAccounts.childaccounts'])
             ->get()
             ->groupBy('type');

@@ -25,6 +25,7 @@ class Challans extends Model
         'total_amount',
         'concession_amount',
         'status',
+        'temp_status',
         'session_id',
         'owned_by',
         'created_by',
@@ -84,4 +85,13 @@ class Challans extends Model
         return $this->belongsTo(SchoolDetails::class, 'owned_by', 'branch_id');
     }
 
+    public function journalEntry()
+    {
+        return $this->belongsTo(JournalEntry::class, 'voucher_id');
+    }
+
+    public function journalItems()
+    {
+        return $this->hasMany(JournalItem::class, 'journal', 'voucher_id');
+    }
 }

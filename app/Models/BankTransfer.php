@@ -10,10 +10,13 @@ class BankTransfer extends Model
         'from_account',
         'to_account',
         'amount',
+        'previous_balance',
         'date',
         'payment_method',
         'reference',
         'description',
+        'voucher_id',
+        'owned_by',
         'created_by',
     ];
 
@@ -26,5 +29,14 @@ class BankTransfer extends Model
     {
         return $this->hasOne('App\Models\BankAccount', 'id', 'to_account')->first();
     }
-
+    //journal
+    public function journals()
+    {
+        return $this->hasOne('App\Models\JournalEntry', 'id', 'voucher_id')->first();
+    }
+    //items
+    public function items()
+    {
+        return $this->hasMany('App\Models\JournalItem', 'journal', 'voucher_id')->get();
+    }
 }

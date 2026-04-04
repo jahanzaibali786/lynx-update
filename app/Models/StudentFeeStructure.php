@@ -18,6 +18,7 @@ class StudentFeeStructure extends Model
         'checked_status',
         'amount',
         'discount',
+        'is_custom',
         'owned_by',
         'created_by',
     ];  
