@@ -10,7 +10,8 @@
         <div class="col-12 col-md-6 col-lg-6">
             <div class="form-group">
                 {{ Form::label('email', __('E-Mail Address'), ['class' => 'form-label']) }}
-                {{ Form::email('email', null, ['class' => 'form-control', 'placeholder' => __('Enter Client Email'), 'required' => 'required']) }}
+                                {{ Form::email('email', null, ['class' => 'form-control', 'placeholder' => __('Enter Client Email'), 'required' => 'required','readonly' => 'readonly']) }}
+
             </div>
         </div>
         <div class="col-12 col-md-6 col-lg-6">

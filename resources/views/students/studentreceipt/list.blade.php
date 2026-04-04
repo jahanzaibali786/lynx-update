@@ -34,13 +34,13 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('from_date', __('From Date'), ['class' => 'form-label']) }}
-                                    {{ Form::date('from_date', isset($_GET['date']) ? $_GET['date'] : date('Y-m-d'), ['class' => 'form-control']) }}
+                                    {{ Form::date('from_date', isset($_GET['from_date']) ? $_GET['from_date'] : date('Y-m-d'), ['class' => 'form-control']) }}
                                 </div>
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('to_date', __('To Date'), ['class' => 'form-label']) }}
-                                    {{ Form::date('to_date', isset($_GET['date']) ? $_GET['date'] : date('Y-m-d'), ['class' => 'form-control']) }}
+                                    {{ Form::date('to_date', isset($_GET['to_date']) ? $_GET['to_date'] : date('Y-m-d'), ['class' => 'form-control']) }}
                                 </div>
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -110,7 +110,7 @@
                     <th>Type</th>
                     <th>Bank Account</th>
                     <th>D Status</th>
-                    <th>Referance</th>
+                    <th>Reference</th>
                     <!-- <th>Action</th> -->
                 </tr>
             </thead>

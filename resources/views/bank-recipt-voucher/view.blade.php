@@ -158,11 +158,15 @@
                                     <small>
                                         <strong>{{__('Voucher Ref')}} :</strong>
                                         {{$journalEntry->reference}}
-                                    </small> <br>
+                                    </small><br>
                                     <small>
                                         <strong>{{__('Voucher Date')}} :</strong>
                                         {{\Auth::user()->dateFormat($journalEntry->date)}}
-                                    </small>
+                                    </small><br>
+                                    <small>
+                                        <strong>{{__('Branch')}} :</strong>
+                                        {{!empty($journalEntry->branch)?$journalEntry->branch->name:''}}
+                                    </small><br>
                                 </div>
                             </div>
 

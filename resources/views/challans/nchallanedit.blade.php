@@ -17,6 +17,11 @@
                 '4-monthly': 4,
                 '5-monthly': 5,
                 '6-monthly': 6,
+                '7-monthly': 7,
+                '8-monthly': 8,
+                '9-monthly': 9,
+                '10-monthly': 10,
+                '11-monthly': 11,
                 'yearly': 12
             };
 
@@ -65,7 +70,10 @@
                     let finalAmount = 0;
                     const checkbox = row.find('input[type="checkbox"]');
 
-                    if (headName.includes('annual fee')) {
+                    if (headName.includes('admission fee')) {
+                        // Admission Fee Logic: Always 1x (one-time charge)
+                        finalAmount = basePrice * 1;
+                    } else if (headName.includes('annual fee')) {
                         // Annual Fee Logic: Generally 1x
                         finalAmount = basePrice * 1; 
                         
@@ -75,9 +83,22 @@
                                 checkbox.prop('checked', true);
                             }
                         }
+                    } else if (headName.includes('late fee')) {
+                        // Late Fee Logic: Fixed amount (1x), never multiplied by duration
+                        // If structure amount (basePrice) is 0, try to use original existing value
+                        if (basePrice === 0) {
+                            finalAmount = parseFloat(row.find('.head-amount').data('original-value')) || 0;
+                        } else {
+                            finalAmount = basePrice * 1;
+                        }
                     } else {
                         // Standard Logic: Multiply by duration
                         finalAmount = basePrice * duration;
+                    }
+
+                    // If unchecked, set amount to 0
+                    if (!checkbox.is(':checked')) {
+                        finalAmount = 0;
                     }
                     
                     row.find('.head-amount').val(finalAmount);
@@ -96,7 +117,7 @@
             });
 
             $(document).on('change', 'input[type="checkbox"]', function() {
-                updateTotal();
+                updateHeadAmounts();
             });
 
             // Re-calculate when discounted amount changes (triggered by DiscountCalculator)
@@ -198,7 +219,12 @@
                                             '4-monthly'   => '4 Month Subscription',
                                             '5-monthly'   => '5 Month Subscription',
                                             '6-monthly'   => '6 Month Subscription',
-                                            'yearly'      => 'Annual Fee Subscription',
+                                            '7-monthly'   => '7 Month Subscription',
+                                            '8-monthly'   => '8 Month Subscription',
+                                            '9-monthly'   => '9 Month Subscription',
+                                            '10-monthly'  => '10 Month Subscription',
+                                            '11-monthly'  => '11 Month Subscription',
+                                            'yearly'      => 'Annual Subscription',
                                         ];
 
                                         // Count months from other_months
@@ -216,6 +242,11 @@
                                             4  => '4-monthly',
                                             5  => '5-monthly',
                                             6  => '6-monthly',
+                                            7  => '7-monthly',
+                                            8  => '8-monthly',
+                                            9  => '9-monthly',
+                                            10 => '10-monthly',
+                                            11 => '11-monthly',
                                             12 => 'yearly',
                                         ];
 
@@ -273,6 +304,7 @@
                             <tbody>
                                 @foreach ($classfee as $fee)
                                     @php
+                                        $policy = null; // Reset policy for this iteration
                                         // Identify protected heads
                                         $headNames = ['TUITION FEE', 'ADMISSION FEE', 'SECURITY FEE'];
                                         $isProtected = in_array($fee->feehead->fee_head ?? '', $headNames);
@@ -317,6 +349,7 @@
                                         <td>
                                             <input type="text" class="form-control discount"
                                                 value="{{ $policy->percentage ?? ($fee->discount ?? 0) }}"
+                                                @if(!empty($policy) && $policy->percentage != 0) readonly @endif
                                                 >
                                         </td>
 
@@ -331,7 +364,8 @@
                                         <td>
                                             @if($ch) <label for="challan_amount"><span style="color: red;"> Challan Amount : {{@$ch->price}} - Concession Amount : {{@$ch->concession}}</span></label> @endif
                                             <input type="number" class="form-control head-amount" id="challan_amount" name="challan_amount[{{ $fee->feehead->id }}]"
-                                                value="{{ $challanValue }}" readonly>
+                                                value="{{ $challanValue }}" readonly
+                                                data-original-value="{{ $challanValue }}">
                                         </td>
 
                                         {{-- Checkbox --}}

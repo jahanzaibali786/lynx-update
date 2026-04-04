@@ -363,9 +363,27 @@
                             <td class="challan-details-section-label"></td>
                             <td></td>
                         </tr>
+                        @php
+                            $fromMonth = \Carbon\Carbon::parse($challan->fee_month);
+
+                            $toMonth = null;
+                            if (!empty($challan->other_months)) {
+                                $months = array_map('trim', explode(',', $challan->other_months));
+                                $lastMonth = end($months);
+                                $toMonth = \Carbon\Carbon::parse($lastMonth);
+                            }
+                        @endphp
+
+
                         <tr>
                             <td class="challan-details-label">Billing Month:</td>
-                            <td class="challan-details-value">{{ \Carbon\Carbon::parse($challan->fee_month)->format('F,Y') }}</td>
+                            <td class="challan-details-value">
+                                {{ $fromMonth->format('F, Y') }}
+
+                                @if ($toMonth)
+                                    - {{ $toMonth->format('F, Y') }}
+                                @endif
+                            </td>
                             <td class="challan-details-section-label"></td>
                             <td></td>
                         </tr>
@@ -434,14 +452,14 @@
                     @php
                         $totalAmount = 0;
                         foreach ($heads as $head) {
-                            $totalAmount += $head['amount'] - $head['concession'];
+                            $totalAmount += $head['headamount'] - $head['concession'];
                         }
                         $grandTotal = $totalAmount - $challan->paid_amount + $arrearsTotal;
                     @endphp
                     @foreach ($heads as $head)
                         <div class="description-item mb-1">
                             <span>{{ $head['name'] }} @if ($challan->challan_type == 'Admission') (Rs. {{ $head['amount'] }}) @endif</span>
-                            <span>Rs. {{ $head['amount'] - $head['concession'] }}</span>
+                            <span>Rs. {{ $head['headamount'] - $head['concession'] }}</span>
                         </div>
                     @endforeach
                     @if ($challan->paid_amount != 0)

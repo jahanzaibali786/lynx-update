@@ -1,5 +1,13 @@
 {{ Form::open(['url' => 'concession', 'id' => 'concessionForm']) }}
 <div class="modal-body">
+    <style>
+        .custom-select-display{
+            word-break: break-all;
+        }
+        .custom-select-option{
+            word-wrap: break-word;
+        }
+    </style>
     <div class="row">
         @for ($i = 0; $i < 3; $i++)
             <div class="col-4">
@@ -51,7 +59,7 @@
                 {{ Form::label('concession_id', __('Concession Policy'), ['class' => 'form-label']) }}<span
                     style="color: red"> *</span>
                 {{-- {{ Form::select('concession_id', $concession_policy, null, ['class' => 'form-control select js-searchBox' ,'id' => 'conc']) }} --}}
-                {{ Form::select('concession_id', $concession_policy, null, ['class' => 'form-control  js-searchBox', 'id' => 'conc']) }}
+                {{ Form::select('concession_id', $concession_policy, null, ['class' => 'form-control  custom-select', 'id' => 'conc']) }}
             </div>
         </div>
         <div class="col-4">
@@ -89,7 +97,7 @@
             <div class="form-group">
                 {{ Form::label('concession_type', __('Concession Type'), ['class' => 'form-label']) }}<span
                     style="color: red"> *</span>
-                {{ Form::select('concession_type', ['regular' => 'Regular Concession', 'registration' => 'Registration Concession'], null, ['class' => 'form-control select', 'id' => 'type', 'required' => 'required']) }}
+                {{ Form::select('concession_type', ['regular' => 'Regular Concession', 'registration' => 'Registration Concession'], null, ['class' => 'form-control select', 'id' => 'concession_type', 'required' => 'required']) }}
             </div>
         </div>
         <div class="col-4">
@@ -132,7 +140,224 @@
 </div>
 
 {{ Form::close() }}
+
 <script>
+    document.getElementById('search').addEventListener('click', function() {
+        console.log('search');
+        
+        var form = document.getElementById('concessionForm');
+        var formData = new FormData(form);
+
+        fetch('{{ url('concession_list') }}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Rebuild the container HTML fresh
+                document.getElementById('re').innerHTML = `
+        <label for="concession_id" class="form-label">
+            {{ __('Concession Policy') }} <span style="color:red;">*</span>
+        </label>
+        <select name="concession_id" id="conc" class="form-control custom-select"></select>
+    `;
+
+                const dropdown = document.getElementById('conc');
+                dropdown.innerHTML = '';
+
+                if (!data || data.length === 0) {
+                    show_toastr('danger', 'No Concession Policy Found', 'danger');
+                    return;
+                }
+
+                // Separate exact and partial matches
+                const exact = data.filter(p => p.is_exact);
+                const partial = data.filter(p => !p.is_exact);
+
+                if (exact.length > 0) {
+                    const eg = document.createElement('optgroup');
+                    eg.label = '✔ Exact Match';
+                    exact.forEach(policy => {
+                        const opt = document.createElement('option');
+                        opt.value = policy.id;
+                        opt.textContent = policy.order_no + '  -  ' + policy.title;
+                        eg.appendChild(opt);
+                    });
+                    dropdown.appendChild(eg);
+                }
+
+                if (partial.length > 0) {
+                    const pg = document.createElement('optgroup');
+                    pg.label = '~ Partial Match';
+                    partial.forEach(policy => {
+                        const opt = document.createElement('option');
+                        opt.value = policy.id;
+                        opt.textContent = policy.order_no + '  -  ' + policy.title;
+                        pg.appendChild(opt);
+                    });
+                    dropdown.appendChild(pg);
+                }
+
+                // Auto-select first exact match
+                if (exact.length > 0) {
+                    dropdown.value = exact[0].id;
+                }
+
+                // ── Re-initialize your custom select plugin ──────────────────
+                // Destroy any existing instance first to avoid double-binding,
+                // then reinit on the freshly populated element.
+                const $conc = $('#conc');
+
+                // If your plugin attaches itself via a class name, cover all common
+                // plugin patterns below — keep only the one that matches yours:
+
+                // Pattern 1 — Select2
+                if ($.fn.select2) {
+                    try {
+                        $conc.select2('destroy');
+                    } catch (e) {}
+                    $conc.select2();
+                }
+
+                // Pattern 2 — Chosen
+                if ($.fn.chosen) {
+                    try {
+                        $conc.chosen('destroy');
+                    } catch (e) {}
+                    $conc.chosen();
+                }
+                // Pattern 4 — plain CustomSelect / bootstrap-select
+                if ($.fn.selectpicker) {
+                    try {
+                        $conc.selectpicker('destroy');
+                    } catch (e) {}
+                    $conc.selectpicker();
+                }
+            });
+    });
+</script>
+
+<script>
+    function classStudents(id) {
+        var type = $('#concession_type').val();
+        $.ajax({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            url: "{{ route('class.students') }}",
+            type: "POST",
+            data: {
+                class_id: id,
+                type: type
+            },
+            dataType: 'json',
+            success: function(result) {
+                console.log(result);
+                if (result.status == 'success') {
+                    var s = ` {{ Form::label('student_id', __('Students'), ['class' => 'form-label']) }}<span style="color: red">
+                                    *</span><select name="student_id"  class="form-control select " id="student_select" required>
+                                    <option value="all" selected >All Students</option> `;
+
+
+                    for (var id in result.students) {
+                        if (result.students.hasOwnProperty(id)) {
+                            s += `<option value="` + id + `">` + result.students[id] + `</option>`;
+                            // $('#student_select').append($('<option>', { value: id, text: result.students[id] }));
+                        }
+                    }
+                    s += `</select>`;
+                    $('#std_names').empty();
+                    $('#std_names').html(s);
+                    if (result.length != 0) {
+                        $('#student_select').addClass('js-searchBox');
+                        JsSearchBox();
+                        updateWidths();
+                    }
+                    $('#student_select').val('all');
+                }
+
+            }
+        });
+    }
+
+    $(document).on('change', '#class_id', function() {
+        var classId = $(this).val();
+        $('.av').addClass('d-none');
+        $('#student-details').empty('');
+        if (classId) {
+            classStudents(classId);
+        } else {
+            $('#student_select').empty();
+        }
+    });
+    $(document).on('change', '#concession_type', function() {
+        var classId = $('#class_id').val();
+        console.log(classId);
+        if (classId) {
+            classStudents(classId);
+        } else {
+            $('#student_select').empty();
+        }
+    });
+
+    $(document).on('change', '#branch', function() {
+        var branch = $(this).val();
+        $.ajax({
+            url: '{{ route('branch.class') }}',
+            type: 'POST',
+            data: {
+                "branch_id": branch,
+                "_token": "{{ csrf_token() }}",
+            },
+            success: function(data) {
+                $('#class_id').empty();
+                $('#class_id').append(
+                    '<option value="" selected>{{ __('Select Class') }}</option>');
+                for (let index = 0; index < data.length; index++) {
+                    $('#class_id').append('<option value="' + data[index]['id'] + '">' + data[index]
+                        ['name'] + '</option>');
+                }
+            }
+        });
+    });
+
+    $(document).on('change', '#student_select', function() {
+        var studentId = this.value;
+        $('.av').addClass('d-none');
+        $('#student-details').empty('');
+        if (studentId) {
+            fetchStudentDetails(studentId);
+        } else {
+            document.getElementById('student-details').innerHTML = '';
+        }
+    });
+
+    function fetchStudentDetails(studentId) {
+        fetch('{{ url('concession/student-detail') }}/' + studentId)
+            .then(response => response.json())
+            .then(data => {
+                displayStudentDetails(data);
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    function displayStudentDetails(data) {
+        var detailsDiv = document.getElementById('student-details');
+        if (data) {
+            detailsDiv.innerHTML =
+                `<div style="display:grid; grid-template-columns:auto auto auto;"><p><strong>Student Name:</strong>${data.data.stdname}</p><p><strong>Father Name:</strong>${data.data.fathername}</p><p><strong>Father CNIC:</strong>${data.data.fathercnic}</p><p><strong>Email:</strong>${data.data.email}</p><p><strong>Roll No:</strong>${data.enroll.enrollId}</p><p><strong>Class:</strong>${data.class}</p><p><strong>Section:</strong>${data.section}</p><p><strong>Concession:</strong>${data.concession}</p></div>`;
+            if (data.concession != 'No Previous Concession') {
+                $('.av').removeClass('d-none');
+            }
+        } else {
+            detailsDiv.innerHTML = '<p>No details available for this student.</p>';
+        }
+    }
+</script>
+{{-- <script>
     JsSearchBox();
 
     function updateWidths() {
@@ -169,167 +394,4 @@
     setTimeout(function() {
         updateWidths();
     }, 1000); // Delay of 1 second (1000 milliseconds)
-</script>
-
-<script>
-    document.getElementById('search').addEventListener('click', function() {
-        // Get the form element
-        var form = document.getElementById('concessionForm');
-
-        // Create a FormData object from the form
-        var formData = new FormData(form);
-
-        // Send the form data using fetch
-        fetch('{{ url('concession_list') }}', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Handle the server response here
-                document.getElementById('re').innerHTML = `
-                <label for="concession_id" class="form-label">
-                    {{ __('Concession Policy') }} <span style="color: red"> *</span>
-                </label>
-                <select name="concession_id" id="conc" class="form-control">
-                </select>
-            `;
-
-                // Update the dropdown
-                const dropdown = document.getElementById('conc');
-                if (data == '') {
-                    show_toastr('danger', 'No Concession Policy Found', 'danger');
-                } else {
-
-                }
-                console.log(data);
-                dropdown.innerHTML = ''; // Clear existing options and add a default option
-                data.forEach(policy => {
-                    const option = document.createElement('option');
-                    option.value = policy.id;
-                    option.textContent = policy.title;
-                    dropdown.appendChild(option);
-                });
-            })
-    });
-</script>
-
-{{-- <script>
-        function classStudents(id) {
-            var type = $('#type').val();
-            $.ajax({
-                headers: {
-                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                },
-                url: "{{ route('class.students') }}",
-                type: "POST",
-                data: {
-                    class_id: id,
-                    type: type
-                },
-                dataType: 'json',
-                success: function(result) {
-                    console.log(result);
-                    if (result.status == 'success') {
-                        var s = ` {{ Form::label('student_id', __('Students'), ['class' => 'form-label']) }}<span style="color: red">
-                                    *</span><select name="student_id"  class="form-control select " id="student_select" required>
-                                    <option value="all" selected >All Students</option> `;
-
-
-                        for (var id in result.students) {
-                            if (result.students.hasOwnProperty(id)) {
-                                s += `<option value="` + id + `">` + result.students[id] + `</option>`;
-                                // $('#student_select').append($('<option>', { value: id, text: result.students[id] }));
-                            }
-                        }
-                        s += `</select>`;
-                        $('#std_names').empty();
-                        $('#std_names').html(s);
-                        if (result.length != 0) {
-                            $('#student_select').addClass('js-searchBox');
-                            JsSearchBox();
-                            updateWidths();
-                        }
-                        $('#student_select').val('all');
-                    }
-
-                }
-            });
-        }
-
-        $(document).on('change', '#class_id', function() {
-            var classId = $(this).val();
-            $('.av').addClass('d-none');
-            $('#student-details').empty('');
-            if (classId) {
-                classStudents(classId);
-            } else {
-                $('#student_select').empty();
-            }
-        });
-        $(document).on('change', '#type', function() {
-            var classId = $('#class_id').val();
-            console.log(classId);
-            if (classId) {
-                classStudents(classId);
-            } else {
-                $('#student_select').empty();
-            }
-        });
-
-        $(document).on('change', '#branch', function() {
-            var branch = $(this).val();
-            $.ajax({
-                url: '{{ route('branch.class') }}',
-                type: 'POST',
-                data: {
-                    "branch_id": branch,
-                    "_token": "{{ csrf_token() }}",
-                },
-                success: function(data) {
-                    $('#class_id').empty();
-                    $('#class_id').append('<option value="" selected>{{ __('Select Class') }}</option>');
-                    for (let index = 0; index < data.length; index++) {
-                        $('#class_id').append('<option value="' + data[index]['id'] + '">' + data[index]
-                            ['name'] + '</option>');
-                    }
-                }
-            });
-        });
-
-        $(document).on('change', '#student_select', function() {
-            var studentId = this.value;
-            $('.av').addClass('d-none');
-            $('#student-details').empty('');
-            if (studentId) {
-                fetchStudentDetails(studentId);
-            } else {
-                document.getElementById('student-details').innerHTML = '';
-            }
-        });
-
-        function fetchStudentDetails(studentId) {
-            fetch('{{ url('concession/student-detail') }}/' + studentId)
-                .then(response => response.json())
-                .then(data => {
-                    displayStudentDetails(data);
-                })
-                .catch(error => console.error('Error:', error));
-        }
-
-        function displayStudentDetails(data) {
-            var detailsDiv = document.getElementById('student-details');
-            if (data) {
-                detailsDiv.innerHTML =
-                    `<div style="display:grid; grid-template-columns:auto auto auto;"><p><strong>Student Name:</strong>${data.data.stdname}</p><p><strong>Father Name:</strong>${data.data.fathername}</p><p><strong>Father CNIC:</strong>${data.data.fathercnic}</p><p><strong>Email:</strong>${data.data.email}</p><p><strong>Roll No:</strong>${data.enroll.enrollId}</p><p><strong>Class:</strong>${data.class}</p><p><strong>Section:</strong>${data.section}</p><p><strong>Concession:</strong>${data.concession}</p></div>`;
-                if (data.concession != 'No Previous Concession') {
-                    $('.av').removeClass('d-none');
-                }
-            } else {
-                detailsDiv.innerHTML = '<p>No details available for this student.</p>';
-            }
-        }
-    </script> --}}
+</script> --}}

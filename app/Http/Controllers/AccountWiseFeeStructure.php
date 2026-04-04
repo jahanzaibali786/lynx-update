@@ -19,32 +19,32 @@ class AccountWiseFeeStructure extends Controller
      * @return \Illuminate\Http\Response
      */
     public function index(Request $request)
-{
-    $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get()->pluck('fee_head', 'id');
-    $heads->prepend('Select Head', '');
-    $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
-    $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-    $branches->prepend('Select Branch', '');
-    $classes = collect();
-    // $classes->prepend('Select Class', '');
-    $class_wise_fee = new LengthAwarePaginator([], 0, 25); // Empty paginator as fallback
-    if (!empty($request->branches) && !empty($request->head_id)) {
-        $query = ClassWiseFee::where('owned_by', $request->branches)
-        ->where('head_id', $request->head_id);
-        // dd($query->get(),$request->head_id,$request->branches);
-        $classes = Classes::where('owned_by', $request->branches)->pluck('name', 'id');
-        $classes->prepend('Select Class', '');
-
-        if (!empty($request->class_id)) {
-            $query->where('class_id', $request->class_id);
+    {
+        $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get()->pluck('fee_head', 'id');
+        $heads->prepend('Select Head', '');
+        $branches = User::where('type', '=', 'branch')->where('is_active', 1)->get()->pluck('name', 'id');
+        $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+        $branches->prepend('Select Branch', '');
+        $classes = collect();
+        // $classes->prepend('Select Class', '');
+        $class_wise_fee = new LengthAwarePaginator([], 0, 25); // Empty paginator as fallback
+        if (!empty($request->branches) && !empty($request->head_id)) {
+            $query = ClassWiseFee::where('owned_by', $request->branches)
+                ->where('head_id', $request->head_id);
+            // dd($query->get(),$request->head_id,$request->branches);
+            $classes = Classes::where('owned_by', $request->branches)->pluck('name', 'id')->where('active_status', 1);
+            $classes->prepend('Select Class', '');
+            
+            if (!empty($request->class_id)) {
+                $query->where('class_id', $request->class_id);
+            }
+            // dd($query->get());
+            $class_wise_fee = $query->get();
+        } else {
+            $classes->prepend('Select Class', '');
         }
-        $class_wise_fee = $query->get();
-    }else{
-        $classes->prepend('Select Class', '');
+        return view('students.accountwisestructure.index', compact('branches', 'class_wise_fee', 'heads', 'classes'));
     }
-
-    return view('students.accountwisestructure.index', compact('branches', 'class_wise_fee','heads', 'classes'));
-}
 
 
     /**
@@ -55,17 +55,17 @@ class AccountWiseFeeStructure extends Controller
     public function create()
     {
         // if (\Auth::user()->type == 'company') {
-            $session = Session::where('created_by',\Auth::user()->creatorId())->get()->pluck('year','id');
-            $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get()->pluck('fee_head', 'id');
-            $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
-            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+        $session = Session::where('created_by', \Auth::user()->creatorId())->get()->pluck('year', 'id');
+        $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get()->pluck('fee_head', 'id');
+        $branches = User::where('type', '=', 'branch')->where('is_active', 1)->get()->pluck('name', 'id');
+        $branches->prepend(\Auth::user()->name, \Auth::user()->id);
         // } else {
         //     $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
         //     $heads = FeeHead::where('owned_by', \Auth::user()->ownedId())->get()->pluck('fee_head', 'id');
         // }
         $branches->prepend('Select Branch', '');
         $session->prepend('Select Session', '');
-        return view('students.accountwisestructure.create', compact('branches', 'heads','session'));
+        return view('students.accountwisestructure.create', compact('branches', 'heads', 'session'));
 
     }
 
@@ -162,35 +162,154 @@ class AccountWiseFeeStructure extends Controller
         //
     }
 
+    /**
+     * Update student fee structure with automatic custom discount detection
+     * 
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function update_student_fee_str(Request $request)
     {
         try {
-            // dd($request->all());
             $data = $request->all();
+
             foreach ($data as $item) {
-                if($item['studentId'] != '' && $item['studentId'] != 0 && $item['studentId'] != '0'){
+                // Find the student fee structure record
+                if (!empty($item['studentId']) && $item['studentId'] != '0') {
                     $studentfeestr = StudentFeeStructure::where('student_id', $item['studentId'])
-                        ->where('class_id', $item['classId'])->where('branch_id', $item['branchId'])
-                        ->where('head_id',$item['headId'])->first();
-                }else{
+                        ->where('class_id', $item['classId'])
+                        ->where('branch_id', $item['branchId'])
+                        ->where('head_id', $item['headId'])
+                        ->first();
+                } else {
                     $studentfeestr = StudentFeeStructure::where('reg_id', $item['regId'])
-                        ->where('class_id', $item['classId'])->where('branch_id', $item['branchId'])
-                        ->where('head_id',$item['headId'])->first();
+                        ->where('class_id', $item['classId'])
+                        ->where('branch_id', $item['branchId'])
+                        ->where('head_id', $item['headId'])
+                        ->first();
                 }
-                if ($studentfeestr) {
-                    $studentfeestr->amount = $item['amount'];
-                    $studentfeestr->discount = $item['discount'];
-                    $studentfeestr->save();
-                }
+
+                if (!$studentfeestr)
+                    continue;
+
+                // Determine if discount is custom vs class-wide default
+                $classWiseFee = ClassWiseFee::where('class_id', $item['classId'])
+                    ->where('head_id', $item['headId'])
+                    ->where('owned_by', $item['branchId'])
+                    ->first();
+
+                $classDiscount = $classWiseFee ? (float) ($classWiseFee->discount ?? 0) : 0;
+                $studentDiscount = (float) $item['discount'];
+
+                $studentfeestr->amount = $item['amount'];
+                $studentfeestr->discount = $studentDiscount;
+                $studentfeestr->checked_status = $item['checkedStatus'];
+                // Auto-flag as custom only when student discount differs from class discount
+                $studentfeestr->is_custom = ($studentDiscount !== $classDiscount) ? 1 : 0;
+                $studentfeestr->save();
             }
+
             return response()->json([
                 'status' => 'success',
-                'message' => 'Data saved successfully!'
+                'message' => count($data) . ' record(s) saved successfully!',
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    // ─── METHOD 2: Detach a single fee head from a student ───────────────────────
+    public function detach_student_fee_head(Request $request)
+    {
+        try {
+            $data = $request->all();
+
+            // Build query — support both enrolled (student_id) and registered (reg_id) students
+            if (!empty($data['studentId']) && $data['studentId'] != '0') {
+                $record = StudentFeeStructure::where('student_id', $data['studentId'])
+                    ->where('class_id', $data['classId'])
+                    ->where('branch_id', $data['branchId'])
+                    ->where('head_id', $data['headId'])
+                    ->first();
+            } else {
+                $record = StudentFeeStructure::where('reg_id', $data['regId'])
+                    ->where('class_id', $data['classId'])
+                    ->where('branch_id', $data['branchId'])
+                    ->where('head_id', $data['headId'])
+                    ->first();
+            }
+
+            if (!$record) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Fee structure record not found.',
+                ], 404);
+            }
+
+             $record->checked_status = 0;
+            $record->save();    // Hard delete — use softDelete() if you prefer a trash approach
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Fee head detached successfully.',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    // ─── METHOD 3: Bulk detach — all checked rows in one transaction ──────────────
+    public function detach_student_fee_bulk(Request $request)
+    {
+        try {
+            $data = $request->all();
+
+            if (empty($data) || !is_array($data)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No records provided.',
+                ], 422);
+            }
+
+            $deletedCount = 0;
+
+            // Wrap all deletes in a single DB transaction so it's all-or-nothing
+            \DB::transaction(function () use ($data, &$deletedCount) {
+                foreach ($data as $item) {
+                    $query = StudentFeeStructure::where('class_id', $item['classId'])
+                        ->where('branch_id', $item['branchId'])
+                        ->where('head_id', $item['headId']);
+
+                    // Support both enrolled students (student_id) and registered ones (reg_id)
+                    if (!empty($item['studentId']) && $item['studentId'] != '0') {
+                        $query->where('student_id', $item['studentId']);
+                    } else {
+                        $query->where('reg_id', $item['regId']);
+                    }
+
+                    $deletedCount += $query->delete();
+                }
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => $deletedCount . ' fee head(s) detached successfully.',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

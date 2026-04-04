@@ -514,7 +514,7 @@
 <input type="text"
        name="mobile_cell"
        id="fathercell"
-       value="{{ $student->fathercell }}"
+       value="{{ $student->fatherphone }}"
        class="form-control"
        required>
                                     </div>
@@ -829,6 +829,20 @@
             )->where('head_id', @$fee->head_id)->first();
         }
 
+        // Helper function to clean decimal display
+        $cleanPercentageDisplay = function($value) {
+            if ($value == 0) {
+                return '0';
+            }
+            $floatVal = (float)$value;
+            // If whole number, show without decimals
+            if ($floatVal == floor($floatVal)) {
+                return (string)intval($floatVal);
+            }
+            // Otherwise remove trailing zeros
+            return rtrim(rtrim(number_format($floatVal, 8, '.', ''), '0'), '.');
+        };
+
         // Determine discount percentage
         if ($concessionPolicyHeads && $concessionPolicyHeads->percentage > 0) {
             // Use concession policy percentage
@@ -839,36 +853,42 @@
         }
 
         // Calculate the discounted amount (final amount after discount)
-        $discountAmount = round(($amount * $discountPercentage) / 100);
+        $discountAmount = ($amount * $discountPercentage) / 100;
         $discountedAmount = $amount - $discountAmount;
+        
+        // Clean percentage for display
+        $displayPercentage = $cleanPercentageDisplay($discountPercentage);
     @endphp
 
     @if ($concessionPolicyHeads && $concessionPolicyHeads->percentage > 0)
         {{-- Policy has discount for this head - use policy percentage and disable input --}}
         <label for="discount" class="discountLabel" style="color: red;">
-            Discounted Amount : {{ $discountedAmount }}
+            Discounted Amount : {{ number_format($discountAmount, 2) }}
         </label>
         <input type="text" class="form-control discount"
-            value="{{ $concessionPolicyHeads->percentage }}"
+            value="{{ $displayPercentage }}"
             disabled
             {{ $i == 1 ? 'disabled' : '' }}
         >
     @else
         {{-- No policy OR policy has 0% for this head - use fee structure discount and enable input --}}
         <label for="discount" class="discountLabel" style="color: red;">
-            Discounted Amount : {{ $discountedAmount }}
+            Discounted Amount : {{ number_format($discountAmount, 2) }}
         </label>
         <input type="text" class="form-control discount" 
-            value="{{ !empty($fee->discount) ? $fee->discount : '0' }}" 
+            value="{{ $cleanPercentageDisplay(!empty($fee->discount) ? $fee->discount : '0') }}" 
             {{ $i == 1 ? 'disabled' : '' }}
         >
     @endif
 </td>
 
                                     <td>
-                                        <input type="number" class="form-control discounted-amount"
-                                            value="{{ round($discountedAmount) }}" disabled {{ $i == 1 ? 'disabled' : '' }}>
-                                    </td>
+    <input type="text"
+        class="form-control discounted-amount"
+        value="{{ number_format($discountedAmount, 2, '.', '') }}"
+        disabled>
+</td>
+
 
                                     <td>
                                         <input type="checkbox" name="checked[]"
@@ -917,18 +937,16 @@
                 let discountPercentage = parseFloat(this.discountInputs[index].value) || 0;
                 if (discountPercentage > 100) {
                     discountPercentage = 100;
-                    this.discountInputs[index].value = Math.round(discountPercentage);
+                    this.discountInputs[index].value = discountPercentage;
                 }
                 const amount = parseFloat(this.amountInputs[index].value) || 0;
-                const discount = Math.round( amount * (discountPercentage / 100));
+                const discount =amount * (discountPercentage / 100);
                 const finalAmount = amount - discount;
-                this.discountedAmountInputs[index].value = finalAmount < 0 ? 0 : finalAmount.toFixed(1);
+                this.discountedAmountInputs[index].value = finalAmount < 0 ? 0 : finalAmount;
             }
         }
         document.addEventListener('DOMContentLoaded', () => {
             new DiscountCalculator();
         });
     </script>
-
-
 @endsection

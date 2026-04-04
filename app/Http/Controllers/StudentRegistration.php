@@ -123,11 +123,13 @@ class StudentRegistration extends Controller
         if ($request->has('export') && $request->export == 'excel') {
             $branchName = $branches[$request->branches] ?? 'All Branches';
             $report_name = 'Student Registration Report';
+            $registrations = $query->orderBy('id', 'Desc')->get()->groupBy('owned_by');
             return Excel::download(new StudentRegistrationExport($registrations, $branches, $branchName, $branchTotals, $grandTotal, $report_name, $request->all()), 'student_registration.xlsx');
         }
         if ($request->has('export') && $request->export == 'pdf') {
             $branchName = $branches[$request->branches] ?? 'All Branches';
             $report_name = 'Student Registration Report';
+            $registrations = $query->orderBy('id', 'Desc')->get()->groupBy('owned_by');
             return Excel::download(new StudentRegistrationExport($registrations, $branches, $branchName, $branchTotals, $grandTotal, $report_name, $request->all()), 'student_registration.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
 
@@ -206,17 +208,17 @@ class StudentRegistration extends Controller
         }
         DB::beginTransaction();
         try {
-            $olddata= ModelsStudentRegistration::where('stdname',$request->stdname)->where('fathername',$request->fathername)->where('fathercnic',$request->fathercnic)->first();
-            if($olddata){
-                if($olddata->student_status == 'Registered'){
+            $olddata = ModelsStudentRegistration::where('stdname', $request->stdname)->where('fathername', $request->fathername)->where('fathercnic', $request->fathercnic)->first();
+            if ($olddata) {
+                if ($olddata->student_status == 'Registered') {
                     return back()->withErrors(['stdname' => 'Student Already Registered'])->withInput();
-                }else{
+                } else {
                     return back()->withErrors(['stdname' => 'Student Already Exist'])->withInput();
                 }
             }
             $prevRegNo = ModelsStudentRegistration::selectRaw(
-                    'MAX(CAST(reg_no AS UNSIGNED)) as max_reg_no'
-                )->value('max_reg_no');
+                'MAX(CAST(reg_no AS UNSIGNED)) as max_reg_no'
+            )->value('max_reg_no');
 
             $newRegNo = $prevRegNo ? $prevRegNo + 1 : 1;
             $registration = new ModelsStudentRegistration();
@@ -236,7 +238,7 @@ class StudentRegistration extends Controller
             $registration->city = $request->input('city');
             $registration->mothername = $request->input('mothername');
             $registration->mothercnic = $request->input('mothercnic');
-            // $registration->motherprofession = $request->input('motherprofession');
+            $registration->motherprofession = $request->input('motherprofession');
             $registration->register_option = $request->input('register_option');
             $registration->email = $request->input('email');
             $registration->address = strtoupper($request->input('address'));
@@ -258,23 +260,23 @@ class StudentRegistration extends Controller
                 $reg_dis = Registring_option::where('id', $request->input('register_option'))->where('created_by', \Auth::user()->creatorId())->first();
                 $challan = new Challans();
                 $challan->student_id = $registration->id;
-                
+
                 $challan->class_id = $request->input('class_id');
                 $challan->rollno = $registration->id;
-                $challan->challanNo =$this->challanNo();
-                $challan->challan_date = Carbon::now()->toDateString();
+                $challan->challanNo = $this->challanNo();
+                $challan->challan_date = $request->input('regdate');
                 $challan->challan_type = 'Registration';
                 $challan->total_amount = $reg_dis->discount;
                 $challan->paid_amount = $reg_dis->discount;
-                $challan->issue_date = Carbon::now()->toDateString();
-                $challan->due_date = Carbon::now()->addWeek()->toDateString();
+                $challan->issue_date = $request->input('regdate');
+                $challan->due_date = Carbon::parse($request->input('regdate'))->addDays(7)->format('Y-m-d');
                 $challan->fee_month = date('Y-m-01');
                 $challan->status = 'Paid';
-                $challan->session_id =  $registration->session_id;
+                $challan->session_id = $registration->session_id;
                 $challan->owned_by = $registration->owned_by;
                 $challan->created_by = \Auth::user()->creatorId();
                 $challan->save();
-                $bankAccount = BankAccount::where('owned_by',$challan->owned_by)->first();
+                $bankAccount = BankAccount::where('owned_by', $challan->owned_by)->first();
                 $recipts = StudentReceipt::create(
                     [
                         'recipt_date' => date('Y-m-d'),
@@ -301,6 +303,7 @@ class StudentRegistration extends Controller
                 $challan_head->head_id = $adm_fee_head->id;
                 $challan_head->price = $reg_dis->discount ? $reg_dis->discount : 0;
                 $challan_head->concession = 0;
+                $challan_head->paid = $reg_dis->discount ? $reg_dis->discount : 0;
                 $challan_head->save();
                 $item['0']['head'] = $challan_head->head_id;
                 $item['0']['price'] = $reg_dis->discount ? $reg_dis->discount : 0;
@@ -309,7 +312,8 @@ class StudentRegistration extends Controller
                 $item['0']['total'] = $reg_dis->discount ? $reg_dis->discount : 0;
                 $data['id'] = $challan->id;
                 $data['no'] = $challan->challanNo;
-                $data['date'] = $challan->challan_date;
+                $data['date'] = $request->input('regdate');
+                $data['challan_id'] = $challan->id;
                 $data['recipt'] = $recipts->id;
                 $data['reference'] = $challan->student_id;
                 $data['description'] = 'Registration Fee Amount';
@@ -328,7 +332,7 @@ class StudentRegistration extends Controller
                 $data['created_by'] = $challan->created_by;
                 $data['account_id'] = $bankAccount->chart_account_id;
                 $data['items'] = $item;
-                $registration =ModelsStudentRegistration::where('id',$registration->id)->update([
+                $registration = ModelsStudentRegistration::where('id', $registration->id)->update([
                     'registrationfee' => $reg_dis->discount
                 ]);
 
@@ -433,12 +437,14 @@ class StudentRegistration extends Controller
         $concession = Concession::with('concession')->where('student_id', $id)
             ->where('end_date', '>=', date('Y-m-d'))
             ->orderBy('id', 'desc')
+            ->where('active_status' ,'!=',0)
             ->where('status', 'Approved')
             ->first();
             if(!$concession){
                 $concession = Concession::with('concession')->where('student_id', $id)
                 ->orderBy('id', 'desc')
                 ->whereNull( 'end_date')
+                ->where('active_status' ,'!=',0)
                 ->where('status', 'Approved')
                 ->first();
             }
@@ -568,6 +574,7 @@ class StudentRegistration extends Controller
                         'message' => 'Validation failed'
                     ], 422);
                 }
+                // dd($sectionData);
                 $student->fathername = $sectionData['father_name'];
                 $student->fathercnic = $sectionData['father_cnic'];
                 $student->fatherphone = isset($sectionData['home_phone']) ? $sectionData['home_phone'] : '';

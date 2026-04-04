@@ -12,7 +12,8 @@ class ChallanHead extends Model
         'challan_id',
         'head_id',
         'price',
-        'concession','paid',
+        'concession','paid','created_at',
+        'updated_at',
 
     ];
 

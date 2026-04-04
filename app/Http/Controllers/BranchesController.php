@@ -35,19 +35,16 @@ class BranchesController extends Controller
      */
     public function index()
     {
-        if(\Auth::user()->can('view companybranch'))
-        {
-            $user    = \Auth::user();
+        if (\Auth::user()->type == 'company') {
+           $user    = \Auth::user();
             $branches = User::where('created_by', '=', $user->creatorId())->where('type', '=', 'branch')->get();
-            // $branches = School_details::where('created_by', '=', $user->creatorId())->where('type', '=', 'branch')->get();
-
-            return view('branches.index', compact('branches'));
+        } else {
+            $user    = \Auth::user();
+            $branches = User::where('id', '=', $user->id)->where('type', '=', 'branch')->get();
         }
-        else
-        {
-
-            return redirect()->back()->with('error', __('Permission Denied.'));
-        }
+        // dd($branches);
+        return view('branches.index', compact('branches'));
+        // if(\Auth::user()->can('view companybranch'))
     }
 
     /**
@@ -262,7 +259,7 @@ class BranchesController extends Controller
             {
                 $validation = [
                     'name' => 'required',
-                    'email' => 'required|email|unique:users,email,' . $branch->id,
+                    // 'email' => 'required|email|unique:users,email,' . $branch->id,
                 ];
 
                 $post         = [];
