@@ -612,6 +612,8 @@ Route::group(['middleware' => ['verified']], function () {
             ],
         ],
         function () {
+            Route::get('bank-account/{id}/statement', [BankAccountController::class, 'statement'])->name('bank-account.statement');
+            Route::post('bank-account/{id}/statement/export', [BankAccountController::class, 'statementExport'])->name('bank-account.statement.export');
             Route::resource('bank-account', BankAccountController::class);
         }
     );

@@ -4776,7 +4776,32 @@ class Utility extends Model
         return $total;
     }
 
-    public static function getAccountData($account_id, $start_date = null, $end_date = null, $type = null)
+     public static function formatVoucherNumber($number, $type = 'JV')
+    {
+        $prefixes = [
+            'JV' =>  'JV',
+            'BRV' => '#BRV',
+            'BPV' => '#BPV',
+            'CRV' => '#CRV',
+            'CPV' => '#CPV',
+        ];
+        $prefix = $prefixes[$type] ?? '';
+
+        return $prefix . sprintf("%05d", $number);
+    }
+    public static function VoucherRoute( $type = 'JV')
+    {
+       $routes = [
+        'JV'  => 'journal-entry.show',
+        'BRV' => 'bank-recipt-voucher.show',
+        'BPV' => 'bank-payment-voucher.show',
+        'CRV' => 'cash-recipt-voucher.show',
+        'CPV' => 'cash-payment-voucher.show',
+    ];
+        return $routes[$type] ?? null;
+    }
+
+    public static function getAccountData($account_id, $start_date = null, $end_date = null, $type = null, $branch = null)
     {
 
         // $account_id = 50;
@@ -4850,6 +4875,9 @@ class Utility extends Model
                 ->leftjoin('journal_entries', 'journal_entries.id', 'journal_items.journal')->where('journal_entries.created_by', '=', \Auth::user()->creatorId());
             $journalItems->where('journal_items.created_at', '>=', $start);
             $journalItems->where('journal_items.created_at', '<=', $end);
+            if (!empty($branch) && $branch != 'null') {
+                $journalItems->where('journal_entries.owned_by', '=', $branch);
+            }
             $journalItems = $journalItems->get()->groupBy('journal');
             $type = 'group';
         } else {
@@ -4859,7 +4887,10 @@ class Utility extends Model
                 ->where('journal_entries.created_by', '=', \Auth::user()->creatorId())->where('account', $account_id);
             $journalItems->where('journal_items.created_at', '>=', $start);
             $journalItems->where('journal_items.created_at', '<=', $end);
-            $journalItems = $journalItems->get();
+            if (!empty($branch) && $branch != 'null') {
+                $journalItems->where('journal_entries.owned_by', '=', $branch);
+            }
+            $journalItems = $journalItems->orderBy('journal_items.created_at', 'asc')->get();
             $type = 'other';
         }
         $data = [];

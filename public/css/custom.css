@@ -1841,11 +1841,11 @@ table a:has(span i) {
 
 table a:not(:has(*)) {
     background: none !important;
-    border: 3px solid var(--primary-darker) !important;
-    color: #343C6A !important;
+    /* border: 3px solid var(--primary-darker) !important; */
+    color: var(--primary-darker) !important;
 }
 
-table a.btn.btn-sm.btn-outline-primary:not(:has(*)):hover {
+table .btn.btn-sm.btn-outline-primary:not(:has(*)):hover {
     color: var(--primary-darker) !important;
 }
 
