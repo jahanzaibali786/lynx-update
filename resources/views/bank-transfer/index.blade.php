@@ -29,6 +29,7 @@
                 <div class="card">
                     <div class="card-body">
                         {{ Form::open(['route' => ['bank-transfer.index'], 'method' => 'GET', 'id' => 'transfer_form']) }}
+                        <input type="hidden" name="export" id="is_export" value="0">
                         <div class="row align-items-center justify-content-end">
                             <div class="col-xl-10">
                                 <div class="row">
@@ -74,6 +75,11 @@
                                             class="btn mx-1 btn-sm btn-outline-danger " title="{{ __('Reset') }}"
                                             data-bs-title="{{ __('Reset') }}">
                                             <span class="btn-inner--icon">Clear</span>
+                                        </a>
+                                        <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
+                                            onclick="document.getElementById('is_export').value='1'; document.getElementById('transfer_form').submit(); setTimeout(() => { document.getElementById('is_export').value='0'; }, 500); return false;"
+                                            data-bs-toggle="tooltip" title="{{ __('Export') }}">
+                                            <span class="btn-inner--icon">Export</span>
                                         </a>
 
 

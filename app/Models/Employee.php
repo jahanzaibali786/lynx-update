@@ -106,6 +106,20 @@ class Employee extends Model
         return $this->belongsTo(SchoolDetails::class, 'created_by', 'branch_id');
     }
 
+    public function emergencyContacts()
+    {
+        return $this->hasMany(EmployeeEmergencyContact::class);
+    }
+
+    public function getDesignationFormattedAttribute(): string
+    {
+           $text = $this->designation->name ?? '';
+
+            if (strlen($text) <= 25) return $text;
+
+            return str_replace("\n", "<br>", wordwrap($text, 30, "\n", false));
+    }
+
     public function get_net_salary()
     {
 
@@ -300,10 +314,19 @@ class Employee extends Model
     {
         return $this->hasOne('App\Models\User', 'id', 'branch_id');
     }
+    public function ownedBranch()
+    {
+        return $this->belongsTo('App\Models\User', 'owned_by', 'id');
+    }
 
     public function department()
     {
         return $this->hasOne('App\Models\Department', 'id', 'department_id');
+    }
+    
+    public function latestEducation()
+    {
+        return $this->hasOne('App\Models\EmpEducation', 'emp_id', 'id')->orderByDesc('pass_date');
     }
     public function resignation()
     {

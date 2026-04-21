@@ -126,6 +126,7 @@
             </thead>
             <tbody>
                 @foreach ($employees as $employee)
+                    
                     @php
                         $lastPayscaleDetail = $employee->employee_payscale_details->last();
                         $gross = 0;
@@ -186,6 +187,33 @@
                             <td>{{ $lastPayscaleDetail->itax ?? '0' }}</td>
                             <td>{{ $gross }}</td>
                             <td>{{ $lastPayscaleDetail->net ?? '-' }}</td>
+                        </tr>
+                    @else
+                        <tr>
+                            <td>{{ $loop->iteration }}</td>
+                            <td class="Id">
+                                @can('show employee profile')
+                                    <a href="#" data-size="xl"
+                                        data-url="{{ route('employee-salary-detail.show', Crypt::encrypt($employee->id)) }}"
+                                        data-ajax-popup="true" class="btn btn-sm btn-outline-primary mx-1"  data-bs-toggle="{{ __('Assign Scale') }}">
+                                        {{ \Auth::user()->employeeIdFormat($employee->employee_id) }}
+                                    </a>
+                                @else
+                                    <span class="btn btn-outline-primary">{{ \Auth::user()->employeeIdFormat($employee->employee_id) }}</span>
+                                @endcan
+                            </td>
+                            <td>{{ $employee->name }}</td>
+                            <td>-</td>
+                            <td>{{ optional(\Auth::user()->getDepartment($employee->department_id))->name ?? '-' }}</td>
+                            <td>{{ optional(\Auth::user()->getDesignation($employee->designation_id))->name ?? '-' }}</td>
+                            <td>{{ optional(\Auth::user()->getBranch($employee->branch_id))->name ?? '-' }}</td>
+                            <td>{{ $employee->eobi . '|' . $employee->eobi_employer }}</td>
+                            <td>-</td>
+                            <td>{{ $employee->pessi . '|' . $employee->pessi_employer }}</td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td>-</td>
+                            <td>-</td>
                         </tr>
                     @endif
                 @endforeach

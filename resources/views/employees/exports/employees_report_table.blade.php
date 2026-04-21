@@ -1,70 +1,48 @@
 <table>
     <thead>
         @include('student.exports.header')
-        <tr
-            style="font-size: 2rem; font-weight: 800; border: 5px solid black; border-collapse: collapse; background-color:#CCCCCC;">
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 50px; background-color:#CCCCCC; text-align: center;">
+        <tr>
+            <th >
                 Sr No </th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Branch Name') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Emp No') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Name') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Father / Husband Name') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Designation') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Qualification') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('CNIC') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('EOBI No.') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('PESSI NO') }}</th>
-            {{-- <th
-                    style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
-                    {{ __('Department') }}</th> --}}
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            {{-- <th> {{ __('Department') }}</th> --}}
+            <th>
                 {{ __('DOB') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('DOJ') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Service Period') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Email') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Mobile') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Address') }}</th>
-            {{-- <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            {{-- <th>
                 {{ __('Pay Scale') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Gross Salary') }}</th>
-            <th
-                style="font-size: 8px; font-family: Calibri; font-weight: 800; border: 20px solid black; border-collapse: collapse; width: 150px; background-color:#CCCCCC; text-align: center;">
+            <th>
                 {{ __('Net Salary') }}</th> --}}
-            <!-- {{-- <th style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 150px; background-color:gray;"> {{__('Last Login')}}</th> --}} -->
-            {{-- <th  style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 150px; background-color:gray;">{{__('Action')}}</th> --}}
+            <!-- {{-- <th> {{__('Last Login')}}</th> --}} -->
+            {{-- <th>{{__('Action')}}</th> --}}
 
         </tr>
 
@@ -82,59 +60,65 @@
 
             @endphp
             <tr>
-                <td style=" font-size: 8px; font-family: Calibri; text-align:center;">
+                <td >
                     {{ $loop->iteration }}</td>
                 @if ($employee->owned_by)
-                    <td style=" font-size: 8px; font-family: Calibri;">
-                        {{ !empty(\Auth::user()->getBranch($employee->owned_by)) ? \Auth::user()->getBranch($employee->owned_by)->name : '' }}
-                    </td>
+                    <td >
+                        {{ !empty($employee->ownedBranch) ? $employee->ownedBranch->name : '' }}
+                    </td>   
                 @else
-                    <td style=" font-size: 8px; font-family: Calibri;">-</td>
+                    <td >-</td>
                 @endif
-                <td style=" font-size: 8px; font-family: Calibri; text-align:center;">
+                <td >
 
                     {{ \Auth::user()->employeeIdFormat($employee->employee_id) }}
 
                 </td>
-                <td style=" font-size: 8px; font-family: Calibri;">{{ $employee->name }}</td>
-                <td style=" font-size: 8px; font-family: Calibri;">{{ $employee->f_name }}</td>
+                <td >{{ $employee->name }}</td>
+                <td >{{ $employee->f_name }}</td>
                 @if ($employee->designation_id)
-                    <td style=" font-size: 8px; font-family: Calibri;">
-                        {{ !empty(\Auth::user()->getDesignation($employee->designation_id)) ? \Auth::user()->getDesignation($employee->designation_id)->name : '' }}
+                    <td >
+                        {{ !empty($employee->designation) ? $employee->designation->name : '' }}
                     </td>
                 @else
-                    <td style=" font-size: 8px; font-family: Calibri;">-</td>
+                    <td >-</td>
                 @endif
                 {{-- @if ($employee->qualification) --}}
-                <td style=" font-size: 8px; font-family: Calibri;">
-                    {{ !empty(\Auth::user()->getQualification($employee->id)) ? \Auth::user()->getQualification($employee->id) : '-' }}
+                <td >
+                    {{ !empty($employee->latestEducation) ? $employee->latestEducation->degree : '-' }}
                 </td>
                 {{-- @else
-                    <td style=" font-size: 8px; font-family: Calibri;">-</td>
+                    <td >-</td>
                 @endif --}}
 
-                <td style=" font-size: 8px; font-family: Calibri;">{{ $employee->cnic }}</td>
-                <td style=" font-size: 8px; font-family: Calibri;">{{ $employee->eobi_employer }}
+                <td >{{ $employee->cnic }}</td>
+                <td >{{ $employee->eobi_id ?? '-' }}</td>
+                 <td >{{ $employee->ssc_id ?? '-' }}</td>
                 </td>
-                <td style=" font-size: 8px; font-family: Calibri;">{{ $employee->pessi ?? '-' }}
-                </td>
-                <td style=" font-size: 8px; font-family: Calibri;">{{ $employee->dob ?? '-' }}
-                </td>
-                {{-- @if ($employee->department_id)
-                    <td style=" font-size: 8px; font-family: Calibri;">
-                        {{ !empty(\Auth::user()->getDepartment($employee->department_id)) ? \Auth::user()->getDepartment($employee->department_id)->name : '' }}
-                    </td>
-                    @else
-                    <td style=" font-size: 8px; font-family: Calibri;">-</td>
-                    @endif --}}
-                <td style=" font-size: 8px; font-family: Calibri;">
-                    @if ($employee->company_doj)
-                        {{ \Carbon\Carbon::parse($employee->company_doj)->format('d-M-Y') }}
+                {{-- <td >{{ $employee->pessi ?? '-' }}
+                </td> --}}
+                <td >
+                    @if ($employee->dob)
+                        {{ \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(new \DateTime($employee->dob)) }}
                     @else
                         -
                     @endif
                 </td>
-                <td style="font-size: 8px; font-family: Calibri;">
+                {{-- @if ($employee->department_id)
+                    <td >
+                        {{ !empty(\Auth::user()->getDepartment($employee->department_id)) ? \Auth::user()->getDepartment($employee->department_id)->name : '' }}
+                    </td>
+                    @else
+                    <td >-</td>
+                    @endif --}}
+                <td >
+                    @if ($employee->company_doj)
+                        {{ \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(new \DateTime($employee->company_doj)) }}
+                    @else
+                        -
+                    @endif
+                </td>
+                <td >
                     @if ($employee->company_doj)
                         @php
                             $doj = \Carbon\Carbon::parse($employee->company_doj);
@@ -147,28 +131,28 @@
                     @endif
                 </td>
 
-                <td style=" font-size: 8px; font-family: Calibri;">{{ $employee->email }}</td>
-                <td style=" font-size: 8px; font-family: Calibri; text-align: right;">
+                <td >{{ $employee->email }}</td>
+                <td>
                     {{ $employee->phone }}</td>
-                <td style=" font-size: 8px; font-family: Calibri;">{{ $employee->address }}</td>
+                <td >{{ $employee->address }}</td>
 
                 {{-- @if ($lastscale)
-                    <td style=" font-size: 8px; font-family: Calibri;">
+                    <td >
                         {{ $lastscale->scale ? $lastscale->scale->scale_no : '' }}</td>
                 @else
-                    <td style=" font-size: 8px; font-family: Calibri;">-</td>
+                    <td >-</td>
                 @endif
                 @if ($monthlysalary)
-                    <td style=" font-size: 8px; font-family: Calibri;">
+                    <td >
                         {{ !empty($monthlysalary) ? $monthlysalary->gross : '' }}</td>
                 @else
-                    <td style=" font-size: 8px; font-family: Calibri;">-</td>
+                    <td >-</td>
                 @endif
                 @if ($lastscale)
-                    <td style=" font-size: 8px; font-family: Calibri;">
+                    <td >
                         {{ $lastscale ? $lastscale->net : '0' }}</td>
                 @else
-                    <td style=" font-size: 8px; font-family: Calibri;">0</td>
+                    <td >0</td>
                 @endif --}}
             </tr>
             @php
@@ -177,14 +161,11 @@
             @endphp
         @endforeach
         {{-- <tr>
-            <td colspan="9"
-                style="text-align: right; background-color: gray; border: 20px solid black; border-collapse: collapse; font-size: 8px; font-weight:bolder; font-family: Calibri;">
+            <td colspan="9">
                 Total</td>
-            <td
-                style=" background-color: gray; border: 20px solid black; border-collapse: collapse; font-size: 8px; font-family: Calibri;  font-weight:bolder;">
+            <td>
                 {{ $totalgross }}</td>
-            <td
-                style=" background-color: gray; border: 20px solid black; border-collapse: collapse; font-size: 8px; font-family: Calibri;  font-weight:bolder;">
+            <td>
                 {{ $totalnet }}</td>
         </tr> --}}
         @include('student.exports.footer')

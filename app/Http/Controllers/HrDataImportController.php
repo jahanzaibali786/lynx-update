@@ -1089,14 +1089,17 @@ class HrDataImportController extends Controller
 
                     $record_status = 'Error';
                     $reason = '';
-                    // $branch_id = 18; // SATELLITE TOWN SENIOR BRANCH RWP
-                    // $branch_id = 17; // SATELLITE TOWN NURSERY BRANCH RWP
+
+                    // $branch_id = 2; // Head Office
                     // $branch_id = 5; // I-8/4 DAYCARE BRANCH ISLAMABAD
-                    $branch_id = 2; // Head Office
                     // $branch_id = 6; // I-8/4 NURSERY BRANCH ISLAMABAD
                     // $branch_id = 7; // I-8/4 PRIMARY BRANCH ISLAMABAD
                     // $branch_id = 8; // I-8/4 SENIOR BRANCH ISLAMABAD
                     // $branch_id = 53; // PWD BRANCH ISLAMABAD
+                    // $branch_id = 1906; // I-8/4 JUNIOR BRANCH ISLAMABAD
+                    // $branch_id = 17; // SATELLITE TOWN NURSERY BRANCH RWP
+                    $branch_id = 18; // SATELLITE TOWN SENIOR BRANCH RWP
+
                     if (empty($all_data[0])) {
                         $reason = 'Empty employee ID';
                         $error_counter++;
@@ -1107,6 +1110,21 @@ class HrDataImportController extends Controller
 
                     $existingEmployee = Employee::where('employee_id', $all_data[0])->first();
                     if ($existingEmployee) {
+                        $existingEmployee->cnic = $all_data[5];
+                        $existingEmployee->eobi_id = $all_data[6];
+                        $existingEmployee->present_address = $all_data[13];
+                        $existingEmployee->phone = $all_data[12];
+                        $existingEmployee->company_doj = date('Y-m-d', strtotime($all_data[9]));
+                        $existingEmployee->is_res_ter = !empty($all_data[14]) ? 1 : 0;
+                        $existingEmployee->gender = $all_data[15];
+                        $existingEmployee->owned_by = $branch_id;
+                        $existingEmployee->save();
+
+                        $users = User::where('id', $existingEmployee->user_id)->first();
+                        if ($users) {
+                            $users->owned_by = $branch_id;
+                            $users->save();
+                        }
                         $reason = 'Employee already exists';
                         $duplication_counter++;
                         $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
@@ -1143,6 +1161,7 @@ class HrDataImportController extends Controller
                     $emp->phone = $all_data[12];
                     $emp->address = $all_data[13];
                     $emp->present_address = $all_data[13];
+                    $emp->eobi_id = $all_data[6];
                     $emp->category = 'Regular';
                     $emp->email = $all_data[11] ?? '';
                     $emp->password = Hash::make('123456');
@@ -1152,6 +1171,8 @@ class HrDataImportController extends Controller
                     $emp->company_doj = date('Y-m-d', strtotime($all_data[9]));
                     $emp->owned_by = $branch_id;
                     $emp->created_by = 2;
+                    $emp->is_res_ter = !empty($all_data[14]) ? 1 : 0;
+                    $emp->gender = $all_data[15];
                     $emp->save();
 
                     // Create user
@@ -1223,7 +1244,7 @@ class HrDataImportController extends Controller
             }
         } catch (\Exception $e) {
             DB::rollBack();
-            dd($e);
+            dd($e, $all_data);
             return redirect()->back()->with('error', "An error occurred: " . $e->getMessage());
         }
 

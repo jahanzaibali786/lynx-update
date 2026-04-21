@@ -163,23 +163,23 @@
                     <td>{{ @$studentData->session->year }}</td>
                     <td>{{ @$studentData->registeroption->name }}</td>
                     <td>{{ @$enroll->adm_date ? date('d-M-Y',strtotime($enroll->adm_date)) : '-' }}</td>
+
                     <td>
                         <div class="action-btn ms-2">
-                        <a href="{{ route('registration.show', $enroll->regId) }}"
-                                    class="mx-1 btn btn-sm align-items-center btn-outline-primary" 
-                                    data-bs-title="{{ __('Show') }}" data-bs-title="{{ __('Show') }}"><span
-                                        class="btn-inner--icon"><i class="ti ti-eye"></i></span></a>
+                            <a href="{{ route('registration.show', $enroll->regId) }}"
+                                class="mx-1 btn btn-sm align-items-center btn-outline-primary"
+                                data-bs-title="{{ __('Show') }}" data-bs-title="{{ __('Show') }}"><span
+                                    class="btn-inner--icon"><i class="ti ti-eye"></i></span></a>
+
+                            <a href="{{ route('admission.order', $studentData->id) }}"
+                                class="mx-1 btn btn-sm align-items-center btn-outline-success"
+                                data-bs-title="{{ __('Admission Order') }}"
+                                data-bs-title="{{ __('Admission Order') }}"><span class="btn-inner--icon"><i
+                                        class="ti ti-receipt"></i></span></a>
+
                         </div>
+                        {!! Form::close() !!}
                     </td>
-                    {{-- <td>
-                <div class="action-btn ms-2">
-                    <a href="{{ route('admission.order', $enroll->id) }}"
-                        class="mx-1 btn btn-sm align-items-center btn-outline-primary"  data-bs-title="{{__('Admission Order')}}"
-                        data-bs-title="{{__('Admission Order')}}"><span class="btn-inner--icon"><i class="ti ti-receipt"></i></span></a>
-                        
-                </div>
-                {!! Form::close() !!}
-            </td> --}}
                 </tr>
             @endforeach
         </tbody>

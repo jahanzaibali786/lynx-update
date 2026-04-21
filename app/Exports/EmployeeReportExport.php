@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Exports;
 
 // use Illuminate\Database\Eloquent\Factories\HasFactory;
 // use Illuminate\Database\Eloquent\Model;
@@ -12,8 +12,10 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use Maatwebsite\Excel\Concerns\WithDrawings;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
-class EmployeeReportExport implements FromView, WithEvents
+class EmployeeReportExport implements FromView,WithColumnFormatting ,WithEvents
 {
     protected $employees;
 
@@ -42,6 +44,14 @@ class EmployeeReportExport implements FromView, WithEvents
         ]);
     }
 
+    public function columnFormats(): array
+    {
+        return [
+            'K' => 'dd-mmm-yyyy',
+            'L' => 'dd-mmm-yyyy',
+        ];
+    }
+
     public function registerEvents(): array
     {
         return [
@@ -56,7 +66,7 @@ class EmployeeReportExport implements FromView, WithEvents
                 $sheet->getPageSetup()->setFitToHeight(0); // unlimited height
     
                 // 🔁 Repeat heading row (row 5)
-                $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(8, 8);
+                $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(7, 7);
                 $sheet = $event->sheet->getDelegate();
                 $sheet->setShowGridlines(false);
                 // Optional: Margins
@@ -68,6 +78,7 @@ class EmployeeReportExport implements FromView, WithEvents
 
                 // Logo insertion
                 $highestColumn = $sheet->getHighestColumn();
+                
                 $originalPath = public_path('assets/images/lynx2.jpg');
 
                 if (file_exists($originalPath) && function_exists('imagecreatefromjpeg')) {
@@ -89,6 +100,7 @@ class EmployeeReportExport implements FromView, WithEvents
                 $drawing->setOffsetY(10);
                 $drawing->setCoordinates($highestColumn . '1');
                 $drawing->setWorksheet($sheet);
+                $highestColumnLetter = $sheet->getHighestColumn();
 
                 $lastDataRow = $sheet->getHighestRow();
                 $sigLineRow = $lastDataRow + 2; // underscores
@@ -110,6 +122,65 @@ class EmployeeReportExport implements FromView, WithEvents
                     ->getFont()->setBold(true);
                 $sheet->getStyle("{$insetColumn}{$sigLineRow}:{$insetColumn}{$sigTextRow}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+
+                $sheet->getColumnDimension('A')->setWidth(8);
+                $sheet->getColumnDimension('B')->setWidth(12);
+                $sheet->getColumnDimension('C')->setWidth(10);
+                $sheet->getColumnDimension('D')->setWidth(22);
+                $sheet->getColumnDimension('E')->setWidth(22);
+                $sheet->getColumnDimension('F')->setWidth(20);
+                $sheet->getColumnDimension('G')->setWidth(15);
+                $sheet->getColumnDimension('H')->setWidth(17);
+                $sheet->getColumnDimension('I')->setWidth(12);
+                $sheet->getColumnDimension('J')->setWidth(12);
+                $sheet->getColumnDimension('K')->setWidth(12);
+                $sheet->getColumnDimension('L')->setWidth(12);
+                $sheet->getColumnDimension('M')->setWidth(12);
+                $sheet->getColumnDimension('N')->setWidth(15);
+                $sheet->getColumnDimension('O')->setWidth(15);
+                $sheet->getColumnDimension('P')->setWidth(30);
+                $sheet->getStyle("A7:A{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("C7:C{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("M7:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("D7:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
+                $sheet->getStyle("G7:H{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("P7:P{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
+                $sheet->getStyle("A7:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
+                    // for heading row
+                $highestColumnLetter = $sheet->getHighestColumn();
+                $sheet->getStyle('A1')->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 28,
+                        'name' => 'Edwardian Script ITC', // Will only work if the font is installed on the system
+                    ],
+                ]);
+                // Apply style to entire Heading Row
+                $sheet->getStyle("A7:{$highestColumnLetter}7")->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 8,
+                        'name' => 'calibri',
+                    ],
+                    'alignment' => [
+                        'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                        'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+
+                    ],
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                            'color' => ['argb' => 'FF000000'], // Black
+                        ],
+                    ],
+                    'fill' => [
+                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'startColor' => [
+                            'argb' => 'FFBFBFBF', // Light gray
+                        ],
+                    ],
+                ]);
             },
         ];
     }

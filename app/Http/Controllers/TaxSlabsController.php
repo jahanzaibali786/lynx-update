@@ -228,6 +228,7 @@ class TaxSlabsController extends Controller
                     });
             })
             ->first();
+            // dd($yearlySal, $taxSlabs,$currentMonth);
         if (!$taxSlabs) {
             return response()->json(['error' => 'Tax slab not found for the year ' . $currentYear . '. Please contact admin.'], 404);
         }

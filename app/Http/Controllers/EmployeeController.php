@@ -23,7 +23,8 @@ use App\Models\ExperienceCertificate;
 use App\Models\FeeHead;
 use App\Models\JoiningLetter;
 use App\Models\EmpExperience;
-use App\Models\EmployeeReportExport;
+use App\Exports\EmployeeReportExport;
+use App\Models\EmployeeEmergencyContact;
 use App\Models\Leave;
 use App\Models\LeaveType;
 use App\Models\NOC;
@@ -58,27 +59,29 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
-        // dd('');
+        // dd($request->all());
         if (\Auth::user()->can('manage employee')) {
+            $query = Employee::with(['ownedBranch', 'department', 'designation', 'employee_payscale_details', 'employee_monthly_salaries', 'latestEducation']);
+
             if (\Auth::user()->type == 'Employee') {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = Employee::where('user_id', '=', Auth::user()->id);
+                $query->where('user_id', '=', Auth::user()->id);
             } else if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', '=', 'branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $query = Employee::where('created_by', \Auth::user()->creatorId());
+                $query->where('created_by', \Auth::user()->creatorId());
             } else {
                 // dd(\Auth::user()->ownedId());
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $query = Employee::where('owned_by', \Auth::user()->ownedId());
+                $query->where('owned_by', \Auth::user()->ownedId());
             }
             $departments = Department::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
             $departments->prepend('All', 'all');
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
             $designations->prepend('All', 'all');
-            if (!empty($request->branches)) {
+            if (!empty($request->branches) && $request->branches != null) {
                 $query->where('owned_by', '=', $request->branches);
             }
             if (!empty($request->ter_status)) {
@@ -599,14 +602,13 @@ if ($path) {
             $resignation = Resignation::where('employee_id', $empId)->first();
             $isResigned = !is_null($resignation);
             $employeesId = \Auth::user()->employeeIdFormat(!empty($employee) ? $employee->employee_id : '');
-            $branches_school = SchoolDetails::where('branch_id', $employee->created_by)->first();
+            $branches_school = SchoolDetails::where('branch_id', $employee->owned_by)->first();
             $emp_exp = EmpExperience::where('emp_id', $empId)->get();
             $emp_edu = EmpEducation::where('emp_id', $empId)->get();
             $emp_fac = EmpFacility::where('emp_id', $empId)->get();
-            $emp_child = EmpChildrens::with('student')->where('emp_id', $empId)->get();
             // dd($emp_child);
             if($request->print){
-                $bodyHtml = view('employee.printProfile', compact('employee', 'emp_child', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'))->render();
+                $bodyHtml = view('employee.printProfile', compact('employee', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'))->render();
 
                 $finalHtml = '<html><head><style>body { font-family: sans-serif; font-size: 12px; }</style></head><body>' . $bodyHtml . '</body></html>';
 
@@ -619,7 +621,7 @@ if ($path) {
                 $dompdf->render();
                 return $dompdf->stream('employee_profile.pdf', ['Attachment' => false]);
             }
-              return view('employee.show', compact('employee', 'emp_child', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'));
+              return view('employee.show', compact('employee', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -799,16 +801,16 @@ if ($path) {
     {
         // dd($request->all());
         $validatedData = $request->validate([
-            'profile_img' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'profile_img' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:1024',
             // 'salute' => 'nullable|string',
-            // 'name' => 'required|string',
+            'name' => 'required|string',
             // 'f_name' => 'nullable|string',
-            // 'cnic' => 'nullable|string',
+            'cnic' => 'nullable|string',
             // 'dob' => 'nullable|date',
-            // 'gender' => 'nullable|string',
+            'gender' => 'nullable|string',
             // 'religion' => 'nullable|string',
             // 'blood_group' => 'nullable|string',
-            // 'phone' => 'nullable|string',
+            'phone' => 'nullable|string',
             // 'email' => 'nullable|email',
             // 'eobi' => 'nullable|string',
             // 'ssc' => 'nullable|string',
@@ -820,22 +822,27 @@ if ($path) {
         ]);
         $validatedData = $request->all();
         $employee = Employee::findOrFail($id);
+
         if ($request->hasFile('profile_img')) {
-            $filenameWithExt = $request->file('profile_img')->getClientOriginalName();
-            $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
-            $extension = $request->file('profile_img')->getClientOriginalExtension();
+
+            // 🔹 Delete old image (if exists)
+            if (!empty($employee->profile_img)) {
+                $oldPath = storage_path('emp_profile_images/' . $employee->profile_img);
+
+                if (File::exists($oldPath)) {
+                    File::delete($oldPath);
+                }
+            }
+
+            // 🔹 Store new image
+            $file = $request->file('profile_img');
+            $filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+            $extension = $file->getClientOriginalExtension();
             $fileNameToStore = $filename . '_' . time() . '.' . $extension;
-            $dir = storage_path('emp_profile_images/');
-            $image_path = $dir . $filenameWithExt;
 
-            if (File::exists($image_path)) {
-                File::delete($image_path);
-            }
+            $file->storeAs('emp_profile_images', $fileNameToStore);
 
-            if (!file_exists($dir)) {
-                mkdir($dir, 0777, true);
-            }
-            $path = $request->file('profile_img')->storeAs('emp_profile_images/', $fileNameToStore);
+            // 🔹 Save in DB
             $employee->profile_img = $fileNameToStore;
         }
 
@@ -848,14 +855,18 @@ if ($path) {
         $employee->religion = $validatedData['religion'];
         $employee->blood_group = $validatedData['blood_group'];
         $employee->phone = $validatedData['phone'];
+        $employee->category = $validatedData['category'];
         $employee->email = $validatedData['email'];
-        $employee->eobi_id = $validatedData['eobi'];
-        $employee->ssc_id = $validatedData['ssc'];
+        $employee->eobi_id = $validatedData['eobi_id'];
+        $employee->ssc_id = $validatedData['ssc_id'];
         $employee->present_address = $validatedData['present_address'];
         $employee->address = $validatedData['address'];
-        $employee->branch_id = $validatedData['branch_id'];
-        $employee->department_id = $validatedData['department_id'];
-        $employee->designation_id = $validatedData['designation_id'];
+        // $employee->branch_id = $validatedData['branch_id'];
+        if (Auth::user()->type == 'company') {
+            $employee->department_id = $validatedData['department_id'];
+            $employee->designation_id = $validatedData['designation_id'];
+        }
+        
         $employee->save();
         return redirect()->back()->with('success', 'Employee Info updated successfully.');
     }
@@ -1482,5 +1493,74 @@ if ($path) {
         return redirect()->back()->with('success', 'Facility deleted successfully.');
     }
 
+    public function saveEmergencyContacts(Request $request, $id)
+    {
+        // check / validation  if empty then error return
+        $validator = \Validator::make(
+            $request->all(),
+            [
+                 'contacts' => 'required|array',
+                'contacts.*.contact_name' => 'nullable|string',
+                'contacts.*.relationship' => 'nullable|string',
+                'contacts.*.phone' => 'nullable|string',
+            ],
+            [
+                'contacts.required' => 'At least one contact is required.',
+            ]
+        );
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
 
+            return response()->json([
+                'status' => false,
+                'message' => $messages->first()
+            ]);
+        }   
+
+        foreach ($request->contacts as $contact) {
+
+            if (!empty($contact['contact_name']) || !empty($contact['phone'])) {
+
+                EmployeeEmergencyContact::create([
+                    'employee_id'   => $id,
+                    'contact_name'  => $contact['contact_name'] ?? null,
+                    'relationship'  => $contact['relationship'] ?? null,
+                    'phone'         => $contact['phone'] ?? null,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Contacts saved successfully'
+        ]);
+    }
+
+    public function getEmergencyContacts($id)
+    {
+        return EmployeeEmergencyContact::where('employee_id', $id)->get();
+    }
+
+    public function deleteEmergencyContact($id)
+    {
+        EmployeeEmergencyContact::findOrFail($id)->delete();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Deleted successfully'
+        ]);
+    }
+
+    public function EmployeeChildrenCnic(Request $request)
+    {
+        $emp=Employee::find($request->employee_id);
+    
+        $registrations = StudentRegistration::with('session', 'class', 'branches','fee_structure')->where(function ($q) use ($emp) {
+            $q->where('fathercnic', $emp->cnic)
+            ->orWhere('mothercnic', $emp->cnic);
+        })->get();
+        $pattern = '%TUITION%';
+        $head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($pattern)])->first();
+        return response()->json(['siblings' => $registrations,'head' => $head ]);
+    }
 }

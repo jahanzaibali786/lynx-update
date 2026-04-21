@@ -1,146 +1,241 @@
 @extends('layouts.admin')
-@section('page-title')
-{{__('Admission Order')}}
-@endsection
-@push('script-page')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf2htmlEX/0.18.7/pdf2htmlEX.min.js"></script>
-<script>
-function generatePDF() {
-    console.log('generating');
-    const element = document.getElementById('card');
-    const opt = {
-        filename: 'admission-order.pdf',
-        html2canvas: {
-            scale: 1
-        },
-        jsPDF: {
-            format: 'a4',
-        }
-    };
-    html2pdf().from(element).set(opt).save();
-}
 
-function printPDF() {
-    console.log('printing');
-    const element = document.getElementById('card');
-    const opt = {
-        filename: 'admission-order.pdf',
-        html2canvas: {
-            scale: 1
-        },
-        jsPDF: {
-            format: 'a4',
-        }
-    };
-    html2pdf().from(element).set(opt).output('bloburl').then(function(pdf) {
-        window.open(pdf);
-    });
-}
+@section('page-title')
+    {{ __('Admission Order') }}
+@endsection
+
+@push('script-page')
+<script>
+    function printPDF() {
+        let url = "{{ route('admission.order', $adm_order->id) }}?print=pdf";
+        window.open(url, '_blank');
+    }
 </script>
 @endpush
+
 @section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
-<li class="breadcrumb-item">{{__('Admission Order')}}</li>
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
+    <li class="breadcrumb-item">{{ __('Admission Order') }}</li>
 @endsection
+
 @section('content')
+
 <style>
-.cont {
-    width: 650px;
-    position: relative;
-    padding: 40px 0px;
-}
+    .admission-wrapper {
+        max-width: 750px;
+        margin: 0 auto;
+        padding: 30px;
+        background: #fff;
+    }
 
-.dash-content {
-    display: flex;
-    flex-direction: column;
-}
+    .header-table {
+        width: 100%;
+    }
 
-.inpdiv {
-    border: none;
-    border-bottom: 2px solid black;
-}
+    .title {
+        text-align: center;
+        margin-top: 10px;
+        font-size: 20px;
+        font-weight: 500;
+    }
+
+    .field-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .field-label {
+        width: 220px;
+        font-weight: 500;
+    }
+
+    .field-value {
+        flex: 1;
+        border-bottom: 1px solid #000;
+        min-height: 20px;
+    }
+
+    .two-col {
+        display: flex;
+        gap: 20px;
+    }
+
+    .two-col .col {
+        flex: 1;
+    }
+
+    .signature {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 50px;
+        text-align: center;
+    }
+
+    .signature div {
+        width: 150px;
+    }
+
+    .line-top {
+        border-top: 1px solid #000;
+        height: 20px;
+    }
+
+    .line-bottom {
+        border-bottom: 1px solid #000;
+        height: 20px;
+    }
+
+    .action-bar {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
 </style>
-<div class="my-3">
-    <div class="row " style="float: right;">
-        <div class="col-md-4 d-flex gap-3">
-            <button class="btn btn-outline-primary" onclick="generatePDF()">Download PDF</button>
-            <button class="btn btn-outline-success" onclick="printPDF()">Print PDF</button>
-        </div>
-    </div>
+
+<!-- Buttons -->
+<div class="action-bar">
+    <button class="btn btn-outline-primary btn-sm" onclick="generatePDF()">
+        <i class="ti ti-download"></i> Download
+    </button>
+
+    <button class="btn btn-outline-success btn-sm" onclick="printPDF()">
+        <i class="ti ti-printer"></i> Print
+    </button>
 </div>
-<div class="card" id="card" style="padding:0px 10%;">
-    <div class="cont" id="cont">
-        <div class="header d-flex justify-content-center " style="gap:10%;margin-left:25%;">
-            <div class="sch_name">
-                <p style="font-family:Edwardian Script ITC;font-size:3rem; text-align:center; font-weight:500;">The Lynx School
-                </p>
-                <p style="text-align:center; font-size:1rem;">{{@$adm_order->branches->name}}</p>
-            </div>
-            <div class="sch_logo">
-                <img src="{{ asset('assets/images/lynx2.jpg') }}" style="max-width: 90px; max-height: 90px;" alt="logo">
-            </div>
-        </div>
-        <h2 class="issue" style=" font-weight:203; text-align:center;"> Admission Order </h2><br>
-        <div class="d-flex">
-            <label for="name">Name : </label><div class="inpdiv" style="width: 85%; padding-left:40%;" id="">{{$adm_order->stdname}}</div>
-        </div><br>
-        <div class="d-flex">
-            <label for="name">Date Of Birth :</label><div class="inpdiv"  id="" style="width: 78%; padding-left:30%;">{{\Carbon\Carbon::createFromFormat('Y-m-d', $adm_order->dob)->format('d-M-Y')}}</div>
-        </div>
+
+<div class="card p-3">
+    <div class="admission-wrapper">
+
+        <!-- Header -->
+        <table class="header-table">
+            <tr>
+                <td style="text-align:center;">
+                    <p style="font-family: 'Edwardian Script ITC'; font-size:32px; margin:0;">
+                        The Lynx School
+                    </p>
+                    <p style="margin:0;">{{ @$adm_order->branches->name }}</p>
+
+                    <!-- Title under school -->
+                    <div class="title">Admission Order</div>
+                </td>
+
+                <td style="text-align:right; width:120px;">
+                    <img src="{{ asset('assets/images/lynx2.jpg') }}"
+                         style="max-width:90px;">
+                </td>
+            </tr>
+        </table>
+
         <br>
-        <div class="d-flex">
-            <label for="name">Father's Name :</label><div class="inpdiv"  id="" style="width: 76%; padding-left:29%;">{{$adm_order->fathername}}</div>
+
+        <!-- Fields -->
+        <div class="field-row">
+            <div class="field-label">Name :</div>
+            <div class="field-value">{{ $adm_order->stdname }}</div>
         </div>
-        <br>
-        <div class="d-flex">
-            <label for="name">Date of Admission :</label><div class="inpdiv"  id="" style="width: 73%;"></div>
-        </div><br>
-        <div class="d-flex">
-            <div class="d-flex" style="width:100%;">
-                <label for="name">Class to which Admitted :</label><div class="inpdiv" id="" style="width:50%; padding-left:10%;">{{$adm_order->class->name}}</div>
-            </div>
-            <div class="d-flex" style="width:100%;">
-                <label for="name">section :</label><div class="inpdiv"  id="" style="width:66%; padding-left:10%; ">{{@$adm_order->enrollment->section->name}}</div>
+
+        <div class="field-row">
+            <div class="field-label">Date Of Birth :</div>
+            <div class="field-value">
+                {{ \Carbon\Carbon::parse($adm_order->dob)->format('d-M-Y') }}
             </div>
         </div>
-        <br>
-        <div class="d-flex">
-            <label for="name">Permanent Address :</label><div class="inpdiv" id="" style="width: 70%; padding-left:5%;">{{$adm_order->address}}</div>
+
+        <div class="field-row">
+            <div class="field-label">Father's Name :</div>
+            <div class="field-value">{{ $adm_order->fathername }}</div>
         </div>
-        <br>
-        <div class="d-flex">
-            <div class="d-flex" style="width:100%;">
-                <label for="name">Telephone No :</label><div class="inpdiv"  id="" style="width: 65%; padding-left:10% ;">{{$adm_order->fatherphone}}</div>
+
+        <div class="field-row">
+            <div class="field-label">Mother's Name :</div>
+            <div class="field-value">{{ $adm_order->mothername }}</div>
+        </div>
+
+        <div class="field-row">
+            <div class="field-label">Date of Admission :</div>
+            <div class="field-value"></div>
+        </div>
+
+        <!-- Class + Section -->
+        <div class="two-col">
+            <div class="col">
+                <div class="field-label">Class to which Admitted :</div>
+                <div class="field-value">{{ $adm_order->class->name }}</div>
             </div>
-            <div class="d-flex" style="width:100%;">
-                <label for="name">Mobile :</label><div class="inpdiv"  id="" style="width: 65%; padding-left:10%;">{{$adm_order->fathercell}}</div>
+
+            <div class="col">
+                <div class="field-label">Section :</div>
+                <div class="field-value">
+                    {{ @$adm_order->enrollment->section->name }}
+                </div>
             </div>
         </div>
+
         <br>
-        <div class="d-flex">
-            <label for="name">Entered in admission Register and Allotted Roll No :</label><div class="inpdiv"  id="" style="width: 42%; padding-left:20%;">{{@$adm_order->enrollment->regId}}</div>
+
+        <div class="field-row">
+            <div class="field-label">Permanent Address :</div>
+            <div class="field-value">{{ $adm_order->address }}</div>
         </div>
+
+        <div class="two-col">
+            <div class="col">
+                <div class="field-label">Telephone No :</div>
+                <div class="field-value">{{ $adm_order->fatherphone }}</div>
+            </div>
+
+            <div class="col">
+                <div class="field-label">Mobile :</div>
+                <div class="field-value">{{ $adm_order->fathercell }}</div>
+            </div>
+        </div>
+
+        <br>
+
+        <div class="field-row">
+            <div class="field-label">
+                Entered in admission Register and Allotted Roll No :
+            </div>
+            <div class="field-value">
+                {{ @$adm_order->enrollment->enrollId }}
+            </div>
+        </div>
+
+        <br>
+
+        <p>Copies to : Parents / Personal file / Class Teacher / School File.</p>
+
+        <br>
+
+        <p>Remarks:</p>
+
         <br><br>
-        <label for="">Copies to :Parents/ Personal file / Class Teacher / School File.</label><br><br><br>
-        <label for="">Remarks:</label>
-        <br><br><br><br><br>
-        <div class="dates" style="display: flex; justify-content:space-between;">
-            <div class="issue" style="margin-top: 18px;">
-                <p 
-                style="width:150px; margin:0px; border-top: 1px solid black; text-align:center;"></p>
-                <p style="text-align:center; font-size:1rem;">School Stamp</p>
+
+        <!-- Signatures -->
+        <div class="signature">
+
+            <div>
+                <div class="line-top"></div>
+                <p>School Stamp</p>
             </div>
-            <div class="issue" style="margin-top:{{@date('Y-m-d') ? '0px' : "18px" }};">
-                {{-- <p style="width:150px; line-height:1.3rem;  border-top: 1px solid black; text-align:center;">{{ date('Y-m-d')}}</p>
-                <p style="text-align:center; font-size:1rem;">Date</p> --}}
-                <p style="width:150px; margin:0px; border-bottom: 1px solid black; text-align:center;">{{ date('Y-m-d')}}</p>
-                <p style="text-align:center; font-size:1rem;">Date</p>
+
+            <div>
+                <div class="line-bottom">{{ date('Y-m') }}</div>
+                <p>Date</p>
             </div>
-            <div class="due" style="margin-top:{{@$adm_order->branch_name->headmaster_name ? '0px' : "18px" }};">
-                <p style="width:150px; margin:0px; border-bottom: 1px solid black; text-align:center;">{{ @$adm_order->branch_name->headmaster_name->name ?? "" }}</p>
-                <p style="text-align:center; font-size:1rem;">Head of institute</p>
+
+            <div>
+                <div class="line-bottom">
+                    {{ @$adm_order->branch_name->headmaster_name->name ?? '' }}
+                </div>
+                <p>Head of institute</p>
             </div>
+
         </div>
+
     </div>
 </div>
+
 @endsection

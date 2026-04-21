@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Department;
 use App\Models\EmployeeScale;
 use App\Models\EmployeeScaleHeads;
-use App\Models\EmployeeScaleReportExport;
+use App\Exports\EmployeeScaleReportExport;
 use App\Models\SalaryHeads;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,8 +22,9 @@ class EmployeeScaleController extends Controller
     public function index(Request $request)
     {
         if (\Auth::user()->can('manage employee')) {
-            $query = EmployeeScale::with('employeeScaleHeads','employeepayScaledetailHeads')->where('status', 1)
+            $query = EmployeeScale::with('employeeScaleHeads','employeepayScaledetailHeads')
             ->where('created_by', \Auth::user()->creatorId());
+      
             $department = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $department->prepend(__('Select Department'), '');
             $heads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
@@ -36,12 +37,20 @@ class EmployeeScaleController extends Controller
             if (!empty($request->department)) {
                 $query->where('department_id', $request->department);
             }
-            if (!empty($request->adhoc)) {
+            if ($request->adhoc != null) {
                 $query->where('adhoc', $request->adhoc);
             }
-            if (!empty($request->status)) {
+            if ($request->status != null && $request->status != 'all') {
                 $query->where('status', $request->status);
+                $stat = $request->status;
+            }elseif($request->status == 'all'){
+                $stat = 'all';
             }
+            else{
+                $query->where('status', 1);
+                $stat = 1;
+            }
+            // dd($request->all(),$query->get());
             if ($request->has('export') && $request->export == 'excel') {
                 $employee_scales = $query->get();  
                 return Excel::download(new EmployeeScaleReportExport($employee_scales,$heads), 'employee_scales.xlsx');
@@ -63,7 +72,7 @@ class EmployeeScaleController extends Controller
 
             $employee_scales = $query->get();
 
-            return view('scale.index', compact('employee_scales', 'department', 'heads'));
+            return view('scale.index', compact('employee_scales', 'department', 'heads', 'stat'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -268,9 +277,10 @@ class EmployeeScaleController extends Controller
     public function update(Request $request, $id)
     {
         if (\Auth::user()->can('edit trainer')) {
+          
             $validator = \Validator::make($request->all(), [
                 'scale_no' => 'required',
-                'type' => 'required',
+                // 'type' => 'required',
                 'department_id' => 'required|numeric',
                 'account_id' => 'required|array',
                 'account_value' => 'required|array',
@@ -282,17 +292,18 @@ class EmployeeScaleController extends Controller
                 $messages = $validator->getMessageBag();
                 return redirect()->back()->with('error', $messages->first());
             }
-
+    
             DB::beginTransaction();
             try {
                 $employee_scale = EmployeeScale::findOrFail($id);
                 $employee_scale->adhoc = $request->adhoc;
-                $employee_scales->type = $request->type;
+                $employee_scale->type = $request->type;
                 $employee_scale->status = $request->status;
                 $employee_scale->department_id = $request->department_id;
                 $employee_scale->owned_by = \Auth::user()->ownedId();
                 $employee_scale->created_by = \Auth::user()->creatorId();
                 $employee_scale->save();
+            
                 EmployeeScaleHeads::where('scale_no', $employee_scale->scale_no)->delete();
                 for ($i = 0; $i < count($request->account_id); $i++) {
                     EmployeeScaleHeads::create(
@@ -306,6 +317,7 @@ class EmployeeScaleController extends Controller
                         ]
                     );
                 }
+
                 DB::commit();
                 return redirect()->route('employee_scale.index')->with('success', __('Employee Scale successfully updated.'));
             } catch (\Exception $e) {

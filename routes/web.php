@@ -249,22 +249,26 @@ Route::get('/storage-link', function () {
     }
 });
 
+Route::get('/journal-items-test', [JournalEntryController::class, 'test'])->name('journal.test');
+
 Route::get('/delete-receipts', [JunkController::class, 'deleteReceipts'])->name('delete.receipts');
 Route::get('/remove-late', [JunkController::class, 'deleteLateFeeBulk'])->name('delete.deleteLateFeeBulk');
 
 Route::get('/add-probation', function () {
     try {
-        $employees = Employee::where('probation_end', null)->get();
+        // $employees = Employee::where('probation_end', null)->get();
+        $employees = Employee::where('company_doj', '>=','2025-01-01')->get();
 
         DB::beginTransaction();
 
         foreach ($employees as $employee) {
             try {
                 $doj = Carbon::parse($employee->company_doj);
-
                 if (strtolower(optional($employee->department)->name) === 'academic') {
+                    $employee->probation_period = 12;
                     $employee->probation_end = $doj->copy()->addMonths(12);
                 } else {
+                    $employee->probation_end = 6;
                     $employee->probation_end = $doj->copy()->addMonths(6);
                 }
 
@@ -278,6 +282,7 @@ Route::get('/add-probation', function () {
         return 'Success';
     } catch (\Exception $e) {
         DB::rollBack();
+        dd($e->getMessage());
         return 'Error occurred during processing.';
     }
 });
@@ -2306,6 +2311,12 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('salary/{id}/payment', [EmployeeMonthlySalaryAttendance::class, 'createPayment'])->name('salary.payment');
             Route::post('/finalize-salary', [EmployeeSalaryDetail::class, 'finalize_salary'])->name('finalize_salary');
             Route::resource('/emp-concession-order', EmployeeConcessionOrder::class);
+            Route::get('/employee/{id}/emergency-contact', [EmployeeController::class, 'getEmergencyContacts'])->name('employee.emergency.list');
+            Route::post('/employee/{id}/emergency-contact/save', [EmployeeController::class, 'saveEmergencyContacts'])->name('employee.emergency.save');
+            Route::delete('/emergency-contact/{id}', [EmployeeController::class, 'deleteEmergencyContact'])->name('emergency.delete');
+            //EmployeeChildrenCnic
+            Route::get('/employee-childs', [EmployeeController::class, 'EmployeeChildrenCnic'])->name('employee.children_cnic.list'); 
+
             //employee salary proposal
             Route::get('/employee-scale-details/{id?}', [EmployeeSalaryProposal::class, 'emp_scale_detail'])->name('emp_scale_detail');
             Route::resource('/employee-salary-proporal', EmployeeSalaryProposal::class);

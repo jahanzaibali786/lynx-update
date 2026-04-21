@@ -98,8 +98,8 @@ class EmployeeSalaryDetail extends Controller
                 $employees = $query->orderBy('id', 'Desc')->get();
                 return Excel::download(new EmployeeSalaryDetailReportExport($employees), 'employee_salary_detail.pdf');
             }
-            
             $employees = $query->orderByDesc('id')->get();
+            // dd($request->all(), $employees);
 
 
             return view('employee.emp_salary_detail.index', compact('employees', 'branches', 'departments', 'designations'));
@@ -258,7 +258,7 @@ class EmployeeSalaryDetail extends Controller
         ])->findOrFail($empId);
 
         // dd($accounts);
-        $branches_school = SchoolDetails::where('branch_id', $employee->created_by)->first();
+        $branches_school = SchoolDetails::where('branch_id', $employee->owned_by)->first();
         $lastPayscaleDetail = $employee->employee_payscale_details->last();
         $eobiValue = ($employee->eobi / 100) * $branches_school->eobi_values;
         $eobiEmployerValue = ($employee->eobi_employer / 100) * $branches_school->eobi_values;
@@ -267,8 +267,8 @@ class EmployeeSalaryDetail extends Controller
 
         $companySetEobi = $branches_school->eobi_values;
         $companySetPessi = $branches_school->pessi_values;
-        $companySetEobiEmployer = $branches_school->eobi_employer_values ?? 0;
-        $companySetPessiEmployer = $branches_school->pessi_employer_values ?? 0;
+        $companySetEobiEmployer = $branches_school->eobi_values ?? 0;
+        $companySetPessiEmployer = $branches_school->pessi_values ?? 0;
 
         // dd($eobiValue,$pessiValue,$pessiEmployerValue,$eobiEmployerValue,$employee);
         return view('employee.emp_salary_detail.show', compact('accounts', 'eobiValue', 'pessiValue', 'pessiEmployerValue', 'eobiEmployerValue', 'lastPayscaleDetail', 'departments', 'payscales', 'employee', 'payableaccounts', 'branches_school', 'companySetEobi', 'companySetPessi', 'companySetEobiEmployer', 'companySetPessiEmployer'));

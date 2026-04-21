@@ -65,7 +65,7 @@
 
         <div class="form-group col-md-4">
             {{ Form::label('effect_from', __('Effect From'), ['class' => 'form-label']) }}
-            {{ Form::date('effect_from', $hasPayscale ? $lastPayscaleDetail->effect_from : '', [
+            {{ Form::date('effect_from', $hasPayscale ? $lastPayscaleDetail->effect_from : date('Y-m-d'), [
                 'class' => 'form-control',
                 'required',
                 'id' => 'effect_from',
@@ -118,7 +118,7 @@
             {{-- Working Days & Per Day Salary --}}
             <div class="form-group col-md-2">
                 {{ Form::label('working_days', __('Working Days'), ['class' => 'form-label']) }}
-                {{ Form::number('working_days', $hasPayscale ? $lastPayscaleDetail->working_days : '', [
+                {{ Form::number('working_days', $hasPayscale ? $lastPayscaleDetail->working_days : '30', [
                     'class' => 'form-control working-days-input',
                     'id' => 'working_days',
                 ]) }}

@@ -41,28 +41,14 @@
             $('.selectbox').select2();
         });
 
-        function exportToExcel() {
-            $('#export_start_date').val($('.startDate').val());
-            $('#export_end_date').val($('.endDate').val());
-            $('#export_branch').val($('select[name="branch"]').val());
-            $('#ledger_export_form').submit();
-        }
     </script>
 @endpush
 
 @section('action-btn')
     <div class="float-end" style='display:flex; gap:5px;'>
        
-       
-
     </div>
 
-    <form method="POST" action="{{ route('bank-account.statement.export', $bankAccount->id) }}" id="ledger_export_form" style="display:none;">
-        @csrf
-        <input type="hidden" name="start_date" id="export_start_date">
-        <input type="hidden" name="end_date" id="export_end_date">
-        <input type="hidden" name="branch" id="export_branch">
-    </form>
 @endsection
 
 @section('content')
@@ -76,6 +62,7 @@
                         <div class="row align-items-center justify-content-end">
                             <div class="col-xl-10">
                                 <div class="row">
+                                    <input type="hidden" name="export" id="is_export" value="0">
                                     <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                                         <div class="btn-box">
                                             {{ Form::label('branch', __('Branch'), ['class' => 'form-label']) }}
@@ -107,9 +94,11 @@
                                             data-bs-title="{{ __('Reset') }}">
                                             <span class="btn-inner--icon">Clear</span>
                                         </a>
-                                         <a href="#" class="btn btn-sm btn-outline-success" onclick="exportToExcel()"
-            data-bs-title="{{ __('Export') }}">
-            <span class="btn-inner--icon">Export Excel</span>
+                                        <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
+                                            onclick="document.getElementById('is_export').value='1'; document.getElementById('report_ledger').submit(); setTimeout(() => { document.getElementById('is_export').value='0'; }, 500); return false;"
+                                            data-bs-toggle="tooltip" title="{{ __('Export') }}">
+                                            <span class="btn-inner--icon">Export</span>
+                                        </a>
         </a>
                                     </div>
                                 </div>

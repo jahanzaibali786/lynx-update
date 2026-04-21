@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Exports;
 
 // use Illuminate\Database\Eloquent\Factories\HasFactory;
 // use Illuminate\Database\Eloquent\Model;
@@ -10,11 +10,17 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 
-class EmployeeScaleReportExport implements FromView, WithEvents
+
+class EmployeeScaleReportExport implements FromView, WithEvents, WithColumnFormatting
 {
     protected $employee_scales;
+
     protected $heads;
 
     public function __construct($employee_scales, $heads)
@@ -35,6 +41,13 @@ class EmployeeScaleReportExport implements FromView, WithEvents
             'heads' => $this->heads,
             'report_name' => $report_name,
         ]);
+    }
+
+     public function columnFormats(): array
+    {
+        return [
+            'D' => 'dd-mmm-yyyy',
+        ];
     }
 
     // public function drawings()
@@ -58,12 +71,12 @@ class EmployeeScaleReportExport implements FromView, WithEvents
                 $sheet = $event->sheet->getDelegate();
 
                 // Page setup: Fit to one page, Landscape, A4
-                $sheet->getPageSetup()->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
-                $sheet->getPageSetup()->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A3);
+                $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+                $sheet->getPageSetup()->setPaperSize(PageSetup::PAPERSIZE_A4);
                 $sheet->getPageSetup()->setFitToPage(true);
                 $sheet->getPageSetup()->setFitToWidth(1);
                 $sheet->getPageSetup()->setFitToHeight(0); // unlimited height
-    
+
                 // 🔁 Repeat heading row (row 5)
                 $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(7, 7);
                 $sheet = $event->sheet->getDelegate();
@@ -82,21 +95,21 @@ class EmployeeScaleReportExport implements FromView, WithEvents
                 if (file_exists($originalPath) && function_exists('imagecreatefromjpeg')) {
                     $img = imagecreatefromjpeg($originalPath);
                     imagefilter($img, IMG_FILTER_GRAYSCALE);
-                    $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'logo_gray.png';
+                    $tmpPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'logo_gray.png';
                     imagepng($img, $tmpPath);
                     imagedestroy($img);
                 } else {
                     $tmpPath = $originalPath;
                 }
 
-                $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+                $drawing = new Drawing;
                 $drawing->setName('Logo');
                 $drawing->setDescription('School Logo (grayscale)');
                 $drawing->setPath($tmpPath);
                 $drawing->setHeight(75);
                 $drawing->setOffsetX(10);
                 $drawing->setOffsetY(10);
-                $drawing->setCoordinates('O1');
+                $drawing->setCoordinates('J1');
                 $drawing->setWorksheet($sheet);
 
                 $lastDataRow = $sheet->getHighestRow();
@@ -121,7 +134,6 @@ class EmployeeScaleReportExport implements FromView, WithEvents
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
                 $highestColumnLetter = $sheet->getHighestColumn();
-
                 $sheet->getStyle('A1')->applyFromArray([
                     'font' => [
                         'bold' => true,
@@ -137,18 +149,18 @@ class EmployeeScaleReportExport implements FromView, WithEvents
                         'name' => 'calibri',
                     ],
                     'alignment' => [
-                        'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
-                        'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER,
                         'wrapText' => true,
                     ],
                     'borders' => [
                         'allBorders' => [
-                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                            'borderStyle' => Border::BORDER_THIN,
                             'color' => ['argb' => 'FF000000'], // Black
                         ],
                     ],
                     'fill' => [
-                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => [
                             'argb' => 'FFBFBFBF', // Light gray
                         ],
@@ -172,24 +184,24 @@ class EmployeeScaleReportExport implements FromView, WithEvents
                         'name' => 'calibri',
                     ],
                     'alignment' => [
-                        'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
-                        'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER,
                         'wrapText' => true,
                     ],
                     'borders' => [
                         'allBorders' => [
-                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                            'borderStyle' => Border::BORDER_THIN,
                             'color' => ['argb' => 'FF000000'], // Black
                         ],
                     ],
                     'fill' => [
-                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => [
                             'argb' => 'FFBFBFBF', // Light gray
                         ],
                     ],
                 ]);
-                //footer styling for total
+                // footer styling for total
                 $totalRowStyle = [
                     'font' => [
                         'bold' => true,
@@ -201,12 +213,12 @@ class EmployeeScaleReportExport implements FromView, WithEvents
                     ],
                     'borders' => [
                         'allBorders' => [
-                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                            'borderStyle' => Border::BORDER_THIN,
                             'color' => ['argb' => 'FF000000'], // Black
                         ],
                     ],
                     'fill' => [
-                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => [
                             'argb' => 'FFBFBFBF', // Light gray
                         ],
@@ -226,31 +238,32 @@ class EmployeeScaleReportExport implements FromView, WithEvents
                     }
                 }
 
-
                 // Adjust column widths
-$highestColumnLetter = $sheet->getHighestColumn();
-$highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumnLetter);
+                $highestColumnLetter = $sheet->getHighestColumn();
+                $highestColumnIndex = Coordinate::columnIndexFromString($highestColumnLetter);
 
-// Set widths dynamically
-for ($col = 1; $col <= $highestColumnIndex; $col++) {
-    $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+                // Set widths dynamically
+                for ($col = 1; $col <= $highestColumnIndex; $col++) {
+                    $columnLetter = Coordinate::stringFromColumnIndex($col);
 
-    if ($columnLetter === 'A') {
-        $sheet->getColumnDimension($columnLetter)->setWidth(8);
-    } elseif ($columnLetter === 'B') {
-        $sheet->getColumnDimension($columnLetter)->setWidth(8);
-    } elseif ($columnLetter === 'C') {
-        $sheet->getColumnDimension($columnLetter)->setWidth(20);
-    } else {
-        $sheet->getColumnDimension($columnLetter)->setAutoSize(true);
-    }
-}
+                    if ($columnLetter === 'A') {
+                        $sheet->getColumnDimension($columnLetter)->setWidth(8);
+                    } elseif ($columnLetter === 'B') {
+                        $sheet->getColumnDimension($columnLetter)->setWidth(8);
+                    } elseif ($columnLetter === 'C') {
+                        $sheet->getColumnDimension($columnLetter)->setWidth(20);
+                    } elseif ($columnLetter === 'J') {
+                        $sheet->getColumnDimension($columnLetter)->setWidth(8);
+                    }else {
+                        $sheet->getColumnDimension($columnLetter)->setAutoSize(true);
+                    }
+                }
 
                 // style col font size 8px and align center
                 $sheet->getStyle("A8:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("B8:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("C8:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->getWrapText(true);
-                //from D to J should be Right adding loop
+                // from D to J should be Right adding loop
                 for ($i = 'D'; $i <= 'J'; $i++) {
                     $sheet->getStyle("{$i}8:{$i}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                 }
@@ -258,7 +271,7 @@ for ($col = 1; $col <= $highestColumnIndex; $col++) {
                 $sheet->getStyle("L8:K{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle("M8:K{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle("A8:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
-            }
+            },
         ];
     }
 }

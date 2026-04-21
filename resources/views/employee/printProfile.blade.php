@@ -54,7 +54,7 @@
             width: 180px;
             height: 180px;
             border: 2px solid #2c3e50;
-            border-radius: 100px;
+            border-radius: 20px;
             object-fit: cover;
         }
         
@@ -94,7 +94,7 @@
 
         .contact-item {
             display: table-cell;
-            width: 50%;
+            width: 70%;
             padding-right: 10px;
             text-align: left;
         }
@@ -249,9 +249,9 @@
                 <div class="profile-left">
                     <div class="profile-image">
                         @if(!empty($employee->profile_img))
-                            <img src="{{ Storage::url('emp_profile_images/' . $employee->profile_img) }}" alt="Profile Photo">
+                            <img src="{{ Storage::url('emp_profile_images/' . $employee->profile_img) }}" alt="">
                         @else
-                            <img src="{{ Storage::url('emp_profile_images/avatar.png') }}" alt="Profile Photo">
+                            <img src="{{ Storage::url('emp_profile_images/avatar.png') }}" alt="">
                         @endif
                     </div>
                     <div class="profile-name-section">
@@ -265,9 +265,6 @@
                             <div class="contact-item">
                                 <div class="name">{{ $employee->name ?? 'Employee Name' }}</div>
                                 <div class="designation">{{ $employee->designation->name ?? 'N/A' }}</div>
-                            </div>
-                            <div class="contact-item">
-                                
                             </div>
                         </div>
                     <div class="contact-info">
@@ -341,11 +338,11 @@
                         </div>
                         <div class="info-row">
                             <div class="info-label">EOBI:</div>
-                            <div class="info-value">{{ $employee->eobi ?? 'N/A' }}</div>
+                            <div class="info-value">{{ $employee->eobi_id ?? 'N/A' }}</div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">SSC#:</div>
-                            <div class="info-value">{{ $employee->ssc ?? 'N/A' }}</div>
+                            <div class="info-value">{{ $employee->ssc_id ?? 'N/A' }}</div>
                         </div>
                     </div>
                 </div>

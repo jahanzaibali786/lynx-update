@@ -14,6 +14,7 @@ use App\Models\StudentReceipt;
 use App\Models\Session;
 use App\Models\StudentFeeStructure;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\StudentRegistration as ModelsStudentRegistration;
 use App\Models\Utility;
 use Aws\AppRegistry\AppRegistryClient;
@@ -747,10 +748,35 @@ class StudentRegistration extends Controller
         $reg_recipt = ModelsStudentRegistration::with('session', 'class', 'branches','branch_name' ,'branch_name.headmaster_name')->find($id);
         return view('students.registration.reg_slip', compact('reg_recipt'));
     }
-    public function admission_order($id)
+    public function admission_order(Request $request, $id)
     {
-        $adm_order = ModelsStudentRegistration::with('session', 'class', 'branches','enrollment','branch_name' ,'branch_name.headmaster_name')->find($id);
-        // dd($adm_order);
+        $adm_order = ModelsStudentRegistration::with(
+            'session',
+            'class',
+            'branches',
+            'enrollment',
+            'branch_name',
+            'branch_name.headmaster_name'
+        )->find($id);
+
+        if ($request->has('print') && $request->print == 'pdf') {
+
+            $report_name = 'Admission Order';
+            $branch = 'All Branches'; // you were using undefined $branches
+
+            // Load ONE clean blade (important)
+            $pdf = Pdf::loadView('students.registration.adm_order_print', compact(
+                'adm_order',
+                'report_name',
+                'branch'
+            ));
+
+            // Paper settings
+            $pdf->setPaper('A4', 'portrait');
+
+            return $pdf->stream('Admission_Order.pdf');
+        }
+
         return view('students.registration.adm_order', compact('adm_order'));
     }
 

@@ -19,7 +19,7 @@ class FixJournalData extends Command
             ->min('id');
 
         $maxId = DB::table('student_receipts')
-            ->whereDate('recipt_date', '>=', '2025-09-01')
+            ->whereDate('recipt_date', '<=', '2025-09-10')
             ->max('id');
 
         if (!$minId || !$maxId) {

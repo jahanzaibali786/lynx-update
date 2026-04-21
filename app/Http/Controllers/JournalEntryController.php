@@ -11,6 +11,8 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Models\Utility;
 use Illuminate\Http\Request;
+use Yajra\DataTables\Facades\DataTables;
+use Illuminate\Support\Facades\DB;
 
 class JournalEntryController extends Controller
 {
@@ -384,5 +386,149 @@ class JournalEntryController extends Controller
         {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+
+    public function test(Request $request)
+    {
+         if (\Auth::user()->type == 'company') {
+                $branches = User::where('type', 'branch')->where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+                $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+                $branches->prepend('All Branches', 'All Branches');
+            } else {
+                $branches = User::where('id', \Auth::user()->ownedId())->pluck('name', 'id');
+                $branches->prepend('All Branches', 'All Branches');
+            }
+
+            $user = \Auth::user();
+            $creatorId = $user->creatorId();
+            $start = $request->start_date ?? date('Y-m-01');
+            $end = $request->end_date ?? date('Y-m-d', strtotime('+1 day'));
+            $branch = $request->branch;
+           
+
+            $isAccountFiltered = !empty($request->account);
+            $type = $isAccountFiltered ? 'other' : 'group';
+
+            // Fetch accounts once based on condition
+            $chartAccountsQuery = ChartOfAccount::where('created_by', $creatorId);
+            if ($isAccountFiltered) {
+                $chartAccountsQuery->where('id', $request->account);
+            }else{
+                $a = ChartOfAccount::where('created_by', $creatorId)->where('parent', 0)->first();
+                $chartAccountsQuery->where('id', $a->id);
+            }
+            $chart_accounts = $chartAccountsQuery->get();
+
+            // Get parent accounts for dropdown
+            $accounts = ChartOfAccount::select('id', 'code', 'name', 'parent')
+                ->where('parent', 0)
+                ->where('created_by', $creatorId)
+                ->get();
+
+            // Fetch sub-accounts
+            $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_account_parents.account')
+                ->leftJoin('chart_of_account_parents', 'chart_of_accounts.parent', '=', 'chart_of_account_parents.id')
+                ->where('chart_of_accounts.parent', '!=', 0)
+                ->where('chart_of_accounts.created_by', $creatorId)
+                ->get();
+            $filter = [
+                'balance' => 0,
+                'credit' => 0,
+                'debit' => 0,
+                'startDateRange' => $start,
+                'endDateRange' => $end,
+            ];
+        if (request()->ajax()) {
+
+            $start = $request->start_date ?? date('Y-m-01');
+            $end = $request->end_date ?? date('Y-m-d');
+
+            $start = $request->start_date ?? date('Y-m-01');
+            $end = $request->end_date ?? date('Y-m-d');
+            $account = $request->account ?? 0;
+            
+
+        // 1. Opening balance (SQL)
+        $openingBalances = DB::table('journal_items as ji')
+            ->join('journal_entries as je', 'je.id', '=', 'ji.journal')
+            ->selectRaw('ji.account, SUM(ji.debit - ji.credit) as opening_balance')
+            ->where('je.date', '<', $start)
+            ->when($branch != 'All Branches', function ($query) use ($branch) {
+                return $query->where('je.owned_by', $branch);
+            })
+            ->when($account != 0, function ($query) use ($account) {
+                return $query->where('ji.account', $account);
+            })
+            ->groupBy('ji.account')
+            ->pluck('opening_balance', 'account');
+
+            $openingBalance = $account != 0 ? ($openingBalances[$account] ?? 0) : array_sum($openingBalances);
+            
+        // 2. Main ledger query
+        $query = DB::table('journal_items as ji')
+            ->join('journal_entries as je', 'je.id', '=', 'ji.journal')
+            ->join('chart_of_accounts as ca', 'ca.id', '=', 'ji.account')
+            ->leftJoin('users as u', 'u.id', '=', 'je.owned_by')
+            ->selectRaw("
+                ji.id,
+                je.date,
+                ji.account,
+                ca.name as accountname,
+                ji.description as memo,
+                ji.debit,
+                ji.credit,
+                ji.journal as journal_id,
+                je.voucher_type,
+                je.created_at
+            ")
+            ->when($branch != 'All Branches', function ($query) use ($branch) {
+                return $query->where('je.owned_by', $branch);
+            })
+            ->when($account != 0, function ($query) use ($account) {
+                return $query->where('ji.account', $account);
+            })
+            ->whereBetween('ji.created_at', [$start.' 00:00:00', $end.' 23:59:59'])->orderBy('ji.created_at', 'asc');
+
+            return DataTables::of($query)
+
+    ->addColumn('balance', function ($row) use ($openingBalances) {
+
+        static $map = [];
+
+        $acc = $row->account;
+
+        if (!isset($map[$acc])) {
+            $map[$acc] = $openingBalances[$acc] ?? 0;
+        }
+
+        
+        $map[$acc] += $row->debit - $row->credit;
+        return $map[$acc];
+    })
+
+    ->with([
+        'openingRow' => [
+            'id' => '',
+            'date' => '',
+            'account' => '',
+            'accountname' => 'Opening Balance',
+            'memo' => 'Opening Balance',
+            'debit' => '',
+            'credit' => '',
+            'balance' => $account != 0 
+                ? number_format($openingBalances[$account] ?? 0, 1)
+                : number_format(array_sum($openingBalances), 1),
+            'voucher_type' => '',
+            'journal_id' => ''
+        ]
+    ])
+
+    ->make(true);
+
+
+        }
+
+        return view('journalEntry.index',compact('branches','accounts','subAccounts','filter'));
     }
 }

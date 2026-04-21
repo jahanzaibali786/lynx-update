@@ -86,6 +86,22 @@ class BankTransferController extends Controller
                 ->orderBy('id', 'desc')
                 ->get();
 
+            if ($request->has('export') && $request->export == '1') {
+                $dateFrom = '';
+                $dateTo = '';
+                if (!empty($request->date)) {
+                    $dates = explode(' to ', $request->date);
+                    if (count($dates) > 1) {
+                        $dateFrom = $dates[0];
+                        $dateTo = $dates[1];
+                    } else {
+                        $dateFrom = $dates[0];
+                        $dateTo = $dates[0];
+                    }
+                }
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\BankTransferExport($transfers, $dateFrom, $dateTo), 'bank_transfers.xlsx');
+            }
+
             // ─────────────────────────────
             // GET LATEST IDS PER FROM ACCOUNT
             // ─────────────────────────────
