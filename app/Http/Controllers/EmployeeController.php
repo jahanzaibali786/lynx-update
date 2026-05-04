@@ -349,24 +349,29 @@ class EmployeeController extends Controller
                 }
                 if ($employee) {
                     $employee = Employee::where('id', $employee->id)->first();
-                    $today = now();
-                    $joiningDate = \Carbon\Carbon::parse($employee->joining_date);
-                    $emp_probation_endDate = \Carbon\Carbon::parse($employee->probation_end);
-                    $annualTotal = null;
-                    $casualTotal = 0;
-                    if ($joiningDate->year < $today->year) {
-                        $annualTotal = 12 * 2.5;
-                        $casualTotal = 12 * 0.80;
-                    } elseif ($emp_probation_endDate->year < $today->year) {
-                        $annualTotal = 12 * 2.5;
-                        $casualTotal = 12 * 0.80;
-                    } else {
-                        $remainingMonths = 12 - $emp_probation_endDate->month + 1;
-                        if ($emp_probation_endDate->lessThanOrEqualTo($today)) {
-                            $annualTotal = $remainingMonths * 2.5;
+                    if($employee->category == 'Regular'){
+                        $today = now();
+                        $joiningDate = \Carbon\Carbon::parse($employee->joining_date);
+                        $emp_probation_endDate = \Carbon\Carbon::parse($employee->probation_end);
+                        $annualTotal = null;
+                        $casualTotal = 0;
+                        if ($joiningDate->year < $today->year) {
+                            $annualTotal = 12 * 2.5;
+                            $casualTotal = 12 * 0.80;
+                        } elseif ($emp_probation_endDate->year < $today->year) {
+                            $annualTotal = 12 * 2.5;
+                            $casualTotal = 12 * 0.80;
+                        } else {
+                            $remainingMonths = 12 - $emp_probation_endDate->month + 1;
+                            if ($emp_probation_endDate->lessThanOrEqualTo($today)) {
+                                $annualTotal = $remainingMonths * 2.5;
+                            }
+                            $remainingCasualMonths = 12 - $today->month + 1;
+                            $casualTotal = $remainingCasualMonths * 0.80;
                         }
-                        $remainingCasualMonths = 12 - $today->month + 1;
-                        $casualTotal = $remainingCasualMonths * 0.80;
+                    }else{
+                        $casualTotal = 0;
+                        $annualTotal = 0;
                     }
                     EmployeeLeaves::create([
                         'employee_id' => $employee->id,
@@ -704,7 +709,23 @@ if ($path) {
         //     $messages = $validator->getMessageBag();
         //     return redirect()->back()->withInput()->with('error', $messages->first());
         // }
-
+		$rules = ['degree_level' => 'required'];
+		
+		if ($request->degree_level !== 'illiterate') {
+		    $rules += [
+		        'institute_name' => 'required',
+		        'adm_date' => 'required|digits:4|integer',
+		        'passing_year' => 'required|digits:4|integer',
+		        'grade' => 'required',
+		    ];
+		}
+		
+		$validator = \Validator::make($request->all(), $rules);
+		
+		if ($validator->fails()) {
+		    return redirect()->back()
+		        ->with('error', $validator->errors()->first());
+		}
         // Check if updating or creating
         if ($request->filled('education_id')) {
             $emp_edu = \App\Models\EmpEducation::find($request->input('education_id'));
@@ -1327,21 +1348,27 @@ if ($path) {
 
         $annualTotal = 0;
         $casualTotal = 0;
-        if ($joiningDate->year < $today->year || $probationEndDate->year < $today->year) {
-            $annualTotal = 12 * 2.5;
-            $casualTotal = 12 * 0.8;
-        } elseif ($today->greaterThanOrEqualTo($probationEndDate)) {
-            $remainingAnnualMonths = 12 - $probationEndDate->month + 1;
-            $annualTotal = $remainingAnnualMonths * 2.5;
+        if($employee->category == 'Regular'){
+            if ($joiningDate->year < $today->year || $probationEndDate->year < $today->year) {
+                $annualTotal = 12 * 2.5;
+                $casualTotal = 12 * 0.8;
+            } elseif ($today->greaterThanOrEqualTo($probationEndDate)) {
+                $remainingAnnualMonths = 12 - $probationEndDate->month + 1;
+                $annualTotal = $remainingAnnualMonths * 2.5;
 
-            $remainingCasualMonths = 12 - $today->month + 1;
-            $casualTotal = $remainingCasualMonths * 0.8;
-        } else {
-            $remainingCasualMonths = 12 - $today->month + 1;
-            $casualTotal = $remainingCasualMonths * 0.8;
+                $remainingCasualMonths = 12 - $today->month + 1;
+                $casualTotal = $remainingCasualMonths * 0.8;
+            } else {
+                $remainingCasualMonths = 12 - $today->month + 1;
+                $casualTotal = $remainingCasualMonths * 0.8;
 
-            return redirect()->route('employee.index')->with('error', __('Employee probation not ended yet. Only casual leaves considered.'));
+                return redirect()->route('employee.index')->with('error', __('Employee probation not ended yet. Only casual leaves considered.'));
+            }
         }
+        else{
+                $casualTotal = 0;
+                $annualTotal = 0;
+            }
         $emp_leave = EmployeeLeaves::firstOrNew(['employee_id' => $employee->id]);
         $emp_leave->annual_total = $annualTotal;
         $emp_leave->casual_total = $casualTotal;
@@ -1429,10 +1456,15 @@ if ($path) {
 
             $annualTotal = 0;
             $casualTotal = 0;
-            $remainingCasualMonths = 12 - $today->month ;
-            $casualTotal = $remainingCasualMonths * 0.8;
-            $remainingAnnualMonths = 12 - $today->month;
-            $annualTotal = $remainingAnnualMonths * 2.5;
+            if($emp->category == 'Regular'){
+                $remainingCasualMonths = 12 - $today->month ;
+                $casualTotal = $remainingCasualMonths * 0.8;
+                $remainingAnnualMonths = 12 - $today->month;
+                $annualTotal = $remainingAnnualMonths * 2.5;
+            }else{
+                $casualTotal = 0;
+                $annualTotal = 0;
+            }
             if (!$already_assigned) {
                 $emp_leave = EmployeeLeaves::firstOrNew(['employee_id' => $emp->id]);
                 $emp_leave->annual_total = $annualTotal;

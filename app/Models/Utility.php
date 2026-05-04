@@ -5690,7 +5690,7 @@ class Utility extends Model
     {
         DB::beginTransaction();
         try {
-            $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->latest()->first();
+            $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->orderBy('id', 'DESC')->first();
             $latest = $latest ? $latest->journal_id + 1 : 1;
 
             $journal = new JournalEntry;
@@ -5706,9 +5706,9 @@ class Utility extends Model
             $journal->owned_by = $data['owned_by'];
             $journal->created_by = $data['created_by'];
             $journal->save();
-            // $journal->created_at = @$data['created_at'];
-            // $journal->updated_at = @$data['updated_at'];
-            // $journal->save();
+            $journal->created_at = @$data['created_at'];
+            $journal->updated_at = @$data['updated_at'];
+            $journal->save();
 
             foreach ($data['accounts'] as $acc) {
                 $type = ChartOfAccountType::firstOrCreate(
@@ -5732,14 +5732,18 @@ class Utility extends Model
                         'created_by' => $data['created_by'],
                     ]
                 );
-                JournalItem::create([
+                $a=JournalItem::create([
                     'journal' => $journal->id,
                     'account' => $account->id,
                     'description' => $acc['name'].' against the salray no '.@$data['no'].' for the month of '.@$data['salary_month'],
                     'debit' => $acc['debit'],
                     'credit' => $acc['credit'],
-                    // 'created_at' => @$data['created_at'],
+                    'created_at' => @$data['created_at'],
                 ]);
+                $a->created_at = @$data['created_at'];
+                $a->updated_at = @$data['updated_at'];
+                $a->save();
+
             }
 
             DB::commit();

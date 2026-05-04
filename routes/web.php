@@ -1270,6 +1270,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('emp-leaves', LeaveAllocation::class)->middleware(['auth', 'XSS']);
     Route::resource('emp-eobi-allocation', EobiAllocation::class)->middleware(['auth', 'XSS']);
     Route::resource('health-insurance-plan', HealthInsuracnePlanSetup::class)->middleware(['auth', 'XSS']);
+    Route::get('assign-leaves', [LeaveAllocation::class, 'assignLeavesToAll'])->name('assign.leave')->middleware(['auth', 'XSS']);
     Route::get('report/leave', [ReportController::class, 'leave'])->name('report.leave')->middleware(['auth', 'XSS']);
     Route::get('employee/{id}/leave/{status}/{type}/{month}/{year}', [ReportController::class, 'employeeLeave'])->name('report.employee.leave')->middleware(['auth', 'XSS']);
     Route::get('leave/{id}/action', [LeaveController::class, 'action'])->name('leave.action')->middleware(['auth', 'XSS']);

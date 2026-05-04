@@ -61,8 +61,6 @@
                 'onchange' => 'payscalheads(this.value)',
             ]) }}
         </div>
-
-
         <div class="form-group col-md-4">
             {{ Form::label('effect_from', __('Effect From'), ['class' => 'form-label']) }}
             {{ Form::date('effect_from', $hasPayscale ? $lastPayscaleDetail->effect_from : date('Y-m-d'), [
@@ -70,8 +68,9 @@
                 'required',
                 'id' => 'effect_from',
                 'min' => $joiningDate,
-            ]) }}
+                ]) }}
         </div>
+        
 
         {{-- Scale Heads & Gross --}}
         <div class="scale_heads_row row">
@@ -255,8 +254,10 @@
     </div>
 </div>
 <div class="modal-footer">
+    @if (Auth::user()->type == 'company')
     <input type="button" value="{{ __('Cancel') }}" class="btn  btn-outline-light" data-bs-dismiss="modal">
     <input type="submit" value="{{ __('Save') }}" class="btn  btn-outline-primary">
+    @endif
 </div>
 {{-- //sawl cdn  --}}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -390,7 +391,7 @@
         const HeadsInputs = findInModal('.headsInput');
         HeadsInputs.remove();
         findInModal('input[name="emp_sec"]').val('');
-        findInModal('#effect_from').val('');
+        // findInModal('#effect_from').val('');
         //working days and per day sal clearPayscaleData
     }
 
@@ -615,9 +616,9 @@
                     let initialBasicsValue = 0;
 
                     // Set effect from date
-                    if (data.payscale && data.payscale.effect_from) {
-                        effectfrom.val(data.payscale.effect_from);
-                    }
+                    // if (data.payscale && data.payscale.effect_from) {
+                    //     effectfrom.val(data.payscale.effect_from);
+                    // }
 
                     // Process each salary head
                     if (data.data && Array.isArray(data.data)) {

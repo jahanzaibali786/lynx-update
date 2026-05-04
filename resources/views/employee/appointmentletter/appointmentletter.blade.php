@@ -65,6 +65,7 @@
             <tr class="table_heads report_table">
                 <th>Sr no.</th>
                 <th>Date</th>
+                <th>Type</th>
                 <th>Template</th>
                 <th>action</th>
             </tr>
@@ -75,6 +76,7 @@
                         {{-- <td>{{ @$letter->no }}</td> --}}
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ \Carbon\Carbon::parse(@$letter->date)->format('d-M-Y') }}</td>
+                        <td>{{ ucfirst($letter->type )}}</td>
                         <td>{{ \Illuminate\Support\Str::limit(@$letter->datacontent, 200, '...') }}</td>
                         <td>
                             <div class="action-btn ms-2">

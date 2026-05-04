@@ -40,7 +40,6 @@
 @endpush
 
 @section('content')
-    @if (\Auth::user()->type == 'company')
         <div class="row">
             <div class="col-sm-12">
                 <div class="mt-2" id="multiCollapseExample1">
@@ -67,6 +66,12 @@
                                         {{ Form::select('designation_id', $designations, request('designation_id'), ['class' => 'form-control select']) }}
                                     </div>
                                 </div>
+                                <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 mr-2">
+                                    <div class="btn-box">
+                                        {{ Form::label('status', __('Status'), ['class' => 'form-label']) }}
+                                        {{ Form::select('status', ['0' => 'Active', '1' => 'Resigned'], request('status'), ['class' => 'form-control select']) }}
+                                    </div>
+                                </div>
                                 <div class="col-auto float-end ms-2 mt-4">
                                     <a href="#" class="btn mx-1 btn-sm btn-outline-primary" onclick="document.getElementById('employee_submit').submit(); return false;">
                                         <span class="btn-inner--icon">Search</span>
@@ -86,11 +91,11 @@
                                                     <i class="ti ti-file me-2"></i>Excel
                                                 </button>
                                             </li>
-                                            <li>
+                                            {{-- <li>
                                                 <button class="dropdown-item" type="submit" name="export" value="pdf">
                                                     <i class="ti ti-download me-2"></i>Pdf
                                                 </button>
-                                            </li>
+                                            </li> --}}
                                         </ul>
                                     </div>
                                 </div>
@@ -101,7 +106,6 @@
                 </div>
             </div>
         </div>
-    @endif
 
     <div class="table-responsive">
         <table class="datatable table">
@@ -114,6 +118,8 @@
                     <th>{{ __('Department') }}</th>
                     <th>{{ __('Designation') }}</th>
                     <th>{{ __('Branch') }}</th>
+                    <th>{{ __('Scale No') }}</th>
+                    <th>{{ __('Working Days') }}</th>
                     <th>{{ __('EOBI') }}</th>
                     <th>{{ __('EOBI Values') }}</th>
                     <th>{{ __('PESSI') }}</th>
@@ -153,8 +159,7 @@
                                 ($lastPayscaleDetail->misc ?? 0) +
                                 ($lastPayscaleDetail->other_add ?? 0)
                             );
-
-                            $branches_school = \App\Models\SchoolDetails::where('branch_id', $employee->created_by)->first();
+                            $branches_school = \App\Models\SchoolDetails::where('branch_id', $employee->owned_by)->first();
                             $eobiValue = ($employee->eobi / 100) * ($branches_school->eobi_values ?? 0);
                             $eobiEmployerValue = ($employee->eobi_employer / 100) * ($branches_school->eobi_values ?? 0);
                             $pessiValue = ($employee->pessi / 100) * ($branches_school->pessi_values ?? 0);
@@ -178,7 +183,9 @@
                             <td>{{ $lastPayscaleDetail->account_number ?? '-' }}</td>
                             <td>{{ optional(\Auth::user()->getDepartment($employee->department_id))->name ?? '-' }}</td>
                             <td>{{ optional(\Auth::user()->getDesignation($employee->designation_id))->name ?? '-' }}</td>
-                            <td>{{ optional(\Auth::user()->getBranch($employee->branch_id))->name ?? '-' }}</td>
+                            <td>{{ optional(\Auth::user()->getBranch($employee->owned_by))->name ?? '-' }}</td>
+                            <td>{{ $lastPayscaleDetail->scale->scale_no ?? '-' }}</td>
+                            <td>{{ $lastPayscaleDetail->working_days ?? '-' }}</td>
                             <td>{{ $employee->eobi . '|' . $employee->eobi_employer }}</td>
                             <td>{{ $eobiValue . '|' . $eobiEmployerValue }}</td>
                             <td>{{ $employee->pessi . '|' . $employee->pessi_employer }}</td>

@@ -1,51 +1,57 @@
 <table class="datatable">
     <thead>
         <tr>
-            <td colspan="26" style="text-align: center; font-family: 'Edwardian Script ITC'; font-weight: 800; font-size: 35rem;">
+            <td colspan="26" style="text-align: left; font-family: 'Edwardian Script ITC'; font-weight: 800; font-size: 35rem;">
                 The Lynx School
             </td>
         </tr>
         <tr>
-            <td colspan="26" style="text-align: center; font-weight: 600; font-size: 15rem;">
+        </tr>
+        <tr>
+            <td colspan="26" style="text-align: left; font-weight: 600; font-size: 12em;">
                 <span>{{ __('Salary History Report') }}</span>
             </td>
         </tr>
         <tr>
-            <td colspan="26" style="text-align: center; font-weight: 600; font-size: 15rem;">
+        </tr>
+        <tr>
+            <td colspan="26" >
                 <span>{{ \Carbon\Carbon::now()->format('F Y') }}</span>
             </td>
         </tr>
         <tr>
-            <td colspan="26" style="text-align: center;"></td>
+            <td colspan="26" style="text-align: left;"></td>
         </tr>
-        <tr style="font-size: 2rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; background-color:gray;">
+        <tr >
             <!-- 26 headers as defined -->
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">Sr No</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Emp No') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Employee Name') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('DOJ') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Service Period') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Department') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Designation') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Branch') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Bank A/C') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('ScaleNO') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Basic') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('House Rent') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Medical') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Others') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Conveyance') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Gross Salary') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Emp Sec.') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Training Course') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Advances') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('EOBI Ded') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('PESSI Ded') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Loan Emp Sec.') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Income Tax') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Other Ded') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Other Loan') }}</th>
-            <th style="font-size: 8px; text-align: center; width: 150px; border: 2px solid black; font-weight: bold; background-color: gray;">{{ __('Net Sal') }}</th>
+            <th >Sr No</th>
+            <th >{{ __('Emp No') }}</th>
+            <th >{{ __('Employee Name') }}</th>
+            <th >{{ __('CNIC') }}</th>
+            <th >{{ __('DOJ') }}</th>
+            <th >{{ __('Department') }}</th>
+            <th >{{ __('Designation') }}</th>
+            <th >{{ __('Branch') }}</th>
+            <th >{{ __('Bank A/C') }}</th>
+            <th >{{ __('ScaleNO') }}</th>
+            @php
+                $net_gross = 0;
+            @endphp
+            @foreach ($heads as $account)
+                <th>{{ !empty($account->head) ? @$account->head : '-' }}</th>
+            @endforeach
+            <th >{{ __('Others') }}</th>
+            <th >{{ __('Conveyance') }}</th>
+            <th >{{ __('Gross Salary') }}</th>
+            <th >{{ __('Emp Sec.') }}</th>
+            <th >{{ __('Advances') }}</th>
+            <th >{{ __('EOBI Ded') }}</th>
+            <th >{{ __('PESSI Ded') }}</th>
+            <th >{{ __('Loan Emp Sec.') }}</th>
+            <th >{{ __('Income Tax') }}</th>
+            <th >{{ __('Other Ded') }}</th>
+            <th >{{ __('Other Loan') }}</th>
+            <th >{{ __('Net Sal') }}</th>
         </tr>
     </thead>
     <tbody style="border: 2px solid black; border-collapse: collapse;">
@@ -65,61 +71,80 @@
                     $gross += $lastPayscaleDetail->drns + $lastPayscaleDetail->conv + 
                               $lastPayscaleDetail->misc + $lastPayscaleDetail->other_add;
                 }
-                
+        
                 // Set defaults for missing fields
-                $servicePeriod = $employee->service ?? "-";
                 $pessiDed = $employee->pessi ? $employee->pessi . '|' . $employee->pessi_employer : '0|0';
+                
             @endphp
             <tr>
                 <!-- Existing fields -->
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $loop->iteration }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse; text-align: right;">
+                <td >{{ $loop->iteration }}</td>
+                <td >
                     {{ \Auth::user()->employeeIdFormat($employee->employee_id) }}
                 </td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $employee->name }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $employee->company_doj }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $servicePeriod }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">
+                <td >{{ $employee->name }}</td>
+                <td >{{ $employee->cnic }}</td>
+                <td >{{ $employee->company_doj }}</td>
+                <td >
                     {{ $employee->department_id ? \Auth::user()->getDepartment($employee->department_id)->name ?? '-' : '-' }}
                 </td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">
+                <td >
                     {{ $employee->designation_id ? \Auth::user()->getDesignation($employee->designation_id)->name ?? '-' : '-' }}
                 </td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">
+                <td >
                     {{ $employee->branch_id ? \Auth::user()->getBranch($employee->branch_id)->name ?? '-' : '-' }}
                 </td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">
+                <td >
                     {{ $lastPayscaleDetail->account_number ?? '-' }}
                 </td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">
+                <td >
                     {{ $lastPayscaleDetail->scale->scale_no ?? '-' }}
                 </td>
-                
+                {{-- @dd($lastPayscaleDetail->scale->scale_no, $lastPayscaleDetail->basic ,$lastPayscaleDetail->scale->employeeScaleHeads); --}}
                 <!-- New salary component fields -->
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->basic ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->house_rent ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->medical ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->others ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->conveyance ?? '0' }}</td>
+                @php
+                    $net_gross = 0;
+                    $basic_value = 0;
+                @endphp
+                @foreach ($heads as $head)
+
+                    @php
+                        // find matching scale head
+                        $scale_head = $payscalesauto->employeeScaleHeads->firstWhere('head', $head->id);
+
+                        $value = $scale_head->head_value ?? 0;
+                        if ($head->head == 'Initial Basic') {
+                            $basic_value = $value;
+                        }
+
+                        $net_gross += $value;
+                    @endphp
+
+                    <td>{{ $value > 0 ? $value : '0' }}</td>
+
+                @endforeach
+                <td >{{ $lastPayscaleDetail->others ?? '0' }}</td>
+                <td >{{ $lastPayscaleDetail->conveyance ?? '0' }}</td>
                 
                 <!-- Gross salary -->
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $gross }}</td>
+                <td >{{ $gross }}</td>
                 
                 <!-- Deduction fields -->
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->emp_sec ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->training_course ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->advances ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">
-                    {{ $employee->eobi }}|{{ $employee->eobi_employer }}
+                <td >{{ $lastPayscaleDetail->emp_sec ?? '0' }}</td>
+                <td >{{ $lastPayscaleDetail->advance ?? '0' }}</td>
+                <td >
+                    @php
+                    $emp=$employee->eobi($employee->id,$employee->owned_by) @endphp
+                    {{ $emp['employee_eobi'] }}|{{ $emp['employer_eobi'] }}
                 </td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">
+                <td >
                     {{ $pessiDed }}
                 </td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->loan_emp_sec ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->itax ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->other_ded ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">{{ $lastPayscaleDetail->other_loan ?? '0' }}</td>
-                <td style="border: 2px solid black; font-size: 8px; border-collapse: collapse;">
+                <td >{{ $lastPayscaleDetail->loan_emp_sec ?? '0' }}</td>
+                <td >{{ $lastPayscaleDetail->itax ?? '0' }}</td>
+                <td >{{ $lastPayscaleDetail->other_ded ?? '0' }}</td>
+                <td >{{ $lastPayscaleDetail->other_loan ?? '0' }}</td>
+                <td >
                     {{ $lastPayscaleDetail->net ?? '0' }}
                 </td>
             </tr>

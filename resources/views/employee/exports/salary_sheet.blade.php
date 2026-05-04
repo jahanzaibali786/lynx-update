@@ -51,7 +51,7 @@
                 Gross Pay</th>
 
             <th>
-                E.s</th>
+                E.S</th>
             <th>
                 I.Tax</th>
             <th>
@@ -118,6 +118,24 @@
             $total_eobi_employer = 0;
             $total_total_cost = 0;
             $total_cost_to_comp = 0;
+            $gross_bra = 0;
+            $total_basics_bra = 0;
+            $total_other_bra = 0;
+            $total_stop_sal_bra = 0;
+            $total_gross_bra = 0;
+            $total_emp_sec_bra = 0;
+            $total_it_bra = 0;
+            $total_advance_bra = 0;
+            $total_eobi_bra = 0;
+            $total_loan_emp_sec_bra = 0;
+            $total_stop_sal_deductions_bra = 0;
+            $total_pessi_bra = 0;
+            $total_loan_bra = 0;
+            $total_net_pay_bra = 0;
+            $total_pessi_employer_bra = 0;
+            $total_eobi_employer_bra = 0;
+            $total_total_cost_bra = 0;
+            $total_cost_to_comp_bra = 0;
             $currentDepartmentId = null; // To track the current department
         @endphp
 
@@ -140,8 +158,85 @@
                 $total_pessi_employer += !empty($data->pessi_employer) ? @$data->pessi_employer : '0';
                 $total_eobi_employer += !empty($data->eobi_employer) ? @$data->eobi_employer : '0';
                 $total_total_cost += !empty($total_cost) ? @$total_cost : '0';
+                // for branch totals
+                $gross_bra += !empty($data->gross) ? @$data->gross : '0';
+                $total_basics_bra += $data->basics;
+                $total_other_bra += $data->other;
+                $total_stop_sal_bra += $data->stop_sal;
+                $total_gross_bra += !empty($data->gross) ? @$data->gross : '0';
+                $total_emp_sec_bra += !empty($data->emp_sec) ? @$data->emp_sec : '0';
+                $total_it_bra += !empty($data->it) ? @$data->it : '0';
+                $total_advance_bra += !empty($payscale->advance) ? @$payscale->advance : '0';
+                $total_pessi_bra += '0';
+                $total_loan_emp_sec_bra += !empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0';
+                $total_eobi_bra += !empty($data->eobi) ? @$data->eobi : '0';
+                $total_loan_bra += !empty($data->loan) ? @$data->loan : '0';
+                $total_net_pay_bra += !empty($data->net_pay) ? @$data->net_pay : '0';
+                $total_stop_sal_deductions_bra += !empty($data->stop_sal) ? @$data->stop_sal : '0';
+                $total_pessi_employer_bra += !empty($data->pessi_employer) ? @$data->pessi_employer : '0';
+                $total_eobi_employer_bra += !empty($data->eobi_employer) ? @$data->eobi_employer : '0';
+                $total_total_cost_bra += !empty($total_cost) ? @$total_cost : '0';
+                $total_cost_to_comp_bra += !empty($cost_to_comp) ? @$cost_to_comp : '0';
+                
+                
             @endphp
             @if ($currentDepartmentId != $data->department_id)
+                {{-- show branch total row --}}
+                <tr>
+                    <th colspan="1"style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ !empty($data->employee->department->name) ? $data->employee->department->name : 'No Department Name' }} Total
+                    </th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_basics_bra }}</th>
+                    @foreach ($salaryHeads as $head)
+                        <th style="border: none; font-weight: bold; background-color:lightgray;">
+                            {{ !empty($head_totals_bra[$head->id]) ? $head_totals_bra[$head->id] : '0' }}</th>
+                    @endforeach
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_other_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_stop_sal_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_gross_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_emp_sec_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_it_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_advance_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_eobi_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_loan_emp_sec_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_stop_sal_deductions_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_pessi_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_loan_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_net_pay_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_pessi_employer_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_eobi_employer_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_total_cost_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ $total_cost_to_comp_bra }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;">
+                        {{ '' }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;"
+                        >{{ '' }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray"
+                        >{{ '' }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;"                        >{{ '' }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;"                        >{{ '' }}</th>
+                    <th style="border: none; font-weight: bold; background-color:lightgray;"                        >{{ '' }}</th>
+                </tr>
                 <tr>
                     @php
                         $currentDepartmentId = $data->department_id;
@@ -159,7 +254,7 @@
                 {{-- Display the department name only when the department ID changes --}}
 
                 <td>
-                    {{ !empty($data->employee->id) ? @$data->employee->id : '' }}</td>
+                    {{ !empty($data->employee) ? @$data->employee->employee_id : '' }}</td>
                 <td>
                     {{ !empty($data->scale_no) ? @$data->scale_no : '' }}</td>
                 <td>
@@ -182,6 +277,9 @@
 
                         // Accumulate the total for this head
                         $head_totals[$head->id] += $head_value;
+                        // for departement
+                        $head_totals_bra[$head->id] = isset($head_totals_bra[$head->id]) ? $head_totals_bra[$head->id] + $head_value : $head_value;
+                        
                     @endphp
 
                     <td>

@@ -702,12 +702,12 @@
                                         </li>
 
                                         <li class="dash-item    ">
-                                            @if (\Auth::user()->type == 'company')
+                                            {{-- @if (\Auth::user()->type == 'company') --}}
                                                 <a href="{{ route('employee-salary-detail.index') }}"
                                                     class="dash-link {{ Request::segment(1) == 'employee-salary-detail' ? 'active dash-trigger' : '' }} ">
                                                     {{ __('Emp. Salary Detail') }}
                                                 </a>
-                                            @endif
+                                            {{-- @endif --}}
                                         </li>
                                         <li class="dash-item     ">
                                             {{-- @if (\Auth::user()->type == 'company') --}}

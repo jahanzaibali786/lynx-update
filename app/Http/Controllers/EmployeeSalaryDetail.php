@@ -35,7 +35,7 @@ use Dompdf\Options;
 use Illuminate\Support\Facades\View;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\SalaryHistoryExport;
-use App\Models\EmployeeSalaryDetailReportExport;
+use App\Exports\EmployeeSalaryDetailReportExport;
 use App\Models\SalaryHistoryReportExport;
 use Str;
 
@@ -67,17 +67,16 @@ class EmployeeSalaryDetail extends Controller
                 $designations->prepend('All', 'all');
                 $query = Employee::with([
                     'employee_payscale_details',
-                ])->where('is_res_ter', 0)->where('created_by', \Auth::user()->creatorId());
+                ])->where('created_by', \Auth::user()->creatorId());
             } else {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $branches->prepend('Select Branch', '');
                 $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $departments->prepend('All', 'all');
                 $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $designations->prepend('All', 'all');
                 $query = Employee::with([
                     'employee_payscale_details',
-                ])->where('is_res_ter', 0)->where('owned_by', \Auth::user()->ownedId());
+                ])->where('owned_by', \Auth::user()->ownedId());
             }
             if (!empty($request->branches)) {
                 $query->where('owned_by', '=', $request->branches);
@@ -88,18 +87,21 @@ class EmployeeSalaryDetail extends Controller
             if (!empty($request->designation_id) && $request->designation_id != 'all') {
                 $query->where('designation_id', '=', $request->designation_id);
             }
+            if (!empty($request->status)) {
+                $query->where('is_res_ter', '=', $request->status);
+            }
+            $heads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
             
             if ($request->has('export') && $request->export == 'excel') {
-                $employees = $query->orderBy('id', 'Desc')->get();
-                return Excel::download(new EmployeeSalaryDetailReportExport($employees), 'employee_salary_detail.xlsx');
+                // $employees = $query->orderBy('id', 'Desc')->get();
+                return Excel::download(new EmployeeSalaryDetailReportExport($query->orderBy('id', 'Desc'), $heads), 'employee_salary_detail.xlsx');
             }
 
-            if ($request->has('export') && $request->export == 'pdf') {
-                $employees = $query->orderBy('id', 'Desc')->get();
-                return Excel::download(new EmployeeSalaryDetailReportExport($employees), 'employee_salary_detail.pdf');
-            }
+            // if ($request->has('export') && $request->export == 'pdf') {
+            //     // $employees = $query->orderBy('id', 'Desc')->get();
+            //     return Excel::download(new EmployeeSalaryDetailReportExport($query->orderBy('id', 'Desc'), $heads), 'employee_salary_detail.pdf');
+            // }
             $employees = $query->orderByDesc('id')->get();
-            // dd($request->all(), $employees);
 
 
             return view('employee.emp_salary_detail.index', compact('employees', 'branches', 'departments', 'designations'));
@@ -152,9 +154,22 @@ class EmployeeSalaryDetail extends Controller
             // dd($request->all());
             $scale = EmployeePayscaleDetail::where('employee_id', $request->employee_id)->orderBy('id', 'Desc')->first();
             $employee = Employee::where('id', $request->employee_id)->first();
+            // check if employee departement and pay scale department is same or not
+            if($employee->department_id != $request->department_id){
+                return redirect()->back()->with('error', 'Employee department and pay scale department must be same.');
+            }
+
             $appLetter = AppointmentLetter::where('type', Str::lower($employee->category))->latest()->first();
-            if (round(@$scale->net) == round($request->net) && $scale->id == $request->pay_scale && date('Y-m-d', strtotime(@$scale->updated_at)) == date('Y-m-d')) {
+            if (round(@$scale->net) == round($request->net) && $scale->id == $request->pay_scale && date('Y-m-d', strtotime(@$scale->updated_at)) == date('Y-m-d', strtotime($request->effect_from)) && $scale->working_days == $request->working_days) {
                 
+                $scale->security_receive_account  = $request->security_receive_account;
+                $scale->tax_payable_account  = $request->tax_payable_account;
+                $scale->eobi_payable_account  = $request->eobi_payable_account;
+                $scale->pessi_payable_account = $request->pessi_payable_account;
+                $scale->other_dedu_payable_account = $request->other_dedu_payable_account;
+                $scale->advance_payable_account = $request->advance_payable_account;
+                $scale->net_payable_account = $request->net_payable_account;
+                $scale->save();
             } else {
 
                 $payscaleattach = EmployeePayscaleDetail::create([
@@ -233,18 +248,18 @@ class EmployeeSalaryDetail extends Controller
             $payscales->prepend('Select Scale', '');
         } else {
             $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
-                ->where('owned_by', \Auth::user()->ownedId())
+                ->where('created_by', \Auth::user()->creatorId())
                 ->get()
                 ->pluck('name', 'id');
-            $payableaccounts = ChartOfAccount::where('owned_by', \Auth::user()->ownedId())
+            $payableaccounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())
                 ->get()
                 ->pluck('name', 'id');
             $payableaccounts->prepend('Select Accounts', '');
-            $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+            $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $payscales = EmployeeScale::with('employeeScaleHeads')
             ->where('department_id', $employee_dept->department_id)
             ->where('status', 1)
-            ->where('owned_by', \Auth::user()->ownedId())->get()->pluck('scale_no', 'id');
+            ->where('created_by',\Auth::user()->creatorId())->get()->pluck('scale_no', 'id');
             $payscales->prepend('Select Scale', '');
         }
 
@@ -286,10 +301,10 @@ class EmployeeSalaryDetail extends Controller
             } else {
                 $payScale = EmployeeScale::with( 'employeeScaleHeads')
                 ->where('department_id', $request->department_id)
-                ->where('owned_by', \Auth::user()->ownedId())
+                ->where('created_by', \Auth::user()->creatorId())
                 ->where('id', $request->id)->first();
                 $employeeScaleHeads = EmployeeScaleHeads::with('salaryHeads')->where('scale_id',$payScale->id)
-                ->where('owned_by', \Auth::user()->ownedId())->get();
+                ->where('created_by', \Auth::user()->creatorId())->get();
             }
             // dd($payScale);
 
@@ -1492,7 +1507,7 @@ class EmployeeSalaryDetail extends Controller
 
     //  Excel sheets
 
-    public function export_salary_sheet(Request $request)
+ public function export_salary_sheet(Request $request)
     {
         $date = $request->input('date');
         $department_id = $request->input('department_id');

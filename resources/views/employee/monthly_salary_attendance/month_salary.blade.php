@@ -896,15 +896,15 @@
                                     data-bs-title="{{ __('Monthly Salary Detail') }}"
                                     data-bs-title="{{ __('Monthly Salary Detail') }}">
                                     <span
-                                        class="btn-inner--icon">{{ \Auth::user()->employeeIdFormat($data->employee_id) }}</span>
+                                        class="btn-inner--icon">{{ \Auth::user()->employeeIdFormat($data->employee->employee_id) }}</span>
 
                                 </a>
                                 @else
-                                {{ \Auth::user()->employeeIdFormat($data->employee_id) }}
+                                {{ \Auth::user()->employeeIdFormat($data->employee->employee_id) }}
                                 @endif
                             </td>
                             <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
-                            <td>{{ !empty($data) ? date('M-y', strtotime($data->salary_date)) : '' }}</td>
+                            <td>{{ !empty($data) ? date('M-Y', strtotime($data->for_month_of)) : '' }}</td>
                             <td>{{ !empty($data) ? $data->working_days : '' }}</td>
 
                             @php

@@ -162,13 +162,12 @@
         document.getElementById('profileImageInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
-                const maxSizeMB = 2;
+                const maxSizeMB = 0.6;
                 const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
                 if (file.size > maxSizeBytes) {
-                    alert(
-                        'The selected file exceeds the maximum allowed size of 2MB. Please choose a smaller image.'
-                    );
+                    $('#imageError').text('Size of image should not be more than 600 KB.');
+                    show_toastr('error', 'Size of image should not be more than 600 KB.', 'error');
                     event.target.value = '';
                 } else {
                     const reader = new FileReader();
@@ -181,6 +180,31 @@
         });
     </script>
     <script>
+		function toggleEducationFields() {
+        let degree = $('#degree_level').val();
+
+        if (degree === 'illiterate') {
+            // Remove required
+            $('.edu-field').prop('required', false);
+
+            // Hide *
+            $('.required-star').hide();
+        } else {
+            // Add required
+            $('.edu-field').prop('required', true);
+
+            // Show *
+            $('.required-star').show();
+        }
+    }
+
+    // Run on change
+    $('#degree_level').on('change', function () {
+        toggleEducationFields();
+    });
+
+    // Run on page load (important for edit case)
+    toggleEducationFields();
         function editExperience(btn) {
             var organization = btn.getAttribute('data-organization');
             var designation = btn.getAttribute('data-designation');
@@ -637,7 +661,7 @@
                 <div class="mb-2">
 
                     <input type="file" class="form-control mt-1" name="profile_img" id="profileImageInput">
-                    <span style="color:red; font-size:0.7rem;">Size of image should not be more than 1MB.</span>
+                    <span id="imageError" style="color:red; font-size:0.7rem;">Size of image should not be more than 600 KB.</span>
                 </div>
                 <h3>{{ !empty($employee) ? $employee->name : '' }} <span style="font-size: 1rem;"></h3>
                 ({{ !empty($employee->designation) ? $employee->designation->name : '' }})</span>
@@ -1141,14 +1165,14 @@
                                     </div>
                                     <div class="form-group col-md-6">
                                         {!! Form::label('exp_from', __('From'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
-                                        {!! Form::date('exp_from', null, [
+                                        {!! Form::input('month', 'exp_from', null, [
                                             'class' => 'form-control',
                                             'id' => 'from',
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-6">
                                         {!! Form::label('exp_to', __('To'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
-                                        {!! Form::date('exp_to', null, [
+                                        {!! Form::input('month','exp_to', null, [
                                             'class' => 'form-control',
                                             'id' => 'to',
                                         ]) !!}
@@ -1240,7 +1264,7 @@
                                 @csrf
                                 <div class="row">
                                     <div class="form-group col-md-4">
-                                        {!! Form::label('institute_name', __('Institute Name'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
+                                        {!! Form::label('institute_name', __('Institute Name'), ['class' => 'form-label edu-field']) !!}<span class="text-danger required-star pl-1">*</span>
                                         {!! Form::text('institute_name', null, [
                                             'class' => 'form-control',
                                         ]) !!}
@@ -1255,6 +1279,7 @@
                                             'middle' => 'Middle',
                                             'primary' => 'Primary',
                                             'illiterate' => 'Illiterate',
+                                            'Diploma' => 'Diploma',
                                         ];
                                     @endphp
 
@@ -1270,32 +1295,32 @@
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-4">
-                                        {!! Form::label('subject', __('Subject'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
+                                        {!! Form::label('subject', __('Subject'), ['class' => 'form-label']) !!}
                                         {!! Form::text('subject', null, [
                                             'class' => 'form-control',
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-4">
-                                        {!! Form::label('adm_date', __('Admission Date'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
-                                        {!! Form::date('adm_date', null, [
-                                            'class' => 'form-control',
+                                        {!! Form::label('adm_date', __('Admission Year'), ['class' => 'form-label']) !!}<span class="text-danger required-star pl-1">*</span>
+                                        {!! Form::number('adm_date', null, [
+                                            'class' => 'form-control  edu-field','placeholder' => 'YYYY', 'pattern' => '\d{4}', 'maxlength' => 4 , 'min' => 1900,
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-4">
-                                        {!! Form::label('passing_year', __('Passing Year'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
-                                        {!! Form::date('passing_year', null, [
-                                            'class' => 'form-control',
+                                        {!! Form::label('passing_year', __('Passing Year'), ['class' => 'form-label']) !!}<span class="text-danger required-star pl-1">*</span>
+                                        {!! Form::number('passing_year', null, [
+                                            'class' => 'form-control  edu-field','placeholder' => 'YYYY','pattern' => '\d{4}','maxlength' => 4 ,'min' => 1900,
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-4">
                                         {!! Form::label('grade', __('Grade'), ['class' => 'form-label']) !!}
-                                        <span class="text-danger pl-1">*</span>
+                                        <span class="text-danger required-star pl-1">*</span>
 
                                         {!! Form::select(
                                             'grade',
                                             ['A' => 'A', 'B' => 'B', 'C' => 'C', 'D' => 'D', 'E' => 'E', 'F' => 'F'],
                                             old('grade'),
-                                            ['class' => 'form-control', 'required' => true],
+                                            ['class' => 'form-control edu-field', 'required' => true],
                                         ) !!}
                                     </div>
 

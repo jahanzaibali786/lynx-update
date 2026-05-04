@@ -42,6 +42,7 @@ class EmployeeMonthlySalary extends Model
         'sal_final',
         'on_hold',
         'net_pay',
+        'emp_sec_loan',
         'voucher_id',
         'status',
         'owned_by',
@@ -58,5 +59,10 @@ class EmployeeMonthlySalary extends Model
     }
     public function salary_heads(){
         return $this->hasMany(EmployeeMonthlySalaryHeads::class, 'sal_id', 'id');
+    }
+
+    public function deductions()
+    {
+        return $this->hasMany(SalaryDeductionDetail::class, 'salary_id');
     }
 }
