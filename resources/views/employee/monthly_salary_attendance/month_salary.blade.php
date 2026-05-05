@@ -17,7 +17,9 @@
                 button.addEventListener('click', function(event) {
                     event.preventDefault();
                     var checkedCheckboxes = document.querySelectorAll(
-                        'input[name="checked"]:checked');
+                        '.row-checkbox:checked'
+                    );
+
                     var form = document.getElementById('employee_submit');
                     var formData = new FormData(form);
                     checkedCheckboxes.forEach(function(checkbox) {
@@ -87,7 +89,9 @@
             });
             document.querySelector('.hold-unhold-btn').addEventListener('click', function(event) {
                 event.preventDefault();
-                var checkedCheckboxes = document.querySelectorAll('input[name="checked"]:checked');
+                var checkedCheckboxes = document.querySelectorAll(
+                    '.row-checkbox:checked'
+                );
                 var form = document.getElementById('employee_submit');
                 var formData = new FormData(form);
                 checkedCheckboxes.forEach(function(checkbox) {
@@ -156,7 +160,9 @@
             });
             document.querySelector('.delete-salary-btn').addEventListener('click', function(event) {
                 event.preventDefault();
-                var checkedCheckboxes = document.querySelectorAll('input[name="checked"]:checked');
+                var checkedCheckboxes = document.querySelectorAll(
+    '.row-checkbox:checked'
+);
                 var form = document.getElementById('employee_submit');
                 var formData = new FormData(form);
                 checkedCheckboxes.forEach(function(checkbox) {
@@ -226,7 +232,9 @@
 
             document.querySelector('.pay-salary-btn').addEventListener('click', function(event) {
                 event.preventDefault();
-                var checkedCheckboxes = document.querySelectorAll('input[name="checked"]:checked');
+                var checkedCheckboxes = document.querySelectorAll(
+    '.row-checkbox:checked'
+);
                 var form = document.getElementById('employee_submit');
                 var formData = new FormData(form);
                 checkedCheckboxes.forEach(function(checkbox) {
@@ -606,56 +614,62 @@
         // }
     </script>
     <script>
-        document.getElementById('sheetAction').addEventListener('change', function () {
-          const action = this.value;
-          const sheet  = document.getElementById('sheetType').value;
-          if (!sheet || !action) return;
-        
-          const routes = {
-            salary:    "{{ route('export_salary_sheet') }}",
-            deduction: "{{ route('export_deduction_sheet') }}",
-            paymode:   "{{ route('export_paymode_sheet') }}",
-            gross:     "{{ route('export_gross_sheet') }}",
-            advance:   "{{ route('export_advance_sheet') }}",
-          };
-        
-          if (action === 'route') {
-            if (sheet === 'slip') {
-              // Build query from the form (includes checked employee_ids[])
-              const form = document.getElementById('employee_submit');
-              const fd   = new FormData(form);
-        
-              // (Optional fallback) If you didn't change the checkbox name above,
-              // gather manually from .row-checkbox using data-employee-id/value.
-              if (!fd.has('employee_ids[]')) {
-                document.querySelectorAll('.row-checkbox:checked').forEach(cb => {
-                  const id = cb.value || cb.closest('tr')?.getAttribute('data-employee-id');
-                  if (id) fd.append('employee_ids[]', id);
-                });
-              }
-        
-              fd.append('export_type', 'excel');
-              const qs = new URLSearchParams(fd).toString();
-              window.location.href = "{{ route('salary_slip') }}?" + qs; // triggers download
-            } else {
-              const qs = new URLSearchParams(new FormData(document.getElementById('employee_submit'))).toString();
-              window.location.href = routes[sheet] + '?' + qs;
+        document.getElementById('sheetAction').addEventListener('change', function() {
+            const action = this.value;
+            const sheet = document.getElementById('sheetType').value;
+            if (!sheet || !action) return;
+
+            const routes = {
+                salary: "{{ route('export_salary_sheet') }}",
+                deduction: "{{ route('export_deduction_sheet') }}",
+                paymode: "{{ route('export_paymode_sheet') }}",
+                gross: "{{ route('export_gross_sheet') }}",
+                advance: "{{ route('export_advance_sheet') }}",
+            };
+
+            if (action === 'route') {
+                if (sheet === 'slip') {
+                    // Build query from the form (includes checked employee_ids[])
+                    const form = document.getElementById('employee_submit');
+                    const fd = new FormData(form);
+
+                    // (Optional fallback) If you didn't change the checkbox name above,
+                    // gather manually from .row-checkbox using data-employee-id/value.
+                    if (!fd.has('employee_ids[]')) {
+                        document.querySelectorAll('.row-checkbox:checked').forEach(cb => {
+                            const id = cb.value || cb.closest('tr')?.getAttribute('data-employee-id');
+                            if (id) fd.append('employee_ids[]', id);
+                        });
+                    }
+
+                    fd.append('export_type', 'excel');
+                    const qs = new URLSearchParams(fd).toString();
+                    window.location.href = "{{ route('salary_slip') }}?" + qs; // triggers download
+                } else {
+                    const qs = new URLSearchParams(new FormData(document.getElementById('employee_submit')))
+                        .toString();
+                    window.location.href = routes[sheet] + '?' + qs;
+                }
+            } else if (action === 'onclick') {
+                // keep your existing PDF/Print functions
+                if (sheet === 'slip') {
+                    salary_slip('pdf');
+                } else if (sheet === 'salary') {
+                    salarysheet();
+                } else if (sheet === 'deduction') {
+                    generatedeductionsheet();
+                } else if (sheet === 'paymode') {
+                    paymode();
+                } else if (sheet === 'gross') {
+                    gross_sheet();
+                } else if (sheet === 'advance') {
+                    advance();
+                }
             }
-          } else if (action === 'onclick') {
-            // keep your existing PDF/Print functions
-            if (sheet === 'slip')      { salary_slip('pdf'); }
-            else if (sheet === 'salary'){ salarysheet(); }
-            else if (sheet === 'deduction'){ generatedeductionsheet(); }
-            else if (sheet === 'paymode'){ paymode(); }
-            else if (sheet === 'gross') { gross_sheet(); }
-            else if (sheet === 'advance'){ advance(); }
-          }
-        
-          this.selectedIndex = 0;
+
+            this.selectedIndex = 0;
         });
-        </script>
-        
-    
+    </script>
 @endpush
 @section('action-btn')
     {{-- <div class="float-end" style="display: flex;">
@@ -884,23 +898,26 @@
                                     black; @endif
                             ">
                             <td>
-                                <input type="checkbox" name="employee_ids[]" class="row-checkbox" value="{{ optional($data->employee)->id }}">
+                                <input type="checkbox" name="employee_ids[]" class="row-checkbox"
+                                    value="{{ optional($data->employee)->id }}"
+                                    data-employee-id="{{ $data->employee->id }}">
                             </td>
                             <td>{{ $loop->iteration }}</td>
                             <td class="font-style">
-                                @if(isset($data->employeemonthlysalary))
-                                <a href="#" data-size="xl"
-                                    data-url="{{ route('emp-month-sal-attendance.show', $data->employeemonthlysalary->id) }}" data-size="lg"
-                                    data-ajax-popup="true" data-bs-toggle="{{ __('Monthly Salary Detail') }}"
-                                    class="mx-1 btn mx-1 btn-sm btn-outline-primary" data-bs-toggle="tooltip"
-                                    data-bs-title="{{ __('Monthly Salary Detail') }}"
-                                    data-bs-title="{{ __('Monthly Salary Detail') }}">
-                                    <span
-                                        class="btn-inner--icon">{{ \Auth::user()->employeeIdFormat($data->employee->employee_id) }}</span>
+                                @if (isset($data->employeemonthlysalary))
+                                    <a href="#" data-size="xl"
+                                        data-url="{{ route('emp-month-sal-attendance.show', $data->employeemonthlysalary->id) }}"
+                                        data-size="lg" data-ajax-popup="true"
+                                        data-bs-toggle="{{ __('Monthly Salary Detail') }}"
+                                        class="mx-1 btn mx-1 btn-sm btn-outline-primary" data-bs-toggle="tooltip"
+                                        data-bs-title="{{ __('Monthly Salary Detail') }}"
+                                        data-bs-title="{{ __('Monthly Salary Detail') }}">
+                                        <span
+                                            class="btn-inner--icon">{{ \Auth::user()->employeeIdFormat($data->employee->employee_id) }}</span>
 
-                                </a>
+                                    </a>
                                 @else
-                                {{ \Auth::user()->employeeIdFormat($data->employee->employee_id) }}
+                                    {{ \Auth::user()->employeeIdFormat($data->employee->employee_id) }}
                                 @endif
                             </td>
                             <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>

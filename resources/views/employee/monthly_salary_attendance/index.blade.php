@@ -247,10 +247,12 @@
                                 </div>
                             </div>
                             <div class="col-auto float-end ms-2 mt-4">
-                                <a id="generate-btn" href="#" class="btn mx-1 btn-sm btn-outline-success"
-                                    data-bs-title="Generate">
-                                    <span class="btn-inner--icon">Generate</span>
+                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
+                                    onclick="document.getElementById('employee_submit').submit(); return false;"
+                                    data-bs-toggle="{{ __('Apply') }}">
+                                    <span class="btn-inner--icon">Search</span>
                                 </a>
+                               
                                 <a id="finalize-btn" href="#" class="btn mx-1 btn-sm btn-outline-danger"
                                     data-bs-title="Finalize / FWD to Admin">
                                     <span class="btn-inner--icon">Finalize / FWD to Admin</span>
@@ -259,10 +261,9 @@
                                     data-bs-title="Delete">
                                     <span class="btn-inner--icon">Delete</span>
                                 </a>
-                                <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
-                                    onclick="document.getElementById('employee_submit').submit(); return false;"
-                                    data-bs-toggle="{{ __('Apply') }}">
-                                    <span class="btn-inner--icon">Search</span>
+                                <a id="generate-btn" href="#" class="btn mx-1 btn-sm btn-outline-success"
+                                    data-bs-title="Generate">
+                                    <span class="btn-inner--icon">Generate</span>
                                 </a>
                                 {{-- <a href="{{ route('emp-month-sal-attendance.index') }}"
                                     class="btn mx-1 btn-sm btn-outline-danger" 

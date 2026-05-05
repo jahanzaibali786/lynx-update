@@ -62,17 +62,11 @@ class EmployeeMonthlySalaryAttendance extends Controller
         }
         if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
             $query = ModelsEmployeeMonthlySalaryAttendance::with('employee')
-                ->whereHas('employee', function ($query) {
-                    $query->where('is_res_ter', 0);
-                })
                 ->whereYear('for_month_of', $toDate->year)
                 ->whereMonth('for_month_of', $toDate->month)
                 ->where('created_by', '=', \Auth::user()->creatorId());
         } else {
             $query = ModelsEmployeeMonthlySalaryAttendance::with('employee')
-                ->whereHas('employee', function ($query) {
-                    $query->where('is_res_ter', 0);
-                })
                 ->whereYear('for_month_of', $toDate->year)
                 ->whereMonth('for_month_of', $toDate->month)
                 ->where('owned_by', '=', \Auth::user()->ownedId());
@@ -200,16 +194,16 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $fromDate = Carbon::create($toDate->year, $toDate->month, 1);
                 $joiningDate = Carbon::parse($employee->company_doj);
                 $diffInDays = 0;
-                if (strtolower($employee->department->name) == 'academic') {
-                    $probationEnd = $employee->probation_end ? Carbon::parse($employee->probation_end) : null;
-                    if ($probationEnd && $probationEnd->isFuture()) {
-                        $skippedEmployees[] = [
-                            'employee_id' => $employee->employee_id,
-                            'reason' => 'Academic employee still under probation.'
-                        ];
-                        continue;
-                    }
-                }
+                // if (strtolower($employee->department->name) == 'academic') {
+                //     $probationEnd = $employee->probation_end ? Carbon::parse($employee->probation_end) : null;
+                //     if ($probationEnd && $probationEnd->isFuture()) {
+                //         $skippedEmployees[] = [
+                //             'employee_id' => $employee->employee_id,
+                //             'reason' => 'Academic employee still under probation.'
+                //         ];
+                //         continue;
+                //     }
+                // }
                 $employeeScale = \App\Models\EmployeePayscaleDetail::where('employee_id', $employee->id)->orderByDesc('id')->first();
                 if(!$employeeScale){
                     $skippedEmployees[] = [
@@ -565,8 +559,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 //     $query->where('is_res_ter', 0);
                 // })
                 ->whereYear('for_month_of', $toDate->year)
-                ->whereMonth('for_month_of', $toDate->month)
-                ->where('adm_final', 1)->where('created_by', '=', \Auth::user()->creatorId());
+                ->whereMonth('for_month_of', $toDate->month)->where('created_by', '=', \Auth::user()->creatorId());
         } else {
             $query = ModelsEmployeeMonthlySalaryAttendance::with([
                 'employee',
@@ -590,8 +583,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 //     $query->where('is_res_ter', 0);
                 // })
                 ->whereYear('for_month_of', $toDate->year)
-                ->whereMonth('for_month_of', $toDate->month)
-                ->where('adm_final', 1)->where('owned_by', '=', \Auth::user()->ownedId());
+                ->whereMonth('for_month_of', $toDate->month)->where('owned_by', '=', \Auth::user()->ownedId());
         }
         if ($date || $department_id || $designation_id || $branches) {
             if ($date) {
@@ -655,11 +647,24 @@ class EmployeeMonthlySalaryAttendance extends Controller
         if (empty($employee_ids)) {
             return response()->json(['success' => false, 'message' => 'No employees selected.']);
         }
-        $currentMonth = date('n', strtotime($date));
-        $currentYear  = date('Y', strtotime($date));
-        $months = (12 - $currentMonth + 1) + 6;
-        // dd($months);
-        $taxYear = ($currentMonth <= 6) ? $currentYear - 1 : $currentYear;
+        $dateObj = \Carbon\Carbon::parse($date);
+
+        $currentMonth = $dateObj->month;
+        $currentYear  = $dateObj->year;
+
+        // remaining months in FY
+        if ($currentMonth <= 6) {
+            $months = 6 - $currentMonth + 1;
+        } else {
+            $months = (12 - $currentMonth + 1) + 6;
+        }
+
+        // tax year
+        $taxYear = ($currentMonth <= 6)
+            ? $currentYear - 1
+            : $currentYear;
+
+        // salary heads
         $salaryheads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
 
         $query = ModelsEmployeeMonthlySalaryAttendance::with([
@@ -760,9 +765,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {
                     if ($scale_head->SalaryHeads->head == 'Initial Basic') {
                         $initialBasicHeadValue = $scale_head->head_value;
-                        $basicSalary = ((round($initialBasicHeadValue / $data->month_days)) * ($daysInPeriod)) - $advanceAmount;
+                        $basicSalary = round((($initialBasicHeadValue / $data->month_days) * ($daysInPeriod)) - $advanceAmount);
                     } else {
-                        $grossSalary += ((round($scale_head->head_value / $data->month_days)) * ($daysInPeriod));
+                        $grossSalary += round((($scale_head->head_value / $data->month_days) * ($daysInPeriod)));
                     }
                 }
                 $addition = $lastPayscaleDetail->other_add + $lastPayscaleDetail->conv + $lastPayscaleDetail->drns + $lastPayscaleDetail->misc + $lastPayscaleDetail->chaild_concession;
@@ -793,10 +798,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $monthTax = $this->calculateProratedTax(
                     employee_id:   $data->employee_id,
                     tax_year:      $taxYear,
-                    date          : $date,
+                    date:          $date,
                     scaleHeads:    $payscalesauto->employeeScaleHeads,
                     otherAdds:     $addition,
-                    workingDays:  $data->working_days,
+                    workingDays:   $data->working_days,
                     monthDays:     $data->month_days,
                     months:        $months
                 );
@@ -805,9 +810,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 }
                 // dd($monthTax, $data->employee_id, $taxYear, $daysInPeriod, $data->month_days, $payscalesauto->employeeScaleHeads, $addition);
 
-                $deduction = $loanAmount + $lastPayscaleDetail->itax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $lastPayscaleDetail->eobi + $lastPayscaleDetail->other_deduction + $lastPayscaleDetail->advance;
+                $deduction = $loanAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $lastPayscaleDetail->eobi + $lastPayscaleDetail->other_deduction + $lastPayscaleDetail->advance;
                 // dd($basicSalary, $grossSalary,$deduction);
-                $net_sal = $grossSalary - $deduction + $addition;
+                $net_sal = ($grossSalary  - $deduction) > 0 ? ($grossSalary  - $deduction) : 0;
 
 
                 $employeemonthlysal = EmployeeMonthlySalary::create([
@@ -835,10 +840,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'pessi' => $lastPayscaleDetail ? $lastPayscaleDetail->pessi : '0',
                     'it' => $monthTax ? $monthTax : '0',
                     'eobi' => $lastPayscaleDetail ? $lastPayscaleDetail->eobi : '0',
-                    'eobi_employer' => $lastPayscaleDetail ? $lastPayscaleDetail->eobi_employer : '0',
-                    'dedu' => $lastPayscaleDetail ? $lastPayscaleDetail->other_deduction : '0',
+                    'eobi_employer' => $lastPayscaleDetail ? round($lastPayscaleDetail->eobi_employer) : '0',
+                    'dedu' => $lastPayscaleDetail ? round($lastPayscaleDetail->other_deduction) : '0',
                     'tra_course' => 0,
-                    'sal_advance' => $advanceAmount ? $advanceAmount : '0',
+                    'sal_advance' => $advanceAmount ? round($advanceAmount) : '0',
                     'prc_final' => 0,
                     'net_pay' => round($net_sal),
                     'sal_final' => 0,
@@ -846,11 +851,15 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'owned_by' => $data->employee->owned_by,
                     'created_by' => \Auth::user()->creatorId(),
                 ]);
+                $created_date = date('Y-m-d', strtotime($date)).' '.date('H:i:s');
+                $employeemonthlysal->created_at = $created_date ?? Carbon::now();
+                $employeemonthlysal->created_at = $created_date ?? Carbon::now();
+                $employeemonthlysal->save();
                 // dd($employeemonthlysal);
                 // $newitems = [];
                 $i = 0;
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {
-                    $headValue = (round($scale_head->head_value / $data->month_days)) * ($daysInPeriod);
+                    $headValue = round((($scale_head->head_value / $data->month_days) * ($daysInPeriod)));
                     $salaryheadmonthly = EmployeeMonthlySalaryHeads::create([
                         'employee_id' => $data->employee_id,
                         'scale_id' => $employeemonthlysal->scale_id,
@@ -862,6 +871,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                         'owned_by' => $employeemonthlysal->owned_by,
                         'created_by' => $employeemonthlysal->created_by,
                     ]);
+                    $salaryheadmonthly->created_at = $created_date ?? Carbon::now();
+                    $salaryheadmonthly->updated_at = $updated_date ?? Carbon::now();
+                    $salaryheadmonthly->save();
                     // $newitems[$i]['prod_id'] = $salaryheadmonthly->id;
                     $i++;
                 }
@@ -879,51 +891,65 @@ class EmployeeMonthlySalaryAttendance extends Controller
                                 (float) ($grossSalary ?? 0),
                             'credit' => 0,
                         ],
+                        // Dr: Employer PASSI
+                        [
+                            'account_id' => 258,
+                            'name' => 'Salary Expense - Employer PASSI',
+                            'debit' => round($employeemonthlysal->pessi_employer),
+                            'credit' => 0,
+                        ],
+                        // Dr: Employer EOBI
+                        [
+                            'account_id' => 217,
+                            'name' => 'Salary Expense - Employer EOBI',
+                            'debit' => round($employeemonthlysal->eobi_employer),
+                            'credit' => 0,
+                        ],
                         [
                             'account_id' => $lastPayscaleDetail->security_receive_account,
                             'name' => 'Employee Security Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->emp_sec,
+                            'credit' => round($employeemonthlysal->emp_sec),
                         ],
                         // Cr: Income Tax Payable
                         [
                             'account_id' => $lastPayscaleDetail->tax_payable_account,
                             'name' => 'Tax Payable (Income Tax)',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->it,
+                            'credit' => round($employeemonthlysal->it),
                         ],
                         // Cr: EOBI Payable (Employee)
                         [
                             'account_id' => $lastPayscaleDetail->eobi_payable_account,
                             'name' => 'EOBI Payable (Employee)',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->eobi,
+                            'credit' => round($employeemonthlysal->eobi),
                         ],
                         // Cr: PASSI Payable (Employee)
                         [
                             'account_id' => $lastPayscaleDetail->pessi_payable_account,
                             'name' => 'PASSI Payable (Employee)',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->pessi,
+                            'credit' => round($employeemonthlysal->pessi),
                         ],
                         [
                             'account_id' => $lastPayscaleDetail->other_dedu_payable_account,
                             'name' => 'Other Deduction Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->dedu ?? 0, // or $all_data[?]
+                            'credit' => round($employeemonthlysal->dedu ?? 0), // or $all_data[?]
                         ],
                         // Cr: Net Salary Payable
                         [
                             'account_id' => $lastPayscaleDetail->net_payable_account,
                             'name' => 'Net Salary Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->net_pay,
+                            'credit' => round($employeemonthlysal->net_pay),
                         ],
                         [
                             'account_id' => 216,
                             'name' => 'Advance Salary',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->sal_advance,
+                            'credit' => round($employeemonthlysal->sal_advance),
                         ],
                         // Cr: Employer PASSI Payable
                         [
@@ -932,7 +958,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'account_id' => 225,
                             'name' => 'Employer PASSI Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->pessi_employer,
+                            'credit' => round($employeemonthlysal->pessi_employer),
                         ],
                         // Cr: Employer EOBI Payable
                         [
@@ -941,7 +967,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'account_id' => 221,
                             'name' => 'Employer EOBI Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->eobi_employer,
+                            'credit' => round($employeemonthlysal->eobi_employer),
                         ],
                     ];
                     $filteredAccounts = array_filter($allAccounts, function ($item) {
@@ -961,6 +987,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                         'owned_by' => $data->employee->owned_by,
                         'created_by' => $data->employee->created_by,
                         'accounts' => array_values($filteredAccounts),
+                        'created_at' => $created_date ?? Carbon::now(),
                     ];
                     // dd($filteredAccounts,$journal_data);
                     $journal = Utility::Salaryjrentryvoucher($journal_data);
@@ -992,76 +1019,113 @@ class EmployeeMonthlySalaryAttendance extends Controller
         int $monthDays,
         int $months
     ) {
-        // 1) YTD paid tax and amounts
-        $currentMonth = date('n', strtotime($date));
-        $startDate = ($currentMonth >= 7) ? date('Y-m-d', strtotime('first day of July this year')) : date('Y-m-d', strtotime('first day of July last year'));
-        $endDate = date('Y-m-d', strtotime('last day of previous month', strtotime($date)));
-        // dd($startDate,$endDate);
-        $prevPaid = EmployeeMonthlySalary::with('salary_heads')
-            ->where('employee_id', $employee_id)
-            // ->where('status', 'paid')
-            ->whereBetween('salary_date', [$startDate, $endDate])
-            ->get();
-        // dd($prevPaid);
-        $prevTaxPaid   = $prevPaid->sum('it');
-        $prevOtherAdds = $prevPaid->sum(fn($s)=>
-            $s->conv + $s->misc + $s->drns + $s->other_add + $s->chaild_con
-        );
 
-        $prevBasicHouse = $prevPaid
-            ->flatMap(function ($month) {
-                return $month->salary_heads;
-            })
-            ->filter(function ($head) {
-                return in_array($head->SalaryHead->head ?? null, ['Initial Basic', 'House Rent']);
-            })
-            ->sum('head_value');
-        // dd($prevTaxPaid,$prevOtherAdds,$prevBasicHouse);
+        // -----------------------------
+        // 1. FISCAL YEAR SETUP
+        // -----------------------------
+        $currentMonth = (int) date('n', strtotime($date));
+
+        $fyStart = $currentMonth >= 7
+            ? \Carbon\Carbon::create(date('Y'), 7, 1)
+            : \Carbon\Carbon::create(date('Y') - 1, 7, 1);
+
+        $fyEnd = \Carbon\Carbon::parse($date)->subMonth()->endOfMonth();
+
+        // -----------------------------
+        // 2. PREVIOUS SALARY (YTD)
+        // -----------------------------
+        $prevPaid = EmployeeMonthlySalary::with('salary_heads.SalaryHead')
+            ->where('employee_id', $employee_id)
+            ->whereBetween('salary_date', [$fyStart, $fyEnd])
+            ->get();
+
+        $prevTaxPaid = (float) $prevPaid->sum('it');
+
+        $prevOtherAdds = $prevPaid->sum(function ($s) {
+            return
+                ($s->conv ?? 0) +
+                ($s->misc ?? 0) +
+                ($s->drns ?? 0) +
+                ($s->other_add ?? 0) ;
+        });
+
+        $prevBasicHouse = $prevPaid->flatMap(function ($m) {
+            return $m->salary_heads;
+        })->filter(function ($h) {
+            return $h->SalaryHead &&
+                in_array($h->SalaryHead->head, ['Initial Basic', 'House Rent']);
+        })->sum('head_value');
+
         $prevSalAmnt = $prevBasicHouse + $prevOtherAdds;
 
-        // 2) annualize current heads
-        // $thisBasicHouse = collect($scaleHeads)
-        //     ->filter(fn($sh) => $sh->SalaryHead && in_array($sh->SalaryHead->head, ['Initial Basic', 'House Rent']))
-        //     ->sum('head_value');
-            
-        $totalCharges = 0;
-            foreach ($scaleHeads as $head) {
-                //initali basic + house rent
-                if ($head->SalaryHeads->head == 'Initial Basic' || $head->SalaryHeads->head == 'House Rent') {
-                    $totalCharges += $head->head_value;
-                }
-            }
-        $totalCharges   = $totalCharges + $otherAdds;
-        // dd($totalCharges,$months,$prevSalAmnt);
-        $yearlySal = ($totalCharges * $months) + $prevSalAmnt;
+        // -----------------------------
+        // 3. CURRENT SCALE SALARY
+        // -----------------------------
+        $monthlyBase = 0;
 
-        // 3) find slab
-        $slab = TaxSlab::where('year',$tax_year)
-            ->where(fn($q)=>
-                $q->where(fn($q2)=>
-                    $q2->where('lower_limit','<=',$yearlySal)
-                       ->where('upper_limit','>=',$yearlySal)
-                )->orWhere(fn($q2)=>
-                    $q2->where('lower_limit','<=',$yearlySal)
-                       ->whereNull('upper_limit')
-                )
-            )->firstOrFail();
-        if(!$slab){
-            return 'noslab';
+        foreach ($scaleHeads as $head) {
+            if (
+                $head->SalaryHeads &&
+                in_array($head->SalaryHeads->head, ['Initial Basic', 'House Rent'])
+            ) {
+                $monthlyBase += $head->head_value;
+            }
         }
-        // 4) compute prorated
-        $taxableOver  = $yearlySal - ($slab->lower_limit - 1);
-        // dd($taxableOver,$yearlySal,$tax_year);
-        $annualBase   = ($taxableOver / 100) * $slab->prev_limit_percentage;
-        $annualTax    = $annualBase + $slab->fixed_tax_amount;
-        $fullMonthTax = ($annualTax - $prevTaxPaid) / $months;
-        // dd($months,$annualTax,$fullMonthTax,$prevTaxPaid,$prevSalAmnt,round(($fullMonthTax / $monthDays) * $workingDays));
-        // prorate by days
-        $mtax = round(($fullMonthTax / $monthDays) * $workingDays);
-        if($mtax < 0){
+
+        $monthlyBase += $otherAdds;
+
+        // -----------------------------
+        // 4. PROJECTED INCOME (IMPORTANT FIX)
+        // -----------------------------
+        $projectedIncome = $monthlyBase * $months;
+
+        $yearlySal = $prevSalAmnt + $projectedIncome;
+
+        // -----------------------------
+        // 5. TAX SLAB
+        // -----------------------------
+        $slab = TaxSlab::where('year', $tax_year)
+            ->where('lower_limit', '<=', $yearlySal)
+            ->where(function ($q) use ($yearlySal) {
+                $q->where('upper_limit', '>=', $yearlySal)
+                ->orWhereNull('upper_limit');
+            })
+            ->orderBy('lower_limit', 'desc')
+            ->first();
+
+        if (!$slab) {
             return 0;
         }
-        return $mtax;
+
+        // -----------------------------
+        // 6. TAX CALCULATION (CORRECT METHOD)
+        // -----------------------------
+        $taxableAmount = $yearlySal - ($slab->lower_limit - 1);
+
+        $annualTax = ($taxableAmount * $slab->prev_limit_percentage) / 100
+                    + $slab->fixed_tax_amount;
+
+        $remainingTax = max($annualTax - $prevTaxPaid, 0);
+
+        // -----------------------------
+        // 7. MONTHLY TAX DISTRIBUTION
+        // -----------------------------
+        $monthlyTax = $months > 0 ? $remainingTax / $months : 0;
+
+        $monthlyTax = max($monthlyTax, 0);
+
+        // -----------------------------
+        // 8. DAILY PRORATION (FINAL STEP)
+        // -----------------------------
+        if ($monthDays <= 0) {
+            return 0;
+        }
+
+        $dailyTax = $monthlyTax / $monthDays;
+
+        $finalTax = round($dailyTax * $workingDays);
+
+        return max($finalTax, 0);
     }
     // return response()->json([
     //     'success' => true,

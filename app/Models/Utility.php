@@ -5761,7 +5761,7 @@ class Utility extends Model
     {
         DB::beginTransaction();
         try {
-            $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->latest()->first();
+            $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->orderBy('id','Desc')->first();
             $latest = $latest ? $latest->journal_id + 1 : 1;
 
             $journal = new JournalEntry;
@@ -5787,7 +5787,7 @@ class Utility extends Model
                 if (! $account) {
                     dd($acc);
                 }
-                JournalItem::create([
+                $a=JournalItem::create([
                     'journal' => $journal->id,
                     'account' => $account->id,
                     'description' => $acc['name'].' against the salray no '.@$data['no'].' for the month of '.@$data['salary_month'],
@@ -5795,6 +5795,9 @@ class Utility extends Model
                     'credit' => $acc['credit'],
                     'created_at' => @$data['created_at'],
                 ]);
+                $a->created_at = @$data['created_at'];
+                $a->updated_at = @$data['updated_at'];
+                $a->save();
             }
 
             DB::commit();

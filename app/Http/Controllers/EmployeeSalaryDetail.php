@@ -89,6 +89,9 @@ class EmployeeSalaryDetail extends Controller
             }
             if (!empty($request->status)) {
                 $query->where('is_res_ter', '=', $request->status);
+            }else
+            {
+                $query->where('is_res_ter', '=', 0);
             }
             $heads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
             

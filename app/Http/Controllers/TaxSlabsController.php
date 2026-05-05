@@ -141,108 +141,230 @@ class TaxSlabsController extends Controller
     public function calculateTax(Request $request)
     {
         $empScaleId = $request->empScaleId;
-        $empScale = EmployeeScale::with('employeeScaleHeads')->where('id', $empScaleId)->first();
-        $empScaleHeads = $empScale->employeeScaleHeads;
-        $totalCharges = 0;
-        foreach ($empScaleHeads as $head) {
-            //initali basic + house rent
-            if ($head->SalaryHeads->head == 'Initial Basic' || $head->SalaryHeads->head == 'House Rent') {
-                $totalCharges += $head->head_value;
-            }
-        }
-        $lastPayScale = EmployeeScale::with('employeeScaleHeads')->where('id', '<', $empScaleId)->orderBy('id', 'desc')->first();
-        $otherAdditionsInSal = $lastPayScale->drns + $lastPayScale->conv + $lastPayScale->misc + $lastPayScale->other_add + $lastPayScale->chaild_concession;
-        $totalCharges += $otherAdditionsInSal;
-        //current month till next june
-        $currentMonth = date('n');
-        $months = (12 - $currentMonth) + 6;
-        $prevmonthCount = ($currentMonth >= 7) ? $currentMonth - 7 + 1 : $currentMonth + 12 - 7 + 1;
-
-        //previous calculations
-        $startDate = ($currentMonth >= 7) ? date('Y-m-d', strtotime('first day of July this year')) : date('Y-m-d', strtotime('first day of July last year'));
-        $endDate = date('Y-m-d', strtotime('last day of last month'));
-        // dd($startDate,$endDate);
-        $previousPaidSal = EmployeeMonthlySalary::with('salary_heads')
-            ->where('employee_id', $request->employee_id)
-            // ->where('status', 'paid')
-            ->whereBetween('salary_date', [$startDate, $endDate])
-            ->get();
-        // dd($previousPaidSal);
-        //last month salary generated or not
-        $lastMonthSalary = EmployeeMonthlySalary::where('employee_id', $request->employee_id)
-            ->whereMonth('salary_date', date('m'))
-            ->whereYear('salary_date', date('Y'))
+        // -----------------------------
+        // 1. EMPLOYEE SCALE
+        // -----------------------------
+        $empScale = EmployeeScale::with(['employeeScaleHeads.SalaryHeads'])
+            ->where('id', $empScaleId)
             ->first();
 
-        if (!$lastMonthSalary) {
-            $prevmonthCount = $prevmonthCount - 1;
-            $months = $months + 1;
+        if (!$empScale) {
+            return response()->json(['error' => 'Employee scale not found'], 404);
         }
 
-        // dd($prevmonthCount,$months);
-        $totalCharges = $totalCharges * $months;
+        // -----------------------------
+        // 2. CURRENT MONTHLY SALARY
+        // -----------------------------
+        $monthlySalary = 0;
 
-        $prevSalAmnt = 0;
+        foreach ($empScale->employeeScaleHeads as $head) {
+            if (
+                $head->SalaryHeads &&
+                in_array($head->SalaryHeads->head, ['Initial Basic', 'House Rent'])
+            ) {
+                $monthlySalary += $head->head_value;
+            }
+        }
+        // previous scale additions
+        $lastPayScale = EmployeeScale::where('id', '<', $empScaleId)
+            ->orderBy('id', 'desc')
+            ->first();
+
+            $lastPayScale = EmployeeScale::where('id', '<', $empScaleId)
+            ->orderBy('id', 'desc')
+            ->first();
+
+            $lastPayScale = EmployeeScale::with('employeeScaleHeads')->where('id', '<', $empScaleId)->orderBy('id', 'desc')->first();
+            $lastscale = EmployeeMonthlySalary::where('employee_id', $request->employee_id)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            $otherAdditionsInSal = 0;
+
+            if ($lastscale) {
+                $otherAdditionsInSal =
+                    ($lastscale->drns ?? 0) +
+                    ($lastscale->conv ?? 0) +
+                    ($lastscale->misc ?? 0) +
+                    ($lastscale->other_add ?? 0);
+            }
+
+            $monthlySalary += $otherAdditionsInSal;
+        // -----------------------------
+        // 3. LAST SALARY / REJOIN CHECK
+        // -----------------------------
+        $lastSalary = EmployeeMonthlySalary::where('employee_id', $request->employee_id)
+            ->orderBy('salary_date', 'desc')
+            ->first();
+
+        $isRejoin = false;
+        $gapMonths = 0;
+
+        if ($lastSalary) {
+            $gapMonths = \Carbon\Carbon::parse($lastSalary->salary_date)
+                ->diffInMonths(now());
+
+            if ($gapMonths > 6) {
+                $isRejoin = true;
+            }
+        } else {
+            $isRejoin = true; // brand new employee
+        }
+
+        // -----------------------------
+        // 4. MONTH CALCULATION
+        // -----------------------------
+        $currentMonth = date('n');
+
+        // remaining months till June
+        $remainingMonths = ($currentMonth <= 6)
+            ? (6 - $currentMonth + 1)
+            : (12 - $currentMonth + 6);
+
+        // -----------------------------
+        // 5. MODE SWITCH
+        // -----------------------------
+
         $prevSubmittedTax = 0;
-        $prevOtherAddition = 0;
-        foreach ($previousPaidSal as $sal) {
-            //basic and house rent
-            $prevSubmittedTax += $sal->it;
-            $prevOtherAddition += $sal->conv + $sal->misc + $sal->drns + $sal->other_add + $sal->chaild_con;
+        $prevSalAmnt = 0;
 
-            foreach ($sal->salary_heads as $head) {
-                if ($head->SalaryHead->head == 'Initial Basic' || $head->SalaryHead->head == 'House Rent') {
-                    $prevSalAmnt += $head->head_value;
+        if ($isRejoin) {
+
+            // =============================
+            // 🔴 MODE 2: REJOIN / FRESH
+            // =============================
+
+            $months = $remainingMonths;
+
+            $yearlySal = $monthlySalary * $months;
+
+        } else {
+
+            // =============================
+            // 🟢 MODE 1: CONTINUATION
+            // =============================
+
+            $fyStart = $currentMonth >= 7
+                ? \Carbon\Carbon::create(date('Y'), 7, 1)
+                : \Carbon\Carbon::create(date('Y') - 1, 7, 1);
+
+            $monthsPassed = $fyStart->diffInMonths(now()) + 1;
+
+            $months = $monthsPassed;
+
+            // previous salary
+            $previousPaidSal = EmployeeMonthlySalary::with('salary_heads.SalaryHead')
+                ->where('employee_id', $request->employee_id)
+                ->whereBetween('salary_date', [
+                    $fyStart->startOfMonth(),
+                    now()->subMonth()->endOfMonth()
+                ])
+                ->get();
+            // last salary
+                $lastSalary = EmployeeMonthlySalary::where('employee_id', $request->employee_id)
+                    ->orderBy('salary_date', 'desc')
+                    ->first();
+
+                $missingMonths = 0;
+
+                if ($lastSalary) {
+                     $lastMonthDate = \Carbon\Carbon::parse($lastSalary->salary_date)->startOfMonth();
+                    $currentMonthDate = now()->startOfMonth();
+
+                    $missingMonths = max(
+                        $lastMonthDate->diffInMonths($currentMonthDate) - 1,
+                        0
+                    );
                 }
-            }
-        }
-        //basic and house rent\
-        if ($lastMonthSalary) {
-            $prevSubmittedTax += $lastMonthSalary->it;
-            $prevOtherAddition += $lastMonthSalary->conv + $lastMonthSalary->misc + $lastMonthSalary->drns + $lastMonthSalary->other_add + $lastMonthSalary->chaild_con;
 
-            foreach ($lastMonthSalary->salary_heads as $head) {
-                if ($head->SalaryHead->head == 'Initial Basic' || $head->SalaryHead->head == 'House Rent') {
-                    $prevSalAmnt += $head->head_value;
+            foreach ($previousPaidSal as $sal) {
+
+                $prevSubmittedTax += $sal->it ?? 0;
+
+                foreach ($sal->salary_heads as $head) {
+                    if (
+                        $head->SalaryHead &&
+                        in_array($head->SalaryHead->head, ['Initial Basic', 'House Rent'])
+                    ) {
+                        $prevSalAmnt += $head->head_value;
+                    }
                 }
+
+                $prevSalAmnt +=
+                    ($sal->conv ?? 0) +
+                    ($sal->misc ?? 0) +
+                    ($sal->drns ?? 0) +
+                    ($sal->other_add ?? 0) +
+                    ($sal->chaild_con ?? 0);
             }
+
+            // projected future
+            $futureMonths = $remainingMonths + $missingMonths;
+
+            $yearlySal = $prevSalAmnt + ($monthlySalary * $futureMonths);
         }
-        $prevSalAmnt = ($prevSalAmnt + $prevOtherAddition);
 
-        //calcualtion start
-        $yearlySal = $totalCharges + $prevSalAmnt;
-
+        // -----------------------------
+        // 6. TAX YEAR
+        // -----------------------------
         $currentYear = date('Y');
         if ($currentMonth <= 6) {
-            $currentYear = $currentYear - 1;
+            $currentYear--;
         }
+
+        // -----------------------------
+        // 7. TAX SLAB
+        // -----------------------------
         $taxSlabs = TaxSlab::where('year', $currentYear)
             ->where(function ($query) use ($yearlySal) {
                 $query->where(function ($q) use ($yearlySal) {
                     $q->where('lower_limit', '<=', $yearlySal)
                         ->where('upper_limit', '>=', $yearlySal);
                 })
-                    ->orWhere(function ($q) use ($yearlySal) {
-                        $q->where('lower_limit', '<=', $yearlySal)
-                            ->whereNull('upper_limit'); // for "unlimited" upper limit
-                    });
+                ->orWhere(function ($q) use ($yearlySal) {
+                    $q->where('lower_limit', '<=', $yearlySal)
+                        ->whereNull('upper_limit');
+                });
             })
             ->first();
-            // dd($yearlySal, $taxSlabs,$currentMonth);
         if (!$taxSlabs) {
-            return response()->json(['error' => 'Tax slab not found for the year ' . $currentYear . '. Please contact admin.'], 404);
+            return response()->json([
+                'error' => 'Tax slab not found for year ' . $currentYear
+            ], 404);
         }
-        $taxAmount = 0;
-        $yearlytax = $yearlySal - ($taxSlabs->lower_limit - 1);
-        $totalTax = ($yearlytax / 100) * $taxSlabs->prev_limit_percentage;
-        if ($totalTax > 0) {
-            $taxAmount = (($totalTax + $taxSlabs->fixed_tax_amount) - ($prevSubmittedTax));
-        }
-        $perMonTax = $taxAmount / $months;
-        if($perMonTax < 0){
-            $perMonTax = 0;
-        }
-        // dd($perMonTax,$totalTax,$prevSubmittedTax,$yearlytax);
-        return response()->json(['permonthtax' => round($perMonTax), 'totaltax' => round($totalTax + $taxSlabs->fixed_tax_amount), 'prevTax' => round($prevSubmittedTax)]);
+
+        // -----------------------------
+        // 8. TAX CALCULATION
+        // -----------------------------
+        $taxable = $yearlySal - ($taxSlabs->lower_limit - 1);
+
+        $totalTax = ($taxable * $taxSlabs->prev_limit_percentage) / 100;
+
+        $taxAmount = ($totalTax + $taxSlabs->fixed_tax_amount) - $prevSubmittedTax;
+        // -----------------------------
+        // 9. MONTHLY TAX
+        // -----------------------------
+       // divisor logic
+        $divisor = $isRejoin ? $months : ($remainingMonths + $missingMonths);
+
+        // monthly tax
+        $perMonTax = $divisor > 0 ? $taxAmount / $divisor : 0;
+
+        // safety
+        $perMonTax = max(0, $perMonTax);
+
+        // -----------------------------
+        // 10. RESPONSE
+        // -----------------------------
+        return response()->json([
+            'mode'          => $isRejoin ? 'REJOIN' : 'CONTINUE',
+            'permonthtax'   => round($perMonTax),
+            'totaltax'      => round($totalTax + $taxSlabs->fixed_tax_amount),
+            'prevTax'       => round($prevSubmittedTax),
+            'yearlySalary'  => round($yearlySal),
+            'months'        => $months,
+            'remainingMonths' => $remainingMonths,
+            'gapMonths'     => $gapMonths
+        ]);
     }
 }
