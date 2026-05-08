@@ -1050,7 +1050,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
         });
 
         $prevBasicHouse = $prevPaid->flatMap(function ($m) {
-            return $m->salary_heads;
+            return $m->scaleHeads;
         })->filter(function ($h) {
             return $h->SalaryHead &&
                 in_array($h->SalaryHead->head, ['Initial Basic', 'House Rent']);
@@ -1084,13 +1084,17 @@ class EmployeeMonthlySalaryAttendance extends Controller
         // -----------------------------
         // 5. TAX SLAB
         // -----------------------------
-        $slab = TaxSlab::where('year', $tax_year)
-            ->where('lower_limit', '<=', $yearlySal)
-            ->where(function ($q) use ($yearlySal) {
-                $q->where('upper_limit', '>=', $yearlySal)
-                ->orWhereNull('upper_limit');
+        $slab = TaxSlab::where('year', $currentYear)
+            ->where(function ($query) use ($yearlySal) {
+                $query->where(function ($q) use ($yearlySal) {
+                    $q->where('lower_limit', '<=', $yearlySal)
+                        ->where('upper_limit', '>=', $yearlySal);
+                })
+                ->orWhere(function ($q) use ($yearlySal) {
+                    $q->where('lower_limit', '<=', $yearlySal)
+                        ->whereNull('upper_limit');
+                });
             })
-            ->orderBy('lower_limit', 'desc')
             ->first();
 
         if (!$slab) {

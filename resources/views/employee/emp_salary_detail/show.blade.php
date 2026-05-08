@@ -205,11 +205,11 @@
         </div>
         <div class="form-group col-md-2">
             {!! Form::label('totaltax', __('Total Tax'), ['class' => 'form-label']) !!}
-            {{ Form::number('totaltax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->totaltax : '', ['class' => 'form-control deduction-field', 'id' => 'totaltax', 'readonly' => 'readonly']) }}
+            {{ Form::number('totaltax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->totaltax : '', ['class' => 'form-control', 'id' => 'totaltax', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-2">
             {!! Form::label('prevtax', __('Prev. Tax'), ['class' => 'form-label']) !!}
-            {{ Form::number('prevtax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->prevtax : '', ['class' => 'form-control deduction-field', 'id' => 'prevtax', 'readonly' => 'readonly']) }}
+            {{ Form::number('prevtax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->prevtax : '', ['class' => 'form-control', 'id' => 'prevtax', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('tax_payable_account', __('I.Tax Payable Account'), ['class' => 'form-label']) !!}
@@ -460,6 +460,7 @@
         }, 0);
 
         const netValue = Math.round(gross - security - deductions);
+        console.log('Gross:', gross, 'Security:', security, 'Deductions:', deductions, 'Net:', netValue);
         const netElement = findInModal('input[name="net"]');
         netElement.val(netValue);
 
@@ -672,6 +673,7 @@
                     netInput.val(netValue);
                     // Recalculate dependent values
                     calculatePerDaySalary();
+                    updateGross();
                     updateNet();
 
                 } else {

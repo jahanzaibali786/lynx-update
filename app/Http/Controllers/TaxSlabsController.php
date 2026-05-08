@@ -166,9 +166,6 @@ class TaxSlabsController extends Controller
             }
         }
         // previous scale additions
-        $lastPayScale = EmployeeScale::where('id', '<', $empScaleId)
-            ->orderBy('id', 'desc')
-            ->first();
 
             $lastPayScale = EmployeeScale::where('id', '<', $empScaleId)
             ->orderBy('id', 'desc')
@@ -253,18 +250,18 @@ class TaxSlabsController extends Controller
             $months = $monthsPassed;
 
             // previous salary
-            $previousPaidSal = EmployeeMonthlySalary::with('salary_heads.SalaryHead')
+            $previousPaidSal = EmployeeMonthlySalary::with('salary_heads.SalaryHead', 'scaleHeads')
                 ->where('employee_id', $request->employee_id)
                 ->whereBetween('salary_date', [
                     $fyStart->startOfMonth(),
                     now()->subMonth()->endOfMonth()
                 ])
                 ->get();
+                // dd($previousPaidSal);
             // last salary
-                $lastSalary = EmployeeMonthlySalary::where('employee_id', $request->employee_id)
+                $lastSalary = EmployeeMonthlySalary::with('scaleHeads')->where('employee_id', $request->employee_id)
                     ->orderBy('salary_date', 'desc')
                     ->first();
-
                 $missingMonths = 0;
 
                 if ($lastSalary) {
@@ -281,10 +278,19 @@ class TaxSlabsController extends Controller
 
                 $prevSubmittedTax += $sal->it ?? 0;
 
-                foreach ($sal->salary_heads as $head) {
+                // foreach ($sal->salary_heads as $head) {
+                //     if (
+                //         $head->SalaryHead &&
+                //         in_array($head->SalaryHead->head, ['Initial Basic', 'House Rent'])
+                //     ) {
+                //         $prevSalAmnt += $head->head_value;
+                //     }
+                // }
+
+                 foreach ($sal->scaleHeads as $head) {
                     if (
-                        $head->SalaryHead &&
-                        in_array($head->SalaryHead->head, ['Initial Basic', 'House Rent'])
+                        $head->SalaryHeads &&
+                        in_array($head->SalaryHeads->head, ['Initial Basic', 'House Rent'])
                     ) {
                         $prevSalAmnt += $head->head_value;
                     }
@@ -341,6 +347,14 @@ class TaxSlabsController extends Controller
         $totalTax = ($taxable * $taxSlabs->prev_limit_percentage) / 100;
 
         $taxAmount = ($totalTax + $taxSlabs->fixed_tax_amount) - $prevSubmittedTax;
+
+        // $taxable = max($yearlySal - $taxSlabs->lower_limit, 0);
+
+        // $totalTax = ($taxable * $taxSlabs->prev_limit_percentage) / 100;
+        // $taxAmount = max(
+        //     ($totalTax + $taxSlabs->fixed_tax_amount) - $prevSubmittedTax,
+        //     0
+        // );
         // -----------------------------
         // 9. MONTHLY TAX
         // -----------------------------

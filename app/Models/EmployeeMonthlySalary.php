@@ -65,4 +65,8 @@ class EmployeeMonthlySalary extends Model
     {
         return $this->hasMany(SalaryDeductionDetail::class, 'salary_id');
     }
+    public function scaleHeads()
+    {
+        return $this->hasMany(EmployeeScaleHeads::class, 'scale_id', 'scale_id');
+    }
 }
