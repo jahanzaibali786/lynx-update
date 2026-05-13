@@ -357,17 +357,17 @@ class EmployeeController extends Controller
                         $casualTotal = 0;
                         if ($joiningDate->year < $today->year) {
                             $annualTotal = 12 * 2.5;
-                            $casualTotal = 12 * 0.80;
+                            $casualTotal = 12 * 0.833;
                         } elseif ($emp_probation_endDate->year < $today->year) {
                             $annualTotal = 12 * 2.5;
-                            $casualTotal = 12 * 0.80;
+                            $casualTotal = 12 * 0.833;
                         } else {
                             $remainingMonths = 12 - $emp_probation_endDate->month + 1;
                             if ($emp_probation_endDate->lessThanOrEqualTo($today)) {
                                 $annualTotal = $remainingMonths * 2.5;
                             }
                             $remainingCasualMonths = 12 - $today->month + 1;
-                            $casualTotal = $remainingCasualMonths * 0.80;
+                            $casualTotal = $remainingCasualMonths * 0.833;
                         }
                     }else{
                         $casualTotal = 0;
@@ -470,47 +470,47 @@ class EmployeeController extends Controller
                     if (!empty($document)) {
 
 
-$filenameWithExt = $request->file('document')[$key]->getClientOriginalName();
-$filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
-$extension = $request->file('document')[$key]->getClientOriginalExtension();
-$fileNameToStore = $filename . '_' . time() . '.' . $extension;
+            $filenameWithExt = $request->file('document')[$key]->getClientOriginalName();
+            $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
+            $extension = $request->file('document')[$key]->getClientOriginalExtension();
+            $fileNameToStore = $filename . '_' . time() . '.' . $extension;
 
-// Directory inside storage/app/
-$dir = 'uploads/document/';
+            // Directory inside storage/app/
+            $dir = 'uploads/document/';
 
-// Full file path for deletion (check old file with same original name)
-$oldFilePath = storage_path('app/' . $dir . $filenameWithExt);
-if (File::exists($oldFilePath)) {
-    File::delete($oldFilePath);
-}
+            // Full file path for deletion (check old file with same original name)
+            $oldFilePath = storage_path('app/' . $dir . $filenameWithExt);
+            if (File::exists($oldFilePath)) {
+                File::delete($oldFilePath);
+            }
 
-// Create directory if not exists
-if (!Storage::exists($dir)) {
-    Storage::makeDirectory($dir, 0777, true, true);
-}
+            // Create directory if not exists
+            if (!Storage::exists($dir)) {
+                Storage::makeDirectory($dir, 0777, true, true);
+            }
 
-// Store the file
-$path = $request->file('document')[$key]->storeAs($dir, $fileNameToStore);
+            // Store the file
+            $path = $request->file('document')[$key]->storeAs($dir, $fileNameToStore);
 
-// If upload successful
-if ($path) {
-    $employee_document = EmployeeDocument::where('employee_id', $employee->employee_id)
-        ->where('document_id', $key)
-        ->first();
+            // If upload successful
+            if ($path) {
+                $employee_document = EmployeeDocument::where('employee_id', $employee->employee_id)
+                    ->where('document_id', $key)
+                    ->first();
 
-    if ($employee_document) {
-        $employee_document->document_value = $fileNameToStore;
-        $employee_document->save();
-    } else {
-        EmployeeDocument::create([
-            'employee_id' => $employee->employee_id,
-            'document_id' => $key,
-            'document_value' => $fileNameToStore,
-        ]);
-    }
-} else {
-    return redirect()->back()->with('error', __('File upload failed.'));
-}
+                if ($employee_document) {
+                    $employee_document->document_value = $fileNameToStore;
+                    $employee_document->save();
+                } else {
+                    EmployeeDocument::create([
+                        'employee_id' => $employee->employee_id,
+                        'document_id' => $key,
+                        'document_value' => $fileNameToStore,
+                    ]);
+                }
+            } else {
+                return redirect()->back()->with('error', __('File upload failed.'));
+            }
 
                     }
                 }
@@ -1351,16 +1351,16 @@ if ($path) {
         if($employee->category == 'Regular'){
             if ($joiningDate->year < $today->year || $probationEndDate->year < $today->year) {
                 $annualTotal = 12 * 2.5;
-                $casualTotal = 12 * 0.8;
+                $casualTotal = 12 * 0.833;
             } elseif ($today->greaterThanOrEqualTo($probationEndDate)) {
                 $remainingAnnualMonths = 12 - $probationEndDate->month + 1;
                 $annualTotal = $remainingAnnualMonths * 2.5;
 
                 $remainingCasualMonths = 12 - $today->month + 1;
-                $casualTotal = $remainingCasualMonths * 0.8;
+                $casualTotal = $remainingCasualMonths * 0.833;
             } else {
                 $remainingCasualMonths = 12 - $today->month + 1;
-                $casualTotal = $remainingCasualMonths * 0.8;
+                $casualTotal = $remainingCasualMonths * 0.833;
 
                 return redirect()->route('employee.index')->with('error', __('Employee probation not ended yet. Only casual leaves considered.'));
             }
@@ -1458,7 +1458,7 @@ if ($path) {
             $casualTotal = 0;
             if($emp->category == 'Regular'){
                 $remainingCasualMonths = 12 - $today->month ;
-                $casualTotal = $remainingCasualMonths * 0.8;
+                $casualTotal = $remainingCasualMonths * 0.833;
                 $remainingAnnualMonths = 12 - $today->month;
                 $annualTotal = $remainingAnnualMonths * 2.5;
             }else{

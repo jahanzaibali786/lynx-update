@@ -126,8 +126,25 @@ class EmployeeMonthlySalaryAttendance extends Controller
     {
         $date = $request->input('date');
         $inputDate = Carbon::parse($date);
-        $fromDate = $inputDate->copy()->startOfMonth();
-        $toDate = $inputDate->copy()->endOfMonth();
+        $day = $inputDate->day;
+        $base = Carbon::parse($date);
+
+        $fromDate = $base->copy()->day(25);
+
+        if ($base->day < 25) {
+            $fromDate->subMonth();
+        }
+
+        $toDate = $fromDate->copy()->addMonth()->day(25)->endOfDay();
+        if ($day >= 25) {
+            // current month 25th → next month 25th
+            $fromDate = $inputDate->copy()->day(25);
+            $toDate   = $inputDate->copy()->addMonth()->day(25);
+        } else {
+            // previous month 25th → current month 25th
+            $fromDate = $inputDate->copy()->subMonth()->day(25);
+            $toDate   = $inputDate->copy()->day(25);
+        }
 
         $skippedEmployees = []; // <-- Collect skipped entries
 
@@ -191,7 +208,6 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     continue;
                 }
 
-                $fromDate = Carbon::create($toDate->year, $toDate->month, 1);
                 $joiningDate = Carbon::parse($employee->company_doj);
                 $diffInDays = 0;
                 // if (strtolower($employee->department->name) == 'academic') {
@@ -509,31 +525,23 @@ class EmployeeMonthlySalaryAttendance extends Controller
             $fromDate = now()->firstOfMonth();
             $toDate = now()->lastOfMonth();
         }
+             $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $departments->prepend('All', 'all');
+            $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $designations->prepend('All', 'all');
         // dd($fromDate,$toDate);
         if (\Auth::user()->type == 'Employee') {
             $branchesList = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branchesList->prepend('Select Branch', '');
-            $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $departments->prepend('All', 'all');
-            $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $designations->prepend('All', 'all');
             $salaryheads = SalaryHeads::where('owned_by', \Auth::user()->ownedId())->get();
         } elseif (\Auth::user()->type == 'company') {
             $branchesList = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
             $branchesList->prepend(\Auth::user()->name, \Auth::user()->id);
             $branchesList->prepend('Select Branch', '');
-            $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $departments->prepend('All', 'all');
-            $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $designations->prepend('All', 'all');
             $salaryheads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
         } else {
             $branchesList = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branchesList->prepend('Select Branch', '');
-            $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $departments->prepend('All', 'all');
-            $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $designations->prepend('All', 'all');
             $salaryheads = SalaryHeads::where('owned_by', \Auth::user()->ownedId())->get();
         }
         // $datas = collect();
@@ -784,13 +792,24 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 //         $loanAmount = $loan->per_month_amount;
                 //     }
                 // }
+                 $loanAmount = 0;
+                $securityAmount = 0;
+
                 if ($data->employee->employee_loan) {
+
                     $loan = $data->employee->employee_loan;
+
                     $loanStartDate = Carbon::parse($loan->from_pay_month)->startOfMonth();
                     $loanEndDate = Carbon::parse($loan->loan_ended)->endOfMonth();
                     $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
+
                     if ($toDateStartOfMonth->between($loanStartDate, $loanEndDate)) {
-                        $loanAmount = $loan->per_month_amount;
+
+                        if ($loan->emp_sec == 'security') {
+                            $securityLoanAmount = $loan->per_month_amount;
+                        } else {
+                            $loanAmount = $loan->per_month_amount;
+                        }
                     }
                 }
 
@@ -810,7 +829,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 }
                 // dd($monthTax, $data->employee_id, $taxYear, $daysInPeriod, $data->month_days, $payscalesauto->employeeScaleHeads, $addition);
 
-                $deduction = $loanAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $lastPayscaleDetail->eobi + $lastPayscaleDetail->other_deduction + $lastPayscaleDetail->advance;
+                 $deduction = $loanAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $lastPayscaleDetail->eobi + $lastPayscaleDetail->other_deduction + $lastPayscaleDetail->advance + $securityLoanAmount;
                 // dd($basicSalary, $grossSalary,$deduction);
                 $net_sal = ($grossSalary  - $deduction) > 0 ? ($grossSalary  - $deduction) : 0;
 
@@ -842,6 +861,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'eobi' => $lastPayscaleDetail ? $lastPayscaleDetail->eobi : '0',
                     'eobi_employer' => $lastPayscaleDetail ? round($lastPayscaleDetail->eobi_employer) : '0',
                     'dedu' => $lastPayscaleDetail ? round($lastPayscaleDetail->other_deduction) : '0',
+				 	'emp_sec_loan' => $securityLoanAmount ? round($securityLoanAmount) : '0',
                     'tra_course' => 0,
                     'sal_advance' => $advanceAmount ? round($advanceAmount) : '0',
                     'prc_final' => 0,
@@ -855,7 +875,6 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $employeemonthlysal->created_at = $created_date ?? Carbon::now();
                 $employeemonthlysal->created_at = $created_date ?? Carbon::now();
                 $employeemonthlysal->save();
-                // dd($employeemonthlysal);
                 // $newitems = [];
                 $i = 0;
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {
@@ -910,6 +929,12 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'name' => 'Employee Security Payable',
                             'debit' => 0,
                             'credit' => round($employeemonthlysal->emp_sec),
+                        ],
+						[
+                            'account_id' => $lastPayscaleDetail->security_receive_account,
+                            'name' => 'Employee Security Payable',
+                            'debit' => 0,
+                            'credit' => round($employeemonthlysal->emp_sec_loan),
                         ],
                         // Cr: Income Tax Payable
                         [
@@ -1048,15 +1073,35 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 ($s->drns ?? 0) +
                 ($s->other_add ?? 0) ;
         });
+		$prevSalAmnt = 0;
 
-        $prevBasicHouse = $prevPaid->flatMap(function ($m) {
-            return $m->scaleHeads;
-        })->filter(function ($h) {
-            return $h->SalaryHead &&
-                in_array($h->SalaryHead->head, ['Initial Basic', 'House Rent']);
-        })->sum('head_value');
+        foreach ($prevPaid as $sal) {
 
-        $prevSalAmnt = $prevBasicHouse + $prevOtherAdds;
+                // foreach ($sal->salary_heads as $head) {
+                //     if (
+                //         $head->SalaryHead &&
+                //         in_array($head->SalaryHead->head, ['Initial Basic', 'House Rent'])
+                //     ) {
+                //         $prevSalAmnt += $head->head_value;
+                //     }
+                // }
+
+                 foreach ($sal->scaleHeads as $head) {
+                    if (
+                        $head->SalaryHeads &&
+                        in_array($head->SalaryHeads->head, ['Initial Basic', 'House Rent'])
+                    ) {
+                        $prevSalAmnt += $head->head_value;
+                    }
+                }
+
+                $prevSalAmnt +=
+                    ($sal->conv ?? 0) +
+                    ($sal->misc ?? 0) +
+                    ($sal->drns ?? 0) +
+                    ($sal->other_add ?? 0) +
+                    ($sal->chaild_con ?? 0);
+            }
 
         // -----------------------------
         // 3. CURRENT SCALE SALARY
@@ -1080,6 +1125,13 @@ class EmployeeMonthlySalaryAttendance extends Controller
         $projectedIncome = $monthlyBase * $months;
 
         $yearlySal = $prevSalAmnt + $projectedIncome;
+        // -----------------------------
+        // 6. TAX YEAR
+        // -----------------------------
+        $currentYear = date('Y');
+        if ($currentMonth <= 6) {
+            $currentYear--;
+        }
 
         // -----------------------------
         // 5. TAX SLAB
@@ -1125,10 +1177,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
             return 0;
         }
 
-        $dailyTax = $monthlyTax / $monthDays;
+        // $dailyTax = $monthlyTax / $monthDays;
 
-        $finalTax = round($dailyTax * $workingDays);
-
+        // $finalTax = round($dailyTax * $workingDays);
+        $finalTax = round($monthlyTax);
         return max($finalTax, 0);
     }
     // return response()->json([

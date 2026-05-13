@@ -18,6 +18,59 @@ use Illuminate\Http\Request;
 
 class LoanController extends Controller
 {
+    private function normalizeMonthDate($value)
+    {
+        if (is_string($value) && preg_match('/^\d{4}-\d{2}$/', $value)) {
+            return $value . '-01';
+        }
+
+        return $value;
+    }
+
+    private function normalizeLoanMonthDates(Request $request)
+    {
+        $request->merge([
+            'from_pay_month' => $this->normalizeMonthDate($request->input('from_pay_month')),
+            'loan_ended' => $this->normalizeMonthDate($request->input('loan_ended')),
+            'date' => $this->normalizeMonthDate($request->input('date')),
+            'paid_from' => $this->normalizeMonthDate($request->input('paid_from')),
+        ]);
+    }
+
+    private function hasGeneratedSalaryFromMonth($employeeId, $monthDate)
+    {
+        $month = \Carbon\Carbon::parse($monthDate)->startOfMonth();
+
+        return EmployeeMonthlySalary::where('employee_id', $employeeId)
+            ->whereDate('salary_date', '>=', $month->format('Y-m-d'))
+            ->exists();
+    }
+
+    private function createLoanVoucher(Loan $loan, BankAccount $bankAccount, $paymentMethod)
+    {
+        $data['id'] = $loan->id;
+        $data['date'] = $loan->approval_date;
+        $data['no'] = $loan->id;
+        $data['reference'] = $loan->referance_id;
+        $data['description'] = $loan->reason;
+        $data['prod_id'] = $loan->id;
+        $data['amount'] = $loan->amount;
+        $data['category'] = 'Loan';
+        $data['owned_by'] = $loan->owned_by;
+        $data['created_by'] = $loan->created_by;
+        $data['account_id'] = $bankAccount->chart_account_id;
+        $data['bank_id'] = $bankAccount->id;
+        $data['user_id'] = $loan->employee_id;
+        $data['user_type'] = 'employee';
+        $data['types'] = 'Loan Payment';
+        $data['loan_account'] = $loan->chartaccount_id;
+        $data['created_at'] = now();
+
+        return $paymentMethod === 'cash'
+            ? Utility::cpv_entry($data)
+            : Utility::bpv_entry($data);
+    }
+
     public function index(Request $request)
     {
         if (\Auth::user()->type == 'company') {
@@ -133,6 +186,7 @@ class LoanController extends Controller
         if (\Auth::user()->can('create loan')) {
             \DB::beginTransaction();
             try {
+                $this->normalizeLoanMonthDates($request);
 
                 $validator = \Validator::make(
                     $request->all(),
@@ -148,6 +202,7 @@ class LoanController extends Controller
                 ]);
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
+                    \DB::rollback();
                     return redirect()->back()->with('error', $messages->first());
                 }
 
@@ -223,6 +278,8 @@ class LoanController extends Controller
     {
         if (\Auth::user()->can('edit loan')) {
             if ($loan->created_by == \Auth::user()->creatorId()) {
+                $this->normalizeLoanMonthDates($request);
+
                 $validator = \Validator::make(
                     $request->all(),
                     [
@@ -230,6 +287,8 @@ class LoanController extends Controller
                         'employee_id' => 'required|integer',
                         'title' => 'required|string',
                         'amount' => 'required|numeric',
+                        'emp_sec' => 'required|string',
+                        'maxamount' => 'required|numeric',
                         'from_pay_month' => 'required|date',
                         'pay_period' => 'required|integer',
                         'loan_ended' => 'required|date',
@@ -250,12 +309,16 @@ class LoanController extends Controller
                 $loan->branches = $request->input('branches');
                 $loan->employee_id = $request->input('employee_id');
                 $loan->title = $request->input('title');
+                $loan->department = $request->input('department');
                 $loan->amount = $amount;
+                $loan->maxamount = $request->input('maxamount');
+                $loan->emp_sec = $request->input('emp_sec');
+                $loan->service_tenure = $request->input('service_tenure');
                 $loan->from_pay_month = $request->input('from_pay_month');
                 $loan->pay_period = $pay_period;
                 $loan->loan_ended = $request->input('loan_ended');
                 $loan->reason = $request->input('reason');
-                $loan->per_month_amount = $per_month_amount;
+                $loan->per_month_amount = round($per_month_amount);
                 $loan->received_amount = $received_amount;
                 $loan->status = $status;
                 $loan->save();
@@ -329,11 +392,18 @@ class LoanController extends Controller
             $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
             $subAccounts = $subAccounts->get()->toArray();
             $loan = Loan::with('employee')->where('id', $id)->first();
-        return view('employee.loan.status',compact('loan','accounts','subAccounts','bank_accounts'));
+            $latestGeneratedSalary = EmployeeMonthlySalary::where('employee_id', $loan->employee_id)
+                ->orderBy('salary_date', 'desc')
+                ->first();
+            $latestGeneratedSalaryMonth = $latestGeneratedSalary ? \Carbon\Carbon::parse($latestGeneratedSalary->salary_date)->format('Y-m') : '';
+            $latestGeneratedSalaryText = $latestGeneratedSalary ? \Carbon\Carbon::parse($latestGeneratedSalary->salary_date)->format('M Y') : '';
+        return view('employee.loan.status',compact('loan','accounts','subAccounts','bank_accounts','latestGeneratedSalaryMonth','latestGeneratedSalaryText'));
     }
     public function loanstatuschange(Request $request,$id){
         \DB::beginTransaction();
         try {
+            $this->normalizeLoanMonthDates($request);
+
             if($request->status == 2){
                 $loan = Loan::where('id', $id)->first();
                 $loan->status = $request->status;
@@ -345,43 +415,46 @@ class LoanController extends Controller
                 $validator = \Validator::make(
                     $request->all(),
                     [
-                    'bank_id' => 'required|integer',
-                    'account_id' => 'required|integer',
+                    'bank_id' => 'required|integer|exists:bank_accounts,id',
+                    'account_id' => 'required|integer|exists:chart_of_accounts,id',
                     'date' => 'required|date',
+                    'paid_from' => 'required|date',
+                    'amount' => 'required|numeric|min:0.01',
+                    'installment' => 'required|integer|min:1',
+                    'payment_method' => 'required|in:cash,online,check',
 
                 ]);
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
+                    \DB::rollback();
                     return redirect()->back()->with('error', $messages->first());
                 }
                     $loan = Loan::where('id', $id)->first();
+                    $amount = $request->input('amount');
+                    $payPeriod = (int) $request->input('installment');
+                    $approvalDate = \Carbon\Carbon::parse($request->date);
+                    $fromPayMonth = \Carbon\Carbon::parse($request->paid_from)->startOfMonth();
+                    $loanEnded = $fromPayMonth->copy()->addMonths($payPeriod - 1);
+
+                    if ($this->hasGeneratedSalaryFromMonth($loan->employee_id, $fromPayMonth)) {
+                        \DB::rollback();
+                        return redirect()->back()->with('error', __('From paid month salary already generated. Please select next month.'));
+                    }
+
                     $loan->status = $request->status;
-                    $loan->approval_date = $request->date;
+                    $loan->amount = $amount;
+                    $loan->pay_period = $payPeriod;
+                    $loan->from_pay_month = $fromPayMonth->format('Y-m-d');
+                    $loan->loan_ended = $loanEnded->format('Y-m-d');
+                    $loan->per_month_amount = round($amount / $payPeriod);
+                    $loan->approval_date = $approvalDate->format('Y-m-d');
                     $loan->bank_id = $request->bank_id;
                     $loan->chartaccount_id = $request->account_id;
                     $loan->referance_id = $request->reference;
                     $loan->save();
 
                     $bankAccount = BankAccount::find($request->bank_id);
-                    $data['id'] = $loan->id;
-                    $data['date'] = $loan->approval_date;
-                    $data['no']   = $loan->id;
-                    $data['reference'] = $loan->referance_id;
-                    $data['description'] = $loan->reason;
-                    $data['prod_id'] = $loan->id;
-                    $data['amount'] = $loan->amount;
-                    $data['category'] = 'Loan';
-                    $data['owned_by'] = $loan->owned_by;
-                    $data['created_by'] = $loan->created_by;
-                    $data['account_id'] = $bankAccount->chart_account_id;
-                    $data['user_id'] = $loan->employee_id;
-                    $data['user_type'] ='Employee';
-                    $data['loan_account'] = $loan->chartaccount_id;
-                    if(strtolower($bankAccount->bank_name) == 'cash' || strtolower($bankAccount->holder_name) == 'cash'){
-                        $dataret  = Utility::cpv_entry($data);
-                    }else{
-                        $dataret  = Utility::bpv_entry($data);
-                    }
+                    $dataret = $this->createLoanVoucher($loan, $bankAccount, $request->payment_method);
 
                     $loan->voucher_id = $dataret;
                     $loan->save();

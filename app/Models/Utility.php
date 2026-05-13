@@ -6554,6 +6554,9 @@ public static function crv_entry($data)
         $journal->owned_by = $data['owned_by'];
         $journal->created_by = $data['created_by'];
         $journal->save();
+        $journal->created_at = $data['created_at'] ?? $journal->created_at;
+        $journal->updated_at = $data['created_at'] ?? $journal->created_at;
+        $journal->save();
 
         if (@$data['category'] == 'Purchase') {
             $journalItem = new JournalItem;
@@ -6598,10 +6601,15 @@ public static function crv_entry($data)
             $journalItem->journal = $journal->id;
             $journalItem->account = $data['account_id'];
             $journalItem->description = $data['description'];
+            $journalItem->bank_id = $data['bank_id'];
             $journalItem->credit = $data['amount'];
             $journalItem->debit = 0;
             $journalItem->entry_id = @$data['prod_id'];
+            $journalItem->types = @$data['types'];
             $journalItem->branch_id = @$data['owned_by'];
+            $journalItem->save();
+            $journalItem->created_at = $data['created_at'] ?? $journal->created_at;
+            $journalItem->updated_at = $data['created_at'] ?? $journal->created_at;
             $journalItem->save();
 
             if (! empty($data['loan_account'])) {
@@ -6610,8 +6618,12 @@ public static function crv_entry($data)
                 $journalItem->account = $data['loan_account'];
                 $journalItem->description = $data['description'];
                 $journalItem->credit = 0;
-                $journalItem->debit = $data['amount'];
+                $journalItem->debit = $data['amount'];              
+                $journalItem->types = @$data['types'];
                 $journalItem->branch_id = $data['owned_by'];
+                $journalItem->save();
+                $journalItem->created_at = $data['created_at'] ?? $journal->created_at;
+                $journalItem->updated_at = $data['created_at'] ?? $journal->created_at;
                 $journalItem->save();
             }
 
@@ -6687,6 +6699,9 @@ public static function crv_entry($data)
         $journal->owned_by = $data['owned_by'];
         $journal->created_by = $data['created_by'];
         $journal->save();
+        $journal->created_at = $data['created_at'] ?? $journal->created_at;
+        $journal->updated_at = $data['created_at'] ?? $journal->created_at;
+        $journal->save();
 
         if (@$data['category'] == 'Purchase') {
             $journalItem = new JournalItem;
@@ -6731,10 +6746,15 @@ public static function crv_entry($data)
             $journalItem->journal = $journal->id;
             $journalItem->account = $data['account_id'];
             $journalItem->description = $data['description'];
+            $journalItem->bank_id = $data['bank_id'];
             $journalItem->credit = $data['amount'];
             $journalItem->debit = 0;
             $journalItem->entry_id = @$data['prod_id'];
+            $journalItem->types = @$data['types'];
             $journalItem->branch_id = @$data['owned_by'];
+            $journalItem->save();
+            $journalItem->created_at = $data['created_at'] ?? $journal->created_at;
+            $journalItem->updated_at = $data['created_at'] ?? $journal->created_at;
             $journalItem->save();
 
             if (! empty($data['loan_account'])) {
@@ -6744,7 +6764,11 @@ public static function crv_entry($data)
                 $journalItem->description = $data['description'];
                 $journalItem->credit = 0;
                 $journalItem->debit = $data['amount'];
+                $journalItem->types = @$data['types'];
                 $journalItem->branch_id = $data['owned_by'];
+                $journalItem->save();
+                $journalItem->created_at = $data['created_at'] ?? $journal->created_at;
+                $journalItem->updated_at = $data['created_at'] ?? $journal->created_at;
                 $journalItem->save();
             }
 

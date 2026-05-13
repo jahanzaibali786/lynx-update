@@ -39,74 +39,133 @@
             }
         });
 
-        $('#loan_amount').on('input', function() {
+       $('#loan_amount').on('input', function () {
+
             var loanAmount = parseFloat($(this).val());
             var totalSecurity = parseFloat($('#max_amount').val());
             var selectedType = $('#total_sec').val();
+
             if (selectedType == 'security') {
+
                 if (isNaN(totalSecurity) || totalSecurity <= 0) {
+
                     $('#loan_error').text('(Security amount must be greater than 0 to take a loan.)');
                     $('#submit_btn').prop('disabled', true);
-                } else if (max_amount) {
+
+                } else if (loanAmount > totalSecurity) {
+
                     $('#loan_error').text('(Loan amount cannot exceed ' + totalSecurity + ')');
                     $('#submit_btn').prop('disabled', true);
+
                 } else {
+
                     $('#loan_error').text('');
                     $('#submit_btn').prop('disabled', false);
                 }
+
             } else {
+
                 $('#loan_error').text('');
                 $('#submit_btn').prop('disabled', false);
             }
+            calculatePerMonth();
         });
 
         $('#total_sec').on('change', function() {
             var selectedType = $(this).val();
-            if (selectedType !== 'security') {
+            if (selectedType != 'security') {
                 $('#loan_amount').val('');
                 $('#loan_error').text('');
                 $('#submit_btn').prop('disabled', false);
             }
+            $('#loan_amount').trigger('input');
         });
 
     });
+    function calculatePerMonth() {
+
+        var loanAmount = parseFloat($('#loan_amount').val());
+        var payPeriod = parseInt($('#pay_date').val());
+
+        // Validate
+        if (
+            isNaN(loanAmount) ||
+            isNaN(payPeriod) ||
+            payPeriod <= 0
+        ) {
+
+            $('#permonth').val('');
+
+            return;
+        }
+
+        // Calculate installment per month
+        var perMonth = loanAmount / payPeriod;
+
+        // Set value with 2 decimal
+        $('#permonth').val(perMonth.toFixed(2));
+    }
     ///
+    function formatMonthValue(date) {
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        return date.getFullYear() + '-' + month;
+    }
+
+    function monthValueToDate(value) {
+        return value ? new Date(value + '-01T00:00:00') : null;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
-        var today = new Date().toISOString().split('T')[0];
-        document.getElementById('from_pay_month').setAttribute('min', today);
+        document.getElementById('from_pay_month').setAttribute('min', formatMonthValue(new Date()));
     });
 
     document.getElementById('pay_date').addEventListener('keyup', function() {
         updateProbationEndDate();
+        calculatePerMonth();
     });
     document.getElementById('pay_date').addEventListener('change', function() {
         updateProbationEndDate();
+        calculatePerMonth();
     });
 
     document.getElementById('from_pay_month').addEventListener('change', function() {
-        var selectedDate = new Date(this.value);
+        var selectedDate = monthValueToDate(this.value);
         var today = new Date();
+        today.setDate(1);
+        today.setHours(0, 0, 0, 0);
 
         if (selectedDate < today) {
-            alert('Please select today or a future date.');
-            this.value = today.toISOString().split('T')[0];
+            alert('Please select current month or a future month.');
+            this.value = formatMonthValue(today);
         }
 
         updateProbationEndDate();
+        calculatePerMonth();
     });
+    //  create function to calculate probation end date based on pay period and from pay month
 
     function updateProbationEndDate() {
-        var p_id = parseInt($('#pay_date').val());
-        var currentDate = new Date($('#from_pay_month').val());
 
-        if (!isNaN(currentDate.getTime())) {
-            if (isNaN(p_id)) {
-                var formattedDate = currentDate.toISOString().slice(0, 10);
-                document.getElementById('loan_ended').value = formattedDate;
+        var p_id = parseInt($('#pay_date').val());
+        var currentDate = monthValueToDate($('#from_pay_month').val());
+
+        if (currentDate && !isNaN(currentDate.getTime())) {
+
+            if (isNaN(p_id) || p_id <= 0) {
+
+                var formattedDate = formatMonthValue(currentDate);
+                $('#loan_ended').val(formattedDate);
+
             } else {
-                var futureDate = new Date(currentDate.setMonth(currentDate.getMonth() + p_id));
-                var formattedDate = futureDate.toISOString().slice(0, 10);
-                document.getElementById('loan_ended').value = formattedDate;
+
+                var futureDate = new Date(currentDate);
+
+                // subtract 1 because current month is first installment
+                futureDate.setMonth(futureDate.getMonth() + (p_id - 1));
+
+                var formattedDate = formatMonthValue(futureDate);
+
+                $('#loan_ended').val(formattedDate);
             }
         }
     }
@@ -268,18 +327,18 @@
         <div class="form-group col-md-3">
             {{ Form::label('amount', __('Loan Amount'), ['class' => 'form-label amount_label']) }}<span
                 class="text-danger" id="loan_error"></span>
-            {{ Form::number('amount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '0.01', 'id' => 'loan_amount']) }}
+            {{ Form::number('amount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '1', 'id' => 'loan_amount']) }}
         </div>
         <div class="form-group col-md-3">
             {{ Form::label('maxamount', __('Max Amount'), ['class' => 'form-label amount_label']) }}<span
                 class="text-danger" id="loan_error"></span>
-            {{ Form::number('maxamount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '0.01', 'id' => 'max_amount', 'readonly' => 'readonly']) }}
+            {{ Form::number('maxamount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '1', 'id' => 'max_amount', 'readonly' => 'readonly']) }}
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-3">
             {{ Form::label('from_pay_month', __('From Pay Month'), ['class' => 'form-label']) }}
-            {{ Form::date('from_pay_month', null, ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::month('from_pay_month', null, ['class' => 'form-control', 'required' => 'required']) }}
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-3">
             {!! Form::label('pay_period', __('Pay Months'), ['class' => 'form-label']) !!}
             {!! Form::number('pay_period', 1, [
                 'class' => 'form-control',
@@ -288,9 +347,14 @@
                 'min' => '1',
             ]) !!}
         </div>
-        <div class="form-group col-md-4">
-            {{ Form::label('loan_ended', __('Till Month'), ['class' => 'form-label']) }}
-            {{ Form::date('loan_ended', null, ['class' => 'form-control', 'id' => 'loan_ended', 'readonly' => 'readonly']) }}
+        <div class="form-group col-md-3">
+            {{ Form::label('loan_ended', __('To Month'), ['class' => 'form-label']) }}
+            {{ Form::month('loan_ended', null, ['class' => 'form-control', 'id' => 'loan_ended', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-3">
+            {{ Form::label('permonth', __('Installment Per Month'), ['class' => 'form-label amount_label']) }}<span
+                class="text-danger" id="loan_error"></span>
+            {{ Form::number('permonth', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '1', 'id' => 'permonth', 'readonly' => 'readonly']) }}
         </div>
         <div class="col-md-12">
             <div class="form-group">

@@ -12,6 +12,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
 {
@@ -37,7 +38,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
         // ==============================
         // HEADER
         // ==============================
-        $header = ['Emp No', 'Scale', 'Name', 'Designation', 'DOJ', 'Basic'];
+        $header = ['Sr#','Dept Sr#','Emp No', 'Scale', 'Name', 'Designation', 'DOJ', 'Basic'];
 
         foreach ($this->salaryHeads as $h) {
             $header[] = $h->head;
@@ -47,9 +48,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
             'Other', 'Stop Salary', 'Gross',
             'ES', 'IT', 'Adv', 'EOBI', 'Loan Sec', 'Stop', 'PESSI', 'other', 'Loan',
             'Net', 'PESSI Comp', 'EOBI Comp', 'Total Cost', 'Cost To Comp',
-            'CL OP', 'CL Used', 'CL Bal',
-            'AL OP', 'AL Used', 'AL Bal',
-            'Days',
+            'OP', 'Lvs', 'Bal','OP', 'Lvs', 'Bal','Days',
         ]);
 
         $rows[] = $header;
@@ -57,15 +56,16 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
         // ==============================
         // GROUPING
         // ==============================
-        $grouped = $this->datas->sortBy('employee.department.name')->groupBy('employee.department_id');
+        $grouped = $this->datas->sortBy('salarydepartment.name')->groupBy('department_id');
 
         $grandTotals = array_fill(0, count($header), 0);
-
+        $globalSr = 1;
         foreach ($grouped as $deptId => $items) {
 
             // ==============================
             // DEPARTMENT ROW (TRACK INDEX)
             // ==============================
+            $deptSr = 1;
             $deptRowIndex = count($rows) + 1 + 7; // +6 for title rows
             $this->departmentRows[] = $deptRowIndex;
 
@@ -80,7 +80,8 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $e = $data->employee->employee_monthly_salaries_attend->first();
 
                 $row = [];
-
+                $row[] = $globalSr++;
+                $row[] = $deptSr++;
                 $row[] = $data->employee->employee_id ?? '';
                 $row[] = $data->scale_no ?? '';
                 $row[] = $data->employee->name ?? '';
@@ -101,7 +102,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
 
                 $row[] = $data->emp_sec ?? 0;
                 $row[] = $data->it ?? 0;
-                $row[] = $p->advance ?? 0;
+                $row[] = $data->advance ?? 0;
                 $row[] = $data->eobi ?? 0;
                 $row[] = $data->emp_sec_loan ?? 0;
                 $row[] = $data->stop_sal ?? 0;
@@ -135,7 +136,6 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $row[] = $data->sal_days ?? 0;
 
                 $rows[] = $row;
-
                 // Totals
                 foreach ($row as $i => $val) {
                     if (is_numeric($val)) {
@@ -160,7 +160,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
     public function columnFormats(): array
     {
         return [
-            'E' => 'dd-mmm-yyyy',
+            'G' => 'dd-mmm-yyyy',
         ];
     }
 
@@ -171,7 +171,8 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
             AfterSheet::class => function ($event) {
 
                 $sheet = $event->sheet->getDelegate();
-
+                $highestColumn = $sheet->getHighestColumn();
+                $lastRow = $sheet->getHighestRow(); 
                 // ==============================
                 // ✅ PAGE SETUP (PRINT SETTINGS)
                 // ==============================
@@ -188,7 +189,9 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $sheet->getPageSetup()->setFitToHeight(0);
 
                 // Repeat header row
+                $sheet->freezePane('A2'); 
                 $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(7, 8);
+
 
                 // Margins
                 $sheet->getPageMargins()->setTop(0.5);
@@ -208,21 +211,26 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $sheet->insertNewRowBefore(1, 7);
 
                 $sheet->setCellValue('A1', 'The Lynx School');
-                $sheet->setCellValue('A3', 'Salary History Report');
+                   if ($this->requestdata['branches'] && $this->requestdata['branches'] != 'all') {
+                    $branchName = \App\Models\User::find($this->requestdata['branches'])->name ?? '';
+                    $sheet->setCellValue('A3', "{$branchName}");
+                } else {
+                    $sheet->setCellValue('A3', "All Branches");
+                }
                 $sheet->setCellValue('A5', 'Salary Sheet Report for '.date('F Y', strtotime($this->requestdata['date'])));
 
                 $sheet->setCellValue('A7', 'EMPLOYEES DETAIL');
-                $sheet->setCellValue('G7', 'ALLOWANCES');
-                $sheet->setCellValue('N7', 'DEDUCTION');
-                $sheet->setCellValue('X7', 'Cost to School');
-                $sheet->setCellValue('AB7', 'CL');
-                $sheet->setCellValue('AE7', 'AL');
-                $sheet->mergeCells('A7:F7');   // Employee Detail
-                $sheet->mergeCells('G7:M7');   // Allowances
-                $sheet->mergeCells('N7:V7');   // Deduction
-                $sheet->mergeCells('X7:AA7');   // Cost to School
-                $sheet->mergeCells('AB7:AD7'); // CL
-                $sheet->mergeCells('AE7:AG7'); // AL
+                $sheet->setCellValue('H7', 'ALLOWANCES');
+                $sheet->setCellValue('P7', 'DEDUCTION');
+                $sheet->setCellValue('Z7', 'Cost to School');
+                $sheet->setCellValue('AD7', 'CL');
+                $sheet->setCellValue('AG7', 'AL');
+                $sheet->mergeCells('A7:G7');   // Employee Detail
+                $sheet->mergeCells('H7:N7');   // Allowances
+                $sheet->mergeCells('P7:X7');   // Deduction
+                $sheet->mergeCells('Z7:AC7'); // CL
+                $sheet->mergeCells('AD7:AF7'); // CL
+                $sheet->mergeCells('AG7:AI7'); // AL
 
                 $highestColumn = $sheet->getHighestColumn();
 
@@ -267,7 +275,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 for ($r = 1; $r <= $lastRow; $r++) {
                     $cellValue = strtoupper($sheet->getCell("A{$r}")->getValue());
                     if ((strpos($cellValue, 'GRAND') !== false && strpos($cellValue, 'TOTAL') !== false) || (strpos($cellValue, 'DEPARTMENT') !== false && strpos($cellValue, 'TOTAL') !== false)) {
-                        $sheet->mergeCells("A{$r}:D{$r}");
+                        $sheet->mergeCells("A{$r}:G{$r}");
                         $sheet->setCellValue("E{$r}", '');
                         $sheet->getStyle("A{$r}:{$highestColumn}{$r}")->applyFromArray([
                             'font' => [
@@ -295,12 +303,6 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                         ]);
                     }
                 }
-                // Borders
-                // $sheet->getStyle("A7:{$highestColumn}{$lastRow}")
-                //     ->getBorders()
-                //     ->getAllBorders()
-                //     ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-
                 $sheet->getStyle("A7:{$highestColumn}{$lastRow}")
                     ->applyFromArray([
                         'borders' => [
@@ -317,11 +319,11 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                     ->getFont()->setSize(8);
 
                 // Alignment
-                $sheet->getStyle("A9:B{$lastRow}")
+                $sheet->getStyle("A9:D{$lastRow}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("F9:{$highestColumn}{$lastRow}")
+                $sheet->getStyle("H9:{$highestColumn}{$lastRow}")
                     ->getNumberFormat()->setFormatCode('#,##0');
-                $sheet->getStyle("E9:{$highestColumn}{$lastRow}")
+                $sheet->getStyle("H9:{$highestColumn}{$lastRow}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
                 // Right align numeric columns
@@ -333,15 +335,11 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 // ==============================
                 // ✅ COLUMN WIDTHS
                 // ==============================
-                // foreach (range('A', $highestColumn) as $col) {
-                // if ($col == 'A' || $col == 'B') {
-                $sheet->getColumnDimension('B')->setWidth(8);
-                // } elseif ($col == 'C') {
-                $sheet->getColumnDimension('D')->setWidth(20);
-                //     } else {
-                //         $sheet->getColumnDimension($col)->setAutoSize(true);
-                //     }
-                // }
+
+                $sheet->getColumnDimension('E')->setWidth(25);
+                $sheet->getColumnDimension('F')->setWidth(20);
+
+                $sheet->getStyle("E1:F{$lastRow}")->getAlignment()->setWrapText(true);
 
                 // ==============================
                 // ✅ FOOTER SIGNATURE
@@ -349,7 +347,11 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $sigRow = $lastRow + 2;
 
                 $sheet->setCellValue("B{$sigRow}", '________________________');
-                $sheet->setCellValue("{$highestColumn}{$sigRow}", '________________________');
+                $from = Coordinate::stringFromColumnIndex($lastRow - 1);
+                $to   = Coordinate::stringFromColumnIndex($lastRow);
+
+                $sheet->mergeCells("{$from}{$sigRow}:{$to}{$sigRow}")
+                    ->setCellValue("{$from}{$sigRow}", '________________________');
 
                 $sheet->getStyle("B{$sigRow}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
@@ -378,13 +380,13 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $drawing = new Drawing;
                 $drawing->setPath($tmpPath);
                 $drawing->setHeight(70);
-                $drawing->setCoordinates("{$highestColumn}1");
+                $drawing->setCoordinates("{$from}1");
                 $drawing->setWorksheet($sheet);
 
                 foreach ($this->departmentRows as $rowIndex) {
 
                     // ✅ Merge A → F
-                    $sheet->mergeCells("A{$rowIndex}:F{$rowIndex}");
+                    $sheet->mergeCells("A{$rowIndex}:H{$rowIndex}");
 
                     // 🎨 Style department row
                     $sheet->getStyle("A{$rowIndex}:{$highestColumn}{$rowIndex}")

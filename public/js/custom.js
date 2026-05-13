@@ -88,11 +88,24 @@ function show_toastr(type, message) {
 $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true"], div[data-ajax-popup="true"]', function () {
 
     var data = {};
-    var title1 = $(this).data("bs-toggle");
-    var title2 = $(this).data("bs-original-title");
-    var title3 = $(this).data("original-title");
-    var title = (title1 != undefined) ? title1 : title2;
-    var title = (title != undefined) ? title : title3;
+    var title = $(this).data("title");
+
+    if (title == undefined || title === '') {
+        title = $(this).data("bs-title");
+    }
+
+    if (title == undefined || title === '') {
+        title = $(this).data("bs-original-title");
+    }
+
+    if (title == undefined || title === '') {
+        title = $(this).data("original-title");
+    }
+
+    if (title == undefined || title === '') {
+        var toggleTitle = $(this).data("bs-toggle");
+        title = (toggleTitle != undefined && toggleTitle !== 'tooltip') ? toggleTitle : '';
+    }
 
     $('.modal-dialog').removeClass('modal-xl');
     var size = ($(this).data('size') == '') ? 'md' : $(this).data('size');

@@ -49,31 +49,24 @@ class EmployeeSalaryDetail extends Controller
     public function index(Request $request)
     {
         if (\Auth::user()->can('manage employee')) {
+                $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $departments->prepend('All', 'all');
+                $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $designations->prepend('All', 'all');
+
             if (\Auth::user()->type == 'Employee') {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $departments->prepend('All', 'all');
-                $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $designations->prepend('All', 'all');
                 $query = Employee::where('user_id', '=', Auth::user()->id);
             } else if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-                $departments->prepend('All', 'all');
-                $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-                $designations->prepend('All', 'all');
                 $query = Employee::with([
                     'employee_payscale_details',
                 ])->where('created_by', \Auth::user()->creatorId());
             } else {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-                $departments->prepend('All', 'all');
-                $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-                $designations->prepend('All', 'all');
                 $query = Employee::with([
                     'employee_payscale_details',
                 ])->where('owned_by', \Auth::user()->ownedId());
@@ -234,6 +227,7 @@ class EmployeeSalaryDetail extends Controller
     {
         $empId = Crypt::decrypt($id);
         $employee_dept = Employee::where('id', $empId)->first();
+        $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         if (\Auth::user()->type == 'company') {
             $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
                 ->where('created_by', \Auth::user()->creatorId())
@@ -243,7 +237,6 @@ class EmployeeSalaryDetail extends Controller
                 ->get()
                 ->pluck('name', 'id');
             $payableaccounts->prepend('Select Accounts', '');
-            $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $payscales = EmployeeScale::with('employeeScaleHeads')
             ->where('department_id', $employee_dept->department_id)
             ->where('status', 1)
@@ -258,7 +251,6 @@ class EmployeeSalaryDetail extends Controller
                 ->get()
                 ->pluck('name', 'id');
             $payableaccounts->prepend('Select Accounts', '');
-            $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $payscales = EmployeeScale::with('employeeScaleHeads')
             ->where('department_id', $employee_dept->department_id)
             ->where('status', 1)
@@ -1519,7 +1511,6 @@ class EmployeeSalaryDetail extends Controller
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-
         if ($date || $department_id || $designation_id || $branches) {
 
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -1565,9 +1556,9 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if ($branches) {
-                $query->whereHas('employee', function ($query) use ($branches) {
-                    $query->where('branch_id', $branches);
-                });
+                // $query->whereHas('employee', function ($query) use ($branches) {
+                        $query->where('owned_by', $branches);
+                    // });
             }
             if ($designation_id && $designation_id != 'all') {
                 $query->whereHas('employee', function ($query) use ($designation_id) {
@@ -1603,11 +1594,40 @@ class EmployeeSalaryDetail extends Controller
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches) {
+
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
-                $query = EmployeeMonthlySalary::with('employee', 'employee.designation')->where('created_by', '=', \Auth::user()->creatorId());
+                $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
+
+                $query = EmployeeMonthlySalary::with([
+                    'employee',
+                    'employee.designation',
+                    'salary_heads',
+                    'employee.employee_payscale_details',
+                    'employee.employee_payscale_details.scale',
+                    'employee.employee_monthly_salaries_attend' => function ($query) use ($fromDate, $toDate) {
+                        $query->where(function ($query) use ($fromDate, $toDate) {
+                            $query->whereYear('for_month_of', $toDate->year)
+                                ->whereMonth('for_month_of', $toDate->month);
+                        });
+                    },
+                ])->where('created_by', '=', \Auth::user()->creatorId());
             } else {
-                $query = EmployeeMonthlySalary::with('employee', 'employee.designation')->where('on_hold', 0)->where('owned_by', '=', \Auth::user()->ownedId());
+                $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
+                $query = EmployeeMonthlySalary::with([
+                    'employee',
+                    'employee.designation',
+                    'salary_heads',
+                    'employee.employee_payscale_details',
+                    'employee.employee_payscale_details.scale',
+                    'employee.employee_monthly_salaries_attend' => function ($query) use ($fromDate, $toDate) {
+                        $query->where(function ($query) use ($fromDate, $toDate) {
+                            $query->whereYear('for_month_of', $toDate->year)
+                                ->whereMonth('for_month_of', $toDate->month);
+                        });
+                    },
+                ])->where('owned_by', '=', \Auth::user()->ownedId());
             }
+
             if ($date) {
                 $query->whereYear('salary_date', $toDate->year)
                     ->whereMonth('salary_date', $toDate->month);
@@ -1617,21 +1637,33 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('department_id', $department_id);
                 });
             }
-            // dd($query->first());
             if ($branches) {
-                $query->whereHas('employee', function ($query) use ($branches) {
-                    $query->where('branch_id', $branches);
-                });
+                // $query->whereHas('employee', function ($query) use ($branches) {
+                        $query->where('owned_by', $branches);
+                    // });
             }
             if ($designation_id && $designation_id != 'all') {
                 $query->whereHas('employee', function ($query) use ($designation_id) {
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->get();
+            $datas = $query->orderBy('department_id')->get();
+        } else {
+            return redirect()->back()->with('error', __('Search please.'));
         }
+        $requestdata = $request->all();
         $selectedMonthYear = $request->input('date');
-        $selectedMonthYear = date('F Y', strtotime($selectedMonthYear));
+
+        // $viewData = [
+        //     'salaryHeads' => @$salaryHeads,
+        //     'datas' => $datas,
+        //     'requestdata' => $request->all(),
+        // ];
+        $selectedMonth = date('F Y', strtotime($selectedMonthYear));
+        // just take month selectedMonth
+        $monthSelected = date('m', strtotime($selectedMonth));
+        $requestdata['month'] = $monthSelected;
+        return Excel::download(new DeductionSheetExport($salaryHeads, $datas, $requestdata), 'deduction_sheet.xlsx');
         return Excel::download(new DeductionSheetExport($datas, $selectedMonthYear), 'deduction.xlsx');
 
         // $html = view('employee.emp_salary_detail.deduction_sheet', $viewData)->render();

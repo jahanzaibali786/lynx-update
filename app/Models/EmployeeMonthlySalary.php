@@ -51,6 +51,9 @@ class EmployeeMonthlySalary extends Model
     public function employee(){
         return $this->belongsTo(Employee::class,'employee_id','id');
     }
+    public function salarydepartment(){
+        return $this->belongsTo(Department::class,'department_id','id');
+    }
     public function employee_scale(){
         return $this->belongsTo(Employee::class,'employee_id','employee_id');
     }

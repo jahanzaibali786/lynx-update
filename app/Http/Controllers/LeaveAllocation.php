@@ -66,7 +66,7 @@ class LeaveAllocation extends Controller
                             $probationEndDate->year < $today->year
                         ) {
                             $annualTotal = 12 * 2.5;
-                            $casualTotal = 12 * 0.8;
+                            $casualTotal = 12 * 0.833;
 
                         } elseif ($today->greaterThanOrEqualTo($probationEndDate)) {
 
@@ -74,11 +74,11 @@ class LeaveAllocation extends Controller
                             $annualTotal = $remainingAnnualMonths * 2.5;
 
                             $remainingCasualMonths = 12 - $effectiveDate->month + 1;
-                            $casualTotal = $remainingCasualMonths * 0.8;
+                            $casualTotal = $remainingCasualMonths * 0.833;
 
                         } else {
                             $remainingCasualMonths = 12 - $effectiveDate->month + 1;
-                            $casualTotal = $remainingCasualMonths * 0.8;
+                            $casualTotal = $remainingCasualMonths * 0.833;
                         }
                     }
                   

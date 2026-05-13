@@ -6,13 +6,16 @@
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('Loan') }}</li>
 @endsection
-<link rel="stylesheet" href="{{ asset('public/acron/searchselect.css') }}" />
-<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+
+@push('css-page')
+    <link rel="stylesheet" href="{{ asset('public/acron/searchselect.css') }}" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+@endpush
 
 @push('script-page')
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
     <script type="text/javascript" src="{{ asset('js/html2pdf.bundle.min.js') }}"></script>
-    <script src="{{ asset('public/acron/searchselect.js') }}"></script>
+     <script src="{{ asset('public/acron/searchselect.js') }}"></script>
     <script>
         function branchemployees(id) {
             $.ajax({
@@ -57,7 +60,7 @@
     @can('create loan')
         <div class="col text-end">
             <a href="#" data-url="{{ route('loan.create') }}" data-size="lg" data-ajax-popup="true"
-                 data-bs-title="{{ __('Create') }}"
+                 data-title="{{ __('Create Loan') }}" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ __('Create Loan') }}"
                 style="align-content: space-evenly;" class="apply-btn btn mx-1 btn-sm btn-outline-primary">
                 <span class="btn-inner--icon">Create</span>
             </a>
@@ -106,13 +109,13 @@
                                         <div class="col-auto mt-1">
                                             <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
                                                 onclick="document.getElementById('loan_submit').submit(); return false;"
-                                                 data-bs-title="{{ __('apply') }}"
+                                                 data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ __('apply') }}"
                                                 style="align-content: space-evenly;">
                                                 <span class="btn-inner--icon">Search</span>
                                             </a>
                                             <a href="{{ route('employee-salary-detail.index') }}"
                                                 class="btn mx-1 btn-sm btn-outline-danger" 
-                                                data-bs-title="{{ __('Reset') }}" style="align-content: space-evenly;">
+                                                data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ __('Reset') }}" style="align-content: space-evenly;">
                                                 <span class="btn-inner--icon">Clear</span>
                                             </a>
                                         </div>
@@ -136,9 +139,9 @@
                             <th>{{ __('Employee') }}</th>
                             <th>{{ __('Title') }}</th>
                             <th>{{ __('Loan Amount') }}</th>
+                            <th>{{ __('Received Amount') }}</th>
                             <th>{{ __('Deduction start Date') }}</th>
                             <th>{{ __('End Date') }}</th>
-                            <th>{{ __('Received Amount') }}</th>
                             <th>{{ __('charge amnt/mon') }}</th>
                             <th>{{ __('Status') }}</th>
                             @if (\Auth::user()->type != 'Employee')
@@ -156,9 +159,8 @@
                                     @can('show employee profile')
                                         <a style="width: 100%;" href="#" data-url="{{ route('loan.show', $loan->id) }}"
                                             data-size="lg" data-ajax-popup="true" data-title="{{ __('Loan Details') }}"
-                                             title="{{ __('Show Loan') }}"
-                                            title="{{ __('Show Loan') }}" class="apply-btn btn mx-1 btn-sm btn-outline-primary"
-                                            class="btn btn-outline-primary">{{ !empty($loan->employee->name) ? $loan->employee->name : '' }}</a>
+                                            data-bs-toggle="tooltip" data-bs-title="{{ __('Loan Details') }}"
+                                            class="apply-btn btn mx-1 btn-sm btn-outline-primary">{{ !empty($loan->employee->name) ? $loan->employee->name : '' }}</a>
                                     @else
                                         <a href="#"
                                             class="btn btn-outline-primary">{{ !empty($loan->employee->name) ? $loan->employee->name : '' }}</a>
@@ -169,55 +171,66 @@
                                 </td>
                                 <td>{{ $loan->title }}</td>
                                 <td>{{ @$loan->amount }}</td>
+                                <td>{{ @$loan->received_amount }}</td>
                                 <td>{{ @$loan->from_pay_month }}</td>
                                 <td>{{ @$loan->loan_ended }}</td>
-                                <td>{{ @$loan->received_amount }}</td>
                                 <td>{{ @$loan->per_month_amount }}</td>
                                 <td>
                                     @if ($loan->status == 0)
                                         <a style="width: 100%;" href="#"
-                                            data-url="{{ route('loan.status', $loan->id) }}" data-size="m"
+                                            data-url="{{ route('loan.status', $loan->id) }}" data-size="lg"
                                             data-ajax-popup="true" data-title="{{ __('Loan Details') }}"
-                                             title="{{ __('Update Status') }}"
+                                            data-bs-toggle="tooltip" data-bs-title="{{ __('Loan Details') }}"
                                             class="btn btn-sm {{ @$loan->status == 0 ? 'btn-outline-warning' : ($loan->status == 2 ? 'btn-outline-danger' : 'btn-outline-success') }}">{{ $loan->status == 0 ? 'Pending' : ($loan->status == 2 ? 'Rejected' : 'Approved') }}
                                         </a>
                                     @else
-                                        <button style="width: 100%; cursor:auto "
-                                            class="btn btn-sm {{ @$loan->status == 0 ? 'btn-outline-warning' : ($loan->status == 2 ? 'btn-outline-danger' : 'btn-outline-success') }}">{{ $loan->status == 1 ? 'Approved' : ($loan->status == 2 ? 'Rejected' : 'Approved') }}
+                                         <button style="width: 100%; cursor:auto; color: #fff !important;"
+                                            class="btn btn-sm {{ @$loan->status == 0 ? 'btn-warning' : ($loan->status == 2 ? 'btn-danger' : 'btn-success') }}">
+                                            {{ $loan->status == 1 ? 'Approved' : ($loan->status == 2 ? 'Rejected' : 'Approved') }}
                                         </button>
                                     @endif
                                 </td>
                                 @if (\Auth::user()->type != 'Employee')
-                                    <td class="row">
-                                        <div class="action-btn  ms-3" style="align-items: center;">
-                                            <a class="btn mx-1 btn-sm btn-outline-warning"
+                                    <td>
+                                        <div class="action-btn ms-2">
+                                            <a class="mx-1 btn mx-1 btn-sm btn-outline-warning"
                                                 href="{{ route('printloan', $loan->id) }}"
-                                                style="align-content: space-evenly;" 
-                                                data-bs-title="{{ __('Print') }}"><span class="btn-inner--icon"><i
-                                                        class="fas fa-print"></i></span></a>
+                                                data-bs-toggle="tooltip"
+                                                data-bs-title="{{ __('Print') }}">
+                                                <span class="btn-inner--icon"><i class="fas fa-print"></i></span>
+                                            </a>
                                             @can('edit loan')
-                                                <a href="#" data-url="{{ URL::to('loan/' . $loan->id . '/edit') }}"
-                                                    data-size="lg" data-ajax-popup="true"
-                                                    class="mx-1 btn btn-sm  btn-outline-primary align-items-center"
-                                                     data-bs-title="{{ __('Edit') }}"
-                                                    style="align-content: space-evenly;"><span class="btn-inner--icon">
-                                                        <i class="ti ti-pencil"></i></span></a>
+                                                 @if(
+                                                        (in_array($loan->status, [0, 1, 2]) && Auth::user()->type == 'company') ||
+                                                        in_array($loan->status, [0, 2])
+                                                    )
+                                                        <a href="#" data-url="{{ URL::to('loan/' . $loan->id . '/edit') }}"
+                                                            data-size="lg" data-ajax-popup="true"
+                                                            data-title="{{ __('Edit Loan') }}"
+                                                            class="mx-1 btn btn-sm btn-outline-primary"
+                                                            data-bs-toggle="tooltip"
+                                                            data-bs-title="{{ __('Edit Loan') }}">
+
+                                                            <span class="btn-inner--icon">
+                                                                <i class="ti ti-pencil"></i>
+                                                            </span>
+                                                        </a>
+                                                    @endif
                                             @endcan
                                             @if ($loan->status != 1)
                                                 @can('delete loan')
                                                     {!! Form::open([
                                                         'method' => 'DELETE',
-                                                        'class' =>'mt-3',
                                                         'route' => ['loan.destroy', $loan->id],
                                                         'id' => 'loan-delete-form-' . $loan->id,
                                                     ]) !!}
-                                                    <a href="#"
-                                                        class="mx-1 mt-3 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"
-                                                         data-bs-title="{{ __('Delete') }}"
+                                                    <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger bs-pass-para"
                                                         data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                                                        data-confirm-yes="document.getElementById('loan-delete-form-{{ $loan->id }}').submit();"><span
-                                                            class="btn-inner--icon">
-                                                            <i class="ti ti-trash "></i></span></a>
+                                                        data-confirm-yes="document.getElementById('loan-delete-form-{{ $loan->id }}').submit();"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-title="{{ __('Delete') }}">
+                                                        <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
+                                                    </a>
                                                     {!! Form::close() !!}
                                                 @endcan
                                             @endif
