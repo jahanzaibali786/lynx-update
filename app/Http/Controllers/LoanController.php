@@ -8,8 +8,12 @@ use App\Models\Department;
 use App\Models\Designation;
 use App\Models\Employee;
 use App\Models\EmployeeMonthlySalary;
+use App\Models\JournalEntry;
+use App\Models\JournalItem;
 use App\Models\Loan;
 use App\Models\LoanOption;
+use App\Models\LoanStopHistory;
+use App\Models\SalaryDeductionDetail;
 use App\Models\User;
 use App\Models\Utility;
 use Dompdf\Dompdf;
@@ -71,10 +75,111 @@ class LoanController extends Controller
             : Utility::bpv_entry($data);
     }
 
+    private function syncLoanVoucher(Loan $loan)
+    {
+        if (empty($loan->voucher_id)) {
+            return;
+        }
+
+        $journal = JournalEntry::where('id', $loan->voucher_id)
+            ->where('category', 'Loan')
+            ->first();
+
+        if (!$journal) {
+            return;
+        }
+
+        $bankAccount = BankAccount::find($loan->bank_id);
+
+        $journal->date = $loan->approval_date ?: $journal->date;
+        $journal->reference = $loan->referance_id;
+        $journal->description = 'Loan id : ' . $loan->id;
+        $journal->reference_id = $loan->id;
+        $journal->user_id = $loan->employee_id;
+        $journal->user_type = 'Employee';
+        $journal->owned_by = $loan->owned_by;
+        $journal->created_by = $loan->created_by;
+        $journal->save();
+
+        $creditLine = JournalItem::where('journal', $journal->id)
+            ->where('entry_id', $loan->id)
+            ->where('credit', '>', 0)
+            ->first();
+
+        if (!$creditLine && $bankAccount) {
+            $creditLine = JournalItem::where('journal', $journal->id)
+                ->where('account', $bankAccount->chart_account_id)
+                ->where('credit', '>', 0)
+                ->first();
+        }
+
+        if (!$creditLine) {
+            $creditLine = new JournalItem();
+            $creditLine->journal = $journal->id;
+        }
+
+        $creditLine->account = $bankAccount ? $bankAccount->chart_account_id : $creditLine->account;
+        $creditLine->description = $loan->reason;
+        $creditLine->credit = $loan->amount;
+        $creditLine->debit = 0;
+        $creditLine->entry_id = $loan->id;
+        $creditLine->branch_id = $loan->owned_by;
+        $creditLine->save();
+
+        $debitLine = JournalItem::where('journal', $journal->id)
+            ->where('account', $loan->chartaccount_id)
+            ->where('debit', '>', 0)
+            ->first();
+
+        if (!$debitLine) {
+            $debitLine = JournalItem::where('journal', $journal->id)
+                ->where('debit', '>', 0)
+                ->first();
+        }
+
+        if (!$debitLine) {
+            $debitLine = new JournalItem();
+            $debitLine->journal = $journal->id;
+        }
+
+        $debitLine->account = $loan->chartaccount_id;
+        $debitLine->description = $loan->reason;
+        $debitLine->credit = 0;
+        $debitLine->debit = $loan->amount;
+        $debitLine->branch_id = $loan->owned_by;
+        $debitLine->save();
+    }
+
+    private function getLoanReceivedAmount(Loan $loan)
+    {
+        $deductedAmount = SalaryDeductionDetail::loans()
+            ->where('reference_id', $loan->id)
+            ->sum('amount');
+
+        return max((float) $loan->received_amount, (float) $deductedAmount);
+    }
+
+    private function getLoanReceivedInstallments(Loan $loan)
+    {
+        return SalaryDeductionDetail::loans()
+            ->where('reference_id', $loan->id)
+            ->where('amount', '>', 0)
+            ->count();
+    }
+
+    private function getLatestGeneratedSalaryMonth($employeeId)
+    {
+        $latestSalary = EmployeeMonthlySalary::where('employee_id', $employeeId)
+            ->orderBy('salary_date', 'desc')
+            ->first();
+
+        return $latestSalary ? \Carbon\Carbon::parse($latestSalary->salary_date)->startOfMonth() : null;
+    }
+
     public function index(Request $request)
     {
         if (\Auth::user()->type == 'company') {
-            $query = Loan::with('employee')->where('created_by', \Auth::user()->creatorId());
+            $query = Loan::with(['employee', 'stopHistories'])->where('created_by', \Auth::user()->creatorId());
             $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
             $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -82,7 +187,7 @@ class LoanController extends Controller
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $designations->prepend('Select Designation', '');
         } else {
-            $query = Loan::with('employee')->where('owned_by', \Auth::user()->ownedId());
+            $query = Loan::with(['employee', 'stopHistories'])->where('owned_by', \Auth::user()->ownedId());
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branches->prepend('Select Branch', '');
             $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
@@ -206,6 +311,14 @@ class LoanController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
+                $latestGeneratedSalaryMonth = $this->getLatestGeneratedSalaryMonth($request->input('employee_id'));
+                $fromPayMonth = \Carbon\Carbon::parse($request->input('from_pay_month'))->startOfMonth();
+
+                if ($latestGeneratedSalaryMonth && $fromPayMonth->lte($latestGeneratedSalaryMonth)) {
+                    \DB::rollback();
+                    return redirect()->back()->with('error', __('From paid month salary already generated. Please select next month.'));
+                }
+
                 $amount = $request->input('amount');
                 $pay_period = $request->input('pay_period');
                 $per_month_amount = $amount / $pay_period;
@@ -249,6 +362,7 @@ class LoanController extends Controller
 
     public function show(Loan $loan)
     {
+        $loan->load('stopHistories');
         $employee = Employee::with('department')->where('id',$loan->employee_id)->first();
         return view('employee.loan.show',compact('loan','employee'));
     }
@@ -265,7 +379,12 @@ class LoanController extends Controller
                 $branches->prepend('Select Branch', '');
                 $employee = Employee::where('created_by', \Auth::user()->creatorId())->where('is_res_ter', 0)->get()->pluck('name', 'id');
                 $employee->prepend('Select Employee', '');
-                return view('employee.loan.edit', compact('loan', 'loan_options', 'loans', 'branches', 'employee'));
+                $receivedAmount = $this->getLoanReceivedAmount($loan);
+                $receivedInstallments = $this->getLoanReceivedInstallments($loan);
+                $latestGeneratedSalaryMonth = $this->getLatestGeneratedSalaryMonth($loan->employee_id);
+                $latestGeneratedSalaryMonthValue = $latestGeneratedSalaryMonth ? $latestGeneratedSalaryMonth->format('Y-m') : '';
+                $latestGeneratedSalaryText = $latestGeneratedSalaryMonth ? $latestGeneratedSalaryMonth->format('M Y') : '';
+                return view('employee.loan.edit', compact('loan', 'loan_options', 'loans', 'branches', 'employee', 'receivedAmount', 'receivedInstallments', 'latestGeneratedSalaryMonthValue', 'latestGeneratedSalaryText'));
             } else {
                 return response()->json(['error' => __('Permission denied.')], 401);
             }
@@ -302,9 +421,39 @@ class LoanController extends Controller
                 }
                 $amount = $request->input('amount');
                 $pay_period = $request->input('pay_period');
-                $per_month_amount = $amount / $pay_period;
-                $received_amount = 0;
-                $status = 0;
+                $received_amount = $loan->status == 1 ? $this->getLoanReceivedAmount($loan) : 0;
+                $received_installments = $loan->status == 1 ? $this->getLoanReceivedInstallments($loan) : 0;
+                $remaining_amount = $amount - $received_amount;
+                $remaining_installments = $pay_period - $received_installments;
+
+                if ($loan->status == 1) {
+                    if ($amount < $received_amount) {
+                        return redirect()->back()->with('error', __('Loan amount cannot be less than received loan amount.'));
+                    }
+
+                    if ($pay_period < $received_installments) {
+                        return redirect()->back()->with('error', __('Installment count cannot be less than received installments.'));
+                    }
+
+                    if ($remaining_amount > 0 && $remaining_installments <= 0) {
+                        return redirect()->back()->with('error', __('Please add remaining installments for remaining loan amount.'));
+                    }
+
+                    $fromPayMonth = \Carbon\Carbon::parse($request->input('from_pay_month'))->startOfMonth();
+                    $latestGeneratedSalaryMonth = $this->getLatestGeneratedSalaryMonth($loan->employee_id);
+
+                    if ($latestGeneratedSalaryMonth && $fromPayMonth->lte($latestGeneratedSalaryMonth)) {
+                        return redirect()->back()->with('error', __('From paid month salary already generated. Please select next month.'));
+                    }
+
+                    $request->merge([
+                        'loan_ended' => $remaining_installments > 0 ? $fromPayMonth->copy()->addMonths($remaining_installments - 1)->format('Y-m-d') : $fromPayMonth->format('Y-m-d'),
+                    ]);
+                }
+
+                $per_month_amount = $loan->status == 1
+                    ? ($remaining_installments > 0 ? $remaining_amount / $remaining_installments : 0)
+                    : $amount / $pay_period;
 
                 $loan->branches = $request->input('branches');
                 $loan->employee_id = $request->input('employee_id');
@@ -320,8 +469,12 @@ class LoanController extends Controller
                 $loan->reason = $request->input('reason');
                 $loan->per_month_amount = round($per_month_amount);
                 $loan->received_amount = $received_amount;
-                $loan->status = $status;
                 $loan->save();
+
+                if ($loan->status == 1) {
+                    $this->syncLoanVoucher($loan);
+                }
+
                 return redirect()->back()->with('success', __('Loan successfully updated.'));
             } else {
                 return redirect()->back()->with('error', __('Permission denied.'));
@@ -369,10 +522,14 @@ class LoanController extends Controller
                 $service_tenure = $months . ' Months';
             }
         }
+        $latestGeneratedSalaryMonth = $this->getLatestGeneratedSalaryMonth($id);
+
         return response([
             'service_tenure'=>$service_tenure,
             'total_sec'=>$total_sec,
             'emp_department'=>$employee->department->name,
+            'latest_salary_month' => $latestGeneratedSalaryMonth ? $latestGeneratedSalaryMonth->format('Y-m') : '',
+            'latest_salary_text' => $latestGeneratedSalaryMonth ? $latestGeneratedSalaryMonth->format('M Y') : '',
         ]);
     }
 
@@ -399,6 +556,122 @@ class LoanController extends Controller
             $latestGeneratedSalaryText = $latestGeneratedSalary ? \Carbon\Carbon::parse($latestGeneratedSalary->salary_date)->format('M Y') : '';
         return view('employee.loan.status',compact('loan','accounts','subAccounts','bank_accounts','latestGeneratedSalaryMonth','latestGeneratedSalaryText'));
     }
+
+    public function stop($id)
+    {
+        $loan = Loan::with(['employee', 'stopHistories'])->where('id', $id)->firstOrFail();
+
+        if (!\Auth::user()->can('edit loan') || $loan->created_by != \Auth::user()->creatorId()) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        $latestGeneratedSalary = EmployeeMonthlySalary::where('employee_id', $loan->employee_id)
+            ->orderBy('salary_date', 'desc')
+            ->first();
+        $latestGeneratedSalaryMonth = $latestGeneratedSalary ? \Carbon\Carbon::parse($latestGeneratedSalary->salary_date)->format('Y-m') : '';
+        $latestGeneratedSalaryText = $latestGeneratedSalary ? \Carbon\Carbon::parse($latestGeneratedSalary->salary_date)->format('M Y') : '';
+
+        return view('employee.loan.stop', compact('loan', 'latestGeneratedSalaryMonth', 'latestGeneratedSalaryText'));
+    }
+
+    public function stopStore(Request $request, $id)
+    {
+        $loan = Loan::where('id', $id)->firstOrFail();
+
+        if (!\Auth::user()->can('edit loan') || $loan->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->merge([
+            'stop_from_month' => $this->normalizeMonthDate($request->input('stop_from_month')),
+        ]);
+
+        $validator = \Validator::make($request->all(), [
+            'stop_from_month' => 'required|date',
+            'months' => 'required|integer|min:1',
+            'reason' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
+            return redirect()->back()->with('error', $messages->first());
+        }
+
+        $stopFromMonth = \Carbon\Carbon::parse($request->stop_from_month)->startOfMonth();
+        $months = (int) $request->months;
+        $stopToMonth = $stopFromMonth->copy()->addMonths($months - 1)->startOfMonth();
+
+        if ($this->hasGeneratedSalaryFromMonth($loan->employee_id, $stopFromMonth)) {
+            return redirect()->back()->with('error', __('From paid month salary already generated. Please select next month.'));
+        }
+
+        $loanStartMonth = \Carbon\Carbon::parse($loan->from_pay_month)->startOfMonth();
+        $loanEndMonth = \Carbon\Carbon::parse($loan->loan_ended)->startOfMonth();
+
+        if ($stopFromMonth->lt($loanStartMonth) || $stopFromMonth->gt($loanEndMonth)) {
+            return redirect()->back()->with('error', __('Stop month must be within the loan period.'));
+        }
+
+        $remainingDueMonths = $stopFromMonth->diffInMonths($loanEndMonth) + 1;
+
+        if ($months > $remainingDueMonths) {
+            return redirect()->back()->with('error', __('Loan has only :months month(s) due. Please reduce stop months.', ['months' => $remainingDueMonths]));
+        }
+
+        $overlappingStop = LoanStopHistory::where('loan_id', $loan->id)
+            ->whereDate('stop_from_month', '<=', $stopToMonth->format('Y-m-d'))
+            ->whereDate('stop_to_month', '>=', $stopFromMonth->format('Y-m-d'))
+            ->exists();
+
+        if ($overlappingStop) {
+            return redirect()->back()->with('error', __('Loan already has a stop record for selected month.'));
+        }
+
+        LoanStopHistory::create([
+            'loan_id' => $loan->id,
+            'stop_from_month' => $stopFromMonth->format('Y-m-d'),
+            'stop_to_month' => $stopToMonth->format('Y-m-d'),
+            'months' => $months,
+            'reason' => $request->reason,
+            'owned_by' => $loan->owned_by,
+            'created_by' => \Auth::user()->creatorId(),
+        ]);
+
+        $loan->loan_ended = \Carbon\Carbon::parse($loan->loan_ended)->startOfMonth()->addMonths($months)->format('Y-m-d');
+        $loan->save();
+
+        return redirect()->back()->with('success', __('Loan stopped successfully.'));
+    }
+
+    public function stopDestroy($id)
+    {
+        $history = LoanStopHistory::with('loan')->where('id', $id)->firstOrFail();
+        $loan = $history->loan;
+
+        if (\Auth::user()->type != 'company' || $loan->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $stopFrom = \Carbon\Carbon::parse($history->stop_from_month)->startOfMonth();
+        $stopTo = \Carbon\Carbon::parse($history->stop_to_month)->endOfMonth();
+
+        $salaryExists = EmployeeMonthlySalary::where('employee_id', $loan->employee_id)
+            ->whereBetween('salary_date', [$stopFrom->format('Y-m-d'), $stopTo->format('Y-m-d')])
+            ->exists();
+
+        if ($salaryExists) {
+            return redirect()->back()->with('error', __('Stop loan entry cannot be deleted because salary is already generated for stopped month.'));
+        }
+
+        $months = (int) $history->months;
+        $history->delete();
+
+        $loan->loan_ended = \Carbon\Carbon::parse($loan->loan_ended)->startOfMonth()->subMonths($months)->format('Y-m-d');
+        $loan->save();
+
+        return redirect()->back()->with('success', __('Loan stop entry deleted successfully.'));
+    }
+
     public function loanstatuschange(Request $request,$id){
         \DB::beginTransaction();
         try {

@@ -1785,7 +1785,7 @@ body.theme-10 .formTextbox:focus{
     width: 100%;
 }
 
-.btn-outline-primary, .btn-outline-success, .btn-outline-danger, .btn-outline-warning, .btn-outline-info {
+.btn-outline-primary, .btn-outline-secondary, .btn-outline-success, .btn-outline-danger, .btn-outline-warning, .btn-outline-info {
     outline: none!important;
     border: none;
     box-shadow: none!important;

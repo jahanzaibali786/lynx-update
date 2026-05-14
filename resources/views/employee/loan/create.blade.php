@@ -1,6 +1,67 @@
 <script>
     //
     $(document).ready(function() {
+        var latestGeneratedSalaryMonth = '';
+        var latestGeneratedSalaryText = '';
+
+        function addMonthsToMonthValue(value, months) {
+            var date = monthValueToDate(value);
+            if (!date) {
+                return '';
+            }
+            date.setMonth(date.getMonth() + months);
+            return formatMonthValue(date);
+        }
+
+        function getMinimumFromPayMonth() {
+            var todayMonth = formatMonthValue(new Date());
+            var salaryNextMonth = latestGeneratedSalaryMonth ? addMonthsToMonthValue(latestGeneratedSalaryMonth, 1) : '';
+
+            return salaryNextMonth || todayMonth;
+        }
+
+        function updateFromPayMonthMin() {
+            var minMonth = getMinimumFromPayMonth();
+            $('#from_pay_month').attr('min', minMonth);
+
+            if ($('#from_pay_month').val() && $('#from_pay_month').val() < minMonth) {
+                $('#from_pay_month').val(minMonth);
+            }
+        }
+
+        function validateFromPayMonth(showMessage) {
+            var fromPayMonth = $('#from_pay_month').val();
+            var minMonth = getMinimumFromPayMonth();
+            var message = '';
+
+            if (fromPayMonth && fromPayMonth < minMonth) {
+                message = latestGeneratedSalaryMonth
+                    ? 'From paid month salary already generated. Please select next month.'
+                    : 'Please select current month or a future month.';
+
+                if (latestGeneratedSalaryText) {
+                    message += ' Last salary: ' + latestGeneratedSalaryText + '.';
+                }
+            }
+
+            $('#from_pay_month_error').text(message);
+
+            if (message) {
+                $('#submit_btn').prop('disabled', true);
+                if (showMessage) {
+                    show_toastr('error', message, 'error');
+                }
+                return false;
+            }
+
+            if (!$('#loan_error').text()) {
+                $('#submit_btn').prop('disabled', false);
+            }
+            return true;
+        }
+        window.validateLoanCreateFromPayMonth = validateFromPayMonth;
+        window.getLoanCreateMinimumFromPayMonth = getMinimumFromPayMonth;
+
         $('#employee_id').change(function() {
             var employeeId = $(this).val();
             if (employeeId) {
@@ -15,7 +76,13 @@
                             $('#department').val(response.emp_department);
                             // $('#total_sec').val(response.total_sec);
                             $('#max_amount').val((response.total_sec) / 2);
+                            latestGeneratedSalaryMonth = response.latest_salary_month || '';
+                            latestGeneratedSalaryText = response.latest_salary_text || '';
+                            updateFromPayMonthMin();
+                            var isFromPayMonthValid = validateFromPayMonth(false);
                             if (isNaN(response.total_sec) || response.total_sec <= 0) {
+                                $('#submit_btn').prop('disabled', true);
+                            } else if (!isFromPayMonthValid) {
                                 $('#submit_btn').prop('disabled', true);
                             } else {
                                 $('#submit_btn').prop('disabled', false);
@@ -23,18 +90,27 @@
                         } else {
                             $('#service_tenure').val('0');
                             // $('#total_sec').val('0');
+                            latestGeneratedSalaryMonth = '';
+                            latestGeneratedSalaryText = '';
+                            updateFromPayMonthMin();
                             $('#submit_btn').prop('disabled', true);
                         }
                     },
                     error: function() {
                         $('#service_tenure').val('');
                         // $('#total_sec').val('');
+                        latestGeneratedSalaryMonth = '';
+                        latestGeneratedSalaryText = '';
+                        updateFromPayMonthMin();
                         $('#submit_btn').prop('disabled', true);
                     }
                 });
             } else {
                 $('#service_tenure').val('');
                 // $('#total_sec').val('');
+                latestGeneratedSalaryMonth = '';
+                latestGeneratedSalaryText = '';
+                updateFromPayMonthMin();
                 $('#submit_btn').prop('disabled', true);
             }
         });
@@ -60,13 +136,13 @@
                 } else {
 
                     $('#loan_error').text('');
-                    $('#submit_btn').prop('disabled', false);
+                    $('#submit_btn').prop('disabled', !validateFromPayMonth(false));
                 }
 
             } else {
 
                 $('#loan_error').text('');
-                $('#submit_btn').prop('disabled', false);
+                $('#submit_btn').prop('disabled', !validateFromPayMonth(false));
             }
             calculatePerMonth();
         });
@@ -76,9 +152,19 @@
             if (selectedType != 'security') {
                 $('#loan_amount').val('');
                 $('#loan_error').text('');
-                $('#submit_btn').prop('disabled', false);
+                $('#submit_btn').prop('disabled', !validateFromPayMonth(false));
             }
             $('#loan_amount').trigger('input');
+        });
+
+        $('#from_pay_month').on('change', function() {
+            validateFromPayMonth(true);
+        });
+
+        $('#loan_create_form').on('submit', function(event) {
+            if (!validateFromPayMonth(true)) {
+                event.preventDefault();
+            }
         });
 
     });
@@ -130,13 +216,18 @@
 
     document.getElementById('from_pay_month').addEventListener('change', function() {
         var selectedDate = monthValueToDate(this.value);
-        var today = new Date();
-        today.setDate(1);
-        today.setHours(0, 0, 0, 0);
+        var minimumMonth = typeof window.getLoanCreateMinimumFromPayMonth === 'function'
+            ? window.getLoanCreateMinimumFromPayMonth()
+            : formatMonthValue(new Date());
+        var minimumDate = monthValueToDate(minimumMonth);
 
-        if (selectedDate < today) {
-            alert('Please select current month or a future month.');
-            this.value = formatMonthValue(today);
+        if (selectedDate < minimumDate) {
+            alert('From paid month salary already generated. Please select next month.');
+            this.value = minimumMonth;
+        }
+
+        if (typeof window.validateLoanCreateFromPayMonth === 'function') {
+            window.validateLoanCreateFromPayMonth(true);
         }
 
         updateProbationEndDate();
@@ -276,7 +367,7 @@
         });
     }
 </script>
-{{ Form::open(['url' => 'loan', 'method' => 'post']) }}
+{{ Form::open(['url' => 'loan', 'method' => 'post', 'id' => 'loan_create_form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-md-6">
@@ -337,6 +428,7 @@
         <div class="form-group col-md-3">
             {{ Form::label('from_pay_month', __('From Pay Month'), ['class' => 'form-label']) }}
             {{ Form::month('from_pay_month', null, ['class' => 'form-control', 'required' => 'required']) }}
+            <span class="text-danger" id="from_pay_month_error"></span>
         </div>
         <div class="form-group col-md-3">
             {!! Form::label('pay_period', __('Pay Months'), ['class' => 'form-label']) !!}

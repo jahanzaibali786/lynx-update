@@ -142,6 +142,7 @@
                             <th>{{ __('Received Amount') }}</th>
                             <th>{{ __('Deduction start Date') }}</th>
                             <th>{{ __('End Date') }}</th>
+                            <th>{{ __('Stopped Months') }}</th>
                             <th>{{ __('charge amnt/mon') }}</th>
                             <th>{{ __('Status') }}</th>
                             @if (\Auth::user()->type != 'Employee')
@@ -174,6 +175,7 @@
                                 <td>{{ @$loan->received_amount }}</td>
                                 <td>{{ @$loan->from_pay_month }}</td>
                                 <td>{{ @$loan->loan_ended }}</td>
+                                <td>{{ $loan->stopHistories->sum('months') }}</td>
                                 <td>{{ @$loan->per_month_amount }}</td>
                                 <td>
                                     @if ($loan->status == 0)
@@ -192,7 +194,7 @@
                                 </td>
                                 @if (\Auth::user()->type != 'Employee')
                                     <td>
-                                        <div class="action-btn ms-2">
+                                        <div class="action-btn ms-2 d-flex align-items-center gap-1">
                                             <a class="mx-1 btn mx-1 btn-sm btn-outline-warning"
                                                 href="{{ route('printloan', $loan->id) }}"
                                                 data-bs-toggle="tooltip"
@@ -216,6 +218,18 @@
                                                             </span>
                                                         </a>
                                                     @endif
+                                                @if ($loan->status == 1)
+                                                    <a href="#" data-url="{{ route('loan.stop', $loan->id) }}"
+                                                        data-size="lg" data-ajax-popup="true"
+                                                        data-title="{{ __('Stop Loan') }}"
+                                                        class="mx-1 btn btn-sm btn-outline-info"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-title="{{ __('Stop Loan') }}">
+                                                        <span class="btn-inner--icon">
+                                                            <i class="ti ti-player-pause"></i>
+                                                        </span>
+                                                    </a>
+                                                @endif
                                             @endcan
                                             @if ($loan->status != 1)
                                                 @can('delete loan')

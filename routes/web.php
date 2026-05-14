@@ -1146,6 +1146,9 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('printloan/{id}', [LoanController::class, 'printloan'])->name('printloan')->middleware(['auth', 'XSS']);
     Route::get('loanstatus/{id}', [LoanController::class, 'loanstatus'])->name('loan.status')->middleware(['auth', 'XSS']);
     Route::put('loanstatuschange/{id}', [LoanController::class, 'loanstatuschange'])->name('loan.loanstatuschange')->middleware(['auth', 'XSS']);
+    Route::get('loanstop/{id}', [LoanController::class, 'stop'])->name('loan.stop')->middleware(['auth', 'XSS']);
+    Route::post('loanstop/{id}', [LoanController::class, 'stopStore'])->name('loan.stop.store')->middleware(['auth', 'XSS']);
+    Route::delete('loanstop-history/{id}', [LoanController::class, 'stopDestroy'])->name('loan.stop.destroy')->middleware(['auth', 'XSS']);
     Route::get('get-employee-serv-sec/{id}', [LoanController::class, 'emp_sec_tenure'])->name('emp_sec_tenure')->middleware(['auth', 'XSS']);
     Route::get('saturationdeductions/create/{eid}', [SaturationDeductionController::class, 'saturationdeductionCreate'])->name('saturationdeductions.create')->middleware(['auth', 'XSS']);
     Route::get('otherpayments/create/{eid}', [OtherPaymentController::class, 'otherpaymentCreate'])->name('otherpayments.create')->middleware(['auth', 'XSS']);

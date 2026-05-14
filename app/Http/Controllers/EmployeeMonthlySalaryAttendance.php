@@ -14,6 +14,7 @@ use App\Models\EmployeeMonthlySalaryAttendance as ModelsEmployeeMonthlySalaryAtt
 use App\Models\EmployeeMonthlySalaryHeads;
 use App\Models\EmployeePayscaleDetail;
 use App\Models\SalaryHeads;
+use App\Models\SalaryDeductionDetail;
 use App\Models\TaxSlab;
 use App\Models\SalaryPayment;
 use App\Models\User;
@@ -794,6 +795,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 // }
                  $loanAmount = 0;
                 $securityAmount = 0;
+                $securityLoanAmount = 0;
+                $salaryLoan = null;
+                $salaryLoanDeductionAmount = 0;
 
                 if ($data->employee->employee_loan) {
 
@@ -803,12 +807,20 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     $loanEndDate = Carbon::parse($loan->loan_ended)->endOfMonth();
                     $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
 
-                    if ($toDateStartOfMonth->between($loanStartDate, $loanEndDate)) {
+                    if ($loan->status == 1 && $toDateStartOfMonth->between($loanStartDate, $loanEndDate) && !$loan->isStoppedForMonth($toDateStartOfMonth)) {
+                        $remainingLoanAmount = max(0, (float) $loan->amount - (float) $loan->received_amount);
+                        $installmentAmount = min((float) $loan->per_month_amount, $remainingLoanAmount);
 
-                        if ($loan->emp_sec == 'security') {
-                            $securityLoanAmount = $loan->per_month_amount;
-                        } else {
-                            $loanAmount = $loan->per_month_amount;
+                        if ($installmentAmount > 0 && $loan->emp_sec == 'security') {
+                            $securityLoanAmount = $installmentAmount;
+                            $salaryLoanDeductionAmount = $securityLoanAmount;
+                        } elseif ($installmentAmount > 0) {
+                            $loanAmount = $installmentAmount;
+                            $salaryLoanDeductionAmount = $loanAmount;
+                        }
+
+                        if ($installmentAmount > 0) {
+                            $salaryLoan = $loan;
                         }
                     }
                 }
@@ -844,7 +856,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'scale_id' => $lastPayscaleDetail->pay_scale_id,
                     'scale_no' => $payscalesauto->scale_no,
                     'sal_days' => $data->working_days,
-                    'basics' => $basicSalary,
+                    'basics' => $initialBasicHeadValue,
                     'conv' => $lastPayscaleDetail ? $lastPayscaleDetail->conv : '0',
                     'other_add' => $lastPayscaleDetail ? $lastPayscaleDetail->other_add : '0',
                     'chaild_con' => $lastPayscaleDetail ? $lastPayscaleDetail->chaild_concession : '0',
@@ -875,6 +887,23 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $employeemonthlysal->created_at = $created_date ?? Carbon::now();
                 $employeemonthlysal->created_at = $created_date ?? Carbon::now();
                 $employeemonthlysal->save();
+
+                if ($salaryLoan && $salaryLoanDeductionAmount > 0) {
+                    SalaryDeductionDetail::create([
+                        'salary_id' => $employeemonthlysal->id,
+                        'employee_id' => $data->employee_id,
+                        'type' => 'loan',
+                        'sub_type' => $salaryLoan->emp_sec,
+                        'reference_id' => $salaryLoan->id,
+                        'amount' => round($salaryLoanDeductionAmount),
+                        'note' => 'Loan installment deduction - ' . $salaryLoan->title,
+                        'coa_id' => $salaryLoan->chartaccount_id,
+                    ]);
+
+                    $salaryLoan->received_amount = ((float) $salaryLoan->received_amount) + round($salaryLoanDeductionAmount);
+                    $salaryLoan->save();
+                }
+
                 // $newitems = [];
                 $i = 0;
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {

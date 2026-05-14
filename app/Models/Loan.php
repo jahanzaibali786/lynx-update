@@ -37,6 +37,21 @@ class Loan extends Model
         return $this->hasOne('App\Models\Employee', 'id', 'employee_id');
     }
 
+    public function stopHistories()
+    {
+        return $this->hasMany(LoanStopHistory::class)->orderBy('stop_from_month', 'desc');
+    }
+
+    public function isStoppedForMonth($monthDate)
+    {
+        $month = \Carbon\Carbon::parse($monthDate)->startOfMonth();
+
+        return $this->stopHistories()
+            ->whereDate('stop_from_month', '<=', $month->format('Y-m-d'))
+            ->whereDate('stop_to_month', '>=', $month->format('Y-m-d'))
+            ->exists();
+    }
+
     public function loan_option()
     {
         return $this->hasOne('App\Models\LoanOption', 'id', 'loan_option')->first();

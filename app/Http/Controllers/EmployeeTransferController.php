@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\EmployeeMonthlySalaryAttendance;
 use App\Models\EmployeePayscaleDetail;
 use App\Models\EmployeeTransfer;
+use App\Models\SalaryDeductionDetail;
 use App\Models\User;
 use App\Models\Utility;
 use Carbon\Carbon;
@@ -340,12 +341,17 @@ public function print($id)
 
                 $grossSalary += $basicSalary;
                 $loanAmount = 0;
+                $salaryLoan = null;
                 if ($employee->employee_loan) {
                     $loan = $employee->employee_loan;
                     $loanStartDate = Carbon::parse($loan->from_pay_month);
                     $loanEndDate = Carbon::parse($loan->loan_ended);
-                    if ($transferDate->between($loanStartDate, $loanEndDate)) {
-                        $loanAmount = $loan->per_month_amount * ($workingDays / $month_days);
+                    if ($loan->status == 1 && $transferDate->between($loanStartDate, $loanEndDate) && !$loan->isStoppedForMonth($transferDate)) {
+                        $remainingLoanAmount = max(0, (float) $loan->amount - (float) $loan->received_amount);
+                        $loanAmount = min((float) $loan->per_month_amount * ($workingDays / $month_days), $remainingLoanAmount);
+                        if ($loanAmount > 0) {
+                            $salaryLoan = $loan;
+                        }
                     }
                 }
 
@@ -376,6 +382,22 @@ public function print($id)
                     'owned_by' => $employee->owned_by,
                     'created_by' => Auth::user()->creatorId(),
                 ]);
+
+                if ($salaryLoan && $loanAmount > 0) {
+                    SalaryDeductionDetail::create([
+                        'salary_id' => $employeemonthlysal->id,
+                        'employee_id' => $employee_id,
+                        'type' => 'loan',
+                        'sub_type' => $salaryLoan->emp_sec,
+                        'reference_id' => $salaryLoan->id,
+                        'amount' => round($loanAmount),
+                        'note' => 'Loan installment deduction - ' . $salaryLoan->title,
+                        'coa_id' => $salaryLoan->chartaccount_id,
+                    ]);
+
+                    $salaryLoan->received_amount = ((float) $salaryLoan->received_amount) + round($loanAmount);
+                    $salaryLoan->save();
+                }
 
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {
                     EmployeeMonthlySalaryHeads::create([

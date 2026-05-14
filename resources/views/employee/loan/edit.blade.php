@@ -1,17 +1,31 @@
 <script>
     $(document).ready(function() {
+        var isApprovedLoan = {{ $loan->status == 1 ? 'true' : 'false' }};
+        var receivedAmount = parseFloat('{{ $receivedAmount }}') || 0;
+        var receivedInstallments = parseInt('{{ $receivedInstallments }}') || 0;
+        var latestGeneratedSalaryMonth = '{{ $latestGeneratedSalaryMonthValue }}';
+        var latestGeneratedSalaryText = '{{ $latestGeneratedSalaryText }}';
+
         function validateLoanAmount() {
             var loanAmount = parseFloat($('#loan_amount').val());
             var maxAmount = parseFloat($('#max_amount').val());
             var selectedType = $('#total_sec').val();
 
+            if (isApprovedLoan && loanAmount < receivedAmount) {
+                $('#loan_error').text('(Loan amount cannot be less than received amount ' + receivedAmount.toFixed(2) + ')');
+                $('#submit_btn').prop('disabled', true);
+                return false;
+            }
+
             if (selectedType === 'security') {
                 if (isNaN(maxAmount) || maxAmount <= 0) {
                     $('#loan_error').text('(Security amount must be greater than 0 to take a loan.)');
                     $('#submit_btn').prop('disabled', true);
+                    return false;
                 } else if (loanAmount > maxAmount) {
                     $('#loan_error').text('(Loan amount cannot exceed ' + maxAmount + ')');
                     $('#submit_btn').prop('disabled', true);
+                    return false;
                 } else {
                     $('#loan_error').text('');
                     $('#submit_btn').prop('disabled', false);
@@ -20,18 +34,33 @@
                 $('#loan_error').text('');
                 $('#submit_btn').prop('disabled', false);
             }
+
+            return true;
         }
 
         function calculatePerMonth() {
             var loanAmount = parseFloat($('#loan_amount').val());
             var payPeriod = parseInt($('#pay_date').val());
+            var amountForInstallment = loanAmount;
+            var installmentsForSchedule = payPeriod;
 
             if (isNaN(loanAmount) || isNaN(payPeriod) || payPeriod <= 0) {
                 $('#permonth').val('');
                 return;
             }
 
-            $('#permonth').val((loanAmount / payPeriod).toFixed(2));
+            if (isApprovedLoan) {
+                amountForInstallment = loanAmount - receivedAmount;
+                installmentsForSchedule = payPeriod - receivedInstallments;
+                $('#remaining_amount').val(isNaN(amountForInstallment) ? '' : amountForInstallment.toFixed(2));
+
+                if (amountForInstallment < 0 || installmentsForSchedule <= 0) {
+                    $('#permonth').val('');
+                    return;
+                }
+            }
+
+            $('#permonth').val((amountForInstallment / installmentsForSchedule).toFixed(2));
         }
 
         function formatMonthValue(date) {
@@ -46,16 +75,53 @@
         function updateProbationEndDate() {
             var payPeriod = parseInt($('#pay_date').val());
             var currentDate = monthValueToDate($('#from_pay_month').val());
+            var installmentsForSchedule = isApprovedLoan ? payPeriod - receivedInstallments : payPeriod;
 
             if (currentDate && !isNaN(currentDate.getTime())) {
-                if (isNaN(payPeriod) || payPeriod <= 0) {
+                if (isNaN(installmentsForSchedule) || installmentsForSchedule <= 0) {
                     $('#loan_ended').val(formatMonthValue(currentDate));
                 } else {
                     var futureDate = new Date(currentDate);
-                    futureDate.setMonth(futureDate.getMonth() + (payPeriod - 1));
+                    futureDate.setMonth(futureDate.getMonth() + (installmentsForSchedule - 1));
                     $('#loan_ended').val(formatMonthValue(futureDate));
                 }
             }
+        }
+
+        function validateApprovedSchedule(showMessage) {
+            if (!isApprovedLoan) {
+                return true;
+            }
+
+            var payPeriod = parseInt($('#pay_date').val());
+            var loanAmount = parseFloat($('#loan_amount').val());
+            var fromPayMonth = $('#from_pay_month').val();
+            var message = '';
+
+            if (!isNaN(payPeriod) && payPeriod < receivedInstallments) {
+                message = 'Installment count cannot be less than received installments.';
+            } else if (!isNaN(loanAmount) && loanAmount > receivedAmount && (isNaN(payPeriod) || (payPeriod - receivedInstallments) <= 0)) {
+                message = 'Please add remaining installments for remaining loan amount.';
+            } else if (latestGeneratedSalaryMonth && fromPayMonth && fromPayMonth <= latestGeneratedSalaryMonth) {
+                message = 'From paid month salary already generated. Please select next month.';
+                if (latestGeneratedSalaryText) {
+                    message += ' Last salary: ' + latestGeneratedSalaryText + '.';
+                }
+            }
+
+            $('#schedule_error').text(message);
+            if (message) {
+                $('#submit_btn').prop('disabled', true);
+                if (showMessage) {
+                    show_toastr('error', message, 'error');
+                }
+                return false;
+            }
+
+            if (!$('#loan_error').text()) {
+                $('#submit_btn').prop('disabled', false);
+            }
+            return true;
         }
 
         $('#employee_id').change(function() {
@@ -94,6 +160,7 @@
 
         $('#loan_amount, #pay_date').on('input change keyup', function() {
             validateLoanAmount();
+            validateApprovedSchedule(false);
             updateProbationEndDate();
             calculatePerMonth();
         });
@@ -103,13 +170,21 @@
         });
 
         $('#from_pay_month').on('change', function() {
+            validateApprovedSchedule(false);
             updateProbationEndDate();
             calculatePerMonth();
+        });
+
+        $('form').on('submit', function(event) {
+            if (!validateLoanAmount() || !validateApprovedSchedule(true)) {
+                event.preventDefault();
+            }
         });
 
         updateProbationEndDate();
         calculatePerMonth();
         validateLoanAmount();
+        validateApprovedSchedule(false);
     });
 </script>
 {{ Form::model($loan, array('route' => array('loan.update', $loan->id), 'method' => 'PUT')) }}
@@ -154,19 +229,40 @@
         </div>
         <div class="form-group col-md-3">
             {{ Form::label('amount', __('Loan Amount'), ['class' => 'form-label amount_label']) }}<span class="text-danger" id="loan_error"></span>
-            {{ Form::number('amount', null, ['class' => 'form-control', 'required' => 'required', 'step' => '0.01', 'id' => 'loan_amount']) }}
+            {{ Form::number('amount', null, ['class' => 'form-control', 'required' => 'required', 'step' => '0.01', 'id' => 'loan_amount', 'min' => $loan->status == 1 ? $receivedAmount : null]) }}
         </div>
         <div class="form-group col-md-3">
             {{ Form::label('maxamount', __('Max Amount'), ['class' => 'form-label amount_label']) }}<span class="text-danger" id="loan_error"></span>
             {{ Form::number('maxamount', null, ['class' => 'form-control', 'required' => 'required', 'step' => '0.01', 'id' => 'max_amount', 'readonly' => 'readonly']) }}
         </div>
+        @if($loan->status == 1)
+            <div class="form-group col-md-3">
+                {{ Form::label('received_amount', __('Received Amount'), ['class' => 'form-label']) }}
+                {{ Form::number('received_amount', $receivedAmount, ['class' => 'form-control', 'readonly' => 'readonly', 'step' => '0.01']) }}
+            </div>
+            <div class="form-group col-md-3">
+                {{ Form::label('received_installments', __('Received Installments'), ['class' => 'form-label']) }}
+                {{ Form::number('received_installments', $receivedInstallments, ['class' => 'form-control', 'readonly' => 'readonly']) }}
+            </div>
+            <div class="form-group col-md-3">
+                {{ Form::label('remaining_amount', __('Remaining Amount'), ['class' => 'form-label']) }}
+                {{ Form::number('remaining_amount', max(0, $loan->amount - $receivedAmount), ['class' => 'form-control', 'readonly' => 'readonly', 'step' => '0.01', 'id' => 'remaining_amount']) }}
+            </div>
+        @endif
         <div class="form-group col-md-3">
             {{ Form::label('from_pay_month', __('From Pay Month'), ['class' => 'form-label']) }}
-            {{ Form::month('from_pay_month', !empty($loan->from_pay_month) ? \Carbon\Carbon::parse($loan->from_pay_month)->format('Y-m') : null, ['class' => 'form-control', 'required' => 'required']) }}
+            @php
+                $fromMonthMin = null;
+                if ($loan->status == 1 && !empty($latestGeneratedSalaryMonthValue)) {
+                    $fromMonthMin = \Carbon\Carbon::createFromFormat('Y-m', $latestGeneratedSalaryMonthValue)->addMonth()->format('Y-m');
+                }
+            @endphp
+            {{ Form::month('from_pay_month', !empty($loan->from_pay_month) ? \Carbon\Carbon::parse($loan->from_pay_month)->format('Y-m') : null, ['class' => 'form-control', 'required' => 'required', 'min' => $fromMonthMin]) }}
+            <span class="text-danger" id="schedule_error"></span>
         </div>
         <div class="form-group col-md-3">
             {!! Form::label('pay_period', __('Pay Months'), ['class' => 'form-label']) !!}
-            {!! Form::number('pay_period', null, ['class' => 'form-control', 'id' => 'pay_date', 'required' => 'required', 'min' => '1']) !!}
+            {!! Form::number('pay_period', null, ['class' => 'form-control', 'id' => 'pay_date', 'required' => 'required', 'min' => $loan->status == 1 ? max(1, $receivedInstallments) : 1]) !!}
         </div>
         <div class="form-group col-md-3">
             {{ Form::label('loan_ended', __('To Month'), ['class' => 'form-label']) }}
