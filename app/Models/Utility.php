@@ -6601,6 +6601,8 @@ public static function crv_entry($data)
             $journalItem->journal = $journal->id;
             $journalItem->account = $data['account_id'];
             $journalItem->description = $data['description'];
+            $journalItem->user_id =  $data['user_id'];
+            $journalItem->user_type = 'Employee';
             $journalItem->bank_id = $data['bank_id'];
             $journalItem->credit = $data['amount'];
             $journalItem->debit = 0;
@@ -6615,6 +6617,8 @@ public static function crv_entry($data)
             if (! empty($data['loan_account'])) {
                 $journalItem = new JournalItem;
                 $journalItem->journal = $journal->id;
+                $journalItem->user_id =  $data['user_id'];
+                $journalItem->user_type = 'Employee';
                 $journalItem->account = $data['loan_account'];
                 $journalItem->description = $data['description'];
                 $journalItem->credit = 0;
@@ -6746,6 +6750,8 @@ public static function crv_entry($data)
             $journalItem->journal = $journal->id;
             $journalItem->account = $data['account_id'];
             $journalItem->description = $data['description'];
+            $journalItem->user_id =  $data['user_id'];
+            $journalItem->user_type = 'Employee';
             $journalItem->bank_id = $data['bank_id'];
             $journalItem->credit = $data['amount'];
             $journalItem->debit = 0;
@@ -6760,6 +6766,8 @@ public static function crv_entry($data)
             if (! empty($data['loan_account'])) {
                 $journalItem = new JournalItem;
                 $journalItem->journal = $journal->id;
+                $journalItem->user_id =  $data['user_id'];
+                $journalItem->user_type = 'Employee';
                 $journalItem->account = $data['loan_account'];
                 $journalItem->description = $data['description'];
                 $journalItem->credit = 0;

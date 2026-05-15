@@ -179,7 +179,7 @@ class LoanController extends Controller
     public function index(Request $request)
     {
         if (\Auth::user()->type == 'company') {
-            $query = Loan::with(['employee', 'stopHistories'])->where('created_by', \Auth::user()->creatorId());
+            $query = Loan::with(['employee', 'stopHistories', 'approvedBy'])->where('created_by', \Auth::user()->creatorId());
             $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
             $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -187,7 +187,7 @@ class LoanController extends Controller
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $designations->prepend('Select Designation', '');
         } else {
-            $query = Loan::with(['employee', 'stopHistories'])->where('owned_by', \Auth::user()->ownedId());
+            $query = Loan::with(['employee', 'stopHistories', 'approvedBy'])->where('owned_by', \Auth::user()->ownedId());
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branches->prepend('Select Branch', '');
             $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
@@ -612,12 +612,6 @@ class LoanController extends Controller
             return redirect()->back()->with('error', __('Stop month must be within the loan period.'));
         }
 
-        $remainingDueMonths = $stopFromMonth->diffInMonths($loanEndMonth) + 1;
-
-        if ($months > $remainingDueMonths) {
-            return redirect()->back()->with('error', __('Loan has only :months month(s) due. Please reduce stop months.', ['months' => $remainingDueMonths]));
-        }
-
         $overlappingStop = LoanStopHistory::where('loan_id', $loan->id)
             ->whereDate('stop_from_month', '<=', $stopToMonth->format('Y-m-d'))
             ->whereDate('stop_to_month', '>=', $stopFromMonth->format('Y-m-d'))
@@ -680,6 +674,7 @@ class LoanController extends Controller
             if($request->status == 2){
                 $loan = Loan::where('id', $id)->first();
                 $loan->status = $request->status;
+                $loan->approved_by = \Auth::id();
                 $loan->save();
                 \DB::commit();
                 return redirect()->back()->with('success', __('Loan Rejected successfully.'));
@@ -694,7 +689,7 @@ class LoanController extends Controller
                     'paid_from' => 'required|date',
                     'amount' => 'required|numeric|min:0.01',
                     'installment' => 'required|integer|min:1',
-                    'payment_method' => 'required|in:cash,online,check',
+                    'payment_method' => 'required|in:cash,online,cheque',
 
                 ]);
                 if ($validator->fails()) {
@@ -724,6 +719,7 @@ class LoanController extends Controller
                     $loan->bank_id = $request->bank_id;
                     $loan->chartaccount_id = $request->account_id;
                     $loan->referance_id = $request->reference;
+                    $loan->approved_by = \Auth::id();
                     $loan->save();
 
                     $bankAccount = BankAccount::find($request->bank_id);

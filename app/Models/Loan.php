@@ -27,6 +27,7 @@ class Loan extends Model
         'chartaccount_id',
         'referance_id',
         'voucher_id',
+        'approved_by',
         'status',
         'owned_by',
         'created_by',
@@ -35,6 +36,11 @@ class Loan extends Model
     public function employee()
     {
         return $this->hasOne('App\Models\Employee', 'id', 'employee_id');
+    }
+
+    public function approvedBy()
+    {
+        return $this->hasOne('App\Models\User', 'id', 'approved_by');
     }
 
     public function stopHistories()

@@ -14,6 +14,14 @@ class EmployeeAdvance extends Model
         'advance_date',
         'advance_reason',
         'status',
+        'approval_date',
+        'bank_id',
+        'chartaccount_id',
+        'reference',
+        'payment_method',
+        'voucher_id',
+        'approved_by',
+        'deducted_salary_id',
         'created_by',
         'owned_by',
     ];
@@ -22,5 +30,10 @@ class EmployeeAdvance extends Model
     public function employee()
     {
         return $this->hasOne('App\Models\Employee', 'id', 'employee_id');
+    }
+
+    public function approvedBy()
+    {
+        return $this->hasOne('App\Models\User', 'id', 'approved_by');
     }
 }

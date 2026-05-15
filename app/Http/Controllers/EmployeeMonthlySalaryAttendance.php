@@ -764,11 +764,13 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $grossSalary = 0;
                 $basicSalary = 0;
                 $advanceAmount = 0;
-                $advances = EmployeeAdvance::where('employee_id', $data->employee_id)
-                    ->whereBetween('advance_date', [$previousMonthStart, $previousMonthEnd])
-                    ->where('status', 0)
+                $advanceMonthStart = $toDate->copy()->startOfMonth();
+                $advanceMonthEnd = $toDate->copy()->endOfMonth();
+                $salaryAdvances = EmployeeAdvance::where('employee_id', $data->employee_id)
+                    ->whereBetween('advance_date', [$advanceMonthStart, $advanceMonthEnd])
+                    ->where('status', 1)
                     ->get();
-                foreach ($advances as $advance) {
+                foreach ($salaryAdvances as $advance) {
                     $advanceAmount += $advance->advance_amount;
                 }
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {
@@ -902,6 +904,22 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
                     $salaryLoan->received_amount = ((float) $salaryLoan->received_amount) + round($salaryLoanDeductionAmount);
                     $salaryLoan->save();
+                }
+
+                foreach ($salaryAdvances as $advance) {
+                    SalaryDeductionDetail::create([
+                        'salary_id' => $employeemonthlysal->id,
+                        'employee_id' => $data->employee_id,
+                        'type' => 'advance',
+                        'sub_type' => 'salary_advance',
+                        'reference_id' => $advance->id,
+                        'amount' => round($advance->advance_amount),
+                        'note' => 'Salary advance deduction',
+                        'coa_id' => $advance->chartaccount_id,
+                    ]);
+
+                    $advance->deducted_salary_id = $employeemonthlysal->id;
+                    $advance->save();
                 }
 
                 // $newitems = [];

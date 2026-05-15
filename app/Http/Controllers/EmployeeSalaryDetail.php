@@ -16,11 +16,14 @@ use App\Models\Employee;
 use App\Models\EmployeeMonthlySalary;
 use App\Models\EmployeeMonthlySalaryAttendance;
 use App\Models\EmployeeMonthlySalaryHeads;
+use App\Models\EmployeeAdvance;
 use App\Models\EmployeeScale;
 use App\Models\EmployeeScaleHeads;
 use App\Models\EmployeePayscaleDetail;
 use App\Models\JournalEntry;
 use App\Models\JournalItem;
+use App\Models\Loan;
+use App\Models\SalaryDeductionDetail;
 use App\Models\SalaryHeads;
 use App\Exports\SalarySlipExport;
 // use App\Models\SchoolDetail;
@@ -1455,6 +1458,26 @@ class EmployeeSalaryDetail extends Controller
                     foreach ($salaryheads as $salaryhead) {
                         $salaryhead->delete();
                     }
+
+                    $deductionDetails = SalaryDeductionDetail::where('salary_id', $salary->id)->get();
+                    foreach ($deductionDetails as $deductionDetail) {
+                        if ($deductionDetail->type == 'loan' && !empty($deductionDetail->reference_id)) {
+                            $loan = Loan::find($deductionDetail->reference_id);
+                            if ($loan) {
+                                $loan->received_amount = max(0, (float) $loan->received_amount - (float) $deductionDetail->amount);
+                                $loan->save();
+                            }
+                        }
+
+                        if ($deductionDetail->type == 'advance' && !empty($deductionDetail->reference_id)) {
+                            EmployeeAdvance::where('id', $deductionDetail->reference_id)
+                                ->where('deducted_salary_id', $salary->id)
+                                ->update(['deducted_salary_id' => null]);
+                        }
+
+                        $deductionDetail->delete();
+                    }
+
                     if ($salary->voucher_id) {
                         JournalEntry::where('id', $salary->voucher_id)->delete();
                         JournalItem::where('journal', $salary->voucher_id)->delete();

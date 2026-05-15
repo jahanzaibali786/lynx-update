@@ -3,6 +3,7 @@
     $(document).ready(function() {
         var latestGeneratedSalaryMonth = '';
         var latestGeneratedSalaryText = '';
+        var employeeSecurityAmount = 0;
 
         function addMonthsToMonthValue(value, months) {
             var date = monthValueToDate(value);
@@ -59,6 +60,16 @@
             }
             return true;
         }
+
+        function updateMaxAmountByLoanType() {
+            if ($('#total_sec').val() == 'security' && employeeSecurityAmount > 0) {
+                $('#max_amount').val(employeeSecurityAmount / 2);
+                $('#actual_security_amount_text').text('(' + employeeSecurityAmount + ')');
+            } else {
+                $('#max_amount').val('');
+                $('#actual_security_amount_text').text('');
+            }
+        }
         window.validateLoanCreateFromPayMonth = validateFromPayMonth;
         window.getLoanCreateMinimumFromPayMonth = getMinimumFromPayMonth;
 
@@ -75,7 +86,8 @@
                             $('#service_tenure').val(response.service_tenure);
                             $('#department').val(response.emp_department);
                             // $('#total_sec').val(response.total_sec);
-                            $('#max_amount').val((response.total_sec) / 2);
+                            employeeSecurityAmount = parseFloat(response.total_sec) || 0;
+                            updateMaxAmountByLoanType();
                             latestGeneratedSalaryMonth = response.latest_salary_month || '';
                             latestGeneratedSalaryText = response.latest_salary_text || '';
                             updateFromPayMonthMin();
@@ -90,6 +102,9 @@
                         } else {
                             $('#service_tenure').val('0');
                             // $('#total_sec').val('0');
+                            employeeSecurityAmount = 0;
+                            $('#max_amount').val('');
+                            $('#actual_security_amount_text').text('');
                             latestGeneratedSalaryMonth = '';
                             latestGeneratedSalaryText = '';
                             updateFromPayMonthMin();
@@ -99,6 +114,9 @@
                     error: function() {
                         $('#service_tenure').val('');
                         // $('#total_sec').val('');
+                        employeeSecurityAmount = 0;
+                        $('#max_amount').val('');
+                        $('#actual_security_amount_text').text('');
                         latestGeneratedSalaryMonth = '';
                         latestGeneratedSalaryText = '';
                         updateFromPayMonthMin();
@@ -108,6 +126,9 @@
             } else {
                 $('#service_tenure').val('');
                 // $('#total_sec').val('');
+                employeeSecurityAmount = 0;
+                $('#max_amount').val('');
+                $('#actual_security_amount_text').text('');
                 latestGeneratedSalaryMonth = '';
                 latestGeneratedSalaryText = '';
                 updateFromPayMonthMin();
@@ -149,6 +170,7 @@
 
         $('#total_sec').on('change', function() {
             var selectedType = $(this).val();
+            updateMaxAmountByLoanType();
             if (selectedType != 'security') {
                 $('#loan_amount').val('');
                 $('#loan_error').text('');
@@ -421,8 +443,7 @@
             {{ Form::number('amount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '1', 'id' => 'loan_amount']) }}
         </div>
         <div class="form-group col-md-3">
-            {{ Form::label('maxamount', __('Max Amount'), ['class' => 'form-label amount_label']) }}<span
-                class="text-danger" id="loan_error"></span>
+            <label for="max_amount" class="form-label amount_label">{{ __('Max Amount') }} <span id="actual_security_amount_text"></span></label>
             {{ Form::number('maxamount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '1', 'id' => 'max_amount', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-3">

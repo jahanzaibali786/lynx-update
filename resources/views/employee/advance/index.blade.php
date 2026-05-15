@@ -45,7 +45,7 @@
     @can('create loan')
         <div class="col text-end">
             <a href="#" data-url="{{ route('employee-advance.create') }}" data-size="lg" data-ajax-popup="true"
-                data-bs-title="{{ __('Create Advance') }}" class="apply-btn btn mx-1 btn-sm btn-outline-primary">
+                data-bs-title="{{ __('Create Advance') }}" class="apply-btn btn mx-1 btn-sm btn-outline-primary" data-bs-toggle="tooltip" >
                 <span class="btn-inner--icon">Create</span>
             </a>
         </div>
@@ -93,12 +93,13 @@
                                         <div class="col-auto mt-1">
                                             <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
                                                 onclick="document.getElementById('loan_submit').submit(); return false;"
-                                                data-bs-title="{{ __('apply') }}">
+                                                data-bs-title="{{ __('apply') }}" data-bs-toggle="tooltip" data-bs-title="{{ __('Search') }}">
                                                 <span class="btn-inner--icon">Search</span>
                                             </a>
                                             <a href="{{ route('employee-advance.index') }}"
                                                 class="btn mx-1 btn-sm btn-outline-danger"
-                                                data-bs-title="{{ __('Reset') }}">
+                                                data-bs-title="{{ __('Reset') }}" data-bs-toggle="tooltip"
+                                                data-bs-title="{{ __('Clear') }}">
                                                 <span class="btn-inner--icon">Clear</span>
                                             </a>
                                         </div>
@@ -120,9 +121,13 @@
                         <tr class="table_heads">
                             <th>#</th>
                             <th>{{ __('Employee') }}</th>
-                            <th>{{ __('Advnace Date') }}</th>
-                            <th>{{ __('Advnace Amount') }}</th>
-                            <th>{{ __('Advnace Reason') }}</th>
+                            <th>{{ __('Advance Month') }}</th>
+                            <th>{{ __('Approval Date') }}</th>
+                            <th>{{ __('Advance Amount') }}</th>
+                            <th>{{ __('Advance Reason') }}</th>
+                            <th>{{ __('Status') }}</th>
+                            <th>{{ __('Deduction') }}</th>
+                            <th>{{ __('Approved By') }}</th>
                             <th>{{ __('Action') }}</th>
                         </tr>
                     </thead>
@@ -133,38 +138,114 @@
                                 <td>
                                     {{ !empty($adv->employee->name) ? $adv->employee->name : '' }}
                                 </td>
-                                <td>{{ @$adv->advance_date }}</td>
+                                <td>{{ !empty($adv->advance_date) ? \Carbon\Carbon::parse($adv->advance_date)->format('M Y') : '-' }}</td>
+                                <td>{{ !empty($adv->approval_date) ? \Carbon\Carbon::parse($adv->approval_date)->format('d-M-Y') : '-' }}</td>
                                 <td>{{ @$adv->advance_amount }}</td>
-                                <td>{{ @$adv->advance_reason }}</td>
+                                <td style="max-width: 280px;">
+                                    @php
+                                        $reason = $adv->advance_reason ?? '';
+                                        $reasonPreview = \Illuminate\Support\Str::words($reason, 50, '...');
+                                    @endphp
+                                    @if(!empty($reason))
+                                        <a href="#"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#advance-reason-modal-{{ $adv->id }}"
+                                            class="text-primary d-block text-truncate"
+                                            style="max-width: 260px;"
+                                            title="{{ $reason }}">
+                                            {{ $reasonPreview }}
+                                        </a>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                                <td>
+                                    @if ($adv->status == 0)
+                                        <a style="width: 100%;" href="#"
+                                            data-url="{{ route('employee-advance.status', @$adv->id) }}" data-size="lg"
+                                            data-ajax-popup="true" data-title="{{ __('Advance Details') }}"
+                                            data-bs-toggle="tooltip" data-bs-title="{{ __('Advance Details') }}"
+                                            class="btn btn-sm {{ @$adv->status == 0 ? 'btn-outline-warning' : ($adv->status == 2 ? 'btn-outline-danger' : 'btn-outline-success') }}">{{ $adv->status == 0 ? 'Pending' : ($adv->status == 2 ? 'Rejected' : 'Approved') }}
+                                        </a>
+                                    @else
+                                         <button style="width: 100%; cursor:auto; color: #fff !important;"
+                                            class="btn btn-sm {{ @$adv->status == 0 ? 'btn-warning' : ($adv->status == 2 ? 'btn-danger' : 'btn-success') }}">
+                                            {{ $adv->status == 1 ? 'Approved' : ($adv->status == 2 ? 'Rejected' : 'Approved') }}
+                                        </button>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if(!empty($adv->deducted_salary_id))
+                                        <span class="badge bg-success">{{ __('Deducted') }}</span>
+                                    @else
+                                        <span class="badge bg-warning">{{ __('Pending') }}</span>
+                                    @endif
+                                </td>
+                                <td><small>{{ !empty($adv->approvedBy->name) ? $adv->approvedBy->name : '-' }}</small></td>
 
                                 <td>
-                                    <div class="action-btn">
-                                        <a href="#" data-url="{{ route('employee-advance.edit', @$adv->id) }}"
-                                            data-size="lg" data-ajax-popup="true" data-bs-title="{{ __('Edit Advance') }}"
-                                            class="apply-btn btn mx-1 btn-sm btn-outline-primary">
-                                            <i class="ti ti-pencil"></i>
-                                        </a>
-                                        @if (\Auth::user()->type == 'company')
-                                            {!! Form::open([
-                                                'method' => 'DELETE',
-                                                'route' => ['employee-advance.destroy', $adv->id],
-                                                'id' => 'delete-form-' . $adv->id,
-                                            ]) !!}
-
-                                            <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger bs-pass-para"
-                                                data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                                                data-confirm-yes="document.getElementById('delete-form-{{ $adv->id }}').submit();"
-                                                data-bs-title="{{ __('Delete') }}">
-                                                <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
+                                    <div class="action-btn d-flex align-items-center gap-1">
+                                        @if($adv->status == 0)
+                                            <a href="#" data-url="{{ route('employee-advance.status', @$adv->id) }}"
+                                                data-size="lg"
+                                                data-ajax-popup="true"
+                                                data-bs-toggle="tooltip"
+                                                data-bs-title="{{ __('Approve / Reject') }}"
+                                                class="btn btn-sm btn-outline-success">
+                                                <span class="btn-inner--icon"><i class="ti ti-check"></i></span>
                                             </a>
-                                            {!! Form::close() !!}
-                                        @endcan
+                                        @endif
+                                        @if($adv->status != 1 || \Auth::user()->type == 'company')
+                                            <a href="#" data-url="{{ route('employee-advance.edit', @$adv->id) }}"
+                                                data-size="lg"
+                                                data-ajax-popup="true"
+                                                data-bs-toggle="tooltip"
+                                                data-bs-title="{{ __('Edit') }}"
+                                                class="btn btn-sm btn-outline-primary">
+                                                <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
+                                            </a>
+                                        @endif
+                                        @if (\Auth::user()->type == 'company')
+                                            @if($adv->status != 1)
+                                                {!! Form::open([
+                                                    'method' => 'DELETE',
+                                                    'route' => ['employee-advance.destroy', $adv->id],
+                                                    'id' => 'delete-form-' . $adv->id,
+                                                    'class' => 'd-inline',
+                                                ]) !!}
+
+                                                <a type="button"
+                                                    class="btn btn-sm btn-outline-danger bs-pass-para"
+                                                    data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
+                                                    data-confirm-yes="document.getElementById('delete-form-{{ $adv->id }}').submit();"
+                                                    data-bs-toggle="tooltip"
+                                                    data-bs-title="{{ __('Delete') }}">
+                                                     <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
+                                                </a>
+                                                {!! Form::close() !!}
+                                            @endif
+                                        @endif
                                 </div>
                             </td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
+            @foreach ($advance as $adv)
+                <div class="modal fade" id="advance-reason-modal-{{ $adv->id }}" tabindex="-1" aria-labelledby="advance-reason-modal-label-{{ $adv->id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="advance-reason-modal-label-{{ $adv->id }}">{{ __('Advance Reason') }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                            </div>
+                            <div class="modal-body" style="white-space: pre-line;">
+                                {!! nl2br(e($adv->advance_reason)) !!}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
         @else
             <div class="mt-2 text-center">
                 No Advnace Data Found!

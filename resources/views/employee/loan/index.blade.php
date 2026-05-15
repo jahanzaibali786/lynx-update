@@ -145,6 +145,7 @@
                             <th>{{ __('Stopped Months') }}</th>
                             <th>{{ __('charge amnt/mon') }}</th>
                             <th>{{ __('Status') }}</th>
+                            <th>{{ __('Approved By') }}</th>
                             @if (\Auth::user()->type != 'Employee')
                                 <th>{{ __('Action') }}</th>
                             @endif
@@ -173,8 +174,8 @@
                                 <td>{{ $loan->title }}</td>
                                 <td>{{ @$loan->amount }}</td>
                                 <td>{{ @$loan->received_amount }}</td>
-                                <td>{{ @$loan->from_pay_month }}</td>
-                                <td>{{ @$loan->loan_ended }}</td>
+                                <td>{{ !empty($loan->from_pay_month) ? \Carbon\Carbon::parse($loan->from_pay_month)->format('d-M-Y') : '-' }}</td>
+                                <td>{{ !empty($loan->loan_ended) ? \Carbon\Carbon::parse($loan->loan_ended)->format('d-M-Y') : '-' }}</td>
                                 <td>{{ $loan->stopHistories->sum('months') }}</td>
                                 <td>{{ @$loan->per_month_amount }}</td>
                                 <td>
@@ -192,6 +193,7 @@
                                         </button>
                                     @endif
                                 </td>
+                                <td>{{ !empty($loan->approvedBy->name) ? $loan->approvedBy->name : '-' }}</td>
                                 @if (\Auth::user()->type != 'Employee')
                                     <td>
                                         <div class="action-btn ms-2 d-flex align-items-center gap-1">

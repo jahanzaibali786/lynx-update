@@ -62,22 +62,11 @@
                 return false;
             }
 
-            if (!isNaN(months) && remainingDueMonths > 0 && months > remainingDueMonths) {
-                var dueMessage = 'Loan has only ' + remainingDueMonths + ' month(s) due. Please reduce stop months.';
-                $('#stop_month_error').text(dueMessage);
-                if (showMessage) {
-                    show_toastr('error', dueMessage, 'error');
-                }
-                return false;
-            }
-
             $('#stop_month_error').text('');
             if (remainingDueMonths > 0) {
                 $('#remaining_due_months').val(remainingDueMonths);
-                $('#stop_months').attr('max', remainingDueMonths);
             } else {
                 $('#remaining_due_months').val('');
-                $('#stop_months').removeAttr('max');
             }
             return true;
         }

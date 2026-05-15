@@ -2,7 +2,7 @@
     $(document).ready(function() {
         var latestGeneratedSalaryMonth = '{{ $latestGeneratedSalaryMonth }}';
         var latestGeneratedSalaryText = '{{ $latestGeneratedSalaryText }}';
-        var paidFromWasEdited = false;
+        var paidFromWasEdited = true;
 
         function formatMonthValue(date) {
             var month = String(date.getMonth() + 1).padStart(2, '0');
@@ -168,7 +168,7 @@
         </div>
         <div class="form-group  col-md-6">
             {{ Form::label('payment_method', __('Payment By'),['class'=>'form-label']) }}<span class="text-danger pl-1"> *</span>
-            {{ Form::select('payment_method', ['' => __('Select Payment'), 'online' => __('Online'), 'check' => __('Check'), 'cash' => __('Cash')], null, ['class' => 'form-control', 'required' => 'required', 'id' => 'payment_method']) }}
+            {{ Form::select('payment_method', ['' => __('Select Payment'), 'online' => __('OL'), 'cheque' => __('CHQ'), 'cash' => __('CSH')], null, ['class' => 'form-control', 'required' => 'required', 'id' => 'payment_method']) }}
         </div>
         <div class="form-group  col-md-6">
             {{ Form::label('amount', __('Amount'),['class'=>'form-label']) }}
@@ -184,7 +184,7 @@
         </div>
         <div class="form-group  col-md-6">
             {{ Form::label('paid_from', __('Paid From'),['class'=>'form-label']) }}
-            {{ Form::month('paid_from', \Carbon\Carbon::now()->addMonth()->format('Y-m'), array('class' => 'form-control','required'=>'required','id'=>'approval_paid_from')) }}
+            {{ Form::month('paid_from', !empty($loan->from_pay_month) ? \Carbon\Carbon::parse($loan->from_pay_month)->format('Y-m') : null, array('class' => 'form-control','required'=>'required','id'=>'approval_paid_from')) }}
             <span class="text-danger" id="paid_from_error"></span>
         </div>
 
