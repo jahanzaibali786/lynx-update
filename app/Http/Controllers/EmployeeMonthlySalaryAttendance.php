@@ -13,6 +13,7 @@ use App\Models\EmployeeMonthlySalary;
 use App\Models\EmployeeMonthlySalaryAttendance as ModelsEmployeeMonthlySalaryAttendance;
 use App\Models\EmployeeMonthlySalaryHeads;
 use App\Models\EmployeePayscaleDetail;
+use App\Models\Loan;
 use App\Models\SalaryHeads;
 use App\Models\SalaryDeductionDetail;
 use App\Models\TaxSlab;
@@ -776,7 +777,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {
                     if ($scale_head->SalaryHeads->head == 'Initial Basic') {
                         $initialBasicHeadValue = $scale_head->head_value;
-                        $basicSalary = round((($initialBasicHeadValue / $data->month_days) * ($daysInPeriod)) - $advanceAmount);
+                        $basicSalary = round(($initialBasicHeadValue / $data->month_days) * $daysInPeriod);
                     } else {
                         $grossSalary += round((($scale_head->head_value / $data->month_days) * ($daysInPeriod)));
                     }
@@ -785,44 +786,35 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $grossSalary += $basicSalary + $addition;
 
                 $loanAmount = 0;
-                // if ($data->employee->employee_loan) {
-                //     $loan = $data->employee->employee_loan;
-                //     dd($loan, $toDate);
-                //     $loanStartDate = Carbon::parse($loan->from_pay_month)->startOfMonth();
-                //     $loanEndDate = Carbon::parse($loan->loan_ended)->endOfMonth();
-                //     $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
-                //     if ($toDateStartOfMonth->between($loanStartDate, $loanEndDate)) {
-                //         $loanAmount = $loan->per_month_amount;
-                //     }
-                // }
-                 $loanAmount = 0;
-                $securityAmount = 0;
                 $securityLoanAmount = 0;
-                $salaryLoan = null;
-                $salaryLoanDeductionAmount = 0;
+                $salaryLoanDeductions = [];
+                $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
+                $toDateEndOfMonth = $toDateStartOfMonth->copy()->endOfMonth();
+                $salaryLoans = Loan::where('employee_id', $data->employee_id)
+                    ->where('status', 1)
+                    ->whereDate('from_pay_month', '<=', $toDateEndOfMonth->format('Y-m-d'))
+                    ->whereDate('loan_ended', '>=', $toDateStartOfMonth->format('Y-m-d'))
+                    ->get();
 
-                if ($data->employee->employee_loan) {
-
-                    $loan = $data->employee->employee_loan;
-
+                foreach ($salaryLoans as $loan) {
                     $loanStartDate = Carbon::parse($loan->from_pay_month)->startOfMonth();
                     $loanEndDate = Carbon::parse($loan->loan_ended)->endOfMonth();
-                    $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
 
                     if ($loan->status == 1 && $toDateStartOfMonth->between($loanStartDate, $loanEndDate) && !$loan->isStoppedForMonth($toDateStartOfMonth)) {
                         $remainingLoanAmount = max(0, (float) $loan->amount - (float) $loan->received_amount);
                         $installmentAmount = min((float) $loan->per_month_amount, $remainingLoanAmount);
 
                         if ($installmentAmount > 0 && $loan->emp_sec == 'security') {
-                            $securityLoanAmount = $installmentAmount;
-                            $salaryLoanDeductionAmount = $securityLoanAmount;
+                            $securityLoanAmount += $installmentAmount;
                         } elseif ($installmentAmount > 0) {
-                            $loanAmount = $installmentAmount;
-                            $salaryLoanDeductionAmount = $loanAmount;
+                            $loanAmount += $installmentAmount;
                         }
 
                         if ($installmentAmount > 0) {
-                            $salaryLoan = $loan;
+                            $salaryLoanDeductions[] = [
+                                'loan' => $loan,
+                                'amount' => $installmentAmount,
+                            ];
                         }
                     }
                 }
@@ -843,7 +835,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 }
                 // dd($monthTax, $data->employee_id, $taxYear, $daysInPeriod, $data->month_days, $payscalesauto->employeeScaleHeads, $addition);
 
-                 $deduction = $loanAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $lastPayscaleDetail->eobi + $lastPayscaleDetail->other_deduction + $lastPayscaleDetail->advance + $securityLoanAmount;
+                 $deduction = $loanAmount + $securityLoanAmount + $advanceAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $lastPayscaleDetail->eobi + $lastPayscaleDetail->other_deduction;
                 // dd($basicSalary, $grossSalary,$deduction);
                 $net_sal = ($grossSalary  - $deduction) > 0 ? ($grossSalary  - $deduction) : 0;
 
@@ -865,7 +857,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'drns' => $lastPayscaleDetail ? $lastPayscaleDetail->drns : '0',
                     'misc' => $lastPayscaleDetail ? $lastPayscaleDetail->misc : '0',
                     'stop_sal' => 0,
-                    'other' => $lastPayscaleDetail ? $lastPayscaleDetail->other_deduction : '0',
+                    'other' => '0',
                     'gross' => round($grossSalary),
                     'loan' => $loanAmount ? $loanAmount : '0',
                     'emp_sec' => $lastPayscaleDetail ? $lastPayscaleDetail->emp_sec : '0',
@@ -890,7 +882,13 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $employeemonthlysal->created_at = $created_date ?? Carbon::now();
                 $employeemonthlysal->save();
 
-                if ($salaryLoan && $salaryLoanDeductionAmount > 0) {
+                foreach ($salaryLoanDeductions as $loanDeduction) {
+                    $salaryLoan = $loanDeduction['loan'];
+                    $salaryLoanDeductionAmount = round($loanDeduction['amount']);
+                    if ($salaryLoanDeductionAmount <= 0) {
+                        continue;
+                    }
+
                     SalaryDeductionDetail::create([
                         'salary_id' => $employeemonthlysal->id,
                         'employee_id' => $data->employee_id,
@@ -948,6 +946,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
                 if ($data) {
                     $allAccounts = [];
+                    $deductionAccounts = $this->salaryDeductionVoucherAccounts($employeemonthlysal, $lastPayscaleDetail);
                     // dd($lastPayscaleDetail);
                     $allAccounts = [
                         [
@@ -976,12 +975,6 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'name' => 'Employee Security Payable',
                             'debit' => 0,
                             'credit' => round($employeemonthlysal->emp_sec),
-                        ],
-						[
-                            'account_id' => $lastPayscaleDetail->security_receive_account,
-                            'name' => 'Employee Security Payable',
-                            'debit' => 0,
-                            'credit' => round($employeemonthlysal->emp_sec_loan),
                         ],
                         // Cr: Income Tax Payable
                         [
@@ -1017,12 +1010,6 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'debit' => 0,
                             'credit' => round($employeemonthlysal->net_pay),
                         ],
-                        [
-                            'account_id' => 216,
-                            'name' => 'Advance Salary',
-                            'debit' => 0,
-                            'credit' => round($employeemonthlysal->sal_advance),
-                        ],
                         // Cr: Employer PASSI Payable
                         [
                             // 'type' => 'Liabilities2',
@@ -1042,6 +1029,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'credit' => round($employeemonthlysal->eobi_employer),
                         ],
                     ];
+                    $allAccounts = array_merge($allAccounts, $deductionAccounts);
                     $filteredAccounts = array_filter($allAccounts, function ($item) {
                         return ($item['debit'] ?? 0) > 0 || ($item['credit'] ?? 0) > 0;
                     });
@@ -1431,6 +1419,51 @@ class EmployeeMonthlySalaryAttendance extends Controller
             \DB::rollback();
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
+    }
+
+    private function salaryDeductionVoucherAccounts($salary, $lastPayscaleDetail): array
+    {
+        $details = SalaryDeductionDetail::where('salary_id', $salary->id)
+            ->whereIn('type', ['loan', 'advance'])
+            ->get();
+
+        $accounts = [];
+        foreach ($details as $detail) {
+            $accountId = $detail->coa_id;
+            if (!$accountId && $detail->type == 'loan' && $detail->sub_type == 'security') {
+                $accountId = $lastPayscaleDetail->security_receive_account ?? null;
+            } elseif (!$accountId && $detail->type == 'loan') {
+                $accountId = $lastPayscaleDetail->other_dedu_payable_account ?? null;
+            } elseif (!$accountId && $detail->type == 'advance') {
+                $accountId = 216;
+            }
+
+            if (!$accountId) {
+                continue;
+            }
+
+            if ($detail->type == 'advance') {
+                $name = 'Advance Salary';
+            } elseif ($detail->sub_type == 'security') {
+                $name = 'Employee Security Payable';
+            } else {
+                $name = 'Loan Deduction Payable';
+            }
+
+            $key = $detail->type . '-' . $detail->sub_type . '-' . $accountId;
+            if (!isset($accounts[$key])) {
+                $accounts[$key] = [
+                    'account_id' => $accountId,
+                    'name' => $name,
+                    'debit' => 0,
+                    'credit' => 0,
+                ];
+            }
+
+            $accounts[$key]['credit'] += round($detail->amount);
+        }
+
+        return array_values($accounts);
     }
 
     public function createPayment(Request $request, $purchase_id)

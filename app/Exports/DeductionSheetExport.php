@@ -76,14 +76,14 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
 
                 $row[] = $data->emp_sec ?? 0;
                 $row[] = $data->it ?? 0;
-                $row[] = $data->advance ?? 0;
+                $row[] = $data->sal_advance ?? 0;
                 $row[] = $data->eobi ?? 0;
                 $row[] = $data->pessi ?? 0;
                 $row[] = $data->emp_sec_loan ?? 0;
                 $row[] = $data->loan ?? 0;
                 $row[] = $data->dedu ?? 0;
 
-                $row[] = $data->emp_sec + $data->it + $data->advance + $data->eobi + $data->pessi + $data->emp_sec_loan + $data->loan + $data->dedu;
+                $row[] = $data->emp_sec + $data->it + $data->sal_advance + $data->eobi + $data->pessi + $data->emp_sec_loan + $data->loan + $data->dedu;
                 $row[] = $data->net_pay ?? 0;
 
                 $rows[] = $row;

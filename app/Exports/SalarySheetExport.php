@@ -102,7 +102,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
 
                 $row[] = $data->emp_sec ?? 0;
                 $row[] = $data->it ?? 0;
-                $row[] = $data->advance ?? 0;
+                $row[] = $data->sal_advance ?? 0;
                 $row[] = $data->eobi ?? 0;
                 $row[] = $data->emp_sec_loan ?? 0;
                 $row[] = $data->stop_sal ?? 0;
