@@ -1722,11 +1722,12 @@ class DataImportController extends Controller
                     $branch_name = $all_data[0] ?? null;
                     $roll_no = $all_data[1] ?? null;
                     $reg_no = $all_data[2] ?? null;
-                    $student_name = $all_data[3] ?? null;
-                    $class_name = $all_data[4] ?? null;
-                    $section_name = $all_data[17] ?? null;
-                    $student_status = $all_data[19] ?? null;
-                    $active_status = $all_data[20] ?? null;
+                    $dob = date('Y-m-d', strtotime($all_data[14] ?? null)) ?? null;
+                    // $student_name = $all_data[3] ?? null;
+                    // $class_name = $all_data[4] ?? null;
+                    // $section_name = $all_data[17] ?? null;
+                    // $student_status = $all_data[19] ?? null;
+                    // $active_status = $all_data[20] ?? null;
 
                     if (empty($branch_name) || empty($roll_no) || empty($reg_no)) {
                         $reason = 'Required fields missing';
@@ -1750,7 +1751,7 @@ class DataImportController extends Controller
 
                             if (!$reg) {
                                 $reason = 'Student registration not found';
-                                dd($all_data, 'reg', $reg_no, $roll_no);
+                                // dd($all_data, 'reg', $reg_no, $roll_no);
                                 $error_counter++;
                             } else {
 
@@ -1761,82 +1762,83 @@ class DataImportController extends Controller
 
                                 if (!$enr) {
                                     $reason = 'Enrollment not found';
-                                    dd($all_data, 'enr', $roll_no, $reg->id);
+                                    // dd($all_data, 'enr', $roll_no, $reg->id);
                                     $error_counter++;
                                 } else {
 
                                     /* -------- Class -------- */
-                                    $class = Classes::where('name', $class_name)
-                                        ->where('owned_by', $branch->id)
-                                        ->first();
+                                    // $class = Classes::where('name', $class_name)
+                                    //     ->where('owned_by', $branch->id)
+                                    //     ->first();
 
-                                    if (!$class) {
-                                        $reason = 'Class not found';
-                                        dd($all_data, 'class', $class_name, $branch->id);
-                                        $error_counter++;
-                                    } else {
+                                    // if (!$class) {
+                                    //     $reason = 'Class not found';
+                                    //     dd($all_data, 'class', $class_name, $branch->id);
+                                    //     $error_counter++;
+                                    // } else {
 
-                                        /* -------- Section -------- */
-                                        $section = Section::where('name', $section_name)->first();
+                                    /* -------- Section -------- */
+                                    // $section = Section::where('name', $section_name)->first();
 
-                                        if (!$section) {
-                                            $reason = 'Section not found';
-                                            dd($all_data, 'section', $section_name);
-                                            $error_counter++;
-                                        } else {
+                                    // if (!$section) {
+                                    //     $reason = 'Section not found';
+                                    //     dd($all_data, 'section', $section_name);
+                                    //     $error_counter++;
+                                    // } else {
 
-                                            /* -------- Class Section -------- */
-                                            $sectionclass = ClassSection::where('class_id', $class->id)
-                                                ->where('section_id', $section->id)
-                                                ->where('owned_by', $branch->id)
-                                                ->where('active_status', 1)
-                                                ->first();
+                                    // /* -------- Class Section -------- */
+                                    // $sectionclass = ClassSection::where('class_id', $class->id)
+                                    //     ->where('section_id', $section->id)
+                                    //     ->where('owned_by', $branch->id)
+                                    //     ->where('active_status', 1)
+                                    //     ->first();
 
-                                            if (!$sectionclass) {
-                                                if ($branch->id == 53) {
-                                                    $sectionclass = ClassSection::create([
-                                                        'class_id' => $class->id,
-                                                        'section_id' => $section->id,
-                                                        'owned_by' => $branch->id,
-                                                        'created_by' => auth()->id(),
-                                                        'active_status' => 1,
-                                                    ]);
-                                                } else {
-                                                    $reason = 'Class section not found';
-                                                    dd($all_data, 'sectionclass', $class->id, $section->id, $branch->id);
-                                                    $error_counter++;
-                                                }
-                                            }
+                                    // if (!$sectionclass) {
+                                    //     if ($branch->id == 53) {
+                                    //         $sectionclass = ClassSection::create([
+                                    //             'class_id' => $class->id,
+                                    //             'section_id' => $section->id,
+                                    //             'owned_by' => $branch->id,
+                                    //             'created_by' => auth()->id(),
+                                    //             'active_status' => 1,
+                                    //         ]);
+                                    //     } else {
+                                    //         $reason = 'Class section not found';
+                                    //         dd($all_data, 'sectionclass', $class->id, $section->id, $branch->id);
+                                    //         $error_counter++;
+                                    //     }
+                                    // }
 
-                                            /* -------- UPDATE DATA -------- */
-                                            if (empty($reason)) {
+                                    /* -------- UPDATE DATA -------- */
+                                    if (empty($reason)) {
 
-                                                // Registration
-                                                $reg->update([
-                                                    'stdname' => $student_name,
-                                                    'owned_by' => $branch->id,
-                                                    'branch' => $branch->id,
-                                                    'class_id' => $class->id,
-                                                    // 'student_status' => $student_status ?? $reg->student_status,
-                                                    // 'active_status' => $active_status ?? $reg->active_status,
-                                                ]);
+                                        // Registration
+                                        $reg->update([
+                                            // 'stdname' => $student_name,
+                                            // 'owned_by' => $branch->id,
+                                            // 'branch' => $branch->id,
+                                            // 'class_id' => $class->id,
+                                            'dob' => $dob,
+                                            // 'student_status' => $student_status ?? $reg->student_status,
+                                            // 'active_status' => $active_status ?? $reg->active_status,
+                                        ]);
 
-                                                // Enrollment
-                                                $enr->update([
-                                                    'owned_by' => $branch->id,
-                                                    'class_id' => $sectionclass->class_id,
-                                                    'section_id' => $sectionclass->section_id,
-                                                    'adm_branch' => $branch->id,
-                                                    'adm_session' => 2,
-                                                    // 'active_status' => $active_status ?? $enr->active_status,
-                                                ]);
+                                        // Enrollment
+                                        // $enr->update([
+                                        //     'owned_by' => $branch->id,
+                                        //     'class_id' => $sectionclass->class_id,
+                                        //     'section_id' => $sectionclass->section_id,
+                                        //     'adm_branch' => $branch->id,
+                                        //     'adm_session' => 2,
+                                        //     // 'active_status' => $active_status ?? $enr->active_status,
+                                        // ]);
 
-                                                $status = 'Success';
-                                                $success_counter++;
-                                            }
-                                        }
+                                        $status = 'Success';
+                                        $success_counter++;
                                     }
+                                    // }
                                 }
+                                // }
                             }
                         }
                     }
@@ -1886,7 +1888,7 @@ class DataImportController extends Controller
             return response()
                 ->download($success_path)
                 ->deleteFileAfterSend(true)
-                ;
+            ;
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('StudentDetail Import Error', ['error' => $e->getMessage()]);
@@ -2851,7 +2853,7 @@ class DataImportController extends Controller
                         return is_string($value)
                             ? iconv('UTF-8', 'UTF-8//IGNORE', $value)
                             : $value;
-                    }, $all_data);                    
+                    }, $all_data);
                     if ($count > 0) {
                         $error_reason = null;
                         // dd($all_data);
@@ -2892,7 +2894,7 @@ class DataImportController extends Controller
                         // dd($all_data);
                         $clean_title = preg_replace('/\s*\(.*?\)/', '', $all_data[0]);
                         $branch = User::where('name', $clean_title)->first();
-                        if($all_data[22] != ''){
+                        if ($all_data[22] != '') {
                             $regType = strtolower($all_data[22]) == 'normal' ? 1 : 2;
                         }
                         if (!$branch) {
@@ -2964,7 +2966,7 @@ class DataImportController extends Controller
                             $reg->registrationfee = $all_data[18] ?? null;
                             $reg->reg_class = $class->id;
                             $reg->register_option = $regType;
-                            
+
                             // Update status from sheet data
                             $reg->student_status = $all_data[19];
                             $reg->active_status = $all_data[20];
@@ -3722,7 +3724,7 @@ class DataImportController extends Controller
                                 $dataret = Utility::crv_entry($data);
                                 $challan->voucher_id = $dataret;
                                 $challan->save();
-                            
+
                             }
                         }
                         //log
@@ -4480,7 +4482,7 @@ class DataImportController extends Controller
                                 $challan_head->created_at = date('Y-m-d H:i:s', strtotime($billingMonth));
                                 $challan_head->updated_at = date('Y-m-d H:i:s', strtotime($billingMonth));
                                 $challan_head->save();
-                                
+
                                 $challan->total_amount += $head_amount;
                                 $challan->concession_amount += $concession;
                                 $challan->save();
@@ -6484,7 +6486,7 @@ class DataImportController extends Controller
         $latest = Challans::orderByRaw('CAST(challanNo AS UNSIGNED) DESC')
             ->first();
 
-        if (! $latest || ! $latest->challanNo) {
+        if (!$latest || !$latest->challanNo) {
             return 1;
         }
 

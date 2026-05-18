@@ -34,7 +34,7 @@ class AccountWiseFeeStructure extends Controller
             // dd($query->get(),$request->head_id,$request->branches);
             $classes = Classes::where('owned_by', $request->branches)->pluck('name', 'id')->where('active_status', 1);
             $classes->prepend('Select Class', '');
-            
+
             if (!empty($request->class_id)) {
                 $query->where('class_id', $request->class_id);
             }
@@ -251,7 +251,7 @@ class AccountWiseFeeStructure extends Controller
                 ], 404);
             }
 
-             $record->checked_status = 0;
+            $record->checked_status = 0;
             $record->save();    // Hard delete — use softDelete() if you prefer a trash approach
 
             return response()->json([
@@ -281,29 +281,31 @@ class AccountWiseFeeStructure extends Controller
                 ], 422);
             }
 
-            $deletedCount = 0;
+            $updatedCount = 0;
 
-            // Wrap all deletes in a single DB transaction so it's all-or-nothing
-            \DB::transaction(function () use ($data, &$deletedCount) {
+            \DB::transaction(function () use ($data, &$updatedCount) {
                 foreach ($data as $item) {
+
                     $query = StudentFeeStructure::where('class_id', $item['classId'])
                         ->where('branch_id', $item['branchId'])
                         ->where('head_id', $item['headId']);
 
-                    // Support both enrolled students (student_id) and registered ones (reg_id)
                     if (!empty($item['studentId']) && $item['studentId'] != '0') {
                         $query->where('student_id', $item['studentId']);
                     } else {
                         $query->where('reg_id', $item['regId']);
                     }
 
-                    $deletedCount += $query->delete();
+                    // ✅ same behavior as single detach
+                    $updatedCount += $query->update([
+                        'checked_status' => 0
+                    ]);
                 }
             });
 
             return response()->json([
                 'status' => 'success',
-                'message' => $deletedCount . ' fee head(s) detached successfully.',
+                'message' => $updatedCount . ' fee head(s) detached successfully.',
             ]);
 
         } catch (\Exception $e) {

@@ -14,6 +14,7 @@ class JournalItem extends Model
         'bank_id',
         'user_type',
         'entry_id',
+        'receipt_id',
         'types',
         'is_discount',
         'description',

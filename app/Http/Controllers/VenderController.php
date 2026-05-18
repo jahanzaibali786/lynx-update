@@ -608,4 +608,10 @@ class VenderController extends Controller
 
         return redirect()->back()->with($data['status'], $data['msg']);
     }
+    public function getVendors(Request $request)
+    {
+        $vendors = Vender::where('created_by', \Auth::user()->creatorId())->get();
+
+        return response()->json($vendors);
+    }
 }

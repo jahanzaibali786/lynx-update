@@ -537,6 +537,11 @@ class StudentTransferController extends Controller
         $student = StudentRegistration::where('class_id',$request->class_id)->where('student_status','Enrolled')->get();
         return response()->json(['student' => $student]);
     }
+    public function class_student_headwithdrawl(Request $request)
+    {
+        $student = StudentRegistration::where('class_id',$request->class_id)->get();
+        return response()->json(['student' => $student]);
+    }
 
     public function class_section(Request $request)
     {

@@ -37,7 +37,10 @@
 
                     // Remove previous custom select wrapper and instance
                     if ($classSelect[0] && $classSelect[0].customSelectInstance) {
-                        try { $classSelect[0].customSelectInstance.destroy(); } catch(e) { /* ignored */ }
+                        try {
+                            $classSelect[0].customSelectInstance.destroy();
+                        } catch (e) {
+                            /* ignored */ }
                         delete $classSelect[0].customSelectInstance;
                     }
                     if ($classSelect.next('.custom-select-wrapper').length) {
@@ -80,7 +83,10 @@
                     $classSelect.addClass('custom-select');
                     $classSelect.show();
                     if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
-                        try { window.CustomSelect.create($classSelect[0]); } catch(e) { /* ignored */ }
+                        try {
+                            window.CustomSelect.create($classSelect[0]);
+                        } catch (e) {
+                            /* ignored */ }
                     }
 
                     // If class was selected, load students
@@ -109,7 +115,9 @@
 
                     // Remove previous custom select wrapper and instance
                     if ($studentSelect[0] && $studentSelect[0].customSelectInstance) {
-                        try { $studentSelect[0].customSelectInstance.destroy(); } catch(e) {}
+                        try {
+                            $studentSelect[0].customSelectInstance.destroy();
+                        } catch (e) {}
                         delete $studentSelect[0].customSelectInstance;
                     }
                     if ($studentSelect.next('.custom-select-wrapper').length) {
@@ -130,7 +138,8 @@
                             var std = data.student[j];
                             $studentSelect.append($('<option>', {
                                 value: std.roll_no,
-                                text: std.roll_no + ' - ' + std.stdname + (std.fathername ? ' s/d/o ' + std.fathername : '')
+                                text: std.roll_no + ' - ' + std.stdname + (std.fathername ?
+                                    ' s/d/o ' + std.fathername : '')
                             }));
                         }
                     } else if (data && data.students && Array.isArray(data.students)) {
@@ -138,7 +147,8 @@
                             var std = data.students[j];
                             $studentSelect.append($('<option>', {
                                 value: std.roll_no || std.id,
-                                text: (std.roll_no ? std.roll_no + ' - ' : '') + std.stdname + (std.fathername ? ' s/d/o ' + std.fathername : '')
+                                text: (std.roll_no ? std.roll_no + ' - ' : '') + std.stdname + (std
+                                    .fathername ? ' s/d/o ' + std.fathername : '')
                             }));
                         }
                     } else if (data && typeof data === 'object') {
@@ -161,7 +171,9 @@
                     $studentSelect.addClass('custom-select');
                     $studentSelect.show();
                     if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
-                        try { window.CustomSelect.create($studentSelect[0]); } catch(e) {}
+                        try {
+                            window.CustomSelect.create($studentSelect[0]);
+                        } catch (e) {}
                     }
                 },
                 error: function(xhr, status, err) {
@@ -186,7 +198,10 @@
 
                     // Remove previous custom select wrapper and instance
                     if ($classSelect[0] && $classSelect[0].customSelectInstance) {
-                        try { $classSelect[0].customSelectInstance.destroy(); } catch(e) { /* ignored */ }
+                        try {
+                            $classSelect[0].customSelectInstance.destroy();
+                        } catch (e) {
+                            /* ignored */ }
                         delete $classSelect[0].customSelectInstance;
                     }
                     if ($classSelect.next('.custom-select-wrapper').length) {
@@ -225,17 +240,24 @@
                     $classSelect.addClass('custom-select');
                     $classSelect.show();
                     if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
-                        try { window.CustomSelect.create($classSelect[0]); } catch(e) { /* ignored */ }
+                        try {
+                            window.CustomSelect.create($classSelect[0]);
+                        } catch (e) {
+                            /* ignored */ }
                     }
 
                     // reset student select
                     $('#student_select').html('<option value="">Select Student</option>');
                     if ($('#student_select')[0] && $('#student_select')[0].customSelectInstance) {
-                        try { $('#student_select')[0].customSelectInstance.destroy(); } catch(e) {}
+                        try {
+                            $('#student_select')[0].customSelectInstance.destroy();
+                        } catch (e) {}
                         $('#student_select').next('.custom-select-wrapper').remove();
                         $('#student_select').removeClass('custom-select').addClass('custom-select');
                         if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
-                            try { window.CustomSelect.create($('#student_select')[0]); } catch(e) {}
+                            try {
+                                window.CustomSelect.create($('#student_select')[0]);
+                            } catch (e) {}
                         }
                     }
                 },
@@ -262,7 +284,9 @@
 
                     // Remove previous custom select wrapper and instance
                     if ($studentSelect[0] && $studentSelect[0].customSelectInstance) {
-                        try { $studentSelect[0].customSelectInstance.destroy(); } catch(e) {}
+                        try {
+                            $studentSelect[0].customSelectInstance.destroy();
+                        } catch (e) {}
                         delete $studentSelect[0].customSelectInstance;
                     }
                     if ($studentSelect.next('.custom-select-wrapper').length) {
@@ -283,7 +307,8 @@
                             var std = data.student[j];
                             $studentSelect.append($('<option>', {
                                 value: std.roll_no,
-                                text: std.roll_no + ' - ' + std.stdname + (std.fathername ? ' s/d/o ' + std.fathername : '')
+                                text: std.roll_no + ' - ' + std.stdname + (std.fathername ?
+                                    ' s/d/o ' + std.fathername : '')
                             }));
                         }
                     } else if (data && data.students && Array.isArray(data.students)) {
@@ -292,7 +317,9 @@
                             var std = data.students[j];
                             $studentSelect.append($('<option>', {
                                 value: std.roll_no || std.id,
-                                text: (std.roll_no ? std.roll_no + ' - ' : '') + std.stdname + (std.fathername ? ' s/d/o ' + std.fathername : '')
+                                text: (std.roll_no ? std.roll_no + ' - ' : '') + std
+                                    .stdname + (std.fathername ? ' s/d/o ' + std
+                                        .fathername : '')
                             }));
                         }
                     } else if (data && typeof data === 'object') {
@@ -311,7 +338,9 @@
                     $studentSelect.addClass('custom-select');
                     $studentSelect.show();
                     if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
-                        try { window.CustomSelect.create($studentSelect[0]); } catch(e) {}
+                        try {
+                            window.CustomSelect.create($studentSelect[0]);
+                        } catch (e) {}
                     }
                 },
                 error: function(xhr, status, err) {
@@ -333,15 +362,15 @@
                 student: $('#student_select').val() || '',
                 export: 'excel'
             };
-            
-            console.log('Export Excel Params:', params);
-            
+
+            // console.log('Export Excel Params:', params);
+
             // Build query string from all parameters
             var queryString = Object.keys(params)
                 .filter(key => params[key] !== '')
                 .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
                 .join('&');
-            
+
             console.log('Export Excel Query:', queryString);
             window.location.href = "{{ route('student_fee_receipt_detail.report') }}?" + queryString;
         }
@@ -359,15 +388,15 @@
                 student: $('#student_select').val() || '',
                 export: 'pdf'
             };
-            
-            console.log('Export PDF Params:', params);
-            
+
+            // console.log('Export PDF Params:', params);
+
             // Build query string from all parameters
             var queryString = Object.keys(params)
                 .filter(key => params[key] !== '')
                 .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
                 .join('&');
-            
+
             console.log('Export PDF Query:', queryString);
             window.location.href = "{{ route('student_fee_receipt_detail.report') }}?" + queryString;
         }
@@ -394,7 +423,7 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('from_date', __('From Date'), ['class' => 'form-label']) }}
-                                    {{ Form::date('from_date', request()->get('from_date') ?? date('Y-m-d', strtotime('first day of this month') ), ['class' => 'form-control']) }}
+                                    {{ Form::date('from_date', request()->get('from_date') ?? date('Y-m-d', strtotime('first day of this month')), ['class' => 'form-control']) }}
                                 </div>
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -482,105 +511,106 @@
         </div>
     </div>
     <div class="card mt-2 p-4" id="studentfeereceipt">
-            <div style="width: 100%; text-align: center;">
-                <p style="font-family:Edwardian Script ITC; font-size:3rem; text-align: center;"><b>The Lynx School </b></p>
-            </div>
-            <div style="width: 100%; text-align: center;">
-                <p style="font-size:1rem; text-align: center; font-weight: 800;">Fee Receipt Detail</p>
-            </div>
-            <div style="width: 100%; text-align: center;">
-                <p style="font-size:1rem; text-align: center; font-weight: 800;">
-                    {{ @$brnches_name->name ?? 'All Branches' }}</p>
-            </div>
-            <div class="d-flex" style="justify-content: space-between;">
-                <p style=""><b>From Date: </b>{{ request()->get('from_date') ?? date('Y-M-d') }}</p>
-                <p style=""></p>
-                <p style=""><b>To Date:
-                    </b>{{ request()->get('to_date') ?? date('Y-M-d') }}</p>
-            </div>
-            <div class="maximumHeightNew" style="width: 100%;">
-                <table class="datatable">
-                    <thead class="sticky-headerNew">
-                        <tr class="table_heads" style="font-size:0.8rem;">
-                            <th>{{ __('Sr#') }}</th>
-                            <th>{{ __('Br.Sr#') }}</th>
-                            <th>{{ __('Date') }}</th>
-                            <th>{{ __('Ch. Type') }}</th>
-                            <th>{{ __('Roll #.') }}</th>
-                            <th>{{ __('Student') }}</th>
-                            <th>{{ __('Class') }}</th>
-                            <th>{{ __('Challan No') }}</th>
-                            <th>{{ __('Billing Month') }}</th>
-                            <th>{{ __('Billing Cycle') }}</th>
-                            <th>{{ __('Bank/Cash') }}</th>
-                            <th>{{ __('Mode') }}</th>
-                            <th>{{ __('T.Head') }}</th>
-                            <th>{{ __('Ref.') }}</th>
-                            <th>{{ __('Rs.') }}</th>
-                            <th>{{ __('Over Receipt') }}</th>
+        <div style="width: 100%; text-align: center;">
+            <p style="font-family:Edwardian Script ITC; font-size:3rem; text-align: center;"><b>The Lynx School </b></p>
+        </div>
+        <div style="width: 100%; text-align: center;">
+            <p style="font-size:1rem; text-align: center; font-weight: 800;">Fee Receipt Detail</p>
+        </div>
+        <div style="width: 100%; text-align: center;">
+            <p style="font-size:1rem; text-align: center; font-weight: 800;">
+                {{ @$brnches_name->name ?? 'All Branches' }}</p>
+        </div>
+        <div class="d-flex" style="justify-content: space-between;">
+            <p style=""><b>From Date: </b>{{ request()->get('from_date') ?? date('Y-M-d') }}</p>
+            <p style=""></p>
+            <p style=""><b>To Date:
+                </b>{{ request()->get('to_date') ?? date('Y-M-d') }}</p>
+        </div>
+        <div class="maximumHeightNew" style="width: 100%;">
+            <table class="datatable">
+                <thead class="sticky-headerNew">
+                    <tr class="table_heads" style="font-size:0.8rem;">
+                        <th>{{ __('Sr#') }}</th>
+                        <th>{{ __('Br.Sr#') }}</th>
+                        <th>{{ __('Date') }}</th>
+                        <th>{{ __('Ch. Type') }}</th>
+                        <th>{{ __('Roll #.') }}</th>
+                        <th>{{ __('Student') }}</th>
+                        <th>{{ __('Class') }}</th>
+                        <th>{{ __('Challan No') }}</th>
+                        <th>{{ __('Billing Month') }}</th>
+                        <th>{{ __('Billing Cycle') }}</th>
+                        <th>{{ __('Bank/Cash') }}</th>
+                        <th>{{ __('Mode') }}</th>
+                        <th>{{ __('T.Head') }}</th>
+                        <th>{{ __('Ref.') }}</th>
+                        <th>{{ __('Rs.') }}</th>
+                        <th>{{ __('Over Receipt') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @php $globalSr = 1; @endphp
+
+                    @foreach ($groupedVouchers as $branchId => $branchVouchers)
+                        @php
+                            $branchSr = 1;
+                            $branchTotal = 0;
+                        @endphp
+                        <tr style="background-color: #f0f0f0;">
+                            <td colspan="16" style="font-weight: bold;">
+                                {{ $branchNames[$branchId] ?? 'Unknown Branch' }}
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-@php $globalSr = 1; @endphp
 
-@foreach ($groupedVouchers as $branchId => $branchVouchers)
-    @php $branchSr = 1; 
-        $branchTotal = 0;
-    @endphp
-    <tr style="background-color: #f0f0f0;">
-        <td colspan="16" style="font-weight: bold;">
-            {{ $branchNames[$branchId] ?? 'Unknown Branch' }}
-        </td>
-    </tr>
+                        @foreach ($branchVouchers as $voucher)
+                            <tr style="font-size:0.7rem;">
+                                <td>{{ $globalSr++ }}</td>
+                                <td>{{ $branchSr++ }}</td>
+                                <td>
+                                    {{ \Carbon\Carbon::parse($voucher['receipts']->first()->recipt_date)->format('d-M-Y') }}
+                                </td>
+                                <td>{{ $voucher['challan']?->challan_type }}</td>
+                                <td>{{ $voucher['challan']?->enrollstudent?->enrollId ?? $voucher['challan']?->student?->roll_no }}
+                                </td>
+                                <td>{{ $voucher['challan']?->student?->stdname }}</td>
+                                <td>{{ $voucher['challan']?->class?->name }}</td>
+                                <td>{{ $voucher['challan']?->challanNo }}</td>
+                                <td>
+                                    {{ $voucher['challan']?->fee_month ? \Carbon\Carbon::parse($voucher['challan']->fee_month)->format('F Y') : '' }}
+                                </td>
+                                <td>{{ $voucher['challan']?->billing_cycle }}</td>
+                                <td>{{ $voucher['bank']?->bank_name }}</td>
+                                <td>{{ $voucher['receipts']->first()->receive_type }}</td>
+                                <td>
+                                    @foreach ($voucher['voucher_items'] as $item)
+                                        {{ $item->heads?->fee_head }}<br>
+                                    @endforeach
+                                </td>
+                                <td>
+                                    @foreach ($voucher['receipts'] as $r)
+                                        {{ $r->referance }}<br>
+                                    @endforeach
+                                </td>
+                                <td>{{ $voucher['voucher_items']->sum('credit') }}</td>
+                                @php
+                                    $branchTotal += $voucher['voucher_items']->sum('credit');
+                                @endphp
+                                <td>0.0</td>
+                            </tr>
+                        @endforeach
+                        <tr style="background-color: #f0f0f0;">
+                            <td colspan="14" style="font-weight: bold;">
+                                Total
+                            </td>
+                            <td>{{ $branchTotal }}</td>
+                            <td>0.0</td>
+                        </tr>
+                    @endforeach
+                </tbody>
 
-    @foreach ($branchVouchers as $voucher)
-        <tr style="font-size:0.7rem;">
-            <td>{{ $globalSr++ }}</td>
-            <td>{{ $branchSr++ }}</td>
-            <td>
-                {{ \Carbon\Carbon::parse($voucher['receipts']->first()->recipt_date)->format('d-M-Y') }}
-            </td>
-            <td>{{ $voucher['challan']?->challan_type }}</td>
-            <td>{{ $voucher['challan']?->enrollstudent?->enrollId ?? $voucher['challan']?->student?->roll_no }}</td>
-            <td>{{ $voucher['challan']?->student?->stdname }}</td>
-            <td>{{ $voucher['challan']?->class?->name }}</td>
-            <td>{{ $voucher['challan']?->challanNo }}</td>
-            <td>
-                {{ $voucher['challan']?->fee_month ? \Carbon\Carbon::parse($voucher['challan']->fee_month)->format('F Y') : '' }}
-            </td>
-            <td>{{ $voucher['challan']?->billing_cycle }}</td>
-            <td>{{ $voucher['bank']?->bank_name }}</td>
-            <td>{{ $voucher['receipts']->first()->receive_type }}</td>
-            <td>
-                @foreach($voucher['voucher_items'] as $item)
-                    {{ $item->heads?->fee_head }}<br>
-                @endforeach
-            </td>
-            <td>
-                @foreach($voucher['receipts'] as $r)
-                    {{ $r->referance }}<br>
-                @endforeach
-            </td>
-            <td>{{ $voucher['voucher_items']->sum('credit') }}</td>
-            @php
-                $branchTotal += $voucher['voucher_items']->sum('credit');
-            @endphp
-            <td>0.0</td>
-        </tr>
-    @endforeach
-    <tr style="background-color: #f0f0f0;">
-        <td colspan="14" style="font-weight: bold;">
-            Total
-        </td>
-        <td>{{ $branchTotal }}</td>
-        <td>0.0</td>
-    </tr>
-@endforeach
-</tbody>
+            </table>
+        </div>
 
-                </table>
-            </div>
-        
     </div>
-
 @endsection

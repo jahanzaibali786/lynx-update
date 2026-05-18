@@ -372,9 +372,10 @@
         function displayStudentDetails(data) {
             var detailsDiv = document.getElementById('student-details');
             if (data) {
-                let concessionTitle = data.concession?.concession?.title && data.concession.concession.title !== 'No Concession' 
-                    ? data.concession.concession.title 
-                    : 'N/A';
+                let concessionTitle = data.concession?.concession?.title && data.concession.concession.title !==
+                    'No Concession' ?
+                    data.concession.concession.title :
+                    'N/A';
                 detailsDiv.innerHTML = `
                     <div style="display:grid; grid-template-columns:auto auto auto;">
                         <p><strong>Student Name:</strong> ${data.data?.stdname || 'N/A'}</p>
@@ -388,7 +389,7 @@
                     </div>
                  `;
                 if (data.concession && data.concession.concession && data.concession.concession !== 'No Concession') {
-                    $('.av').removeClass('d-none');                    
+                    $('.av').removeClass('d-none');
                     let cancelDate = data.concession.cancel_date;
                     if (cancelDate) {
                         let formatted = new Date(cancelDate).toISOString().split('T')[0];
@@ -464,7 +465,7 @@
                                     {{ Form::date('start_date', isset($_GET['start_date']) ? $_GET['start_date'] : $request->start_date, ['class' => 'form-control']) }}
                                 </div>
                             </div>
-                           {{-- <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                            {{-- <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('end_date', __('Period To'), ['class' => 'form-label']) }}
                                     {{ Form::date('end_date', isset($_GET['end_date']) ? $_GET['end_date'] : $request->end_date, ['class' => 'form-control']) }}
@@ -557,89 +558,73 @@
                             </div>
                         </td>
                         @php
-    $isAdmin   = Auth::user()->type === 'company';
-    $isApproved = $concession->status == 'Approved';
-    $hasOrder  = !empty($concession->concession_id);
-@endphp
+                            $isAdmin = Auth::user()->type === 'company';
+                            $isApproved = $concession->status == 'Approved';
+                            $hasOrder = !empty($concession->concession_id);
+                        @endphp
 
-<td>
-    <div class="action-btn ms-2">
+                        <td>
+                            <div class="action-btn ms-2">
 
-        {{-- USER --}}
-        @if(!$isAdmin)
-            @if(!$isApproved)
-                <a href="{{ route('concession.change_status', [$concession->id, 'For Approval']) }}"
-                   class="btn btn-sm btn-outline-warning"
-                   title="Send For Approval">
-                    <i class="ti ti-send"></i>
-                </a>
+                                {{-- USER --}}
+                                @if (!$isAdmin)
+                                    @if (!$isApproved)
+                                        <a href="{{ route('concession.change_status', [$concession->id, 'For Approval']) }}"
+                                            class="btn btn-sm btn-outline-warning" title="Send For Approval">
+                                            <i class="ti ti-send"></i>
+                                        </a>
 
-                <a href="#"
-                   data-url="{{ route('concession.edit', $concession->id) }}"
-                   data-ajax-popup="true"
-                   data-size="xl"
-                   class="btn btn-sm btn-outline-primary"
-                   title="Edit">
-                    <i class="ti ti-pencil"></i>
-                </a>
-            @endif
-        @endif
+                                        <a href="#" data-url="{{ route('concession.edit', $concession->id) }}"
+                                            data-ajax-popup="true" data-size="xl" class="btn btn-sm btn-outline-primary"
+                                            title="Edit">
+                                            <i class="ti ti-pencil"></i>
+                                        </a>
+                                    @endif
+                                @endif
 
-        {{-- ADMIN --}}
-        @if($isAdmin)
+                                {{-- ADMIN --}}
+                                @if ($isAdmin)
+                                    {{-- Edit allowed only BEFORE approval --}}
+                                    @if (!$isApproved)
+                                        <a href="#" data-url="{{ route('concession.edit', $concession->id) }}"
+                                            data-ajax-popup="true" data-size="xl" class="btn btn-sm btn-outline-primary"
+                                            title="Edit">
+                                            <i class="ti ti-pencil"></i>
+                                        </a>
+                                    @endif
 
-            {{-- Edit allowed only BEFORE approval --}}
-            @if(!$isApproved)
-                <a href="#"
-                   data-url="{{ route('concession.edit', $concession->id) }}"
-                   data-ajax-popup="true"
-                   data-size="xl"
-                   class="btn btn-sm btn-outline-primary"
-                   title="Edit">
-                    <i class="ti ti-pencil"></i>
-                </a>
-            @endif
+                                    {{-- Approved but order NOT generated --}}
+                                    @if ($isApproved && !$hasOrder)
+                                        <form action="{{ route('concession-order', $concession->id) }}" method="POST"
+                                            class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-success"
+                                                title="Generate Order">
+                                                Generate
+                                            </button>
+                                        </form>
 
-            {{-- Approved but order NOT generated --}}
-            @if($isApproved && !$hasOrder)
-                <form action="{{ route('concession-order', $concession->id) }}"
-                      method="POST"
-                      class="d-inline">
-                    @csrf
-                    <button type="submit"
-                            class="btn btn-sm btn-outline-success"
-                            title="Generate Order">
-                        Generate
-                    </button>
-                </form>
+                                        <a href="#" data-url="{{ route('concession.cancel', $concession->id) }}"
+                                            data-ajax-popup="true" class="btn btn-sm btn-outline-danger" title="Cancel">
+                                            <i class="ti ti-ban"></i>
+                                        </a>
+                                    @endif
 
-                <a href="#"
-                   data-url="{{ route('concession.cancel', $concession->id) }}"
-                   data-ajax-popup="true"
-                   class="btn btn-sm btn-outline-danger"
-                   title="Cancel">
-                    <i class="ti ti-ban"></i>
-                </a>
-            @endif
+                                    {{-- Approved AND order exists → FULL LOCK --}}
+                                    @if ($isApproved && $hasOrder)
+                                        <<form action="{{ route('concession-order', $concession->id) }}" method="POST"
+                                            class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-success"
+                                                title="Generate Order">
+                                                Generate
+                                            </button>
+                                            </form>
+                                    @endif
+                                @endif
 
-            {{-- Approved AND order exists → FULL LOCK --}}
-            @if($isApproved && $hasOrder)
-                <<form action="{{ route('concession-order', $concession->id) }}"
-                      method="POST"
-                      class="d-inline">
-                    @csrf
-                    <button type="submit"
-                            class="btn btn-sm btn-outline-success"
-                            title="Generate Order">
-                        Generate
-                    </button>
-                </form>
-            @endif
-
-        @endif
-
-    </div>
-</td>
+                            </div>
+                        </td>
 
                     </tr>
                 @endforeach

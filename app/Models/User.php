@@ -251,6 +251,14 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return 'BRV' . sprintf("%05d", $number);
     }
+       public function setbreaktext($textt): string
+    {
+           $text = $textt ?? '';
+
+            if (strlen($text) <= 10) return $text;
+
+            return str_replace("\n", "<br>", wordwrap($text, 10, "\n", false));
+    }
 
     public function BPVNumberFormat($number)
     {

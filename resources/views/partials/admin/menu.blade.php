@@ -1563,6 +1563,11 @@
                                                     <a class="dash-link {{ Request::segment(1) == 'journal-entry' || Request::segment(1) == 'bank-recipt-voucher' || Request::segment(1) == 'bank-payment-voucher' || Request::segment(1) == 'cash-recipt-voucher' || Request::segment(1) == 'cash-payment-voucher' ? 'active dash-trigger' : '' }}"
                                                         href="#voucher">{{ __('Vouchers') }}</a>
                                                     <ul id="voucher" class="dash-submenu">
+
+                                                        <li class="dash-item ">
+                                                            <a class="dash-link {{ Request::route()->getName() ==  'createVoucher' ? ' active' : '' }}"
+                                                                href="{{ route('createVoucher') }}">{{ __('+ Voucher') }}</a>
+                                                        </li>
                                                         <li class="dash-item ">
                                                             <a class="dash-link {{ Request::route()->getName() == 'bank-recipt-voucher.edit' || Request::route()->getName() == 'bank-recipt-voucher.create' || Request::route()->getName() == 'bank-recipt-voucher.index' || Request::route()->getName() == 'bank-recipt-voucher.show' ? ' active' : '' }}"
                                                                 href="{{ route('bank-recipt-voucher.index') }}">{{ __('BRV') }}</a>
@@ -1810,6 +1815,12 @@
                                     <li class="dash-item">
                                         <a class="dash-link  {{ request()->is('student-promotion*') ? 'active' : '' }}"
                                             href="{{ route('student-promotion.index') }}">{{ __('Student Promotion') }}</a>
+                                    </li>
+                                @endcan
+                                @can('manage promotion')
+                                    <li class="dash-item">
+                                        <a class="dash-link  {{ request()->is('section.bulkindex') ? 'active' : '' }}"
+                                            href="{{ route('section.bulkindex') }}">{{ __('Bulk Section Update') }}</a>
                                     </li>
                                 @endcan
                                 @can('view spacetype')
@@ -2066,12 +2077,17 @@
                                     </li>
                                 @endcan
                                 <li class="dash-item ">
-                                    <a class="dash-link {{ Request::segment(1) == 'monthlyperchallanreport' ? 'active' : '' }}"
+                                    <a class="dash-link {{ Request::segment(1) == 'monthlyperchallanreport' || Request::routeIs('prechallan.index') ? 'active' : '' }}"
                                         href="{{ route('monthlyprechallanreport') }}">{{ __('Monthly Pre-Challan') }}</a>
                                 </li>
                                 <li class="dash-item ">
                                     <a class="dash-link {{ Request::segment(1) == 'monthlychallanreport' ? 'active' : '' }}"
-                                        href="{{ route('monthlychallanreport') }}">{{ __('Regullar Challan Report') }}</a>
+                                        href="{{ route('monthlychallanreport') }}">{{ __('Regular Challan Report') }}</a>
+                                </li>
+                                {{-- comparison regular vs pre challan --}}
+                                <li class="dash-item ">
+                                    <a class="dash-link {{ Request::routeIs('prechallan.comparison') ? 'active' : '' }}"
+                                        href="{{ route('prechallan.comparison') }}">{{ __('Comparison Reg. vs Pre') }}</a>
                                 </li>
                                 <li class="dash-item ">
                                     <a class="dash-link {{ Request::segment(1) == 'advancechallanreport' ? 'active' : '' }}"

@@ -6,6 +6,7 @@ use App\Exports\MonthlyStatistics;
 use App\Exports\AdmissionWithdrawalReport;
 use App\Exports\PeriodWiseStatisticExport;
 use App\Exports\AdmissionListingExport;
+use App\Exports\StudentSectionsStatisticsExport;
 use App\Exports\StudentAccountStatementExport;
 use App\Exports\studenttransferinReport;
 use App\Exports\AdvanceChallanreport;
@@ -28,6 +29,7 @@ use App\Models\BankAccount;
 use App\Models\ChallanHead;
 use App\Models\Challans;
 use App\Models\Classes;
+use App\Models\Section;
 use App\Models\ClassWiseFee;
 use App\Models\FeeHead;
 use App\Models\JournalItem;
@@ -51,6 +53,7 @@ use DB;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Spatie\Browsershot\Browsershot;
 
 class StudentReportController extends Controller
@@ -1019,70 +1022,71 @@ class StudentReportController extends Controller
     public function admissionlisting(Request $request)
     {
         set_time_limit(0);
-        $userType = \Auth::user()->type;
-        $userCreatorId = \Auth::user()->creatorId();
-        $userOwnedId = \Auth::user()->ownedId();
 
-        // Build branches query
+        $user = \Auth::user();
+        $userType = $user->type;
+        $userCreatorId = $user->creatorId();
+        $userOwnedId = $user->ownedId();
+
         if ($userType == 'company') {
-            $branches = User::where('type', 'branch')->where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
-            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+            $branches = User::where('type', 'branch')
+                ->where('created_by', $userCreatorId)
+                ->pluck('name', 'id');
+
+            $branches->prepend($user->name, $user->id);
             $branches->prepend('All Branches', 'all');
+
             $query = StudentEnrollments::with(['class', 'branch', 'StudentRegistration'])
+                ->where('active_status', 1)
                 ->where('created_by', $userCreatorId);
-            $classes = Classes::where('created_by', $userCreatorId)->where('active_status', 1)->pluck('name', 'id');
+
+            $classes = Classes::where('created_by', $userCreatorId)
+                ->where('active_status', 1)
+                ->pluck('name', 'id');
+
             $classes->prepend('All Classes', 'all');
-            $sections = DB::table('class_sections')
-                ->join('sections', 'class_sections.section_id', '=', 'sections.id')
-                ->whereIn('class_sections.class_id', $classes->keys()->except('all'))
-                ->select('sections.id', 'sections.name')
-                ->distinct()->pluck('sections.name', 'sections.id');
-            $sections->prepend('All Sections', 'all');
         } else {
             $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
             $branches->prepend('All Branches', 'all');
+
             $query = StudentEnrollments::with(['class', 'branch', 'StudentRegistration'])
+                ->where('active_status', 1)
                 ->where('owned_by', $userOwnedId);
-            $classes = Classes::where('owned_by', $userOwnedId)->where('active_status', 1)->pluck('name', 'id');
+
+            $classes = Classes::where('owned_by', $userOwnedId)
+                ->where('active_status', 1)
+                ->pluck('name', 'id');
+
             $classes->prepend('All Classes', 'all');
-            $sections = DB::table('class_sections')
-                ->join('sections', 'class_sections.section_id', '=', 'sections.id')
-                ->whereIn('class_sections.class_id', $classes->keys()->except('all'))
-                ->select('sections.id', 'sections.name')
-                ->distinct()->pluck('sections.name', 'sections.id');
-            $sections->prepend('All Sections', 'all');
         }
+
+        $classIds = $classes->keys()->filter(fn($id) => $id != 'all')->values();
 
         $sections = DB::table('class_sections')
             ->join('sections', 'class_sections.section_id', '=', 'sections.id')
-            ->whereIn('class_sections.class_id', $classes->keys()->except('all'))
+            ->whereIn('class_sections.class_id', $classIds)
             ->select('sections.id', 'sections.name')
-            ->distinct()->pluck('sections.name', 'sections.id');
+            ->distinct()
+            ->pluck('sections.name', 'sections.id');
+
         $sections->prepend('All Sections', 'all');
 
-        // Apply filters
-        if ($request->has('branch') && $request->branch != '') {
-            if ($request->branch == 'all') {
-                $query->whereIn('owned_by', $branches->keys()->except('all'));
-            } else {
-                $query->where('owned_by', $request->branch);
-            }
+        if ($request->filled('branch') && $request->branch != 'all') {
+            $query->where('owned_by', $request->branch);
         }
 
-        if ($request->has('class') && $request->class != '') {
+        if ($request->filled('class') && $request->class != 'all') {
             $query->where('class_id', $request->class);
         }
 
-        // Remove duplicate student filter code (you had it 3 times)
-        if ($request->has('student') && $request->student != '') {
+        if ($request->filled('student') && $request->student != 'all') {
             $query->where('regId', $request->student);
         }
 
-        if ($request->has('sections') && $request->sections != '') {
+        if ($request->filled('sections') && $request->sections != 'all') {
             $query->where('section_id', $request->sections);
         }
 
-        // Handle date filtering
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
 
@@ -1091,86 +1095,103 @@ class StudentReportController extends Controller
             $currentMonth = date('m');
 
             $dateFrom = ($currentMonth >= 7)
-                ? "$currentYear-07-01 00:00:00"
-                : date('Y-07-01 00:00:00', strtotime('-1 year'));
+                ? "$currentYear-07-01"
+                : date('Y-07-01', strtotime('-1 year'));
 
             $dateTo = ($currentMonth >= 7)
-                ? date('Y-06-30 23:59:59', strtotime('+1 year'))
-                : "$currentYear-06-30 23:59:59";
+                ? date('Y-06-30', strtotime('+1 year'))
+                : "$currentYear-06-30";
 
-            $request->merge(['date_from' => substr($dateFrom, 0, 10)]);
-            $request->merge(['date_to' => substr($dateTo, 0, 10)]);
+            $request->merge([
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+            ]);
         }
 
         if (!empty($dateFrom) && !empty($dateTo)) {
             $query->whereBetween('adm_date', [$dateFrom, $dateTo]);
         }
 
-        // Get student data
-        $studentData = $query->get()->groupBy('owned_by');
-        $std_ids = $query->pluck('enrollId')->toArray();
+        $studentsCollection = $query->get();
+        $studentData = $studentsCollection->groupBy('owned_by');
 
-        // OPTIMIZATION 1: Get all challan heads in one query instead of multiple queries
-        $heads = DB::table('challan_heads')
-            ->join('challans', 'challan_heads.challan_id', '=', 'challans.id')
-            ->join('fee_heads', 'challan_heads.head_id', '=', 'fee_heads.id')
-            ->whereIn('challans.rollno', $std_ids)
-            ->whereRaw('LOWER(challans.challan_type) LIKE ?', [strtolower('%admission%')])
-            ->distinct()
-            ->select('challan_heads.head_id as id', 'fee_heads.fee_head')
-            ->get();
-        // OPTIMIZATION 2: Get all challans with their heads in one query
-        $challansData = Challans::whereIn('rollno', $std_ids)
-            ->whereRaw('LOWER(challan_type) LIKE ?', [strtolower('%admission%')])
+        $regIds = $studentsCollection
+            ->pluck('regId')
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $challans = Challans::whereIn('student_id', $regIds)
+            ->whereRaw('LOWER(challan_type) LIKE ?', ['%admission%'])
             ->with(['heads.feehead'])
             ->get()
-            ->keyBy('rollno');
-        // Key by student_id for fast lookup
-        // OPTIMIZATION 3: Pre-calculate all totals and organize challan data
+            ->keyBy('student_id');
+
+        $heads = $challans
+            ->flatMap(fn($challan) => $challan->heads)
+            ->filter(fn($head) => !empty($head->feehead))
+            ->map(fn($head) => (object) [
+                'id' => $head->head_id,
+                'fee_head' => $head->feehead->fee_head,
+            ])
+            ->unique('id')
+            ->values();
+
         $branchTotals = [];
         $grandTotal = 0;
-        $studentChallanData = []; // Store processed challan data
+
+        $branchHeadTotals = [];
+        $grandHeadTotals = [];
+
+        $studentChallanData = [];
 
         foreach ($studentData as $branchId => $students) {
             $branchTotal = 0;
+            $branchHeadTotals[$branchId] = [];
 
             foreach ($students as $student) {
+                $studentKey = $student->regId;
                 $studentTotal = 0;
-                $studentRegNo = @$student->enrollId;
                 $challanHeads = [];
 
-                // Get challan data from our pre-loaded collection
-                if (isset($challansData[$studentRegNo])) {
-                    $challan = $challansData[$studentRegNo];
+                $challan = $challans[$studentKey] ?? null;
 
+                if ($challan) {
                     foreach ($challan->heads as $head) {
-                        $studentTotal += (int) $head->price ?? 0;
-                        $challanHeads[] = [
-                            'name' => $head->feehead->fee_head,
-                            'amount' => $head->price,
+                        $amount = (float) ($head->price ?? 0);
+                        $studentTotal += $amount;
+
+                        $challanHeads[$head->head_id] = [
+                            'name' => $head->feehead->fee_head ?? '',
+                            'amount' => $amount,
                             'head_id' => $head->head_id,
                         ];
+
+                        $branchHeadTotals[$branchId][$head->head_id] =
+                            ($branchHeadTotals[$branchId][$head->head_id] ?? 0) + $amount;
+
+                        $grandHeadTotals[$head->head_id] =
+                            ($grandHeadTotals[$head->head_id] ?? 0) + $amount;
                     }
 
-                    // Store challan info for template use
-                    $studentChallanData[$studentRegNo] = [
+                    $studentChallanData[$studentKey] = [
                         'challan_no' => $challan->challanNo,
                         'challan_id' => $challan->id,
                         'heads' => $challanHeads,
-                        'total' => $studentTotal
+                        'total' => $studentTotal,
                     ];
-
                 } else {
-                    // No challan found for this student
-                    $studentChallanData[$studentRegNo] = [
+                    $studentChallanData[$studentKey] = [
                         'challan_no' => '',
                         'challan_id' => '',
                         'heads' => [],
-                        'total' => 0
+                        'total' => 0,
                     ];
                 }
-                $branchTotal += $studentTotal;
+
                 $student->total_amount = $studentTotal;
+                $branchTotal += $studentTotal;
             }
 
             $branchTotals[$branchId] = $branchTotal;
@@ -1182,63 +1203,81 @@ class StudentReportController extends Controller
         if ($request->has('export') && $request->export == 'excel') {
             $report_name = 'Admission Listing Report';
             $branchName = $branches[$request->branch] ?? 'All Branches';
-            return Excel::download(new AdmissionListingExport($request, $branchName, $report_name, $branches, $request->all()), 'admission_listing_report.xlsx');
+
+            return Excel::download(
+                new AdmissionListingExport($request, $branchName, $report_name, $branches, $request->all()),
+                'admission_listing_report.xlsx'
+            );
         }
+
         if ($request->has('export') && $request->export == 'pdf') {
             $report_name = 'Admission Listing Report';
             $branchName = $branches[$request->branch] ?? 'All Branches';
-            return Excel::download(new AdmissionListingExport($request, $branchName, $report_name, $branches, $request->all()), 'admission_listing_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
+
+            return Excel::download(
+                new AdmissionListingExport($request, $branchName, $report_name, $branches, $request->all()),
+                'admission_listing_report.pdf',
+                \Maatwebsite\Excel\Excel::MPDF
+            );
         }
 
-        // Handle PDF generation
         if ($request->has('print') && $request->print == 'pdf') {
             $report_name = 'Admission Listing';
 
-            $pdf = new Dompdf();
             $html = view('studentReports.admissiondetailreport_pdf', compact(
                 'studentData',
                 'student',
                 'branches',
                 'heads',
                 'classes',
+                'sections',
                 'branchTotals',
                 'grandTotal',
+                'branchHeadTotals',
+                'grandHeadTotals',
                 'request',
-                'studentChallanData' // Pass pre-calculated data
+                'studentChallanData'
             ))->render();
 
-            $headerHtml = view('studentReports.pdf_header', compact('request', 'report_name'));
+            $headerHtml = view('studentReports.pdf_header', compact('request', 'report_name'))->render();
             $footerHtml = view('students.concession.report.pdf.footer')->render();
 
-            $html = '<html><head>
-        <style>
-            @page {
-                margin-top: 100px;
-                margin-bottom: 100px;
-            }
-            .footer { position: fixed; bottom: -60px; height: 50px; left:0px; right:0px; }
-        </style>
-        </head><body>
-        ' . $headerHtml . '
-        <div class="footer">' . $footerHtml . '</div>
-        ' . $html . '
-        </body></html>';
+            $html = '<html>
+            <head>
+                <style>
+                    @page {
+                        margin-top: 100px;
+                        margin-bottom: 100px;
+                    }
+
+                    .footer {
+                        position: fixed;
+                        bottom: -60px;
+                        height: 50px;
+                        left: 0;
+                        right: 0;
+                    }
+                </style>
+            </head>
+            <body>
+                ' . $headerHtml . '
+                <div class="footer">' . $footerHtml . '</div>
+                ' . $html . '
+            </body>
+        </html>';
 
             $options = new Options();
             $options->set('isHtml5ParserEnabled', true);
             $options->set('isRemoteEnabled', true);
+
             $dompdf = new Dompdf($options);
             $dompdf->loadHtml($html);
             $dompdf->setPaper('A3', 'landscape');
             $dompdf->render();
 
-            $dompdf->stream("document.pdf", ["Attachment" => false]);
-            //         return $dompdf->stream('Admission-Listing.pdf');
+            return $dompdf->stream('Admission-Listing.pdf', ['Attachment' => false]);
         }
-        if ($request->has('export') && $request->export == 'excel') {
-            return Excel::download(new AdmissionDetailReportExport($studentData, $student, $branches, $heads, $classes, $branchTotals, $grandTotal, $request, $studentChallanData), 'Admission-Listing.xlsx');
-        }
-        // Return view with pre-calculated data
+
         return view('studentReports.admissiondetailreport', compact(
             'studentData',
             'student',
@@ -1248,8 +1287,10 @@ class StudentReportController extends Controller
             'sections',
             'branchTotals',
             'grandTotal',
+            'branchHeadTotals',
+            'grandHeadTotals',
             'request',
-            'studentChallanData' // Pass pre-calculated data to view
+            'studentChallanData'
         ));
     }
     public function admissionlistingReport(Request $request)
@@ -1391,7 +1432,7 @@ class StudentReportController extends Controller
                 ->where('created_by', \Auth::user()->creatorId())
                 ->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-            $branches->prepend('All Branches', '');
+            $branches->prepend('All Branches', 'all');
             $query = StudentReceipt::where('created_by', \Auth::user()->creatorId());
         } else {
             $branches = User::where('id', \Auth::user()->ownedId())
@@ -1452,7 +1493,7 @@ class StudentReportController extends Controller
         if ($request->filled('default_bank') && $request->default_bank !== 'allbank') {
             $query->where('bank_id', $request->default_bank);
         }
-        if ($request->filled('branches')) {
+        if ($request->filled('branches') && $request->branches !== 'all') {
             $query->where('owned_by', $request->branches);
         }
         if ($request->filled('head')) {
@@ -1644,10 +1685,13 @@ class StudentReportController extends Controller
         );
 
         // Branch filter
-        $query->when(
-            $request->branches,
-            fn($q) => $q->where('owned_by', $request->branches)
-        );
+        // $query->when(
+        //     $request->branches,
+        //     fn($q) => $q->where('owned_by', $request->branches)
+        // );
+        if ($request->filled('branches') && $request->branches !== 'all') {
+            $query->where('owned_by', $request->branches);
+        }
 
         // Fee head filter
         $query->when($request->head, function ($q) use ($request) {
@@ -2273,7 +2317,10 @@ class StudentReportController extends Controller
                     ->where('is_active', 1)
                     ->pluck('name', 'id');
 
-                $class = Classes::where('owned_by', $request->branches)->pluck('name', 'id');
+                $class = Classes::where('owned_by', $request->branches)
+                    ->pluck('name', 'id');
+
+                $class->prepend('All Classes', 'all');
                 $filtersApplied = true;
             } else {
                 $branchesToProcess = User::where('type', 'branch')
@@ -2283,7 +2330,6 @@ class StudentReportController extends Controller
 
                 $branchesToProcess->prepend($user->name, $user->id);
             }
-
         } else {
             $branches = User::where('id', $user->ownedId())
                 ->where('is_active', 1)
@@ -2293,6 +2339,13 @@ class StudentReportController extends Controller
             $branches->prepend('All Branches', '');
 
             $branchesToProcess = $selected_branches;
+
+            if (!empty($request->branches) && $request->branches != '') {
+                $class = Classes::where('owned_by', $request->branches)
+                    ->pluck('name', 'id');
+
+                $class->prepend('All Classes', 'all');
+            }
         }
 
         // Date range
@@ -2310,7 +2363,7 @@ class StudentReportController extends Controller
 
             $request->merge([
                 'date_from' => $dateFrom,
-                'date_to' => $dateTo
+                'date_to' => $dateTo,
             ]);
         } else {
             $dateFrom = $request->date_from;
@@ -2338,43 +2391,37 @@ class StudentReportController extends Controller
                     ->where('owned_by', $user->id);
             }
 
-            $query->whereNotIn('challan_type', ['Registration'])
-                ->where('status', '!=', 'Paid')
+            $query
+                // Admission challans will not be included in this report
+                ->whereNotIn('challans.challan_type', [
+                    'Registration',
+                    // 'Admission',
+                    'Withdrawal',
+                ])
 
-                // ✅ Only active students
-                ->whereHas('student', function ($q) {
-                    $q->where('active_status', 1);
-                })
+                // Only unpaid / issued challans
+                ->where('challans.status', '!=', 'Paid')
 
-                // ✅ Must have PAID admission challan (NO RELATION USED)
-    ->whereExists(function ($q) {
-        $q->select(\DB::raw(1))
-            ->from('challans as admission_challans')
-            ->whereColumn('admission_challans.student_id', 'challans.student_id')
-            ->where('admission_challans.challan_type', 'Admission')
-            ->where('admission_challans.status', 'Paid');
-    })
-
-                // ✅ Must be enrolled (roll no exists)
-                ->whereHas('enrollstudent', function ($q) {
-                    $q->whereNotNull('enrollId');
-                })
-
-                // ✅ Branch filter
+                // Student must be active and must have roll no generated
+                // This checks student_registrations table through challans.student_id = student_registrations.id
                 ->whereHas('student', function ($q) use ($branchId) {
-                    $q->where('owned_by', $branchId);
+                    $q->where('active_status', 1)
+                        ->where('owned_by', $branchId)
+                        ->whereNotNull('roll_no')
+                        ->where('roll_no', '!=', '');
                 })
 
-                // ✅ Date filter
-                ->whereBetween('due_date', [$dateFrom, $dateTo]);
+                // Date filter
+                ->whereBetween('challans.due_date', [$dateFrom, $dateTo]);
 
             // Class filter
             if (!empty($request->class) && $request->class != 'all') {
-                $query->where('class_id', $request->class);
+                $query->where('challans.class_id', $request->class);
             }
 
-            $challans = $query->orderBy('student_id')
-                ->orderBy('fee_month')
+            $challans = $query
+                ->orderBy('challans.student_id')
+                ->orderBy('challans.fee_month')
                 ->get()
                 ->groupBy('student_id');
 
@@ -2390,7 +2437,14 @@ class StudentReportController extends Controller
 
         if ($request->has('export') && $request->export == 'excel') {
             return Excel::download(
-                new Student_defaulterReport($branches, $monthsArray, $reportData, $report_name, $request, $request->all()),
+                new Student_defaulterReport(
+                    $branches,
+                    $monthsArray,
+                    $reportData,
+                    $report_name,
+                    $request,
+                    $request->all()
+                ),
                 'student_defaulter_report.xlsx'
             );
         }
@@ -2399,7 +2453,6 @@ class StudentReportController extends Controller
             ini_set('memory_limit', '512M');
             set_time_limit(120);
 
-            $pdf = new Dompdf();
             $html = view('studentReports.student_defaulter_pdf', compact(
                 'branches',
                 'class',
@@ -2408,7 +2461,7 @@ class StudentReportController extends Controller
                 'report_name'
             ))->render();
 
-            $headerHtml = view('studentReports.pdf_header', compact('request', 'report_name'));
+            $headerHtml = view('studentReports.pdf_header', compact('request', 'report_name'))->render();
             $footerHtml = view('students.concession.report.pdf.footer')->render();
 
             $html = '<html><head>
@@ -2937,6 +2990,7 @@ class StudentReportController extends Controller
     // }
     public function student_single_account(Request $request)
     {
+        // dd($request->all());
         $class = [];
         $student = [];
         $receipts = [];
@@ -3007,11 +3061,33 @@ class StudentReportController extends Controller
         }
 
         if ($request->has('export') && $request->export == 'excel') {
-            return Excel::download(new StudentAccountStatementExport($branches, $students, $class, $accountStatement, $from_date, $to_date, $selected_branch, $selected_class, $selected_student), 'Student_Account_Statement_Report.xlsx');
+            return Excel::download(new StudentAccountStatementExport(
+                $branches,
+                $students,
+                $class,
+                $accountStatement,
+                $from_date,
+                $to_date,
+                $selected_branch,
+                $selected_class,
+                $selected_student,
+                $std
+            ), 'Student_Account_Statement_Report.xlsx');
         }
 
         if ($request->has('export') && $request->export == 'pdf') {
-            return Excel::download(new StudentAccountStatementExport($branches, $students, $class, $accountStatement, $from_date, $to_date, $selected_branch, $selected_class, $selected_student), 'Student_Account_Statement_Report.pdf', \Maatwebsite\Excel\Excel::MPDF);
+            return Excel::download(new StudentAccountStatementExport(
+                $branches,
+                $students,
+                $class,
+                $accountStatement,
+                $from_date,
+                $to_date,
+                $selected_branch,
+                $selected_class,
+                $selected_student,
+                $std
+            ), 'Student_Account_Statement_Report.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
 
         // Prepare view data
@@ -3075,6 +3151,9 @@ class StudentReportController extends Controller
             ->where('credit', '!=', 0)
             ->whereDate('created_at', '>=', $fromDate)
             ->whereDate('created_at', '<=', $toDate)
+            ->whereHas('journalEntery.challan', function ($q) {
+                $q->where('challan_type', '!=', 'Registration');
+            })
             ->with([
                 'user',
                 'accounts',
@@ -3089,13 +3168,13 @@ class StudentReportController extends Controller
             ->get();
 
         // Group by challan number and fee_month to separate different months
-
         $challans = $challanItems->groupBy(function ($item) {
             $challan = $item->journalEntery->challan ?? null;
             $challanNo = $challan->challanNo ?? 'unknown';
             $feeMonth = $challan->fee_month ?? 'unknown';
             return $challanNo . '_' . $feeMonth; // Group by challan + month
         });
+        // dd($challans);
         // Get all payment entries (to reduce receivables)
         $payments = JournalItem::where('user_id', $studentId)
             ->where('user_type', 'student')
@@ -3125,7 +3204,7 @@ class StudentReportController extends Controller
         if ($openingBalance != 0) {
             $statement->push([
                 'type' => 'opening',
-                'date' => $fromDate,
+                'date' => '-',
                 'description' => 'Opening Balance',
                 'challan_no' => '-',
                 'billing_month' => '-',
@@ -3158,8 +3237,10 @@ class StudentReportController extends Controller
 
             $challan = $firstItem->journalEntery->challan ?? null;
 
+            if ($challan == null || $challan->fee_month == null) {
+                dd($challan, $challans, $challanItems);
+            }
             $billingMonth = Carbon::parse($challan->fee_month)->format('M-Y');
-
             if ($challan->other_months != null && $challan->other_months != '') {
                 if (!empty($challan->other_months) && $challan->other_months != null) {
                     $billingMonth = collect(explode(',', $challan->other_months))
@@ -3169,7 +3250,6 @@ class StudentReportController extends Controller
                     $billingMonth = '-';
                 }
             }
-
             $challanTransactions->push([
                 'date' => $firstItem->created_at,
                 'journal_id' => $firstItem->journal_id,
@@ -3298,7 +3378,7 @@ class StudentReportController extends Controller
         // Add closing balance row
         $statement->push([
             'type' => 'closing',
-            'date' => $toDate,
+            'date' => '-',
             'description' => 'Closing Balance',
             'challan_no' => '-',
             'billing_month' => '-',
@@ -3592,57 +3672,48 @@ class StudentReportController extends Controller
 
     public function fee_receipt_summary(Request $request)
     {
-        // Common date range logic
-        $currentMonth = intval(date('n'));    // 1..12
+        $currentMonth = intval(date('n'));
         $currentYear = intval(date('Y'));
-
-        if ($currentMonth > 6) {
-            $startYear = $currentYear;
-        } else {
-            $startYear = $currentYear - 1;
-        }
+        $startYear = ($currentMonth > 6) ? $currentYear : $currentYear - 1;
 
         $defaultStartDate = sprintf('%04d-06-01', $startYear);
         $defaultEndDate = date('Y-m-t');
 
-        $dateFrom = $request->filled('start_date')
-            ? $request->input('start_date')
-            : $defaultStartDate;
-        $dateTo = $request->filled('end_date')
-            ? $request->input('end_date')
-            : $defaultEndDate;
+        $dateFrom = $request->filled('start_date') ? $request->input('start_date') : $defaultStartDate;
+        $dateTo = $request->filled('end_date') ? $request->input('end_date') : $defaultEndDate;
 
         ini_set('max_execution_time', 0);
+
         $user = \Auth::user();
-        $ownedId = $user->ownedId();
-        $creatorId = $user->creatorId();
         $isCompany = ($user->type === 'company');
 
-        // Bank accounts query
+        /* ---------- Bank accounts ---------- */
         $bankQuery = BankAccount::selectRaw("id, CONCAT(bank_name, ' ', holder_name) AS name");
         if ($isCompany) {
-            $bankQuery->where('created_by', $creatorId);
+            $bankQuery->where('created_by', $user->creatorId());
         } else {
-            $bankQuery->where('owned_by', $ownedId);
+            $bankQuery->where('owned_by', $user->ownedId());
         }
-        $rawBankList = $bankQuery->pluck('name', 'id');
-        $accounts = ['allbank' => 'Select all banks'] + $rawBankList->toArray();
+        $accounts = ['allbank' => 'Select all banks'] + $bankQuery->pluck('name', 'id')->toArray();
 
-        // Branches query
+        /* ---------- Branches ---------- */
         if ($isCompany) {
             $branches = User::where('type', 'branch')
+                ->where('created_by', $user->creatorId())
                 ->pluck('name', 'id')
                 ->prepend($user->name, $user->id);
         } else {
-            $branches = User::where('id', $ownedId)
+            $branches = User::where('id', $user->ownedId())
                 ->pluck('name', 'id');
         }
         $branches->prepend('All Branches', '');
 
-        // Main query
-        $baseQuery = StudentReceipt::query();
+        /* ---------- Main query ---------- */
+        $query = $isCompany
+            ? StudentReceipt::where('created_by', $user->creatorId())
+            : StudentReceipt::where('owned_by', $user->ownedId());
 
-        $eagerLoads = [
+        $query->with([
             'bank',
             'voucher.heads',
             'challan' => function ($q) use ($isCompany) {
@@ -3653,59 +3724,50 @@ class StudentReportController extends Controller
                         }
                     },
                     'student',
-                    'enrollstudent'
+                    'enrollstudent',
                 ]);
                 if (!$isCompany) {
                     $q->with('class');
                 }
             },
-        ];
-
-        $baseQuery->with($eagerLoads);
-
-        if ($isCompany) {
-            $baseQuery->where('created_by', $creatorId);
-        } else {
-            $baseQuery->where('owned_by', $ownedId);
-        }
+        ]);
 
         if ($isCompany && $request->filled('branches')) {
-            $baseQuery->where('owned_by', $request->input('branches'));
+            $query->where('owned_by', $request->input('branches'));
         }
 
         if ($request->filled('default_bank') && $request->input('default_bank') !== 'allbank') {
-            $baseQuery->where('bank_id', $request->input('default_bank'));
+            $query->where('bank_id', $request->input('default_bank'));
         }
 
-        $baseQuery->whereBetween('recipt_date', [$dateFrom, $dateTo]);
-        $recipts = $baseQuery->get();
+        $query->whereBetween('recipt_date', [$dateFrom, $dateTo]);
+        $recipts = $query->get();
 
-        $bankAccounts = null;
-        if ($request->filled('default_bank') && $request->input('default_bank') !== 'allbank') {
-            $bankAccounts = BankAccount::find($request->input('default_bank'));
-        }
+        /* ---------- Selected bank label ---------- */
+        $bankAccounts = ($request->filled('default_bank') && $request->input('default_bank') !== 'allbank')
+            ? BankAccount::find($request->input('default_bank'))
+            : null;
 
-        $heads = FeeHead::where('owned_by', $ownedId)
+        /* ---------- Fee heads ---------- */
+        $heads = FeeHead::where('owned_by', $user->ownedId())
             ->pluck('fee_head', 'id')
             ->prepend('Select Account', '');
 
-        $vouchers = ['all' => 'All'];
-        $session = [];
-        $classArr = [];
-        $students = [];
+        $selectedBranch = $request->input('branches');
 
         return view('studentReports.fee_receipt_summry', [
             'accounts' => $accounts,
-            'vouchers' => $vouchers,
+            'vouchers' => ['all' => 'All'],
             'recipts' => $recipts,
-            'session' => $session,
-            'class' => $classArr,
-            'students' => $students,
+            'session' => [],
+            'class' => [],
+            'students' => [],
             'branches' => $branches,
             'bank_accounts' => $bankAccounts,
             'heads' => $heads,
             'start_date' => $dateFrom,
             'end_date' => $dateTo,
+            'selectedBranch' => $selectedBranch,
         ]);
     }
     public function fee_receipt_summary_report(Request $request)
@@ -5548,10 +5610,32 @@ class StudentReportController extends Controller
 
     //     return view('studentReports.monthlychallanreport', compact('branches', 'report', 'sessions', 'heads', 'class', 'students'));
     // }
-    
+
+    private function applyMonthlySplit($challan)
+    {
+        $monthsCount = 1;
+
+        if (!empty($challan->other_months)) {
+            $monthsCount = count(explode(',', $challan->other_months));
+        }
+
+        $challan->total_amount /= $monthsCount;
+        $challan->concession_amount /= $monthsCount;
+
+        if ($challan->heads) {
+            foreach ($challan->heads as $head) {
+                $head->price /= $monthsCount;
+
+                if (isset($head->concession)) {
+                    $head->concession /= $monthsCount;
+                }
+            }
+        }
+
+        return $challan;
+    }
     public function monthlychallanreport(Request $request)
     {
-        // dd($request->all());
         set_time_limit(0);
         ini_set('memory_limit', '512M');
 
@@ -5559,6 +5643,7 @@ class StudentReportController extends Controller
         $creatorId = $user->creatorId();
         $isCompany = $user->type == 'company';
         $feeMonth = date('Y-m-01', strtotime($request->date ?? date('Y-m-d')));
+        $feeMonthFormatted = date('Y-m', strtotime($feeMonth)); // e.g. "2025-03"
 
         // Cache branches (1 hour)
         $branches = \Cache::remember("branches_{$creatorId}_{$isCompany}", 3600, function () use ($isCompany, $creatorId, $user) {
@@ -5566,14 +5651,14 @@ class StudentReportController extends Controller
                 $branches = User::select('id', 'name')
                     ->where('type', 'branch')
                     ->where('created_by', $creatorId)
-                    ->where('is_active',1)
+                    ->where('is_active', 1)
                     ->pluck('name', 'id');
                 $branches->prepend($user->name, $user->id);
                 return $branches->prepend('All Branches', 'all');
             } else {
                 return User::select('id', 'name')
                     ->where('id', $user->ownedId())
-                    ->where('is_active',1)
+                    ->where('is_active', 1)
                     ->pluck('name', 'id')
                     ->prepend('Select Branch', '');
             }
@@ -5589,38 +5674,33 @@ class StudentReportController extends Controller
 
         // Cache fee heads
         $heads = \Cache::remember("fee_heads_{$creatorId}", 3600, function () use ($creatorId) {
-            return FeeHead::where('created_by', $creatorId)
-                ->get();
+            return FeeHead::where('created_by', $creatorId)->get();
         });
 
         // Initialize collections
         $class = collect();
         $students = collect()->prepend('Select Student', '');
         $report = collect();
+        $admissionSummary = ['count' => 0, 'total' => 0];
+        $advanceSummary = ['count' => 0, 'total' => 0];
 
         // Load classes if branch selected
         if (!empty($request->branches) && $request->branches != 'all') {
-            $cacheKey = $request->branches == 'all' ? "classes_all_{$creatorId}" : "classes_{$request->branches}";
+            $cacheKey = "classes_{$request->branches}";
             $class = \Cache::remember($cacheKey, 1800, function () use ($request, $isCompany, $creatorId) {
                 $query = Classes::select('id', 'name');
-                
-                // If "All Branches" is NOT selected, filter by specific branch
                 if ($request->branches != 'all') {
                     $query->where('owned_by', $request->branches);
-                } else if ($isCompany) {
-                    // For "All Branches", get classes from all branches owned by company
-                    $query->whereIn('owned_by', function($q) use ($creatorId) {
-                        $q->select('id')
-                            ->from('users')
+                } elseif ($isCompany) {
+                    $query->whereIn('owned_by', function ($q) use ($creatorId) {
+                        $q->select('id')->from('users')
                             ->where('type', 'branch')
                             ->where('created_by', $creatorId)
-                            ->where('is_active',1)
+                            ->where('is_active', 1)
                             ->orWhere('id', $creatorId);
                     });
                 }
-                
-                return $query->pluck('name', 'id')
-                    ->prepend('All Class', 'all');
+                return $query->pluck('name', 'id')->prepend('All Class', 'all');
             });
         }
 
@@ -5633,18 +5713,14 @@ class StudentReportController extends Controller
                     'roll_no'
                 )
                     ->where('student_status', 'Enrolled')
-                    ->where('is_active', 1)
+                    ->where('active_status', 1)
                     ->whereNotNull('roll_no');
 
-                // Handle branch filter
                 if ($request->branches != 'all') {
-                    // Specific branch selected
                     $query->where('owned_by', $request->branches);
-                } else if ($isCompany) {
-                    // "All Branches" selected - get students from all branches
-                    $query->whereIn('owned_by', function($q) use ($creatorId) {
-                        $q->select('id')
-                            ->from('users')
+                } elseif ($isCompany) {
+                    $query->whereIn('owned_by', function ($q) use ($creatorId) {
+                        $q->select('id')->from('users')
                             ->where('type', 'branch')
                             ->where('created_by', $creatorId)
                             ->orWhere('id', $creatorId);
@@ -5664,61 +5740,451 @@ class StudentReportController extends Controller
         // Only load report if exporting or filters applied
         if ($request->has('export') || $request->has('print') || !empty($request->branches)) {
 
-            $query = Challans::select(
+            // ---------------------------------------------------------------
+            // BASE OWNERSHIP SCOPE (reusable closure)
+            // ---------------------------------------------------------------
+            $applyOwnership = function ($query) use ($isCompany, $creatorId, $user, $request) {
+                if ($isCompany) {
+                    $query->where('created_by', $creatorId);
+                } else {
+                    $query->where('owned_by', $user->ownedId());
+                }
+                if (!empty($request->branches) && $request->branches != 'all') {
+                    $query->where('owned_by', $request->branches);
+                }
+                if (!empty($request->class) && $request->class != 'all') {
+                    $query->where('class_id', $request->class);
+                }
+                if (!empty($request->student) && $request->student != 'all') {
+                    $query->where('student_id', $request->student);
+                }
+                return $query;
+            };
+
+            // ---------------------------------------------------------------
+            // REGULAR CHALLAN QUERY
+            // Regular challans = challan_type 'regular' (including subscription
+            // based ones whose other_months JSON contains the current fee month)
+            // ---------------------------------------------------------------
+            $regularQuery = Challans::select(
                 'challans.id',
                 'challans.owned_by',
                 'challans.student_id',
                 'challans.class_id',
+                'challans.concession_id',
                 'challans.challanNo',
                 'challans.issue_date',
                 'challans.due_date',
                 'challans.total_amount',
+                'challans.concession_amount',
                 'challans.status',
-                'challans.fee_month'
+                'challans.fee_month',
+                'challans.challan_type',
+                'challans.other_months'
             )
-                ->where('fee_month', $feeMonth);
+                ->where('challan_type', 'regular')
+                ->where(function ($q) use ($feeMonth, $feeMonthFormatted) {
+                    // Standard regular challan for this exact month
+                    $q->where('fee_month', $feeMonth)
+                        // OR subscription-based regular challan whose other_months contains this month
+                        ->orWhere(function ($q2) use ($feeMonthFormatted) {
+                        $q2->whereNotNull('other_months')
+                            ->whereRaw("FIND_IN_SET(?, other_months)", [$feeMonthFormatted . '-01']);
+                    });
+                });
+            // dd($regularQuery->get());
+            $applyOwnership($regularQuery);
 
-            // Apply ownership
-            if ($isCompany) {
-                $query->where('created_by', $creatorId);
-            } else {
-                $query->where('owned_by', $user->ownedId());
-            }
+            // ---------------------------------------------------------------
+            // ADMISSION CHALLAN SUMMARY  (fee_month = current month)
+            // Keyed by owned_by (branch_id) => ['count' => X, 'total' => Y]
+            // ---------------------------------------------------------------
+            $admissionQuery = Challans::select(
+                'owned_by',
+                \DB::raw('COUNT(*) as count'),
+                \DB::raw('SUM(total_amount - concession_amount) as total')
+            )
+                ->where('challan_type', 'admission')
+                ->where('fee_month', $feeMonth)
+                ->groupBy('owned_by');
+            $applyOwnership($admissionQuery);
+            $admissionSummary = $admissionQuery->get()
+                ->mapWithKeys(fn($row) => [
+                    $row->owned_by => ['count' => (int) $row->count, 'total' => (float) $row->total]
+                ])->toArray();
 
-            // Apply filters
-            // Only filter by specific branch if not "All Branches" ('all')
-            if (!empty($request->branches) && $request->branches != 'all') {
-                $query->where('owned_by', $request->branches);
-            }
+            // ---------------------------------------------------------------
+            // ADVANCE CHALLAN SUMMARY
+            // Advance challans whose other_months JSON contains current month
+            // Keyed by owned_by (branch_id) => ['count' => X, 'total' => Y]
+            // ---------------------------------------------------------------
+            $fee_monthforadvance = date('Y-m', strtotime($feeMonth)); // e.g. 2026-04
 
-            if (!empty($request->class) && $request->class != 'all') {
-                $query->where('class_id', $request->class);
-            }
+            $advanceQuery = Challans::select(
+                'owned_by',
+                \DB::raw('COUNT(*) as count'),
+                \DB::raw('SUM(total_amount - concession_amount) as total')
+            )
+                ->where('challan_type', 'Advance')
+                ->where(function ($q) use ($fee_monthforadvance) {
 
-            if (!empty($request->student) && $request->student != 'all') {
-                $query->where('student_id', $request->student);
-            }
+                    $q->where(function ($q1) use ($fee_monthforadvance) {
+                        $q1->whereNotNull('other_months')
+                            ->whereRaw("FIND_IN_SET(?, other_months)", [$fee_monthforadvance . '-01']);
+                    })
 
-            // Load relationships only for export
+                        ->orWhere(function ($q2) use ($fee_monthforadvance) {
+                            $q2->whereNull('other_months')
+                                ->whereRaw("DATE_FORMAT(fee_month, '%Y-%m') = ?", [$fee_monthforadvance]);
+                        });
+                })
+                ->groupBy('owned_by');
+            // dd($advanceQuery->get());
+            $applyOwnership($advanceQuery);
+
+            $advanceSummary = $advanceQuery->get()
+                ->mapWithKeys(fn($row) => [
+                    $row->owned_by => [
+                        'count' => (int) $row->count,
+                        'total' => (float) $row->total
+                    ]
+                ])
+                ->toArray();
+            // dd($admissionSummary, $advanceSummary);
+            // ---------------------------------------------------------------
+            // LOAD RELATIONSHIPS & BUILD REPORT
+            // ---------------------------------------------------------------
+            $withRelations = [
+                'student' => fn($q) => $q->select('id', 'roll_no', 'stdname', 'fathername'),
+
+
+                'student.registeroption' => fn($q) => $q->select('id', 'name'),
+
+                'enrollstudent' => fn($q) => $q->select('id', 'regId', 'class_id', 'adm_date'),
+
+                'enrollstudent.section' => fn($q) => $q->select('id', 'name'),
+
+                'class' => fn($q) => $q->select('id', 'name'),
+
+                'heads',
+                'concession' => fn($q) => $q->select('id', 'concession_id'),
+                'concession.policy' => fn($q) => $q->select('id', 'title'),
+            ];
+
             if ($request->has('export') || $request->has('print')) {
-                $query->with([
-                    'student' => function ($q) {
-                        $q->select('id', 'roll_no', 'stdname', 'fathername');
-                    },
-                    'enrollstudent' => function ($q) {
-                        $q->select('id', 'regId', 'section_id', 'class_id');
-                    },
-                    'enrollstudent.section' => function ($q) {
-                        $q->select('id', 'name');
-                    },
-                    'class' => function ($q) {
-                        $q->select('id', 'name');
-                    }
-                ]);
 
-                // Chunk for large exports
+                $regularQuery->with($withRelations);
                 $report = collect();
-                $query->chunk(1000, function ($challans) use (&$report) {
+
+                $regularQuery->chunk(1000, function ($challans) use (&$report) {
+
+                    foreach ($challans as $challan) {
+
+                        // ✅ Apply monthly split
+                        $challan = $this->applyMonthlySplit($challan);
+
+                        if (!isset($report[$challan->owned_by])) {
+                            $report[$challan->owned_by] = collect();
+                        }
+
+                        $report[$challan->owned_by]->push($challan);
+                    }
+                });
+
+                // ----------------------------------
+                // ✅ SORT AFTER CHUNK
+                // ----------------------------------
+                $report = collect($report)
+                    ->sortKeys() // branch ASC (5,6,8...)
+                    ->map(function ($branchGroup) {
+
+                        return $branchGroup->sortBy(function ($challan) {
+                            return strtolower($challan->student->stdname ?? '');
+                        })->values();
+
+                    });
+
+            } else {
+                $report = $regularQuery->with($withRelations)->get()
+
+                    // Monthly split
+                    ->map(fn($c) => $this->applyMonthlySplit($c))
+
+                    // Sorting
+                    ->sort(function ($a, $b) {
+
+                        // 1. Branch order
+                        if ($a->owned_by != $b->owned_by) {
+                            return $a->owned_by <=> $b->owned_by;
+                        }
+
+                        // 2. Student alphabetical
+                        return strcmp(
+                            strtolower($a->student->stdname ?? ''),
+                            strtolower($b->student->stdname ?? '')
+                        );
+                    })
+
+                    // Group AFTER sort
+                    ->groupBy('owned_by');
+            }
+            // ---------------------------------------------------------------
+            // EXCEL EXPORT
+            // ---------------------------------------------------------------
+            if ($request->has('export') && $request->export == 'excel') {
+                $report_name = 'Regular Challan Report for the Month of ' . date('M-Y', strtotime($request->date ?? date('Y-m-d')));
+                return Excel::download(
+                    new MonthlyChallanreport(
+                        $branches,
+                        $report,
+                        $request->branches ?? null,
+                        $heads,
+                        $report_name,
+                        $request->all(),
+                        $admissionSummary,
+                        $advanceSummary
+                    ),
+                    'Regular_Challan_Report.xlsx'
+                );
+            }
+
+            // ---------------------------------------------------------------
+            // PDF EXPORT
+            // ---------------------------------------------------------------
+            if ($request->has('print') && $request->print == 'pdf') {
+                $report_name = 'Regular Challan Report for the Month of ' . date('M-Y', strtotime($request->date ?? date('Y-m-d')));
+                return Excel::download(
+                    new MonthlyChallanreport(
+                        $branches,
+                        $report,
+                        $request->branches ?? null,
+                        $heads,
+                        $report_name,
+                        $request->all(),
+                        $admissionSummary,
+                        $advanceSummary
+                    ),
+                    'Regular_Challan_Report.pdf',
+                    \Maatwebsite\Excel\Excel::MPDF
+                );
+            }
+        }
+
+        return view('studentReports.monthlychallanreport', compact(
+            'branches',
+            'report',
+            'sessions',
+            'heads',
+            'class',
+            'students'
+        ));
+    }
+    public function advancechallanreport(Request $request)
+    {
+        set_time_limit(0);
+        ini_set('memory_limit', '512M');
+
+        $user = \Auth::user();
+        $userId = $user->id;
+        $creatorId = $user->creatorId();
+        $isCompany = $user->type == 'company';
+
+        // ---------------------------------------------------------------
+        // Selected date / month helpers
+        // ---------------------------------------------------------------
+        $selectedDate = $request->date ?? date('Y-m-d');
+        $feeMonth = date('Y-m-01', strtotime($selectedDate));   // e.g. 2026-04-01
+        $feeMonthFormatted = date('Y-m', strtotime($selectedDate));   // e.g. 2026-04
+
+        // ---------------------------------------------------------------
+        // BRANCHES  (user-scoped cache)
+        // ---------------------------------------------------------------
+        $branches = \Cache::remember("branches_{$userId}_{$creatorId}_{$isCompany}", 3600, function () use ($isCompany, $creatorId, $user) {
+            if ($isCompany) {
+                $list = User::select('id', 'name')
+                    ->where('type', 'branch')
+                    ->where('created_by', $creatorId)
+                    ->where('is_active', 1)
+                    ->pluck('name', 'id');
+                $list->prepend($user->name, $user->id);
+                return $list->prepend('All Branches', 'all');
+            }
+            return User::select('id', 'name')
+                ->where('id', $user->ownedId())
+                ->where('is_active', 1)
+                ->pluck('name', 'id')
+                ->prepend('Select Branch', '');
+        });
+
+        // ---------------------------------------------------------------
+        // SESSIONS  (user-scoped cache)
+        // ---------------------------------------------------------------
+        $sessions = \Cache::remember("sessions_{$userId}_{$creatorId}", 3600, function () use ($creatorId) {
+            return Session::select('id', 'year')
+                ->where('created_by', $creatorId)
+                ->pluck('year', 'id')
+                ->prepend('Select Session', '');
+        });
+
+        // ---------------------------------------------------------------
+        // FEE HEADS  (user-scoped cache)
+        // ---------------------------------------------------------------
+        $heads = \Cache::remember("fee_heads_{$userId}_{$creatorId}", 3600, function () use ($creatorId) {
+            return FeeHead::where('created_by', $creatorId)->get();
+        });
+
+        // ---------------------------------------------------------------
+        // CLASSES  (depends on selected branch)
+        // ---------------------------------------------------------------
+        $class = collect();
+        if (!empty($request->branches) && $request->branches != 'all') {
+            $cacheKey = "classes_{$userId}_{$creatorId}_{$request->branches}";
+            $class = \Cache::remember($cacheKey, 1800, function () use ($request, $isCompany, $creatorId) {
+                $query = Classes::select('id', 'name');
+                if ($request->branches != 'all') {
+                    $query->where('owned_by', $request->branches);
+                } elseif ($isCompany) {
+                    $query->whereIn('owned_by', function ($q) use ($creatorId) {
+                        $q->select('id')->from('users')
+                            ->where('type', 'branch')
+                            ->where('created_by', $creatorId)
+                            ->where('is_active', 1)
+                            ->orWhere('id', $creatorId);
+                    });
+                }
+                return $query->pluck('name', 'id')->prepend('All Classes', 'all');
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // STUDENTS  (depends on branch + class)
+        // ---------------------------------------------------------------
+        $students = collect()->prepend('Select Student', '');
+        if (!empty($request->branches) && !empty($request->class)) {
+            $cacheKey = "students_{$userId}_{$creatorId}_{$request->branches}_{$request->class}";
+            $students = \Cache::remember($cacheKey, 1800, function () use ($request, $isCompany, $creatorId, $user) {
+                $query = StudentRegistration::select(
+                    \DB::raw('CONCAT(`roll_no`, " - ", `stdname`, " s/d/o ", `fathername`) AS stdname'),
+                    'roll_no'
+                )
+                    ->where('student_status', 'Enrolled')
+                    ->where('active_status', 1)
+                    ->whereNotNull('roll_no');
+
+                if ($request->branches != 'all') {
+                    $query->where('owned_by', $request->branches);
+                } elseif ($isCompany) {
+                    $query->whereIn('owned_by', function ($q) use ($creatorId) {
+                        $q->select('id')->from('users')
+                            ->where('type', 'branch')
+                            ->where('created_by', $creatorId)
+                            ->orWhere('id', $creatorId);
+                    });
+                } else {
+                    $query->where('owned_by', $user->ownedId());
+                }
+
+                if ($request->class != 'all') {
+                    $query->where('class_id', $request->class);
+                }
+
+                return $query->pluck('stdname', 'roll_no')->prepend('Select Student', '');
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // REPORT  (only when filters are applied)
+        // ---------------------------------------------------------------
+        $report = collect();
+        $selectedBranchId = $request->branches ?? null;
+
+        if ($request->has('export') || $request->has('print') || !empty($request->branches)) {
+
+            // -----------------------------------------------------------
+            // REUSABLE OWNERSHIP SCOPE
+            // -----------------------------------------------------------
+            $applyOwnership = function ($query) use ($isCompany, $creatorId, $user, $request) {
+                if ($isCompany) {
+                    $query->where('created_by', $creatorId);
+                } else {
+                    $query->where('owned_by', $user->ownedId());
+                }
+                if (!empty($request->branches) && $request->branches != 'all') {
+                    $query->where('owned_by', $request->branches);
+                }
+                if (!empty($request->class) && $request->class != 'all') {
+                    $query->where('class_id', $request->class);
+                }
+                if (!empty($request->student) && $request->student != 'all') {
+                    $query->where('student_id', $request->student);
+                }
+                return $query;
+            };
+
+            // -----------------------------------------------------------
+            // ADVANCE CHALLAN QUERY
+            // Same logic as monthly challan report's advance summary but
+            // here we fetch full challan rows for the breakdown report.
+            // Matches challans where:
+            //   (a) other_months contains the selected month-01, OR
+            //   (b) other_months is null AND fee_month = selected month
+            // -----------------------------------------------------------
+            $advanceQuery = Challans::select(
+                'challans.id',
+                'challans.owned_by',
+                'challans.student_id',
+                'challans.class_id',
+                'challans.concession_id',
+                'challans.challanNo',
+                'challans.issue_date',
+                'challans.due_date',
+                'challans.paid_date',
+                'challans.total_amount',
+                'challans.concession_amount',
+                'challans.status',
+                'challans.fee_month',
+                'challans.challan_type',
+                'challans.other_months'
+            )
+                ->where('challan_type', 'Advance')
+                ->where(function ($q) use ($feeMonthFormatted, $feeMonth) {
+                    // (a) Subscription-style: other_months contains this month
+                    $q->where(function ($q1) use ($feeMonthFormatted) {
+                        $q1->whereNotNull('other_months')
+                            ->whereRaw("FIND_IN_SET(?, other_months)", [$feeMonthFormatted . '-01']);
+                    })
+                        // (b) Single-month advance: fee_month matches directly
+                        ->orWhere(function ($q2) use ($feeMonthFormatted) {
+                        $q2->whereNull('other_months')
+                            ->whereRaw("DATE_FORMAT(fee_month, '%Y-%m') = ?", [$feeMonthFormatted]);
+                    });
+                });
+
+            $applyOwnership($advanceQuery);
+
+            // -----------------------------------------------------------
+            // LOAD RELATIONSHIPS
+            // -----------------------------------------------------------
+            $withRelations = [
+                'student' => fn($q) => $q->select('id', 'roll_no', 'stdname', 'fathername'),
+                'student.registeroption' => fn($q) => $q->select('id', 'name'),
+                'enrollstudent' => fn($q) => $q->select('id', 'regId', 'class_id', 'adm_date'),
+                'enrollstudent.section' => fn($q) => $q->select('id', 'name'),
+                'class' => fn($q) => $q->select('id', 'name'),
+                'heads',
+                'concession' => fn($q) => $q->select('id', 'concession_id'),
+                'concession.policy' => fn($q) => $q->select('id', 'title'),
+            ];
+
+            // -----------------------------------------------------------
+            // EXPORT PATH  →  chunk for memory safety
+            // -----------------------------------------------------------
+            if ($request->has('export') || $request->has('print')) {
+
+                $advanceQuery->with($withRelations);
+                $report = collect();
+
+                $advanceQuery->chunk(1000, function ($challans) use (&$report) {
                     foreach ($challans as $challan) {
                         if (!isset($report[$challan->owned_by])) {
                             $report[$challan->owned_by] = collect();
@@ -5726,145 +6192,101 @@ class StudentReportController extends Controller
                         $report[$challan->owned_by]->push($challan);
                     }
                 });
+
+                // Sort branches ASC, students alphabetically within each branch
+                $report = collect($report)
+                    ->sortKeys()
+                    ->map(fn($group) => $group->sortBy(
+                        fn($c) => strtolower($c->student->stdname ?? '')
+                    )->values());
+
             } else {
-                // For view, limit and group
-                $report = $query->limit(500)->get()->groupBy('owned_by');
+                // -----------------------------------------------------------
+                // SCREEN / VIEW PATH
+                // -----------------------------------------------------------
+                $report = $advanceQuery->with($withRelations)->get()
+                    ->sort(function ($a, $b) {
+                        if ($a->owned_by != $b->owned_by) {
+                            return $a->owned_by <=> $b->owned_by;
+                        }
+                        return strcmp(
+                            strtolower($a->student->stdname ?? ''),
+                            strtolower($b->student->stdname ?? '')
+                        );
+                    })
+                    ->groupBy('owned_by');
             }
 
-            // Excel export
+            // -----------------------------------------------------------
+            // EXCEL EXPORT
+            // -----------------------------------------------------------
             if ($request->has('export') && $request->export == 'excel') {
-                $report_name = 'Regular Challan Report for the Month of ' . date('M-Y', strtotime($request->date ?? date('Y-m-d')));
+                $report_name = 'Advance Challan Report for the Month of ' . date('M-Y', strtotime($selectedDate));
+                $selectedBranchName = $selectedBranchId ? ($branches[$selectedBranchId] ?? 'All Branches') : 'All Branches';
+
                 return Excel::download(
-                    new MonthlyChallanreport($branches, $report, $request->branches ?? null, $heads, $report_name, $request->all()),
-                    'Regular_Challan_Report.xlsx'
+                    new AdvanceChallanreport(
+                        $branches,
+                        $report,
+                        $selectedBranchId,
+                        $selectedBranchName,
+                        $heads,
+                        $report_name,
+                        $request->all()
+                    ),
+                    'Advance_Challan_Report.xlsx'
                 );
             }
 
-            // PDF export
+            // -----------------------------------------------------------
+            // PDF EXPORT
+            // -----------------------------------------------------------
             if ($request->has('print') && $request->print == 'pdf') {
-                $report_name = 'Regular Challan Report for the Month of ' . date('M-Y', strtotime($request->date ?? date('Y-m-d')));
+                $report_name = 'Advance Challan Report for the Month of ' . date('M-Y', strtotime($selectedDate));
+                $selectedBranchName = $selectedBranchId ? ($branches[$selectedBranchId] ?? 'All Branches') : 'All Branches';
+
                 return Excel::download(
-                    new MonthlyChallanreport($branches, $report, $request->branches ?? null, $heads, $report_name, $request->all()),
-                    'Regular_Challan_Report.pdf',
+                    new AdvanceChallanreport(
+                        $branches,
+                        $report,
+                        $selectedBranchId,
+                        $selectedBranchName,
+                        $heads,
+                        $report_name,
+                        $request->all()
+                    ),
+                    'Advance_Challan_Report.pdf',
                     \Maatwebsite\Excel\Excel::MPDF
                 );
             }
         }
-        // dd($branches);
-        return view('studentReports.monthlychallanreport', compact('branches', 'report', 'sessions', 'heads', 'class', 'students'));
+
+        return view('studentReports.advancechallanreport', compact(
+            'branches',
+            'report',
+            'sessions',
+            'heads',
+            'class',
+            'students'
+        ));
     }
-    public function advancechallanreport(Request $request)
-    {
-        // dd($request->all()); 
-        $user = \Auth::user();
-        $class = collect();
-        if ($user->type == 'company') {
-            $branches = User::where('type', '=', 'branch')->where('created_by', $user->creatorId())->get()->pluck('name', 'id');
-            $branches->prepend($user->name, $user->id);
-            $branches->prepend('All Branches', 'All Branches');
-            $query = Challans::with('student', 'enrollstudent', 'class', 'enrollstudent.section')->where('created_by', \Auth::user()->creatorId());
-            $students = StudentRegistration::select(\DB::raw('CONCAT(`roll_no`, " - ", `stdname`, " s/d/o ", `fathername`) AS stdname'), 'roll_no')
-                ->where('student_status', 'Enrolled')
-                ->where('created_by', '=', \Auth::user()->creatorId())
-                ->whereNotNull('roll_no')
-                ->get()->pluck('stdname', 'roll_no')->prepend('Select Student', '');
-        } else {
-            $branches = User::where('id', '=', $user->ownedId())->get()->pluck('name', 'id');
-            $class = Classes::where('owned_by', '=', $user->ownedId())->where('active_status', 1)->get()->pluck('name', 'id');
-            $class->prepend('All Classes', 'all');
-            $query = Challans::with('student', 'enrollstudent', 'class', 'enrollstudent.section')->where('owned_by', \Auth::user()->ownedId());
-            $students = StudentRegistration::select(\DB::raw('CONCAT(`roll_no`, " - ", `stdname`, " s/d/o ", `fathername`) AS stdname'), 'roll_no')
-                ->where('student_status', 'Enrolled')
-                ->where('owned_by', \Auth::user()->ownedId())
-                ->whereNotNull('roll_no')
-                ->get()->pluck('stdname', 'roll_no')->prepend('Select Student', '');
-        }
-        $sessions = Session::where('created_by', $user->creatorId())->pluck('year', 'id');
-        $sessions->prepend('Select Session', '');
-        $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get();
-        $query = $query->where('challan_type', 'Regular')->where('status', 'paid');
-        $selectedBranchId = $request->branches ?? null;
-        $selectedDate = $request->date ?? date('Y-m-d');
-        $selectedMonth = date('m', strtotime($selectedDate));
-        $selectedYear = date('Y', strtotime($selectedDate));
-        $previousMonth = date('m', strtotime('-1 month', strtotime($selectedDate)));
-        $previousYear = date('Y', strtotime('-1 month', strtotime($selectedDate)));
 
-        $report = [];
-
-        if (!empty($request->branches)) {
-            $query->where('owned_by', '=', $request->branches);
-            $class = Classes::where('owned_by', '=', $request->branches)->where('active_status', 1)->get()->pluck('name', 'id');
-            $class->prepend('All Classes', 'all');
-            $students = StudentRegistration::select(\DB::raw('CONCAT(`roll_no`, " - ", `stdname`, " s/d/o ", `fathername`) AS stdname'), 'roll_no')
-                ->where('student_status', 'Enrolled')
-                ->where('owned_by', $request->branches)
-                ->where('class_id', '=', $request->class)
-                ->whereNotNull('roll_no')
-                ->get()->pluck('stdname', 'rollno')->prepend('Select Student', '');
-        }
-
-        if (!empty($request->class)) {
-            if ($request->class != 'all') {
-                $query->where('class_id', '=', $request->class);
-                $students = StudentRegistration::select(\DB::raw('CONCAT(`roll_no`, " - ", `stdname`, " s/d/o ", `fathername`) AS stdname'), 'roll_no')
-                    ->where('student_status', 'Enrolled')->where('class_id', '=', $request->class)->get()->pluck('stdname', 'roll_no');
-            } else {
-                $to = StudentRegistration::select(\DB::raw('CONCAT(`roll_no`, " - ", `stdname`, " s/d/o ", `fathername`) AS stdname'), 'roll_no')
-                    ->where('student_status', 'Enrolled');
-                if (!empty($request->branches)) {
-                    $to->where('owned_by', $request->branches);
-                }
-                $students = $to->whereNotNull('roll_no')->get()->pluck('stdname', 'rollno')->prepend('Select Student', '');
-            }
-        }
-
-        if (!empty($request->student)) {
-            if ($request->student != 'all') {
-                $query->where('student_id', '=', $request->student);
-            }
-        }
-        if (!empty($request->date)) {
-            $currentYear = date('Y', strtotime($request->date));
-            $currentMonth = date('m', strtotime($request->date));
-            $query->whereYear('paid_date', '>=', $selectedMonth)
-                ->whereMonth('paid_date', '<', $currentMonth)
-                ->whereMonth('fee_month', '>=', $currentMonth);
-        } else {
-            $currentYear = date('Y');
-            $currentMonth = date('m');
-            $query->whereYear('paid_date', '=', $currentYear)
-                ->whereMonth('paid_date', '=', $currentMonth)
-                ->whereMonth('fee_month', '>=', $currentMonth);
-        }
-        $report = $query->get()->groupBy('owned_by');
-
-        if ($request->has('export') && $request->export == 'excel') {
-            $report_name = 'Advance Challan Report';
-            $selectedBranchName = $selectedBranchId ? ($branches[$selectedBranchId] ?? 'All Branches') : 'All Branches';
-            return Excel::download(new AdvanceChallanreport($branches, $report, $selectedBranchId, $selectedBranchName, $heads, $report_name, $request->all()), 'Advance_Challan_Report.xlsx');
-        }
-
-        if ($request->has('export') && $request->export == 'pdf') {
-            $report_name = 'Advance Challan Report';
-            $selectedBranchName = $selectedBranchId ? ($branches[$selectedBranchId] ?? 'All Branches') : 'All Branches';
-            return Excel::download(new AdvanceChallanreport($branches, $report, $selectedBranchId, $selectedBranchName, $heads, $report_name, $request->all()), 'Advance_Challan_Report.pdf', \Maatwebsite\Excel\Excel::MPDF);
-        }
-        return view('studentReports.advancechallanreport', compact('branches', 'report', 'sessions', 'heads', 'class', 'students'));
-    }
     public function monthlyprechallanreport(Request $request)
     {
+        // dd($request->all());
         set_time_limit(0);
 
         $user = Auth::user();
-        $creatorId = $user->type === 'company'
+        $creatorId = $user->type == 'company'
             ? $user->creatorId()
             : $user->ownedId();
 
+        // ─────────────────────────────────────────────
         // 1. Branch dropdown
+        // ─────────────────────────────────────────────
         $branches = DB::table('users')
             ->when(
-                $user->type === 'company',
+                $user->type == 'company',
                 fn($q) => $q->where('type', 'branch')->where('created_by', $creatorId),
                 fn($q) => $q->where('id', $creatorId)
             )
@@ -5875,25 +6297,19 @@ class StudentReportController extends Controller
         $class = collect();
         $students = collect(['' => 'All Students']);
 
+        // ─────────────────────────────────────────────
         // 2. Base student query with filters
+        // ─────────────────────────────────────────────
         $baseQ = StudentRegistration::query()
             ->where('student_status', 'Enrolled')
-            ->where($user->type === 'company' ? 'created_by' : 'owned_by', $creatorId);
+            ->where($user->type == 'company' ? 'created_by' : 'owned_by', $creatorId);
 
         if ($branchId = $request->input('branches')) {
             $baseQ->where('owned_by', $branchId);
+
             $class = Classes::where('owned_by', $branchId)
                 ->pluck('name', 'id')
                 ->prepend('All Classes', 'all');
-
-            // Get sections for selected branch
-            if ($classId = $request->input('class')) {
-                if ($classId !== 'all') {
-                    $sections = Section::where('class_id', $classId)
-                        ->pluck('name', 'id')
-                        ->prepend('All Sections', 'all');
-                }
-            }
         }
 
         if ($classId = $request->input('class')) {
@@ -5921,38 +6337,54 @@ class StudentReportController extends Controller
             ->pluck('name', 'roll_no')
             ->prepend('Select Student', '');
 
+        // ─────────────────────────────────────────────
         // 3. Date handling
+        // ─────────────────────────────────────────────
         $dateInput = $request->input('date', Carbon::now()->format('Y-m'));
         $currentMonth = Carbon::createFromFormat('Y-m', $dateInput);
         $monthLabel = $currentMonth->format('M-Y');
 
         $reportGroups = collect();
         $heads = collect();
+        $totalTuitionNet = 0;
+        $tuitionStudentCount = 0;
+        $tuitionHead = null;
 
         if ($request->filled('date')) {
-            // 4. Fetch students with relations
-            $studentsList = $baseQ
-                ->with(['registeroption', 'class', 'section'])
-                ->get();
 
+            $studentsList = $baseQ->with(['registeroption', 'class', 'section'])->get();
             $studentIds = $studentsList->pluck('id')->all();
 
-            // 5. Fetch all fee structures (only checked ones)
+            // ─────────────────────────────────────────────
+            // Fee structures
+            // ─────────────────────────────────────────────
             $feeStructures = StudentFeeStructure::with('feehead')
                 ->whereIn('reg_id', $studentIds)
                 ->where('checked_status', 1)
                 ->get()
                 ->groupBy('reg_id');
 
-            // 6. Calculate unpaid arrears (previous months only)
-            $arrearsData = Challans::select('student_id', DB::raw('SUM(total_amount - paid_amount - concession_amount) AS arrears'))
-                ->whereIn('student_id', $studentIds)
+            $currentYearMonth = $currentMonth->format('Y-m');
+
+            // ─────────────────────────────────────────────
+            // Arrears (unpaid challans before current month, from 2026-01 onwards)
+            // ─────────────────────────────────────────────
+            $arrearsData = Challans::
+                select(
+                    'student_id',
+                    DB::raw('SUM(total_amount - paid_amount - concession_amount) AS arrears')
+                )->
+                whereIn('student_id', $studentIds)
+                ->whereNotIn('challan_type', ['Registration', 'Withdrawal'])
                 ->where('status', '!=', 'Paid')
-                ->where('fee_month', '<', $currentMonth)
+                ->whereRaw("DATE_FORMAT(fee_month, '%Y-%m') < ?", [$currentYearMonth])
+                ->whereRaw("DATE_FORMAT(fee_month, '%Y-%m') >= '2026-01'")
                 ->groupBy('student_id')
                 ->pluck('arrears', 'student_id');
-
-            // 7. Get active approved concessions
+            // ->get();
+            // ─────────────────────────────────────────────
+            // Concessions
+            // ─────────────────────────────────────────────
             $concessions = Concession::with('concession.policy_head')
                 ->whereIn('student_id', $studentIds)
                 ->where('status', 'Approved')
@@ -5967,106 +6399,435 @@ class StudentReportController extends Controller
                 ->unique('student_id')
                 ->keyBy('student_id');
 
-            // 8. Get all concession policy heads for quick lookup
             $policyHeads = ConcessionPolicyHead::whereIn(
                 'concession_id',
                 $concessions->pluck('concession_id')->unique()->all()
             )
                 ->get()
                 ->groupBy('concession_id')
-                ->map(function ($rows) {
-                    return $rows->keyBy('head_id');
-                });
+                ->map(fn($rows) => $rows->keyBy('head_id'));
 
-            // 9. Get all fee heads
-            $heads = FeeHead::where('created_by', $creatorId)
-                ->orderBy('id')
-                ->get();
-            // dd($policyHeads, $concessions, $heads);
-            // 10. Build report data grouped by branch
+            // ─────────────────────────────────────────────
+            // Fee heads
+            // ─────────────────────────────────────────────
+            $heads = FeeHead::orderBy('id')->get();
+
+            $tuitionHead = $heads->first(
+                fn($h) => stripos($h->fee_head, 'tuition') !== false
+            );
+
+            $lateFeeHead = $heads->first(
+                fn($h) => stripos($h->fee_head, 'late fee') !== false
+                || stripos($h->fee_head, 'late-fee') !== false
+                || stripos($h->fee_head, 'latefee') !== false
+            );
+
+            // ─────────────────────────────────────────────
+            // Keywords for heads that must ALWAYS be skipped
+            // (admission, security, readmission, late fee)
+            // ─────────────────────────────────────────────
+            $alwaysSkipKeywords = [
+                'admission',
+                'readmission',
+                'security',
+                'late fee',
+                'late-fee',
+                'latefee',
+            ];
+
+            // Annual-charge keywords (one-time per subscription period)
+            $annualKeywords = ['annual', 'yearly'];
+
+            // ─────────────────────────────────────────────
+            // Previous-month challan lookup
+            // Pass 1: challan whose fee_month == last month
+            // Pass 2: challan whose other_months contains last month
+            // ─────────────────────────────────────────────
+            $lastMonthDate = $currentMonth->copy()->subMonth()->format('Y-m-01');
+            $lastYearMonth = date('Y-m', strtotime($lastMonthDate));
+
+            $prevChallansPass1 = Challans::whereIn('student_id', $studentIds)
+                ->whereNotIn('challan_type', ['registration'])
+                ->whereRaw("DATE_FORMAT(STR_TO_DATE(fee_month, '%Y-%m-%d'), '%Y-%m') = ?", [$lastYearMonth])
+                ->get()
+                ->groupBy('student_id');
+
+            $prevChallansPass2 = Challans::whereIn('student_id', $studentIds)
+                ->whereNotIn('challan_type', ['registration'])
+                ->whereRaw('FIND_IN_SET(?, other_months)', [$lastMonthDate])
+                ->get()
+                ->groupBy('student_id');
+
+            $prevChallans = $prevChallansPass1->union(
+                $prevChallansPass2->diffKeys($prevChallansPass1)
+            );
+
+            $prevChallanIds = $prevChallans->flatten()->pluck('id')->all();
+
+            $prevChallanItems = ChallanHead::with('feehead')
+                ->whereIn('challan_id', $prevChallanIds)
+                ->get()
+                ->groupBy('challan_id');
+            // dd($prevChallans, $prevChallanItems);
+            // ─────────────────────────────────────────────
+            // Helper: parse other_months into sorted array of 'Y-m-d' strings
+            // ─────────────────────────────────────────────
+            $parseOtherMonths = function (?string $raw): array {
+                if (empty($raw))
+                    return [];
+                return array_values(
+                    array_filter(
+                        array_map('trim', explode(',', $raw))
+                    )
+                );
+            };
+
+            // ─────────────────────────────────────────────
+            // Build report
+            // ─────────────────────────────────────────────
             $reportGroups = $studentsList
+                ->sort(function ($a, $b) {
+
+                    // 1. Branch order (owned_by ASC)
+                    if ($a->owned_by != $b->owned_by) {
+                        return $a->owned_by <=> $b->owned_by;
+                    }
+
+                    // 2. Student name alphabetical
+                    return strcmp(
+                        strtolower($a->stdname ?? ''),
+                        strtolower($b->stdname ?? '')
+                    );
+                })
                 ->groupBy('owned_by')
-                ->map(function ($groupOfStudents) use ($feeStructures, $arrearsData, $concessions, $policyHeads, $heads) {
-                    return $groupOfStudents->map(function ($student) use ($feeStructures, $arrearsData, $concessions, $policyHeads, $heads) {
-
-                        // Get student's fee structures
+                ->map(function ($groupOfStudents) use ($feeStructures, $arrearsData, $concessions, $policyHeads, $heads, $prevChallans, $prevChallanItems, $currentMonth, &$totalTuitionNet, &$tuitionStudentCount, $tuitionHead, $lateFeeHead, $alwaysSkipKeywords, $annualKeywords, $parseOtherMonths, $lastMonthDate) {
+                    return $groupOfStudents->sortBy(fn($s) => strtolower($s->stdname ?? ''))->map(function ($student) use ($feeStructures, $arrearsData, $concessions, $policyHeads, $heads, $prevChallans, $prevChallanItems, $currentMonth, &$totalTuitionNet, &$tuitionStudentCount, $tuitionHead, $lateFeeHead, $alwaysSkipKeywords, $annualKeywords, $parseOtherMonths, $lastMonthDate) {
                         $studentFeeStructures = $feeStructures->get($student->id, collect());
-
-                        // Get student's concession
                         $concession = $concessions->get($student->id);
 
-                        // Get policy heads for this concession
                         $concessionPolicyHeads = $concession && isset($policyHeads[$concession->concession_id])
                             ? $policyHeads[$concession->concession_id]
                             : collect();
 
-                        // Get arrears
                         $arrears = $arrearsData->get($student->id, 0);
 
-                        // Initialize totals
+                        $studentChallans = $prevChallans->get($student->id, collect());
+
+                        // Priority 1: Regular
+                        $prevChallan = $studentChallans->where('challan_type', 'Regular')->last();
+
+                        // Priority 2: Admission (if no Regular found)
+                        if (!$prevChallan) {
+                            $prevChallan = $studentChallans->where('challan_type', 'Admission')->last();
+                        }
+
+                        // Priority 3: Fallback to last available (any type)
+                        if (!$prevChallan) {
+                            $prevChallan = $studentChallans->last();
+                        }
+                        // ─── Challan type label ───────────────────────────────
+                        $challanTypeShort = 'RV';
+
+                        if ($prevChallan) {
+                            $months = $parseOtherMonths($prevChallan->other_months);
+                            if (count($months) > 1) {
+                                $challanTypeShort = 'AV';
+                            }
+                        }
+
+                        // ─── Determine if this student already has an
+                        //     advance/subscription challan that covers the
+                        //     CURRENT month being reported (e.g. running May
+                        //     report but challan covers Jan-June).
+                        //
+                        //     If yes → we use fee-structure data directly
+                        //     (same as no prev-challan path) and only show
+                        //     annual charges for the month that immediately
+                        //     follows the challan's fee_month (first month
+                        //     after the challan was created).
+                        // ─────────────────────────────────────────────────────
+                        $advanceChallanForCurrentMonth = null;  // challan that covers current month in other_months
+                        $isFirstMonthAfterChallan = false; // should annual charges appear?
+    
+                        if ($prevChallan) {
+                            $months = $parseOtherMonths($prevChallan->other_months);
+
+                            if (count($months) > 1) {
+                                $currentMonthStr = $currentMonth->format('Y-m-01');
+
+                                // Does this challan cover the current reporting month?
+                                if (in_array($currentMonthStr, $months, true)) {
+                                    $advanceChallanForCurrentMonth = $prevChallan;
+
+                                    // Sort months to find the first one that comes
+                                    // AFTER the challan's own fee_month
+                                    $sortedMonths = $months;
+                                    sort($sortedMonths);
+
+                                    // The "first subsequent month" is the earliest
+                                    // month in other_months that is NOT the fee_month
+                                    $challanFeeMonth = Carbon::parse($prevChallan->fee_month)->format('Y-m-01');
+                                    $firstSubsequent = null;
+
+                                    foreach ($sortedMonths as $m) {
+                                        if ($m > $challanFeeMonth) {
+                                            $firstSubsequent = $m;
+                                            break;
+                                        }
+                                    }
+
+                                    // Annual charges appear only in that first subsequent month
+                                    if ($firstSubsequent && $firstSubsequent === $currentMonthStr) {
+                                        $isFirstMonthAfterChallan = true;
+                                    }
+                                }
+                            }
+                        }
+
+                        // ─── Per-head amounts ─────────────────────────────────
                         $totalAmount = 0;
                         $totalDiscount = 0;
                         $totalNet = 0;
                         $headDetails = [];
 
-                        // Process each fee head
                         foreach ($heads as $head) {
-                            // Find fee structure for this head
-                            $feeStructure = $studentFeeStructures->where('branch_id', $student->owned_by)->firstWhere('head_id', $head->id);
 
-                            if ($feeStructure) {
-                                // dd($feeStructure);
-                                // Get the base amount from fee structure
-                                $amount = (float) $feeStructure->amount;
+                            // Skip Security & Admission heads completely
+                            $excludeKeywords = ['admission', 'security'];
+                            $skipHead = false;
 
-                                // Calculate discount
-                                $discountPercentage = 0;
-                                $discountAmount = 0;
+                            foreach ($excludeKeywords as $kw) {
+                                if (stripos($head->fee_head, $kw) !== false) {
+                                    $skipHead = true;
+                                    break;
+                                }
+                            }
 
-                                if ($amount > 0) {
-                                    // Check if concession policy applies to this head
-                                    if ($concessionPolicyHeads->has($head->id)) {
-                                        // Use concession policy percentage
-                                        $discountPercentage = (float) $concessionPolicyHeads->get($head->id)->percentage;
-                                    } else {
-                                        // Use individual fee structure discount
-                                        $discountPercentage = (float) $feeStructure->discount;
-                                    }
+                            if ($skipHead) {
+                                continue;
+                            }
 
-                                    // Calculate discount amount
-                                    $discountAmount = round(($amount * $discountPercentage) / 100);
+                            if ($useActualChallanData) {
+
+                                $item = $actualChallanItems->firstWhere('head_id', $head->id);
+
+                                $amount = $item->price ?? 0;
+                                $discount = $item->concession ?? 0;
+
+                                $monthsCount = !empty($prevChallan->other_months)
+                                    ? max(1, count(array_filter(explode(',', $prevChallan->other_months))))
+                                    : 1;
+
+                                if ($monthsCount > 1) {
+                                    $amount /= $monthsCount;
+                                    $discount /= $monthsCount;
                                 }
 
-                                // Calculate net amount
-                                $netAmount = $amount - $discountAmount;
+                                $netAmount = $amount - $discount;
 
-                                // Add to totals
-                                $totalAmount += $amount;
-                                $totalDiscount += $discountAmount;
-                                $totalNet += $netAmount;
-
-                                // Store head details
-                                $headDetails[$head->id] = [
-                                    'head_name' => $head->fee_head,
-                                    'amount' => $amount,
-                                    'discount_pct' => $discountPercentage,
-                                    'discount_amount' => $discountAmount,
-                                    'net_amount' => $netAmount,
-                                ];
                             } else {
-                                // Head not in fee structure or unchecked
-                                $headDetails[$head->id] = [
-                                    'head_name' => $head->fee_head,
-                                    'amount' => 0,
-                                    'discount_pct' => 0,
-                                    'discount_amount' => 0,
-                                    'net_amount' => 0,
-                                ];
+
+                                $feeStructure = $studentFeeStructures
+                                    ->where('branch_id', $student->owned_by)
+                                    ->firstWhere('head_id', $head->id);
+
+                                if ($feeStructure) {
+
+                                    $amount = (float) $feeStructure->amount;
+
+                                    $discountPercentage = 0;
+
+                                    if ($amount > 0) {
+
+                                        if ($concessionPolicyHeads->has($head->id)) {
+                                            $discountPercentage = (float) $concessionPolicyHeads
+                                                ->get($head->id)
+                                                ->percentage;
+                                        } else {
+                                            $discountPercentage = (float) $feeStructure->discount;
+                                        }
+                                    }
+
+                                    $discount = round(($amount * $discountPercentage) / 100);
+
+                                    $netAmount = $amount - $discount;
+
+                                } else {
+
+                                    $amount = $discount = $netAmount = 0;
+                                    $discountPercentage = 0;
+                                }
                             }
+
+                            $totalAmount += $amount;
+                            $totalDiscount += $discount;
+                            $totalNet += $netAmount;
+
+                            if ($tuitionHead && $head->id == $tuitionHead->id) {
+                                $totalTuitionNet += $netAmount;
+                            }
+
+                            $headDetails[$head->id] = [
+                                'head_name' => $head->fee_head,
+                                'amount' => $amount,
+                                'discount_pct' => $amount > 0
+                                    ? round(($discount / $amount) * 100, 2)
+                                    : 0,
+                                'discount_amount' => $discount,
+                                'net_amount' => $netAmount,
+                            ];
                         }
 
-                        // Calculate net receivable (current month net + arrears)
+                        $gross = $totalAmount - $totalDiscount;
                         $netReceivable = $totalNet + $arrears;
+
+                        // ─── Previous-month amount (for difference column) ────
+                        //
+                        // For advance/subscription challans (e.g. Jan–Jun):
+                        //   • Annual charges count in prevMonthAmount ONLY when
+                        //     the PREVIOUS month (lastMonthDate) is the very first
+                        //     subsequent month after the challan's fee_month.
+                        //     e.g. challan fee_month = Jan → first subsequent = Feb
+                        //          running Feb report  → prevMonth is Jan  → annual included  ✓
+                        //          running Mar report  → prevMonth is Feb  → annual excluded  ✗
+                        //          running Apr–Jun     → prevMonth is Mar+ → annual excluded  ✗
+                        //   • For regular single-month challans annual is always included.
+                        // ─────────────────────────────────────────────────────────────────
+                        $prevMonthAmount = 0;
+                        // dd($feeStructures, $student->id, $head->id);
+    
+                        if ($prevChallan) {
+
+                            $items = $prevChallanItems->get($prevChallan->id, collect());
+                            $months = $parseOtherMonths($prevChallan->other_months);
+                            $monthCount = max(1, count($months));
+
+                            // ── Work out whether annual charges belong in this
+                            //    prevMonthAmount calculation.
+                            //
+                            //    They belong only when the challan is a single-month
+                            //    challan, OR when the challan is an advance challan
+                            //    AND the previous month (lastMonthDate) is the first
+                            //    subsequent month after the challan's fee_month.
+                            // ────────────────────────────────────────────────────
+                            $includeAnnualInPrev = true; // default: single-month challan
+    
+                            if ($monthCount > 1) {
+                                // Advance challan: find the first subsequent month
+                                $sortedAdvMonths = $months;
+                                sort($sortedAdvMonths);
+                                $challanFeeMonthStr = Carbon::parse($prevChallan->fee_month)->format('Y-m-01');
+                                $firstSubsequentAdv = null;
+
+                                foreach ($sortedAdvMonths as $m) {
+                                    if ($m > $challanFeeMonthStr) {
+                                        $firstSubsequentAdv = $m;
+                                        break;
+                                    }
+                                }
+
+                                // lastMonthDate is the "previous month" we are
+                                // computing the amount for.
+                                // Annual charges appear only if that previous month
+                                // IS the first subsequent month.
+                                $includeAnnualInPrev = ($firstSubsequentAdv !== null)
+                                    && ($firstSubsequentAdv === $lastMonthDate);
+                            }
+
+                            $monthly = 0;
+                            $annual = 0;
+
+                            foreach ($items as $item) {
+
+                                $name = strtolower($item->feehead->fee_head ?? '');
+
+                                // Skip always-excluded heads
+                                $skipItem = false;
+                                foreach ($alwaysSkipKeywords as $ex) {
+                                    if (str_contains($name, strtolower($ex))) {
+                                        $skipItem = true;
+                                        break;
+                                    }
+                                }
+                                if ($skipItem)
+                                    continue;
+
+                                $net = (float) $item->price - (float) ($item->concession ?? 0);
+
+                                $isItemAnnual = false;
+                                foreach ($annualKeywords as $kw) {
+                                    if (str_contains($name, $kw)) {
+                                        $isItemAnnual = true;
+                                        break;
+                                    }
+                                }
+
+                                if ($isItemAnnual) {
+                                    if ($includeAnnualInPrev) {
+                                        $annual += $net;
+                                    }
+                                    // else: suppress annual for Mar–Jun reports
+                                } else {
+                                    $monthly += $net;
+                                }
+                            }
+
+                            $prevMonthAmount = round(($monthly / $monthCount) + $annual);
+                        }
+
+                        $difference = $totalNet - $prevMonthAmount;
+
+                        // ─── Late fee calculation ─────────────────────────────
+                        // (only from prev challan status; never from fee heads
+                        //  since those are always skipped above)
+                        $lateFeeAmount = 0;
+
+                        if ($prevChallan && $lateFeeHead) {
+
+                            $challanStatus = strtolower($prevChallan->status);
+
+                            $lateFeeItem = $prevChallanItems
+                                ->get($prevChallan->id, collect())
+                                ->firstWhere('head_id', $lateFeeHead->id);
+
+                            if ($challanStatus == 'partially paid' && $lateFeeItem) {
+
+                                $lateFeeNet = (float) $lateFeeItem->price - (float) ($lateFeeItem->concession ?? 0);
+                                $lateFeePaid = (float) ($lateFeeItem->paid_amount ?? 0);
+
+                                if ($lateFeePaid < $lateFeeNet) {
+                                    $lateFeeAmount = $lateFeeNet - $lateFeePaid;
+                                }
+
+                            } elseif (in_array($challanStatus, ['issued', 'pending'])) {
+
+                                $dueDate = Carbon::parse($prevChallan->due_date);
+                                $today = Carbon::now();
+
+                                if ($dueDate->isSaturday()) {
+                                    $dueDate->addDays(2);
+                                } elseif ($dueDate->isSunday()) {
+                                    $dueDate->addDay();
+                                }
+
+                                if ($today->greaterThan($dueDate)) {
+                                    $lateDays = 0;
+                                    $tempDate = $dueDate->copy()->addDay();
+
+                                    while ($tempDate->lessThanOrEqualTo($today) && $lateDays < 10) {
+                                        if (!$tempDate->isWeekend()) {
+                                            $lateDays++;
+                                        }
+                                        $tempDate->addDay();
+                                    }
+
+                                    $lateFeeAmount = min($lateDays * 120, 1200);
+                                }
+                            }
+                        }
+                        // dd($headDetails);
+    
+                        $tuitionStudentCount++;
 
                         return [
                             'student_id' => $student->id,
@@ -6074,6 +6835,7 @@ class StudentReportController extends Controller
                             'student_name' => $student->stdname,
                             'father_name' => $student->fathername,
                             'registration_type' => $student->registeroption->name ?? 'N/A',
+                            'challan_type_short' => $challanTypeShort,
                             'class_name' => $student->class->name ?? 'N/A',
                             'section_name' => $student->section->name ?? 'N/A',
                             'concession_category' => $concession && $concession->concession
@@ -6084,14 +6846,32 @@ class StudentReportController extends Controller
                             'total_discount' => $totalDiscount,
                             'total_net' => $totalNet,
                             'arrears' => $arrears,
-                            'net_receivable' => $netReceivable,
+                            'late_fee' => $lateFeeAmount,
+                            'net_receivable' => $netReceivable + $lateFeeAmount,
+                            'gross' => $gross,
+                            'prev_month_amount' => $prevMonthAmount,
+                            'difference' => $difference,
                         ];
+
                     })->values();
                 });
         }
 
-        // 11. Export or view
+        $averageTuitionFee = $tuitionStudentCount > 0
+            ? round($totalTuitionNet / $tuitionStudentCount, 2)
+            : 0;
+
+        // ─────────────────────────────────────────────
+        // Export or view
+        // ─────────────────────────────────────────────
         if (in_array($request->export, ['excel', 'pdf'])) {
+            $reportGroups = collect($reportGroups)
+                ->sortKeys() // branch ASC
+                ->map(function ($students) {
+                    return collect($students)
+                        ->sortBy(fn($s) => strtolower($s['student_name'] ?? ''))
+                        ->values();
+                });
             $filename = "Student_Pre_Challan_Report_{$monthLabel}."
                 . ($request->export === 'excel' ? 'xlsx' : 'pdf');
 
@@ -6104,10 +6884,11 @@ class StudentReportController extends Controller
                     $heads,
                     $monthLabel,
                     $dateInput,
-                    $request->all()
+                    $request->all(),
+                    $averageTuitionFee
                 ),
                 $filename,
-                $request->export == 'pdf'
+                $request->export === 'pdf'
                 ? \Maatwebsite\Excel\Excel::MPDF
                 : null
             );
@@ -6126,5 +6907,185 @@ class StudentReportController extends Controller
             'selectedSectionId' => $request->section,
             'selectedStudent' => $request->student,
         ]);
+    }
+    public function student_sections_statistics(Request $request)
+    {
+        $user = \Auth::user();
+        // dd($request->all());
+        // ================= BRANCHES =================
+        if ($user->type == 'company') {
+            $branches = User::where('type', 'branch')
+                ->where('created_by', $user->creatorId())
+                ->where('is_active', 1)
+                ->pluck('name', 'id');
+
+            $branches->prepend('All Branches', 'all');
+        } else {
+            $branches = User::where('id', $user->ownedId())
+                ->where('is_active', 1)
+                ->pluck('name', 'id');
+
+            $branches->prepend('All Branches', 'all');
+        }
+
+        // ================= FILTER =================
+        $selectedBranchId = $request->input('branches');
+        // dd($request->all());
+        if (!empty($selectedBranchId) && $selectedBranchId !== 'all') {
+            $branchIds = [(string) $selectedBranchId];
+            $displayBranch = $branches->get($selectedBranchId, 'All Branches');
+        } else {
+            $branchIds = $branches->keys()
+                ->filter(fn($k) => (string) $k !== 'all')
+                ->map(fn($k) => (string) $k)
+                ->toArray();
+
+            $displayBranch = 'All Branches';
+        }
+
+        // ================= SECTIONS =================
+        $sections = Section::get()->toBase();
+        $sections->push((object) ['id' => 0, 'name' => 'Unassigned']);
+
+        $report = [];
+        $grandTotals = [];
+
+        foreach ($sections as $section) {
+            $grandTotals[$section->id] = 0;
+        }
+        $grandTotals['total'] = 0;
+
+        // ================= MAIN LOOP =================
+        foreach ($branchIds as $branchId) {
+
+            $branchId = (string) $branchId;
+
+            if (!$branches->has($branchId))
+                continue;
+
+            if ($user->type == 'company') {
+                $branchQuery = \App\Models\StudentEnrollments::where('created_by', $user->creatorId())
+                    ->where('active_status', 1)
+                    ->where('owned_by', $branchId);
+            } else {
+                $branchQuery = \App\Models\StudentEnrollments::where('owned_by', $branchId)
+                    ->where('active_status', 1);
+            }
+
+            $branchName = $branches[$branchId];
+            $classes = Classes::where('active_status', 1)
+                ->where('owned_by', $branchId)
+                ->get();
+
+            $branchTotals = [];
+            $branchRows = [];
+
+            foreach ($sections as $section) {
+                $branchTotals[$section->id] = 0;
+            }
+            $branchTotals['total'] = 0;
+
+            foreach ($classes as $class) {
+
+                $studentsQuery = (clone $branchQuery)->where('class_id', $class->id);
+
+                $sectionData = [];
+                $rowTotal = 0;
+
+                foreach ($sections as $section) {
+                    if ($section->id == 0) {
+                        $count = (clone $studentsQuery)->whereNull('section_id')->count();
+                    } else {
+                        $count = (clone $studentsQuery)->where('section_id', $section->id)->count();
+                    }
+
+                    $sectionData[$section->id] = $count;
+                    $rowTotal += $count;
+                    $branchTotals[$section->id] += $count;
+                    $grandTotals[$section->id] += $count;
+                }
+
+                $branchTotals['total'] += $rowTotal;
+                $grandTotals['total'] += $rowTotal;
+
+                $branchRows[] = [
+                    'class' => $class->name,
+                    'sections' => $sectionData,
+                    'total' => $rowTotal,
+                ];
+            }
+
+            $report[] = [
+                'branch' => $branchName,
+                'rows' => $branchRows,
+                'totals' => $branchTotals,
+            ];
+        }
+
+        // ================= REMOVE ZERO SECTIONS =================
+        $usedSections = [];
+        foreach ($report as $branchData) {
+            foreach ($branchData['rows'] as $row) {
+                foreach ($row['sections'] as $sectionId => $count) {
+                    if ($count > 0) {
+                        $usedSections[$sectionId] = true;
+                    }
+                }
+            }
+        }
+
+        $sections = $sections->filter(fn($section) => isset($usedSections[$section->id]));
+
+        // ================= EXCEL =================
+        if ($request->export == 'excel') {
+            return Excel::download(
+                new StudentSectionsStatisticsExport(
+                    $report,
+                    $sections,
+                    $branches,
+                    $grandTotals,
+                    $request->all()
+                ),
+                'student_sections_statistics.xlsx'
+            );
+        }
+        if ($request->export == 'pdf') {
+
+            $report_name = 'STUDENT STATISTICS';
+            $branch = $displayBranch ?? 'ALL BRANCHES';
+
+            $isAllBranches = empty($selectedBranchId) || $selectedBranchId === 'all';
+
+            $pdf = Pdf::loadView(
+                'studentReports.exports.student_sections_statistics_print',
+                compact(
+                    'report',
+                    'report_name',
+                    'branch',
+                    'sections',
+                    'branches',
+                    'grandTotals',
+                    'displayBranch',
+                    'isAllBranches'
+                )
+            );
+
+            if ($isAllBranches) {
+                $pdf->setPaper('A4', 'landscape');
+            } else {
+                $pdf->setPaper('A4', 'portrait');
+            }
+
+            return $pdf->stream('Student_Statistics.pdf');
+        }
+
+        // ================= WEB VIEW =================
+        return view('studentReports.student_sections_statistics', compact(
+            'report',
+            'sections',
+            'branches',
+            'grandTotals',
+            'displayBranch'
+        ));
     }
 }

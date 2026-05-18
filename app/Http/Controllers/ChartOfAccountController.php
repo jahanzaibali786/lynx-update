@@ -363,4 +363,15 @@ class ChartOfAccountController extends Controller
 
         return response()->json($types);
     }
+
+    public function updateCategory(Request $request)
+    {
+        $account = ChartOfAccount::find($request->account_id);
+        if ($account) {
+            $account->category = $request->category;
+            $account->save();
+            return response()->json(['success' => true]);
+        }
+        return response()->json(['success' => false]);
+    }
 }

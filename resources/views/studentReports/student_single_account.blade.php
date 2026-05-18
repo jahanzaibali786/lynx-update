@@ -16,23 +16,23 @@
             cursor: not-allowed;
             pointer-events: none;
         }
-        
+
         .opening-balance {
             background-color: #e3f2fd;
             font-weight: bold;
         }
-        
+
         .closing-balance {
             background-color: #fff9c4;
             font-weight: bold;
         }
-        
+
         /* Color for negative values (payments) */
         .negative-value {
             color: red;
             font-weight: 500;
         }
-        
+
         /* Color for positive values (receivables) */
         .positive-value {
             color: green;
@@ -40,6 +40,11 @@
         }
     </style>
     <script>
+        $(document).on('change', '#student_select, #class_select, #status_select, #branches', function() {
+            clearExportInput();
+            toggleExportButtons();
+        });
+
         function branchcustomer(id) {
             var customer = $('#customerselect').val();
             $.ajax({
@@ -139,6 +144,7 @@
                             }
                         }
                         $('#student_select').val('all');
+                        CustomSelect.create(document.getElementById('student_select'));
                         toggleExportButtons();
                     }
                 }
@@ -146,17 +152,18 @@
         }
 
         $(document).on('change', '#class_select, #status_select', function() {
-            var classId = $('#class_select').val();
+            var classId = $('#class_select').val() ?? null;
             var status = $('#status_select').val();
-            if (classId && status) {
+            // if (classId && status) {
                 classStudents(classId, status);
-            }
+            // }
         });
 
         $(document).on('change', '#class_select', function() {
             var classId = $(this).val();
+            var status = $('#status_select').val();
             if (classId) {
-                classStudents(classId);
+                classStudents(classId, status);
             }
         });
 
@@ -167,6 +174,7 @@
                 alert('Please select a student before applying the filter.');
                 return false;
             }
+            clearExportInput();
             document.getElementById('student_single_account').submit();
         }
 
@@ -179,13 +187,28 @@
             }
 
             var form = document.getElementById('student_single_account');
+
+            // IMPORTANT: remove old export first
+            clearExportInput();
+
+            // add fresh export flag
             var exportInput = document.createElement('input');
             exportInput.type = 'hidden';
             exportInput.name = 'export';
             exportInput.value = exportType;
+
             form.appendChild(exportInput);
+
             form.submit();
             return true;
+        }
+
+        function clearExportInput() {
+            let form = document.getElementById('student_single_account');
+            let existing = form.querySelector('input[name="export"]');
+            if (existing) {
+                existing.remove();
+            }
         }
 
         function toggleExportButtons() {
@@ -248,13 +271,7 @@
                                     {{ Form::select('branches', $branches, $selected_branch, ['class' => 'form-control select custom-select', 'onchange' => 'branchcustomer(this.value)']) }}
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                <div class="btn-box">
-                                    {{ Form::label('status', __('Student Status'), ['class' => 'form-label']) }}
-                                    {{ Form::select('status', ['active' => 'Active', 'withdraw' => 'Withdraw'], request()->get('status', 'active'), ['class' => 'form-control select', 'id' => 'status_select']) }}
-                                </div>
-                            </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+							<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}
                                     {{ Form::select('class', $class, $selected_class, ['class' => 'form-control select custom-select', 'id' => 'class_select', 'required' => 'required']) }}
@@ -262,12 +279,20 @@
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
+                                    {{ Form::label('status', __('Student Status'), ['class' => 'form-label']) }}
+                                    {{ Form::select('status', ['active' => 'Active', 'withdraw' => 'Withdraw'], request()->get('status', 'active'), ['class' => 'form-control select', 'id' => 'status_select']) }}
+                                </div>
+                            </div>
+                            
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
                                     {{ Form::label('student', __('Students'), ['class' => 'form-label']) }}<span
                                         style="color: red"> *</span>
                                     {{ Form::select('student', $students, $selected_student, ['class' => 'form-control select custom-select', 'id' => 'student_select', 'required' => 'required']) }}
                                 </div>
                             </div>
-                            <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-4 d-flex justify-content-end gap-2 align-items-center">
+                            <div
+                                class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-4 d-flex justify-content-end gap-2 align-items-center">
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
                                     onclick="validateForm(); return false;" data-bs-title="{{ __('Apply') }}">
                                     <span class="btn-inner--icon">Search</span>
@@ -304,7 +329,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="content" id="report-content">
         <div class="card p-4 table-responsive maximumHeightNew">
             <div style="width: 100%; text-align: center;">
@@ -317,24 +342,24 @@
             </div>
             <div class="d-flex justify-content-between">
                 <p><b>Period From :</b> {{ @$from_date }}</p>
-                @if(!empty($std))
-                <p><b>{{ @$std->branches ? $std->branches->name : '' }}</b></p>
+                @if (!empty($std))
+                    <p><b>{{ @$std->branches ? $std->branches->name : '' }}</b></p>
                 @else
-                <p><b>{{ @$branches[$selected_branch] ?? '' }}</b></p>
+                    <p><b>{{ @$branches[$selected_branch] ?? '' }}</b></p>
                 @endif
                 <p><b>Period To :</b> {{ @$to_date }}</p>
             </div>
-            @if(isset($std))
-            <div class="d-flex justify-content-between" style="flex-direction:column;">
-                <div class="d-flex justify-content-between">
-                    <p><b>Student Name: {{ @$std->stdname }}</b></p>
-                    <p><b>Class: {{ @$std->class->name }}</b></p>
-                    <p><b>Section: {{ @$std->enrollment->section->name }}</b></p>
-                    <p><b>Roll No: {{ @$std->enrollment->enrollId }}</b></p>
+            @if (isset($std))
+                <div class="d-flex justify-content-between" style="flex-direction:column;">
+                    <div class="d-flex justify-content-between">
+                        <p><b>Student Name: {{ @$std->stdname }}</b></p>
+                        <p><b>Class: {{ @$std->class->name }}</b></p>
+                        <p><b>Section: {{ @$std->enrollment->section->name }}</b></p>
+                        <p><b>Roll No: {{ @$std->enrollment->enrollId }}</b></p>
+                    </div>
                 </div>
-            </div>
             @endif
-            
+
             <table style="font-size:0.8rem;">
                 <thead>
                     <tr class="table_heads report_table">
@@ -356,7 +381,7 @@
                 <tbody>
                     @php
                         $totalCredit = 0; // Total receivables
-                        $totalDebit = 0;  // Total payments
+                        $totalDebit = 0; // Total payments
                     @endphp
 
                     @foreach (@$accountStatement as $index => $item)
@@ -366,7 +391,7 @@
                                 $totalCredit += $item['credit'];
                                 $totalDebit += $item['debit'];
                             }
-                            
+
                             // Set row styling for opening/closing only
                             $rowClass = '';
                             if ($item['type'] == 'opening') {
@@ -382,22 +407,20 @@
                             <td>{{ $item['description'] }}</td>
                             <td>{{ $item['challan_no'] ?? '-' }}</td>
                             <td>
-                                {{ !empty($item['billing_month']) && $item['billing_month'] !== '-'
-                                    ? $item['billing_month']
-                                    : '-' }}
+                                {{ !empty($item['billing_month']) && $item['billing_month'] !== '-' ? $item['billing_month'] : '-' }}
                             </td>
                             <td>{{ $item['challan_type'] ?? '-' }}</td>
                             <td>{{ $item['head_name'] ?? '-' }}</td>
                             <td>{{ $item['receipt_mode'] ?? '-' }}</td>
                             <td>{{ $item['receipt_ref'] ?? '-' }}</td>
                             <td>{{ $item['bank_name'] ?? '-' }}</td>
-                            
-                            @if($rowClass == 'closing-balance')
+
+                            @if ($rowClass == 'closing-balance')
                                 {{-- Closing Balance Row - Show totals --}}
-                                <td class="negative-value" style="color: #f44336 !important;">
+                                <td class="negative-value" style="color: red !important;">
                                     <b>{{ number_format($totalDebit, 2) }}</b>
                                 </td>
-                                 <td class="positive-value" style="color: #4caf50 !important;">
+                                <td class="positive-value" style="color: green !important;">
                                     <b>{{ number_format($totalCredit, 2) }}</b>
                                 </td>
                             @else
@@ -408,9 +431,8 @@
                                 <td class="{{ $item['credit'] > 0 ? 'positive-value' : '' }}">
                                     {{ $item['credit'] > 0 ? number_format($item['credit'], 2) : '-' }}
                                 </td>
-                                
                             @endif
-                            
+
                             <td><b>{{ number_format($item['balance'], 2) }}</b></td>
                         </tr>
                     @endforeach

@@ -114,8 +114,8 @@
     </style>
 
     <title>
-        {{ Utility::getValByName('title_text') ? Utility::getValByName('title_text') : config('app.name', 'ERPGO') }}
-        - @yield('page-title')</title>
+        {{-- {{ Utility::getValByName('title_text') ? Utility::getValByName('title_text') : config('app.name', 'ERPGO') }} --}}
+        @yield('page-title')</title>
 
     <meta name="title" content="{{ $metatitle }}">
     <meta name="description" content="{{ $metsdesc }}">

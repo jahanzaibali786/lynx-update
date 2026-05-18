@@ -18,33 +18,49 @@ class StudentEnrollmentExport implements FromView, WithEvents
     protected $branch;
     protected $is_period;
     protected $branches;
+    protected $request;
 
-    public function __construct($enrollments,$branch,$branches)
+    public function __construct($enrollments, $branch, $branches, $request)
     {
         $this->enrollments = $enrollments;
         $this->branch = $branch;
         $this->branches = $branches;
-
+        $this->is_signature = false;
+        $this->is_period = false;
+        $this->request = $request;
     }
     /**
      * Export the employee data to an Excel view.
      */
     public function view(): View
     {
+        // dd('export file', $this->request->all());
         $branch = @$this->branch;
         $is_signature = false;
         $is_period = false;
-        $report_name = __('Student Enrollment Report');
         // Pass
-        //  only the table-related data to the export view
-        return view('student.exports.enrollment', [
-            'enrollments' => $this->enrollments,
-            'branch' => $branch,
-            'branches' => $this->branches,
-            'is_signature' => $is_signature,
-            'is_period' => $is_period,
-            'report_name' => $report_name,
-        ]);
+        if (!empty($this->request->classes) && $this->request->classes != 'all') {
+            $report_name = __('Classwise Student Enrollment Report');
+            return view('student.exports.classwiseenrollments', [
+                'enrollments' => $this->enrollments,
+                'branch' => $branch,
+                'branches' => $this->branches,
+                'is_signature' => $is_signature,
+                'is_period' => $is_period,
+                'report_name' => $report_name,
+            ]);
+        } else {
+            $report_name = __('Student Enrollment Report');
+            //  only the table-related data to the export view
+            return view('student.exports.enrollment', [
+                'enrollments' => $this->enrollments,
+                'branch' => $branch,
+                'branches' => $this->branches,
+                'is_signature' => $is_signature,
+                'is_period' => $is_period,
+                'report_name' => $report_name,
+            ]);
+        }
     }
 
     // public function drawings()

@@ -122,6 +122,18 @@
         #detailcard hr {
             margin: 6px 0;
         }
+
+        /* late fee exempt notice */
+        #late-fee-exempt-notice {
+            display: none;
+            font-size: 11px;
+            color: #856404;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 3px;
+            padding: 2px 6px;
+            margin-top: 2px;
+        }
     </style>
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('Daily CMR Statement') }}</li>
@@ -175,7 +187,7 @@
     </div>
 
     {{-- ══════════════════════════════════════════════════════════
-         NEW RECEIPT ENTRY CARD  (fully separate from records table)
+         NEW RECEIPT ENTRY CARD
     ══════════════════════════════════════════════════════════ --}}
     <div class="col-12" id="entry-card">
         <div class="entry-card-header">
@@ -217,7 +229,10 @@
                             </td>
                             <td><input type="text" id="remp_amt" value="" disabled></td>
                             <td><input type="text" id="challan_amt" value="" disabled></td>
-                            <td><input type="text" id="late_amt" value="0" disabled></td>
+                            <td>
+                                <input type="text" id="late_amt" value="0" disabled>
+                                <div id="late-fee-exempt-notice">Late fee exempt</div>
+                            </td>
                             <td><input type="text" id="arrears" value="" disabled></td>
                             <td><input type="text" id="total_fee" value="" disabled></td>
                             <td><input type="text" id="rem_fee" value="" disabled></td>
@@ -283,51 +298,105 @@
             @php $options = ['DD', 'OL', 'CHQ', 'CD']; @endphp
             <tbody id="new_data">
                 @foreach ($recipts as $recipt)
+                    @php
+                        $totalFee = @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears;
+                        $remainingFee = $totalFee - @$recipt->recipt_amount;
+                    @endphp
+
                     <tr style="border-radius:10px !important;">
-                        <td><input type="text" value="{{ @$recipt->id }}" disabled
-                                style="width:50px;  font-size:11px;"></td>
-                        <td><input type="text" value="{{ date('d/m/Y', strtotime($recipt->recipt_date)) }}" disabled
-                                class="font_less" style="width:63px; font-size:11px;"></td>
-                        <td><input type="text" value="{{ @$recipt->challan->challanNo }}" disabled
-                                style="width:60px;"></td>
-                        <td><input type="text" value="{{ @$recipt->recipt_amount }}" disabled
-                                style="width:60px;  font-size:13px;"></td>
-                        <td><input type="text" value="{{ @$recipt->challan_amount }}" disabled
-                                style="width:65px;  font-size:13px;"></td>
-                        <td><input type="text" value="{{ @$recipt->late_amount }}" disabled
-                                style="width:50px;  font-size:13px;"></td>
-                        <td><input type="text" value="{{ @$recipt->arrears }}" disabled
-                                style="width:50px;  font-size:13px;"></td>
-                        <td><input type="text"
-                                value="{{ @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears }}"
-                                disabled style="width:60px; font-size:12px;"></td>
-                        <td><input type="text"
-                                value="{{ @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears - @$recipt->recipt_amount }}"
-                                disabled style="width:65px; font-size:12px;"></td>
-                        <td>{{ Form::select('default_bank', $accounts, @$recipt->bank_id, ['style' => 'width:100px; font-size:12px;', 'disabled' => 'disabled']) }}
-                        </td>
+
                         <td>
-                            <select class="input" disabled>
-                                @foreach ($options as $option)
-                                    <option value="{{ $option }}"
-                                        {{ $option == @$recipt->receive_type ? 'selected' : '' }}>{{ $option }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            <span style="font-size:11px;">
+                                {{ @$recipt->id }}
+                            </span>
                         </td>
-                        <td><input type="text" value="{{ @$recipt->referance }}" disabled
-                                style="width:80px;  font-size:11px;"></td>
-                        <td><input type="text" value="{{ @$recipt->received->name }}" disabled
-                                style="width:100px; font-size:11px;"></td>
+
+                        <td>
+                            <span class="font_less" style="font-size:11px;">
+                                {{ date('d/m/Y', strtotime($recipt->recipt_date)) }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:12px;">
+                                {{ @$recipt->challan->challanNo }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:13px;">
+                                {{ @$recipt->recipt_amount }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:13px;">
+                                {{ @$recipt->challan_amount }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:13px;">
+                                {{ @$recipt->late_amount }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:13px;">
+                                {{ @$recipt->arrears }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:12px;">
+                                {{ $totalFee }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:12px;">
+                                {{ $remainingFee }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:12px;">
+                                {{ $accounts[@$recipt->bank_id] ?? '-' }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:12px;">
+                                {{ @$recipt->receive_type }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:11px;">
+                                {{ @$recipt->referance }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style="font-size:11px;">
+                                {{ @$recipt->received->name }}
+                            </span>
+                        </td>
+
                         @if (Auth::user()->type == 'company')
                             <td>
                                 <a href="#!" data-size="lg"
                                     data-url="{{ route('student_receipt.edit', $recipt->id) }}" data-ajax-popup="true"
                                     class="btn btn-sm btn-outline-primary" data-bs-title="{{ __('Edit') }}">
-                                    <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
+
+                                    <span class="btn-inner--icon">
+                                        <i class="ti ti-pencil"></i>
+                                    </span>
+
                                 </a>
                             </td>
                         @endif
+
                     </tr>
                 @endforeach
             </tbody>
@@ -364,10 +433,26 @@
         let defaultBankId = null;
         let challanXHR = null; // tracks in-flight XHR so we can abort it
 
+        // ── Challan meta stored after search ─────────────────────────────
+        let currentChallanMeta = {
+            challanType: '', // 'regular' | other
+            dueDate: '', // 'YYYY-MM-DD'
+            totalAmount: 0,
+            concession: 0,
+            paidAmount: 0,
+        };
+
+        // ── PHP-side auth flag passed to JS ───────────────────────────────
+        const IS_COMPANY_USER = {{ \Auth::user()->type == 'company' ? 'true' : 'false' }};
+
         // ── On ready ─────────────────────────────────────────────────────
         $(document).ready(function() {
             $('#default_date').on('change', function() {
                 $('#recipt_date').val($(this).val());
+                // Recalculate late fee when date changes and a challan is loaded
+                if ($('#challan_id').val()) {
+                    recalculateLateFee();
+                }
             });
             setTimeout(function() {
                 $('#challan_id').focus();
@@ -438,6 +523,168 @@
             calculateOldRAmount($(this).closest('.row'));
         });
 
+        // ══════════════════════════════════════════════════════════════════
+        //  LATE FEE CALCULATION  (client-side mirror of server-side logic)
+        // ══════════════════════════════════════════════════════════════════
+
+        /**
+         * Returns the computed late fee (float) based on current state.
+         *
+         * Rules:
+         *  1. Only 'regular' challan type gets late fee.
+         *  2. Company user posting on/before due date → 0.
+         *  3. Paid amount (already paid) >= 50% of net payable → 0.
+         *     Also if THIS receipt amount will push total >= 50% → 0.
+         *  4. OL (Online) → 1 day grace after due date.
+         *  5. Otherwise → dailyLateFee × daysOverdue.
+         */
+        /**
+         * Parse a 'YYYY-MM-DD' string into { y, m, d } using LOCAL parts only.
+         * Avoids the UTC-midnight timezone shift that new Date('YYYY-MM-DD') causes.
+         */
+        function parseDateStr(str) {
+            if (!str) return null;
+            const parts = String(str).split('-');
+            if (parts.length !== 3) return null;
+            return {
+                y: parseInt(parts[0], 10),
+                m: parseInt(parts[1], 10),
+                d: parseInt(parts[2], 10)
+            };
+        }
+
+        /**
+         * Compare two date strings (YYYY-MM-DD) as plain strings.
+         * Returns negative / 0 / positive like a comparator.
+         */
+        function cmpDateStr(a, b) {
+            // String comparison works correctly for ISO date strings
+            if (a < b) return -1;
+            if (a > b) return 1;
+            return 0;
+        }
+
+        /**
+         * Count calendar days between two 'YYYY-MM-DD' strings (b - a).
+         * Uses local Date constructor with explicit y/m/d to avoid UTC shift.
+         */
+        function daysBetween(fromStr, toStr) {
+            const f = parseDateStr(fromStr);
+            const t = parseDateStr(toStr);
+            if (!f || !t) return 0;
+            // Use noon local time to avoid DST edge cases
+            const fromMs = new Date(f.y, f.m - 1, f.d, 12, 0, 0).getTime();
+            const toMs = new Date(t.y, t.m - 1, t.d, 12, 0, 0).getTime();
+            return Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24));
+        }
+
+        function computeLateFee(receiveType) {
+            // Rule 1 — only 'regular' challan type gets late fee
+            const challanType = (currentChallanMeta.challanType || '').toLowerCase().trim();
+            if (challanType !== 'regular') {
+                return 0;
+            }
+
+            const dueDateStr = (currentChallanMeta.dueDate || '').substring(0, 10); // 'YYYY-MM-DD'
+            const postDateStr = ($('#recipt_date').val() || '').substring(0, 10);
+
+            if (!dueDateStr || !postDateStr) return 0;
+
+            // Posting on or before due date → no late fee
+            if (cmpDateStr(postDateStr, dueDateStr) <= 0) return 0;
+
+            // Days past due: due=8, post=9 → 1 day, post=10 → 2 days, etc.
+            let daysLate = daysBetween(dueDateStr, postDateStr);
+
+            // OL (Online) payment type gets a 1-day grace WINDOW (not a deduction):
+            // - If posting EXACTLY 1 day late (day 9) → exempt, 0 fee
+            // - If posting 2+ days late (day 10+) → charge ALL overdue days (no deduction)
+            //   The grace window has closed — you missed it.
+            //
+            // Examples for OL:
+            //   due=8, post=9 (1 day late) → 0 (grace window)
+            //   due=8, post=10 (2 days late) → 240 (grace window missed, charge full 2 days)
+            //   due=8, post=11 (3 days late) → 360 (charge full 3 days)
+            //
+            // Non-OL (DD, CHQ, CD) — charge from first day overdue:
+            //   due=8, post=9 (1 day late) → 120
+            //   due=8, post=10 (2 days late) → 240
+            if ((receiveType || '').toUpperCase() === 'OL') {
+                if (daysLate === 1) return 0; // ONLY if exactly 1 day late → exempt
+                // If 2+ days late → charge full daysLate (no deduction)
+            }
+
+            if (daysLate <= 0) return 0;
+
+            // 50% rule — late fee stops accumulating once student pays ≥ 50% of total payable
+            // Check if THIS receipt will bring them to the 50% threshold
+            // (NOT whether they're already at 50% — late fee keeps growing until they cross 50%)
+            const totalPayable = currentChallanMeta.totalAmount - currentChallanMeta.concession;
+            if (totalPayable <= 0) return 0;
+
+            const alreadyPaid = currentChallanMeta.paidAmount;
+
+            // Calculate what THIS receipt will pay (sum of ramount inputs)
+            let thisReceiptAmt = 0;
+            document.querySelectorAll('.ramount').forEach(function(el) {
+                thisReceiptAmt += parseFloat(el.value) || 0;
+            });
+
+            // If THIS payment brings total to ≥ 50% → exempt late fee
+            const projectedPaid = alreadyPaid + thisReceiptAmt;
+            if (totalPayable > 0 && projectedPaid >= totalPayable * 0.5) return 0;
+
+            // Daily rate — server-provided or fallback 120
+            const dailyRate = currentChallanMeta.dailyLateFee || 120;
+            const lateFee = Math.round(dailyRate * daysLate * 100) / 100;
+
+            // Max late fee cap = 1200
+            return Math.min(lateFee, 1200);
+        }
+
+        /** Recalculate & apply late fee to #late_amt and refresh totals. */
+        function recalculateLateFee() {
+            const receiveType = $('#rec_type').val() || $('#headfee').find('#rec_type').val() || 'DD';
+            const lateFee = computeLateFee(receiveType);
+            const challanAmt = parseFloat($('#challan_amt').val()) || 0;
+            const arrears = parseFloat($('#arrears').val()) || 0;
+
+            $('#late_amt').val(lateFee.toFixed(2));
+
+            // Only show 'exempt' badge when posting is PAST due date but fee is waived
+            const dueDateStr = (currentChallanMeta.dueDate || '').substring(0, 10);
+            const postDateStr = ($('#recipt_date').val() || '').substring(0, 10);
+            const isOverdue = dueDateStr && postDateStr && cmpDateStr(postDateStr, dueDateStr) > 0;
+            if (lateFee == 0 && isOverdue) {
+                $('#late-fee-exempt-notice').show();
+            } else {
+                $('#late-fee-exempt-notice').hide();
+            }
+
+            // Update total
+            $('#total_fee').val((challanAmt + arrears + lateFee).toFixed(2));
+            calculateRemainingAmount();
+        }
+
+        // Recalculate when receive type changes (OL grace rule)
+        $(document).on('change', '#rec_type, #old_rec_type', function() {
+            if ($('#challan_id').val()) {
+                recalculateLateFee();
+            }
+        });
+
+        // Recalculate when receipt date changes
+        $('#recipt_date').on('change', function() {
+            if ($('#challan_id').val()) {
+                recalculateLateFee();
+            }
+        });
+
+        // Recalculate when ramount inputs change (50% threshold check)
+        $(document).on('input change keyup', '.ramount', function() {
+            recalculateLateFee();
+        });
+
         // ── Challan search — abort previous XHR on every keystroke ───────
         $(document).on('keyup', '#challan_id', function() {
             var challan_id = $.trim($(this).val());
@@ -467,7 +714,6 @@
 
                     if (response.challandetail) {
                         var detail = response.challandetail;
-                        var latefee = parseFloat($('#late_amt').val()) || 0;
                         var arrearsTotal = 0;
 
                         response.previousUnpaidChallans.forEach(function(a) {
@@ -478,12 +724,24 @@
                         var challanNet = detail.total_amount - detail.concession_amount - detail
                             .paid_amount;
 
+                        // Store challan meta for late fee calculations
+                        currentChallanMeta = {
+                            // Try both possible field names your API might return
+                            challanType: detail.challan_type || detail.challanType || detail.type ||
+                                '',
+                            dueDate: detail.due_date || detail.dueDate || '',
+                            totalAmount: parseFloat(detail.total_amount) || 0,
+                            concession: parseFloat(detail.concession_amount) || 0,
+                            paidAmount: parseFloat(detail.paid_amount) || 0,
+                            dailyLateFee: parseFloat(response.daily_late_fee) || 120,
+                        };
+                        // DEBUG — open browser console to see what fields your API returns
+                        console.log('[LateFee] challan detail keys:', Object.keys(detail));
+                        console.log('[LateFee] meta resolved:', currentChallanMeta);
+
                         $('#challan_amt').val(challanNet);
                         $('#arrears').val(arrearsTotal);
-                        $('#total_fee').val(parseFloat(arrearsTotal) + latefee + parseFloat(
-                        challanNet));
                         $('#remp_amt').val('0.00');
-                        $('#rem_fee').val($('#total_fee').val());
 
                         accountsData = response.accounts_data || {};
                         accountAllData = response.account_all_data || {};
@@ -501,6 +759,12 @@
                         populateSiblingTable(detail);
                         populateHeadFee(response.headsData);
                         populateArrears(response.previousUnpaidChallans);
+
+                        // Calculate late fee AFTER populating heads (receive type now known)
+                        // Small delay to let #rec_type render first
+                        setTimeout(function() {
+                            recalculateLateFee();
+                        }, 50);
 
                         $('#detailcard').show();
                         setTimeout(function() {
@@ -523,7 +787,6 @@
                     $('#headfee').empty().hide();
                     $('#arrearsdetails').empty();
 
-                    // Clear all summary fields in the entry row
                     $('#challan_amt').val('');
                     $('#remp_amt').val('');
                     $('#late_amt').val('0');
@@ -540,13 +803,13 @@
         document.getElementById('remp_amt').addEventListener('keyup', calculateRemainingAmount);
 
         function calculateRemainingAmount() {
-            var challanAmt = parseFloat($('#challan_amt').val()) || 0;
+            var totalFee = parseFloat($('#total_fee').val()) || 0;
             var rempAmt = parseFloat($('#remp_amt').val()) || 0;
-            if (rempAmt > challanAmt) {
-                rempAmt = challanAmt;
-                $('#remp_amt').val(challanAmt.toFixed(2));
+            if (rempAmt > totalFee) {
+                rempAmt = totalFee;
+                $('#remp_amt').val(totalFee.toFixed(2));
             }
-            $('#rem_fee').val(((parseFloat($('#total_fee').val()) || 0) - rempAmt).toFixed(2));
+            $('#rem_fee').val((totalFee - rempAmt).toFixed(2));
         }
         calculateRemainingAmount();
 
@@ -580,24 +843,29 @@
 
         // ── Full entry card reset (called after save & on empty input) ────
         function resetEntryDetail() {
-            // Hide & clear all detail sections
             $('#detailcard').hide();
             $('#siblingContainer').empty().hide();
             $('#headfee').empty().hide();
             $('#arrearsdetails').empty();
 
-            // Clear all summary fields in the entry row
             $('#challan_amt').val('');
             $('#remp_amt').val('');
             $('#late_amt').val('0');
             $('#arrears').val('');
             $('#total_fee').val('');
             $('#rem_fee').val('');
-
-            // Clear the challan input itself
             $('#challan_id').val('');
-
             $('#challan-searching').hide();
+            $('#late-fee-exempt-notice').hide();
+
+            // Reset challan meta
+            currentChallanMeta = {
+                challanType: '',
+                dueDate: '',
+                totalAmount: 0,
+                concession: 0,
+                paidAmount: 0
+            };
         }
 
         // ── Populate helpers ──────────────────────────────────────────────
@@ -627,7 +895,7 @@
                     head.amount + '" disabled></div>');
                 row.append(
                     '<div class="col-md-3 mb-1"><input name="ramount[]" class="form-control ramount" style="font-size:13px;" type="number" value="" min="0" step="any"></div>'
-                    );
+                );
                 c.append(row);
             });
 
@@ -659,9 +927,16 @@
 
             $('#bank').val(banks_id);
             updateReceiveType(banks_id, '#rec_type');
+
             $('#bank').on('change', function() {
                 updateReceiveType($(this).val(), '#rec_type');
             });
+
+            // Recalculate late fee when receive type inside headfee changes
+            $('#headfee').on('change', '#rec_type', function() {
+                recalculateLateFee();
+            });
+
             c.show();
         }
 
@@ -670,11 +945,11 @@
             c.append('<h5><strong>Arrears :-</strong></h5><br>');
             $('head').append(
                 '<style>@keyframes blink-effect{0%{background-color:#100773;color:#fff;}50%{background-color:#fff;color:#100773;}100%{background-color:#100773;color:#fff;}}</style>'
-                );
+            );
             previousUnpaidChallans.forEach(function(arrear) {
                 var row = $(
                     '<div class="mb-3 arrear-row" style="cursor:pointer;display:flex;flex-direction:row;gap:20px;">'
-                    );
+                );
                 row.append(
                     '<div><b>Challan No:</b> <span style="background-color:#100773;color:#fff;font-weight:bold;padding:2px 5px;border-radius:3px;animation:blink-effect 1s infinite;">' +
                     arrear.challanNo + '</span></div>');
@@ -726,7 +1001,7 @@
                         (head.price - head.concession - head.paid) + '" disabled></div>');
                     headRow.append(
                         '<div class="col-md-4"><input name="oldramount[]" class="form-control oldramount" type="number" value="" min="0" step="any"></div>'
-                        );
+                    );
                     mhc.append(headRow);
                 }
             });
@@ -761,6 +1036,9 @@
                 $btn.prop('disabled', false);
                 return;
             }
+
+            // Final late fee recalculation before save
+            recalculateLateFee();
 
             var formData = {
                 head_id: [],
@@ -812,13 +1090,8 @@
                 },
                 data: formData,
                 success: function(response) {
-                    // ── Full reset of entire entry card ──
                     resetEntryDetail();
-
-                    // Prepend saved row to the TOP of the records table
                     $('#new_data').prepend(response.data);
-
-                    // Re-focus for next entry immediately
                     $('#challan_id').focus();
                     $btn.prop('disabled', false);
                 },
@@ -855,7 +1128,7 @@
                 challan_amt: 0,
                 recipt_date: $('#recipt_date').val(),
                 recipt_amt: 0,
-                late_amt: 0,
+                late_amt: 0, // Arrears late fee always 0 (separate challan logic)
                 arrears: 0,
                 bank: mhd.find('.old_banks').val(),
                 ref: $.trim(mhd.find('.old-ref-input').val()),

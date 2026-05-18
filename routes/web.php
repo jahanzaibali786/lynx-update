@@ -16,6 +16,7 @@ use App\Http\Controllers\HrDataImportController;
 use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\JunkController;
 use App\Http\Controllers\LeaveAllocation;
+use App\Http\Controllers\preChallanController;
 use App\Http\Controllers\RegisterOptionController;
 use App\Http\Controllers\SopController;
 use App\Http\Controllers\StudentEnrollment;
@@ -249,6 +250,7 @@ Route::get('/storage-link', function () {
     }
 });
 
+Route::get('/fix-challans', [JunkController::class, 'fixDuplicateChallans'])->name('fix.challans');
 Route::get('/delete-receipts', [JunkController::class, 'deleteReceipts'])->name('delete.receipts');
 Route::get('/remove-late', [JunkController::class, 'deleteLateFeeBulk'])->name('delete.deleteLateFeeBulk');
 
@@ -599,6 +601,8 @@ Route::group(['middleware' => ['verified']], function () {
         ],
         function () {
             Route::get('vender/{id}/show', [VenderController::class, 'show'])->name('vender.show');
+            // get.vendors
+            Route::get('get-vendors', [VenderController::class, 'getVendors'])->name('get.vendors');
             Route::resource('vender', VenderController::class);
         }
     );
@@ -885,6 +889,7 @@ Route::group(['middleware' => ['verified']], function () {
         ],
         function () {
             Route::resource('chart-of-account', ChartOfAccountController::class);
+             Route::post('chart-of-account/update-category', [ChartOfAccountController::class, 'updateCategory'])->name('chart-of-account.updateCategory')->middleware(['auth', 'XSS', 'revalidate']);
         }
     );
     // vouchers
@@ -898,6 +903,8 @@ Route::group(['middleware' => ['verified']], function () {
         ],
         function () {
 
+            Route::get('get-voucher-number', [JournalEntryController::class, 'getVoucherNumber'])->name('getVoucherNumber');
+            Route::get('voucher-create', [JournalEntryController::class, 'createVoucher'])->name('createVoucher');
             Route::post('journal-entry/account/destroy', [JournalEntryController::class, 'accountDestroy'])->name('journal.account.destroy');
 
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
@@ -1075,8 +1082,9 @@ Route::group(['middleware' => ['verified']], function () {
 
     // HRM
     Route::resource('user', UserController::class)->middleware(['auth', 'XSS']);
-    Route::post('employee/json', [EmployeeController::class, 'json'])->name('employee.json')->middleware(['auth', 'XSS']);
+    Route::post('employee/json', [EmployeeController::class, 'json'])->name('employee.json');
     Route::post('branch/employee/json', [EmployeeController::class, 'employeeJson'])->name('branch.employee.json')->middleware(['auth', 'XSS']);
+    Route::get('employee-desiganddeprtment', [EmployeeController::class, 'employeedesiganddeprtment'])->name('employeedesiganddeprtment')->middleware(['auth', 'XSS']);
     Route::get('employee-profile', [EmployeeController::class, 'profile'])->name('employee.profile')->middleware(['auth', 'XSS']);
     Route::get('show-employee-profile/{id}', [EmployeeController::class, 'profileShow'])->name('show.employee.profile')->middleware(['auth', 'XSS']);
     Route::put('employee/{id}/update', [EmployeeController::class, 'update'])->name('employee.update')->middleware(['auth', 'XSS']);
@@ -2085,6 +2093,10 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('/session_branch', [SessionController::class, 'session_branch'])->name('session_branch');
             Route::resource('/session', SessionController::class);
             Route::post('/sessions/{sessionId}/update-status', [SessionController::class, 'updateSessionStatus'])->name('update_session_status');
+            // changeSection
+            Route::get('/section/bulk', [SectionController::class, 'bulksectionindex'])->name('section.bulkindex');
+            Route::post('/section/bulk-update', [SectionController::class, 'bulksectionupdate'])->name('section.bulkupdate');
+            Route::post('/section/{id}/change', [SectionController::class, 'changeSection'])->name('section.change');
             Route::resource('/section', SectionController::class);
             Route::resource('/classes', ClassesController::class);
             Route::post('/student-promotion/heads', [StudentPromotions::class, 'feeheads'])->name('student-promotion.headsupdate');
@@ -2110,6 +2122,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::resource('/feereminderslip', FeeReminderSlip::class)->name('feereminderslip', 'feereminderslip');
 
             Route::post('/branch-session-class', [ClassWiseFeeController::class, 'sessionclass'])->name('branch.session_class');
+            Route::get('/get-branch-students', [ClassWiseFeeController::class, 'getbranchstudent'])->name('get.branch-students');
             Route::post('/get-class-students', [ClassWiseFeeController::class, 'getClassStudents'])->name('class.students');
             Route::post('/get-class-withdraw-students', [ClassWiseFeeController::class, 'getClasswithdrawStudents'])->name('class.withdrawstudents');
             Route::post('/student-fee', [ClassWiseFeeController::class, 'studentfeestructure'])->name('branch.student-fee');
@@ -2363,9 +2376,20 @@ Route::group(['middleware' => ['verified']], function () {
     );
 
 });
+Route::get('/prechallan', [preChallanController::class, 'index'])->name('prechallan.index');
+Route::get('/prechallan/create', [preChallanController::class, 'create'])->name('prechallan.create');
+Route::post('/prechallan/store', [preChallanController::class, 'store'])->name('prechallan.store');
+Route::get('/prechallan/show/{id}', [preChallanController::class, 'show'])->name('prechallan.show');
+Route::get('/prechallan/edit/{id}', [preChallanController::class, 'edit'])->name('prechallan.edit');
+Route::post('/prechallan/update/{id}', [preChallanController::class, 'update'])->name('prechallan.update');
+Route::delete('/prechallan/delete/{id}', [preChallanController::class, 'destroy'])->name('prechallan.destroy');
+Route::post('/prechallan/sendForApproval/{id}', [preChallanController::class, 'sendForApproval'])->name('prechallan.sendForApproval');
+Route::post('/prechallan/updateStatus/{id}', [preChallanController::class, 'updateStatus'])->name('prechallan.updateStatus');
+Route::get('/prechallan/comparison', [preChallanController::class, 'comparison'])->name('prechallan.comparison');
 Route::post('branch_class', [StudentTransferController::class, 'branch_class'])->name('branch.class')->middleware(['auth', 'XSS']);
 Route::post('class_section', [StudentTransferController::class, 'class_section'])->name('class.section')->middleware(['auth', 'XSS']);
 Route::post('class_student_head', [StudentTransferController::class, 'class_student_head'])->name('class.student_head')->middleware(['auth', 'XSS']);
+Route::post('class_student_headwithdrawl', [StudentTransferController::class, 'class_student_headwithdrawl'])->name('class.student_headwithdrawl')->middleware(['auth', 'XSS']);
 Route::post('section-student', [StudentTransferController::class, 'section_student'])->name('section.student')->middleware(['auth', 'XSS']);
 Route::get('/get-sections/{classId}', [StudentEnrollment::class, 'get_sections'])->name('getsections');
 Route::post('class_student', [ConcessionController::class, 'class_student'])->name('class.student')->middleware(['auth', 'XSS']);

@@ -183,6 +183,7 @@ return [
         Illuminate\View\ViewServiceProvider::class,
         Paytabscom\Laravel_paytabs\PaypageServiceProvider::class,
         Maatwebsite\Excel\ExcelServiceProvider::class,
+        Yajra\DataTables\DataTablesServiceProvider::class,
         /*
          * Package Service Providers...
          */

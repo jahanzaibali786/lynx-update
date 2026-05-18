@@ -259,10 +259,10 @@ class ClassWiseFeeController extends Controller
             $class = Classes::where('id', $request->id)->get();
             $Studypack = StudyPack::where('session_id', '=', $request->session)->where('class', $class['0']->name)->get();
             // dd($class);
-            $class1 = $class->pluck( 'id');
+            $class1 = $class->pluck('id');
             $students = StudentEnrollments::whereIn('class_id', $class1)->where('session_id', $request->session)->get();
-            $class = $class->pluck( 'name','id');
-            
+            $class = $class->pluck('name', 'id');
+
             // dd($students);
         } else {
             $Studypack = [];
@@ -290,6 +290,7 @@ class ClassWiseFeeController extends Controller
             if ($request->type == 'registration') {
                 $students = StudentRegistration::where('class_id', $request->class_id)
                     ->where('student_status', 'Registered')
+                    ->where('active_status', 1)
                     ->where('created_by', \Auth::user()->creatorId())
                     ->get()
                     ->mapWithKeys(function ($student) {
@@ -298,6 +299,7 @@ class ClassWiseFeeController extends Controller
             } else {
                 $students = StudentRegistration::where('class_id', $request->class_id)
                     ->where('student_status', 'Enrolled')
+                    ->where('active_status', 1)
                     ->where('created_by', \Auth::user()->creatorId())
                     ->get()
                     ->mapWithKeys(function ($student) {
@@ -310,6 +312,20 @@ class ClassWiseFeeController extends Controller
         }
 
         return response()->json(['status' => 'error', 'message' => 'Invalid request.']);
+    }
+    public function getbranchstudent(Request $request)
+    {
+
+        $students = StudentRegistration::where('owned_by', $request->branch_id)
+            ->where('student_status', 'Enrolled')
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+            });
+        // dd($students);
+
+        return response()->json(['status' => 'success', 'students' => $students]);
     }
 
     public function classStudents(Request $request)
@@ -361,11 +377,11 @@ class ClassWiseFeeController extends Controller
     public function student_fee_generate($id)
     {
         $student = StudentRegistration::where('id', $id)->first();
-        if(!$student){
+        if (!$student) {
             return redirect()->back()->with('error', 'Student not found.');
         }
         $classfee = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->get();
-
+        // dd($classfee);
         if (!empty($classfee)) {
             foreach ($classfee as $fee) {
                 $keys = [
@@ -549,24 +565,24 @@ class ClassWiseFeeController extends Controller
         $class_wise_fee = $query->get()->groupBy('owned_by')->map(function ($group) {
             return $group->groupBy('session_id');
         });
-                $branchName = 'All Branches'; // Default value
+        $branchName = 'All Branches'; // Default value
 
-if (!empty($request->branches)) {
-    // Convert to array if it's not already (for single selection case)
-    $selectedBranches = is_array($request->branches) ? $request->branches : [$request->branches];
-    
-    $query->whereIn('owned_by', $selectedBranches);
-    $class = Classes::whereIn('owned_by', $selectedBranches)->get()->pluck('name', 'id');
-    
-    // Get branch names
-    if (count($selectedBranches) > 1) {
-        $branchName = 'All Branches';
-    } else {
-        $branch = User::find($selectedBranches[0]);
-        $branchName = $branch ? $branch->name : 'All Branches';
-    }
-}
-        
+        if (!empty($request->branches)) {
+            // Convert to array if it's not already (for single selection case)
+            $selectedBranches = is_array($request->branches) ? $request->branches : [$request->branches];
+
+            $query->whereIn('owned_by', $selectedBranches);
+            $class = Classes::whereIn('owned_by', $selectedBranches)->get()->pluck('name', 'id');
+
+            // Get branch names
+            if (count($selectedBranches) > 1) {
+                $branchName = 'All Branches';
+            } else {
+                $branch = User::find($selectedBranches[0]);
+                $branchName = $branch ? $branch->name : 'All Branches';
+            }
+        }
+
         if ($request->has('export') && $request->export == 'excel') {
             $report_name = 'Fee Structure Listing Report';
             return Excel::download(new FeeStructureListingExport($class_wise_fee, $branchName, $branches, $heads, $report_name, $request, $request->all()), 'Fee_structure_listing_report.xlsx');

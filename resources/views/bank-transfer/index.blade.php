@@ -107,6 +107,10 @@
 
         <tbody>
             @foreach ($transfers as $transfer)
+                @php
+                    $isLatest = in_array($transfer->id, $latestIdsArray);
+                    $isCompany = \Auth::user()->type == 'company';
+                @endphp
                 <tr class="font-style">
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ \Auth::user()->dateFormat($transfer->date) }}</td>
@@ -119,24 +123,26 @@
                     <td>{{ $transfer->description }}</td>
                     @if (Gate::check('edit transfer') || Gate::check('delete transfer'))
                         <td class="Action">
-                            <span>
+                            <div class="action-btn">
 
-                                <div class="action-btn">
-                                    {{-- @can('view transfer') --}}
-                                    <a href="{{ route('bank-transfer.show', $transfer->id) }}" target="_blank" class="mx-1 btn btn-sm align-items-center bg-info"
-                                        data-bs-title="{{ __('View') }}" data-bs-toggle="{{ __('View Transfer') }}"
-                                        data-bs-title="{{ __('View') }}">
-                                        <i class="ti ti-eye text-white"></i>
-                                    </a>
-                                    {{-- @endcan --}}
+                                {{-- VIEW BUTTON --}}
+                                <a href="{{ route('bank-transfer.show', $transfer->id) }}" target="_blank"
+                                    class="mx-1 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip"
+                                    title="{{ __('View Transfer') }}">
+                                    <i class="ti ti-eye text-white"></i>
+                                </a>
+
+                                @if ($isLatest && $isCompany)
+                                    {{-- EDIT BUTTON --}}
                                     @can('edit transfer')
                                         <a href="#" class="mx-1 btn btn-sm align-items-center bg-primary"
                                             data-url="{{ route('bank-transfer.edit', $transfer->id) }}" data-ajax-popup="true"
-                                            data-bs-title="{{ __('Edit') }}" data-bs-toggle="{{ __('Edit Transfer') }}"
-                                            data-bs-title="{{ __('Edit') }}">
+                                            data-bs-toggle="tooltip" title="{{ __('Edit Transfer') }}">
                                             <i class="ti ti-pencil text-white"></i>
                                         </a>
                                     @endcan
+
+                                    {{-- REVERSE BUTTON --}}
                                     @can('delete transfer')
                                         {!! Form::open([
                                             'method' => 'DELETE',
@@ -144,16 +150,16 @@
                                             'id' => 'delete-form-' . $transfer->id,
                                         ]) !!}
 
-                                        <a href="#" class=" btn btn-sm align-items-center bs-pass-para btn-danger"
-                                            data-bs-title="{{ __('Delete') }}" data-bs-title="{{ __('Delete') }}"
+                                        <a href="#" class="btn btn-sm align-items-center bs-pass-para btn-danger"
+                                            data-bs-toggle="tooltip" title="{{ __('Reverse Transfer') }}"
                                             data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
                                             data-confirm-yes="document.getElementById('delete-form-{{ $transfer->id }}').submit();">
-                                            <i class="ti ti-trash text-white text-white text-white"></i>
+                                            <i class="ti ti-trash text-white"></i>
                                         </a>
                                         {!! Form::close() !!}
                                     @endcan
-                                </div>
-                            </span>
+                                @endif
+                            </div>
                         </td>
                     @endif
                 </tr>
@@ -161,4 +167,12 @@
 
         </tbody>
     </table>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+            var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            });
+        });
+    </script>
 @endsection

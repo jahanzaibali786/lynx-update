@@ -38,6 +38,7 @@
         @endphp
         
         @foreach ($groupedReceipts as $branchId => $receipts)
+            {{-- @dd($groupedReceipts) --}}
             @php 
                 $branchSr = 1; 
                 $branchTotal = 0;
@@ -45,7 +46,7 @@
             
             {{-- Branch Header Row --}}
             <tr style="background-color: #f0f0f0; font-weight: bold; text-align: center;">
-                <td colspan="16">{{ $branchNames[$branchId] ?? 'Unknown Branch' }}</td>
+                <td colspan="15">{{ $branchNames[$branchId] ?? 'Unknown Branch' }}</td>
             </tr>
             
             {{-- Process each receipt and its heads --}}
@@ -77,7 +78,7 @@
                                 }
                             }
                         @endphp
-                        
+                        {{-- @dd($matchedItem) --}}
                         {{-- Show row for this head if matched --}}
                         @if($matchedItem)
                             <tr>
@@ -157,7 +158,7 @@
             
             {{-- Branch Total Row --}}
             <tr style="background-color: #f0f0f0;">
-                <td colspan="14" style="font-weight: bold;">Total</td>
+                <td colspan="13" style="font-weight: bold;">Total</td>
                 <td style="font-weight: bold;">{{ number_format($branchTotal, 2) }}</td>
                 <td>0.0</td>
             </tr>
@@ -165,7 +166,7 @@
         
         {{-- Grand Total Row --}}
         <tr style="background-color: #f0f0f0;">
-            <td colspan="14" style="font-weight: bold;">Grand Total</td>
+            <td colspan="13" style="font-weight: bold;">Grand Total</td>
             <td style="font-weight: bold;">{{ number_format($grandTotal, 2) }}</td>
             <td>0.0</td>
         </tr>
