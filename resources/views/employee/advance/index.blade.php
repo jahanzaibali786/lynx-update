@@ -205,6 +205,13 @@
                                                 <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                             </a>
                                         @endif
+                                        <a href="{{ route('employee-advance.print', ['id' => $adv->id, 'preview' => 1]) }}"
+                                            target="_blank"
+                                            data-bs-toggle="tooltip"
+                                            data-bs-title="{{ __('Preview PDF') }}"
+                                            class="btn btn-sm btn-outline-secondary">
+                                            <span class="btn-inner--icon"><i class="fas fa-print"></i></span>
+                                        </a>
                                         @if (\Auth::user()->type == 'company')
                                             @if($adv->status != 1)
                                                 {!! Form::open([

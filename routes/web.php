@@ -2361,6 +2361,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('employee-advance-status/{id}', [EmployeeAdvanceController::class, 'status'])->name('employee-advance.status');
             Route::put('employee-advance-status-change/{id}', [EmployeeAdvanceController::class, 'statusChange'])->name('employee-advance.statusChange');
             Route::get('employee-advance-employee-month/{id}', [EmployeeAdvanceController::class, 'employeeLatestSalaryMonth'])->name('employee-advance.employee-month');
+            Route::get('employee-advance-print/{id}', [EmployeeAdvanceController::class, 'printAdvance'])->name('employee-advance.print');
             Route::resource('employee-advance', EmployeeAdvanceController::class);
 
             // Export salary sheet

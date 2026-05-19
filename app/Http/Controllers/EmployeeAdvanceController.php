@@ -12,6 +12,8 @@ use App\Models\EmployeeMonthlySalary;
 use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\User;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Request;
 
 class EmployeeAdvanceController extends Controller
@@ -305,6 +307,39 @@ class EmployeeAdvanceController extends Controller
     public function show($id)
     {
         //
+    }
+
+    public function printAdvance(Request $request, $id)
+    {
+        $advance = EmployeeAdvance::with(['employee', 'approvedBy'])->findOrFail($id);
+
+        if ($request->boolean('download') || $request->boolean('preview') || $request->boolean('print')) {
+            return $this->advancePdf($advance, $request->boolean('download'));
+        }
+
+        return view('employee.advance.pdf', compact('advance'));
+    }
+
+    private function advancePdf(EmployeeAdvance $advance, $download = false)
+    {
+        $html = view('employee.advance.pdf', [
+            'advance' => $advance,
+            'isPdf' => true,
+        ])->render();
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $options->set('chroot', public_path());
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        $font = $dompdf->getFontMetrics()->getFont('Helvetica', 'normal');
+        $dompdf->getCanvas()->page_text(500, 815, 'Page {PAGE_NUM} of {PAGE_COUNT}', $font, 8, [0, 0, 0]);
+
+        return $dompdf->stream('advance_salary_' . $advance->id . '.pdf', ['Attachment' => $download]);
     }
 
     public function edit($id)

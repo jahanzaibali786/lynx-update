@@ -533,9 +533,39 @@ class LoanController extends Controller
         ]);
     }
 
-    public function printloan($id){
+    public function printloan(Request $request, $id){
         $loan = Loan::with('employee')->where('id', $id)->first();
+        if (!$loan) {
+            return redirect()->back()->with('error', __('Loan not found.'));
+        }
+
+        if ($request->boolean('download') || $request->boolean('preview') || $request->boolean('print')) {
+            return $this->loanInstallmentPdf($loan, $request->boolean('download'));
+        }
+
         return view('employee.loan.pdf',compact('loan'));
+    }
+
+    private function loanInstallmentPdf(Loan $loan, $download = false)
+    {
+        $html = view('employee.loan.pdf', [
+            'loan' => $loan,
+            'isPdf' => true,
+        ])->render();
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $options->set('chroot', public_path());
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        $font = $dompdf->getFontMetrics()->getFont('Helvetica', 'normal');
+        $dompdf->getCanvas()->page_text(500, 815, 'Page {PAGE_NUM} of {PAGE_COUNT}', $font, 8, [0, 0, 0]);
+
+        return $dompdf->stream('loan_installment_plan_' . $loan->id . '.pdf', ['Attachment' => $download]);
     }
     public function loanstatus($id){
             $bank_accounts   = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' - ',holder_name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');

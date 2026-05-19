@@ -230,13 +230,18 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     ];
                     continue; 
                 }
+                // $newda =carbon::date('Y-m-01',strtotime($inputDate));
+                $newda =$inputDate->copy()->day(1);
                 if ($joiningDate > $fromDate) {
                     if ($employeeScale && $employeeScale->effect_from) {
                         $effectFromDate = Carbon::parse($employeeScale->effect_from);
                         // dd($joiningDate, $fromDate, $effectFromDate);
+                        // dd($effectFromDate->month ,$fromDate->month , $effectFromDate->year ,$fromDate->year,$newda,$fromDate,$effectFromDate);
+                        if($effectFromDate->month == $fromDate->month && $effectFromDate->year == $fromDate->year){
+                            $diffInDays = '0';
                         
-                        if ($effectFromDate->month == $fromDate->month && $effectFromDate->year == $fromDate->year) {
-                            $diffInDays = $fromDate->diffInDays($effectFromDate, false);
+                        }elseif ($effectFromDate->month == $newda->month && $effectFromDate->year == $newda->year) {
+                            $diffInDays = $newda->diffInDays($effectFromDate, false);
                             // dd($diffInDays);
                             if ($diffInDays < 0 || $diffInDays > 31) {
                                 // dd($diffInDays);
