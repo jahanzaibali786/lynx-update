@@ -86,6 +86,7 @@
                     $startDate = '2026-01-01';
                     $previousUnpaidChallans = App\Models\Challans::where('student_id', $data->student_id)
                         ->where('status', '!=', 'Paid')
+                        ->where('challan_type','!=','registration') // exclude registration challans from arrears
                         ->whereDate('fee_month', '>=', $startDate)
                         ->whereDate('fee_month', '<', date('Y-m-d', strtotime($data->fee_month)))
                         ->where('id', '!=', $data->id)

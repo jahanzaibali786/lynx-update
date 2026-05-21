@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ __('Journal Entry Create') }}
+    {{ isset($journalEntry) ? __('Voucher Edit') : __('Journal Entry Create') }}
 @endsection
 
 @section('breadcrumb')
@@ -37,7 +37,7 @@
             }
         }
         // ─── State ────────────────────────────────────────────────────────────────────
-        var journalEntries = [];
+        var journalEntries = @json($journalItems ?? []);
         var rowCounter = 0;
         var MAX_OPEN_ROWS = 4;
 
@@ -74,8 +74,57 @@
             DEPT_OPTS += '<option value="' + id + '">' + name + '</option>';
         });
 
+        function cleanSelectLabel(value) {
+            value = (value || '').trim();
+            if (!value || /^[-—\s]+$/.test(value) || /^[-—\s]*(select|branch|department|designation|employee|student|vendor)[-—\s]*$/i.test(value)) {
+                return '';
+            }
+            return value;
+        }
+
+        function joinMemoParts(parts) {
+            return parts.map(cleanSelectLabel).filter(Boolean).join(' › ');
+        }
+
+        function appendHidden(wrapper, name, value) {
+            wrapper.append($('<input>', {
+                type: 'hidden',
+                name: name,
+                value: value || ''
+            }));
+        }
+
+        function refreshCustomSelect(selectEl) {
+            if (selectEl && typeof CustomSelect !== 'undefined') {
+                destroyCustomSelect(selectEl);
+                selectEl.customSelectInstance = CustomSelect.create(selectEl);
+            }
+        }
+
+        function formatAmount(value) {
+            return (parseFloat(value) || 0).toFixed(2);
+        }
+
+        $(function() {
+            if (journalEntries.length) {
+                $('#empty-row').hide();
+                $.each(journalEntries, function(_, entry) {
+                    entry.debit = parseFloat(entry.debit) || 0;
+                    entry.credit = parseFloat(entry.credit) || 0;
+                    $('#inline-entry-tbody').append(buildLockedRow(entry));
+                });
+                renderHiddenInputs();
+                updateTotals();
+            }
+        });
+
         // ─── Voucher number ───────────────────────────────────────────────────────────
         $(document).on('change', '#voucher_type, #branches', function() {
+            var currentType = ($('#voucher_type').val() || 'jv').toUpperCase();
+            journalEntries.forEach(function(entry) {
+                entry.types = currentType;
+            });
+            renderHiddenInputs();
             getVoucherNumber($('#voucher_type').val(), $('#branches').val());
         });
 
@@ -195,11 +244,11 @@
                     '</select>' +
                     '</div>' +
                     '<div class="catcell-row mt-1">' +
-                    '<select class="form-control form-control-sm hr-desig custom-select" data-rid="' + rid +
+                    '<select class="form-control form-control-sm hr-desig" data-rid="' + rid +
                     '" disabled>' +
                     '<option value="">— Designation —</option>' +
                     '</select>' +
-                    '<select class="form-control form-control-sm hr-emp custom-select" data-rid="' + rid +
+                    '<select class="form-control form-control-sm hr-emp" data-rid="' + rid +
                     '" disabled>' +
                     '<option value="">— Employee —</option>' +
                     '</select>' +
@@ -213,7 +262,7 @@
                     '<select class="form-control form-control-sm stu-branch custom-select" data-rid="' + rid + '">' +
                     BRANCH_OPTS +
                     '</select>' +
-                    '<select class="form-control form-control-sm stu-student custom-select" data-rid="' + rid +
+                    '<select class="form-control form-control-sm stu-student" data-rid="' + rid +
                     '" disabled>' +
                     '<option value="">— Student —</option>' +
                     '</select>' +
@@ -227,7 +276,7 @@
                     '<select class="form-control form-control-sm inv-branch custom-select" data-rid="' + rid + '">' +
                     BRANCH_OPTS +
                     '</select>' +
-                    '<select class="form-control form-control-sm inv-vendor custom-select" data-rid="' + rid +
+                    '<select class="form-control form-control-sm inv-vendor" data-rid="' + rid +
                     '" disabled>' +
                     '<option value="">— Vendor —</option>' +
                     '</select>' +
@@ -237,7 +286,40 @@
             } else {
                 cell.html('');
             }
+
+            var selectedBranch = $('#branches').val();
+            if (selectedBranch) {
+                var $branchSelect = cell.find('.hr-branch, .stu-branch, .inv-branch');
+                $branchSelect.val(selectedBranch);
+            }
+
+            if (typeof CustomSelect !== 'undefined') {
+                CustomSelect.initContainer(cell[0]);
+            }
+
+            if (selectedBranch && (cat === 'student' || cat === 'inventory')) {
+                cell.find('.stu-branch, .inv-branch').trigger('change');
+            }
         }
+
+        $(document).on('change', '#branches', function() {
+            var selectedBranch = $(this).val();
+            $('.hr-branch, .stu-branch, .inv-branch').each(function() {
+                $(this).val(selectedBranch);
+                refreshCustomSelect(this);
+                if ($(this).hasClass('stu-branch') || $(this).hasClass('inv-branch')) {
+                    $(this).trigger('change');
+                }
+                if ($(this).hasClass('hr-branch')) {
+                    $('.hr-desig[data-rid="' + $(this).data('rid') + '"]').trigger('change');
+                }
+            });
+        });
+
+        $(document).on('change', '.hr-branch', function() {
+            var rid = $(this).data('rid');
+            $('.hr-desig[data-rid="' + rid + '"]').trigger('change');
+        });
 
         $(document).on('change', '.hr-dept', function() {
             var rid = $(this).data('rid');
@@ -251,9 +333,6 @@
             $desig.html('<option value="">— Designation —</option>').prop('disabled', true);
             destroyCustomSelect($emp[0]);
             $emp.html('<option value="">— Employee —</option>').prop('disabled', true);
-
-            CustomSelect.create($desig[0]);
-            CustomSelect.create($emp[0]);
 
             if (!deptId) return;
 
@@ -271,7 +350,7 @@
                     });
                     destroyCustomSelect($desig[0]);
                     $desig.html(opts).prop('disabled', false);
-                    CustomSelect.create($desig[0]);
+                    $desig[0].customSelectInstance = CustomSelect.create($desig[0]);
                 },
                 error: function() {
                     show_toastr('error', 'Failed to load designations', 'error');
@@ -283,13 +362,12 @@
             var rid = $(this).data('rid');
             var deptId = $('.hr-dept[data-rid="' + rid + '"]').val();
             var desigId = $(this).val();
+            var branchId = $('.hr-branch[data-rid="' + rid + '"]').val();
 
             // Only reset downstream — employee is the only dependent here
             var $emp = $('.hr-emp[data-rid="' + rid + '"]');
             destroyCustomSelect($emp[0]);
             $emp.html('<option value="">— Employee —</option>').prop('disabled', true);
-            CustomSelect.create($emp[0]);
-
             if (!deptId || !desigId) return;
 
             $.ajax({
@@ -297,7 +375,8 @@
                 type: 'GET',
                 data: {
                     department_id: deptId,
-                    designation_id: desigId
+                    designation_id: desigId,
+                    branch_id: branchId
                 },
                 success: function(data) {
                     var opts = '<option value="">— Employee —</option>';
@@ -306,7 +385,7 @@
                     });
                     destroyCustomSelect($emp[0]);
                     $emp.html(opts).prop('disabled', false);
-                    CustomSelect.create($emp[0]);
+                    $emp[0].customSelectInstance = CustomSelect.create($emp[0]);
                 },
                 error: function() {
                     show_toastr('error', 'Failed to load employees', 'error');
@@ -321,8 +400,6 @@
             var $stu = $('.stu-student[data-rid="' + rid + '"]');
             destroyCustomSelect($stu[0]);
             $stu.html('<option value="">— Student —</option>').prop('disabled', true);
-            CustomSelect.create($stu[0]);
-
             if (!bid) return;
 
             $.ajax({
@@ -338,7 +415,7 @@
                     });
                     destroyCustomSelect($stu[0]);
                     $stu.html(opts).prop('disabled', false);
-                    CustomSelect.create($stu[0]);
+                    $stu[0].customSelectInstance = CustomSelect.create($stu[0]);
                 },
                 error: function() {
                     show_toastr('error', 'Failed to load students', 'error');
@@ -353,8 +430,6 @@
             var $vendor = $('.inv-vendor[data-rid="' + rid + '"]');
             destroyCustomSelect($vendor[0]);
             $vendor.html('<option value="">— Vendor —</option>').prop('disabled', true);
-            CustomSelect.create($vendor[0]);
-
             if (!bid) return;
 
             $.ajax({
@@ -370,7 +445,7 @@
                     });
                     destroyCustomSelect($vendor[0]);
                     $vendor.html(opts).prop('disabled', false);
-                    CustomSelect.create($vendor[0]);
+                    $vendor[0].customSelectInstance = CustomSelect.create($vendor[0]);
                 },
                 error: function() {
                     show_toastr('error', 'Failed to load vendors', 'error');
@@ -406,7 +481,7 @@
             var path = accOpt.data('path') || accOpt.text();
             var debit = parseFloat($('.row-debit[data-rid="' + rid + '"]').val()) || 0;
             var credit = parseFloat($('.row-credit[data-rid="' + rid + '"]').val()) || 0;
-            var desc = $('.row-desc[data-rid="' + rid + '"]').val();
+            var desc = ($('.row-desc[data-rid="' + rid + '"]').val() || '').trim();
 
             if (!accId) {
                 show_toastr('error', 'Please select an account.', 'error');
@@ -458,6 +533,24 @@
                     }).join(' › ');
             }
 
+            var userType = '',
+                userId = '';
+            if (cat === 'hr') {
+                metaLabel = joinMemoParts([meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]);
+                userType = meta.employee_id ? 'Employee' : '';
+                userId = meta.employee_id || '';
+            } else if (cat === 'student') {
+                metaLabel = joinMemoParts([meta.branch_name, meta.student_name]);
+                userType = meta.student_id ? 'Student' : '';
+                userId = meta.student_id || '';
+            } else if (cat === 'inventory') {
+                metaLabel = joinMemoParts([meta.branch_name, meta.vendor_name]);
+                userType = meta.vendor_id ? 'Vender' : '';
+                userId = meta.vendor_id || '';
+            }
+
+            var lineMemo = metaLabel ? '→ ' + metaLabel : '';
+
             var entry = {
                 id: Date.now(),
                 account_id: accId,
@@ -465,6 +558,10 @@
                 cat,
                 meta,
                 metaLabel,
+                lineMemo,
+                userType,
+                userId,
+                types: ($('#voucher_type').val() || 'jv').toUpperCase(),
                 debit,
                 credit,
                 desc
@@ -528,30 +625,26 @@
             w.empty();
             $.each(journalEntries, function(i, e) {
                 var p = 'accounts[' + i + ']';
-                w.append('<input type="hidden" name="' + p + '[account_id]"  value="' + e.account_id + '">');
-                w.append('<input type="hidden" name="' + p + '[debit]"        value="' + e.debit + '">');
-                w.append('<input type="hidden" name="' + p + '[credit]"       value="' + e.credit + '">');
-                w.append('<input type="hidden" name="' + p + '[description]"  value="' + e.desc + '">');
-                w.append('<input type="hidden" name="' + p + '[category]"     value="' + e.cat + '">');
+                appendHidden(w, p + '[account_id]', e.account_id);
+                appendHidden(w, p + '[debit]', e.debit);
+                appendHidden(w, p + '[credit]', e.credit);
+                appendHidden(w, p + '[description]', e.desc);
+                appendHidden(w, p + '[category]', e.cat);
+                appendHidden(w, p + '[memo]', e.lineMemo);
+                appendHidden(w, p + '[user_type]', e.userType);
+                appendHidden(w, p + '[user_id]', e.userId);
+                appendHidden(w, p + '[types]', e.types || ($('#voucher_type').val() || 'jv').toUpperCase());
                 if (e.cat === 'hr') {
-                    w.append('<input type="hidden" name="' + p + '[branch_id]"      value="' + (e.meta.branch_id ||
-                        '') + '">');
-                    w.append('<input type="hidden" name="' + p + '[dept_id]"        value="' + (e.meta.dept_id ||
-                        '') + '">');
-                    w.append('<input type="hidden" name="' + p + '[designation_id]" value="' + (e.meta
-                        .designation_id || '') + '">');
-                    w.append('<input type="hidden" name="' + p + '[employee_id]"    value="' + (e.meta
-                        .employee_id || '') + '">');
+                    appendHidden(w, p + '[branch_id]', e.meta.branch_id);
+                    appendHidden(w, p + '[dept_id]', e.meta.dept_id);
+                    appendHidden(w, p + '[designation_id]', e.meta.designation_id);
+                    appendHidden(w, p + '[employee_id]', e.meta.employee_id);
                 } else if (e.cat === 'student') {
-                    w.append('<input type="hidden" name="' + p + '[branch_id]"  value="' + (e.meta.branch_id ||
-                        '') + '">');
-                    w.append('<input type="hidden" name="' + p + '[student_id]" value="' + (e.meta.student_id ||
-                        '') + '">');
+                    appendHidden(w, p + '[branch_id]', e.meta.branch_id);
+                    appendHidden(w, p + '[student_id]', e.meta.student_id);
                 } else if (e.cat === 'inventory') {
-                    w.append('<input type="hidden" name="' + p + '[branch_id]"  value="' + (e.meta.branch_id ||
-                        '') + '">');
-                    w.append('<input type="hidden" name="' + p + '[vendor_id]"  value="' + (e.meta.vendor_id ||
-                        '') + '">');
+                    appendHidden(w, p + '[branch_id]', e.meta.branch_id);
+                    appendHidden(w, p + '[vendor_id]', e.meta.vendor_id);
                 }
             });
         }
@@ -560,11 +653,13 @@
             var d = 0,
                 c = 0;
             $.each(journalEntries, function(i, e) {
-                d += e.debit;
-                c += e.credit;
+                d += parseFloat(e.debit) || 0;
+                c += parseFloat(e.credit) || 0;
             });
-            $('.totalDebit').text(d.toFixed(2));
-            $('.totalCredit').text(c.toFixed(2));
+            var amount = Math.max(d, c);
+            $('.totalDebit').text(formatAmount(d));
+            $('.totalCredit').text(formatAmount(c));
+            $('#voucher-amount-display, #voucher-amount').val(formatAmount(amount));
         }
 
         function checkEmptyState() {
@@ -640,6 +735,19 @@
             }
         });
 
+        $(document).on('keydown', '.edit-desc', function(e) {
+            var id = $(this).data('id');
+            if (!id) return;
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                $('.save-edit-btn[data-id="' + id + '"]').trigger('click');
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                $('.cancel-edit-btn[data-id="' + id + '"]').trigger('click');
+            }
+        });
+
         // ─── Edit confirmed entry (make debit/credit editable inline) ────────────────
         $(document).on('click', '.edit-entry-btn', function(e) {
             e.preventDefault();
@@ -651,9 +759,10 @@
 
             var tr = $('tr[data-entry-id="' + id + '"]');
 
-            // Replace debit/credit tds with editable inputs, keep account & desc as-is
+            // Replace debit/credit/description tds with editable inputs.
             var drVal = entry.debit || '';
             var crVal = entry.credit || '';
+            var descVal = entry.desc || '';
 
             // td index: 0=account, 1=debit, 2=credit, 3=desc, 4=actions
             // Whichever has a value is enabled; the other is disabled.
@@ -670,6 +779,10 @@
                 '<input type="number" class="form-control form-control-sm edit-credit" ' +
                 'value="' + crVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 crDisabled + ' style="width:90px;">'
+            );
+            tr.find('td').eq(3).html(
+                '<input type="text" class="form-control form-control-sm edit-desc" ' +
+                'value="' + $('<div>').text(descVal).html() + '" placeholder="Description" data-id="' + id + '">'
             );
             tr.find('td').eq(4).html(
                 '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id +
@@ -708,6 +821,7 @@
             var tr = $('tr[data-entry-id="' + id + '"]');
             var debit = parseFloat(tr.find('.edit-debit').val()) || 0;
             var credit = parseFloat(tr.find('.edit-credit').val()) || 0;
+            var desc = (tr.find('.edit-desc').val() || '').trim();
             if (debit === 0 && credit === 0) {
                 show_toastr('error', 'Enter a debit or credit amount.', 'error');
                 return;
@@ -717,6 +831,7 @@
             });
             entry.debit = debit;
             entry.credit = credit;
+            entry.desc = desc;
             tr.replaceWith(buildLockedRow(entry));
             renderHiddenInputs();
             updateTotals();
@@ -922,7 +1037,18 @@
 @endpush
 
 @section('content')
-    {{ Form::open(['url' => 'journal-entry', 'class' => 'w-100', 'id' => 'journal-form']) }}
+    @php
+        $isEdit = isset($journalEntry);
+        $selectedVoucherType = strtolower($journalEntry->voucher_type ?? 'jv');
+        $selectedBranch = $journalEntry->owned_by ?? null;
+        $displayVoucherNumber = $voucherNumber ?? \Auth::user()->journalNumberFormat($journalId);
+        $transactionDate = $journalEntry->date ?? now()->toDateString();
+        $voucherAmount = $isEdit ? max($journalEntry->totalDebit(), $journalEntry->totalCredit()) : 0;
+    @endphp
+    {{ Form::open(['url' => $isEdit ? route('journal-entry.update', $journalEntry->id) : url('journal-entry'), 'class' => 'w-100', 'id' => 'journal-form']) }}
+    @if ($isEdit)
+        @method('PUT')
+    @endif
     <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
     <div id="hidden-inputs"></div>
 
@@ -935,7 +1061,7 @@
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
                                 {{ Form::label('branches', __('Branch'), ['class' => 'form-label']) }}
-                                {{ Form::select('branches', $branches, null, ['class' => 'form-control', 'id' => 'branches']) }}
+                                {{ Form::select('branches', $branches, $selectedBranch, ['class' => 'form-control', 'id' => 'branches']) }}
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-4">
@@ -950,7 +1076,7 @@
                                         'crv' => 'Cash Receipt Voucher',
                                         'brv' => 'Bank Receipt Voucher',
                                     ],
-                                    null,
+                                    $selectedVoucherType,
                                     ['class' => 'form-control', 'id' => 'voucher_type'],
                                 ) }}
                             </div>
@@ -959,13 +1085,13 @@
                             <div class="form-group">
                                 {{ Form::label('journal_number', __('Journal Number'), ['class' => 'form-label', 'id' => 'journal-number']) }}
                                 <input type="text" class="form-control" id="journal-number-inp"
-                                    value="{{ \Auth::user()->journalNumberFormat($journalId) }}" readonly>
+                                    value="{{ $displayVoucherNumber }}" readonly>
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
                                 {{ Form::label('date', __('Transaction Date'), ['class' => 'form-label']) }}
-                                {{ Form::date('date', null, ['class' => 'form-control', 'required' => 'required']) }}
+                                {{ Form::date('date', $transactionDate, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-4">
@@ -988,19 +1114,22 @@
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
                                 {{ Form::label('amount', __('Amount'), ['class' => 'form-label']) }}
-                                {{ Form::number('amount', '', ['class' => 'form-control', 'step' => '0.01']) }}
+                                <input type="number" class="form-control" id="voucher-amount-display"
+                                    value="{{ number_format($voucherAmount, 2, '.', '') }}" step="0.01" disabled>
+                                <input type="hidden" name="amount" id="voucher-amount"
+                                    value="{{ number_format($voucherAmount, 2, '.', '') }}">
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
                                 {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
-                                {{ Form::text('reference', '', ['class' => 'form-control']) }}
+                                {{ Form::text('reference', $journalEntry->reference ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
                         <div class="col-lg-8 col-md-6">
                             <div class="form-group">
                                 {{ Form::label('narration', __('Narration'), ['class' => 'form-label']) }}
-                                {{ Form::textarea('narration', '', ['class' => 'form-control', 'rows' => '2']) }}
+                                {{ Form::textarea('narration', $journalEntry->description ?? '', ['class' => 'form-control', 'rows' => '2']) }}
                             </div>
                         </div>
                     </div>
@@ -1070,7 +1199,7 @@
     <div class="modal-footer">
         <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('journal-entry.index') }}';"
             class="btn btn-light">
-        <input type="submit" value="{{ __('Save') }}" class="btn btn-outline-primary">
+        <input type="submit" value="{{ $isEdit ? __('Update') : __('Save') }}" class="btn btn-outline-primary">
     </div>
 
     {{ Form::close() }}

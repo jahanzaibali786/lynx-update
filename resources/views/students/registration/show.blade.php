@@ -820,6 +820,26 @@ $('#submitBtnSection1').click(function() {
                             </div>
                         </div>
                     </div>
+                    @if (!empty($showJunJulFeeExempt))
+                        @php
+                            $canUncheckJunJulExempt = \Auth::user()->type === 'company';
+                            $disableJunJulExempt = !$canUncheckJunJulExempt && !empty($student->fee_exempt_jun_jul);
+                        @endphp
+                        <div class="form-group">
+                            <div class="form-check">
+                                @if ($canUncheckJunJulExempt)
+                                    <input type="hidden" name="fee_exempt_jun_jul" value="0">
+                                @endif
+                                <input type="checkbox" class="form-check-input" id="fee_exempt_jun_jul"
+                                    name="fee_exempt_jun_jul" value="1"
+                                    {{ !empty($student->fee_exempt_jun_jul) ? 'checked' : '' }}
+                                    {{ $disableJunJulExempt ? 'disabled' : '' }}>
+                                <label class="form-check-label" for="fee_exempt_jun_jul">
+                                    {{ __('Fee Exempt (Jun-Jul)') }}
+                                </label>
+                            </div>
+                        </div>
+                    @endif
                     <div class="form-group">
                         <div class="d-flex" style="justify-content: space-between; gap: 10px;">
                             <div class="col-lg-6">

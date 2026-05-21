@@ -173,7 +173,9 @@
                 <td style="width:170px; padding:10px 0; position: relative; top: 10px; vertical-align:bottom;">
                     Remarks:
                 </td>
-                <td style="border-bottom:1px solid #000; padding:-10px 0;"></td>
+                <td style="border-bottom:1px solid #000; padding:-10px 0;">
+                    {{ !empty($adm_order->fee_exempt_jun_jul) ? 'Jun-july exempt' : '' }}
+                </td>
             </tr>
 
             <!-- match spacing like other fields -->

@@ -97,6 +97,11 @@ class ChallanController extends Controller
             $concession = 0;
             $item = [];
             $std = StudentEnrollments::where('regId', $request->student_id)->first();
+            $student = StudentRegistration::with('enrollment')->find($request->student_id);
+            $feeMonth = Carbon::parse($validatedData['challan_date']);
+            $applyJunJulFeeExemption = $student
+                ? $this->appliesJunJulFeeExemption($student, $feeMonth)
+                : false;
             $challan = new Challans;
             $challan->student_id = $validatedData['student_id'];
             $challan->class_id = $std->class_id;
@@ -117,29 +122,31 @@ class ChallanController extends Controller
 
             foreach ($request->heads as $headId) {
                 $fee = ClassWiseFee::where('head_id', $headId)->first();
-                if ($concessiondata) {
+                $feeAmount = $applyJunJulFeeExemption ? 0 : ($fee ? $fee->amount : 0);
+                $concessionAmount = 0;
+                if (!$applyJunJulFeeExemption && $concessiondata) {
                     $conession_head = ConcessionPolicyHead::where('head_id', $headId)->where('concession_id', $concessiondata->concession_id)->first();
-                    $concessionAmount = ($fee->amount / 100) * $conession_head->percentage;
+                    $concessionAmount = $conession_head ? ($feeAmount / 100) * $conession_head->percentage : 0;
                 }
                 $challan_head = new ChallanHead;
                 $challan_head->challan_id = $challan->id;
                 $challan_head->head_id = $headId;
-                $challan_head->price = $fee ? $fee->amount : 0;
-                $challan_head->concession = @$concessionAmount ? @$concessionAmount : 0;
+                $challan_head->price = $feeAmount;
+                $challan_head->concession = $concessionAmount;
                 $challan_head->save();
 
-                $total += $fee->amount;
-                $concession += @$concessionAmount ? @$concessionAmount : 0;
+                $total += $feeAmount;
+                $concession += $concessionAmount;
                 $item[$itemIndex]['head'] = $headId;
-                $item[$itemIndex]['price'] = $fee ? $fee->amount : 0;
+                $item[$itemIndex]['price'] = $feeAmount;
                 $item[$itemIndex]['quantity'] = 1;
-                $item[$itemIndex]['concession'] = @$concessionAmount ? @$concessionAmount : 0;
+                $item[$itemIndex]['concession'] = $concessionAmount;
                 $item[$itemIndex]['total'] = $total;
                 $itemIndex++;
                 $head = FeeHead::findOrFail($headId);
                 $heads[] = [
                     'name' => $head->fee_head,
-                    'amount' => $fee ? $fee->amount : 0,
+                    'amount' => $feeAmount,
                 ];
             }
 
@@ -232,10 +239,11 @@ class ChallanController extends Controller
         }
         // dd($heads);
         $grandTotal = $total - $concession;
+        $showJunJulExemptionLabel = $this->challanHasJunJulExemptionLabel($challan);
         if (isset($request->type) && $request->type != '') {
             // dd($challan, $heads, $previousUnpaidChallans, $grandTotal);
 
-            $html = view('challans.challanPdf', compact('challan', 'heads', 'previousUnpaidChallans', 'grandTotal'))->render();
+            $html = view('challans.challanPdf', compact('challan', 'heads', 'previousUnpaidChallans', 'grandTotal', 'showJunJulExemptionLabel'))->render();
             $options = new Options;
             $options->set('defaultFont', 'DejaVu Sans'); // good Unicode support
             $options->set('isHtml5ParserEnabled', true);
@@ -255,9 +263,9 @@ class ChallanController extends Controller
             }
         }
         if ($challan->challan_type == 'Registration') {
-            return view('challans.regchallan', compact('challan', 'heads', 'previousUnpaidChallans', 'grandTotal'));
+            return view('challans.regchallan', compact('challan', 'heads', 'previousUnpaidChallans', 'grandTotal', 'showJunJulExemptionLabel'));
         }
-        return view('challans.nchallan', compact('challan', 'heads', 'previousUnpaidChallans', 'grandTotal'));
+        return view('challans.nchallan', compact('challan', 'heads', 'previousUnpaidChallans', 'grandTotal', 'showJunJulExemptionLabel'));
     }
 
 
@@ -589,7 +597,8 @@ class ChallanController extends Controller
             $concession = 0;
             $item = [];
             $session = Session::orderBy('id', 'Desc')->where('active_status', '1')->where('created_by', '=', \Auth::user()->creatorId())->first();
-            $student = StudentRegistration::where('id', $request->input('student_id'))->first();
+            $student = StudentRegistration::with('enrollment')->where('id', $request->input('student_id'))->first();
+            $applyJunJulFeeExemption = $this->appliesJunJulFeeExemption($student, Carbon::parse($request->input('challanDate')));
 
             $challan = new Challans;
             $challan->student_id = $request->input('student_id');
@@ -620,31 +629,32 @@ class ChallanController extends Controller
                 if (strpos(strtolower($row[0]), 'registration') !== false || strpos(strtolower($row[0]), 'transfer') !== false || strpos(strtolower($row[0]), 're-admission') !== false) {
                     continue;
                 }
-                $totalAmount += $row[3];
-                if ($concessiondata) {
+                $headAmount = $applyJunJulFeeExemption ? 0 : (float) ($row[1] ?? 0);
+                $totalAmount += $applyJunJulFeeExemption ? 0 : (float) ($row[3] ?? 0);
+                if (!$applyJunJulFeeExemption && $concessiondata) {
                     $conession_head = ConcessionPolicyHead::where('head_id', $row[5])->where('concession_id', $concessiondata->concession_id)->first();
                     if ($conession_head) {
-                        $concessionAmount = round(($row[1] / 100) * $conession_head->percentage);
+                        $concessionAmount = round(($headAmount / 100) * $conession_head->percentage);
                     } else {
-                        $concessionAmount = round(($row[1] / 100) * $row[2]);
+                        $concessionAmount = round(($headAmount / 100) * $row[2]);
                     }
                 } else {
-                    $concessionAmount = round(($row[1] / 100) * $row[2]);
+                    $concessionAmount = $applyJunJulFeeExemption ? 0 : round(($headAmount / 100) * $row[2]);
                 }
                 $challan_head = new ChallanHead;
                 $challan_head->challan_id = $challan->id;
                 $challan_head->head_id = $row[5];
-                $challan_head->price = $row[1] ? $row[1] : 0;
-                $challan_head->concession = @$concessionAmount ? @$concessionAmount : 0;
+                $challan_head->price = $headAmount;
+                $challan_head->concession = $concessionAmount;
                 $challan_head->save();
 
-                $total += $row[1];
-                $concession += @$concessionAmount ? @$concessionAmount : 0;
+                $total += $headAmount;
+                $concession += $concessionAmount;
                 $item[$itemIndex]['pord_id'] = $challan_head->id;
                 $item[$itemIndex]['head'] = $row[5];
-                $item[$itemIndex]['price'] = $row[1] ? $row[1] : 0;
+                $item[$itemIndex]['price'] = $headAmount;
                 $item[$itemIndex]['quantity'] = 1;
-                $item[$itemIndex]['concession'] = @$concessionAmount ? @$concessionAmount : 0;
+                $item[$itemIndex]['concession'] = $concessionAmount;
                 $item[$itemIndex]['total'] = $total;
                 $itemIndex++;
             }
@@ -761,6 +771,7 @@ class ChallanController extends Controller
                             'challan' => $challan,
                             'heads' => $heads,
                             'previousUnpaidChallans' => $previousUnpaidChallans,
+                            'showJunJulExemptionLabel' => $this->challanHasJunJulExemptionLabel($challan),
                         ]
                     );
                 }
@@ -822,6 +833,7 @@ class ChallanController extends Controller
                         'challan' => $challan,
                         'heads' => $heads,
                         'previousUnpaidChallans' => $previousUnpaidChallans,
+                        'showJunJulExemptionLabel' => $this->challanHasJunJulExemptionLabel($challan),
                     ]
                 );
             }
@@ -1256,6 +1268,61 @@ class ChallanController extends Controller
     //     }
     // }
 
+    private function appliesJunJulFeeExemption(?StudentRegistration $student, Carbon $feeMonth): bool
+    {
+        if (!$student || empty($student->fee_exempt_jun_jul) || !$student->enrollment || empty($student->enrollment->adm_date)) {
+            return false;
+        }
+
+        if (!in_array((int) $feeMonth->month, [6, 7], true)) {
+            return false;
+        }
+
+        return (int) Carbon::parse($student->enrollment->adm_date)->year === (int) $feeMonth->year;
+    }
+
+    private function challanHasJunJulExemptionLabel(?Challans $challan): bool
+    {
+        if (!$challan) {
+            return false;
+        }
+
+        $student = $challan->student;
+        if (!$student instanceof StudentRegistration) {
+            $student = StudentRegistration::with('enrollment')->find($challan->student_id);
+        } elseif (!$student->relationLoaded('enrollment')) {
+            $student->load('enrollment');
+        }
+
+        if (!$student || empty($student->fee_exempt_jun_jul) || !$student->enrollment || empty($student->enrollment->adm_date)) {
+            return false;
+        }
+
+        $months = collect();
+        if (!empty($challan->other_months)) {
+            $months = collect(explode(',', $challan->other_months))
+                ->map(fn($month) => trim($month))
+                ->filter();
+        }
+
+        if ($months->isEmpty() && !empty($challan->fee_month)) {
+            $months = collect([$challan->fee_month]);
+        }
+
+        if ($months->isEmpty()) {
+            return false;
+        }
+
+        $admissionYear = (int) Carbon::parse($student->enrollment->adm_date)->year;
+
+        return $months->every(function ($month) use ($admissionYear) {
+            $billingMonth = Carbon::parse($month);
+
+            return in_array((int) $billingMonth->month, [6, 7], true)
+                && (int) $billingMonth->year === $admissionYear;
+        });
+    }
+
     public function bulkchallan(Request $request)
     {
         set_time_limit(0);
@@ -1310,12 +1377,12 @@ class ChallanController extends Controller
         ];
         $feeSubscription = $request->input('fee_subscription', 'monthly');
         $duration = $subscriptionMap[$feeSubscription] ?? 1;
-        if ($duration > 1) {
-            $subscriptionMontsdate = [];
-            for ($i = 0; $i < $duration; $i++) {
-                $monthToAdd = $i;
-                $subscriptionMontsdate[] = Carbon::parse($targetDate)->addMonthsNoOverflow($monthToAdd)->format('Y-m');
-            }
+        $subscriptionMontsdate = [];
+        $subscriptionMonthDates = [];
+        for ($i = 0; $i < $duration; $i++) {
+            $monthToAdd = $i;
+            $subscriptionMonthDates[] = Carbon::parse($targetDate)->addMonthsNoOverflow($monthToAdd)->format('Y-m-d');
+            $subscriptionMontsdate[] = Carbon::parse($targetDate)->addMonthsNoOverflow($monthToAdd)->format('Y-m');
         }
         // ----------------------------------------------------------------
         // 3. Load shared fee heads ONCE
@@ -1346,7 +1413,7 @@ class ChallanController extends Controller
             // Pre-challan report check
             if ($request->branches == 'all') {
                 $allBranchIds = \App\Models\Branch::pluck('id');
-                $approvedBranchIds = \App\Models\PreChallanReport::whereIn('month', $subscriptionMontsdate ?? [$feeMonthFormatted])
+                $approvedBranchIds = \App\Models\PreChallanReport::whereIn('month', $subscriptionMontsdate ?: [$feeMonthFormatted])
                     ->where('status', 'Approved')->pluck('branch_id');
                 $missingBranches = $allBranchIds->diff($approvedBranchIds);
 
@@ -1362,7 +1429,7 @@ class ChallanController extends Controller
                 }
             } else {
                 $preReport = \App\Models\PreChallanReport::where('branch_id', $request->branches)
-                    ->whereIn('month', $subscriptionMontsdate ?? [$feeMonthFormatted])
+                    ->whereIn('month', $subscriptionMontsdate ?: [$feeMonthFormatted])
                     ->where('status', 'Approved')
                     ->exists();
                 if (!$preReport) {
@@ -1394,14 +1461,14 @@ class ChallanController extends Controller
 
             $query = StudentRegistration::where('student_status', 'Enrolled')
                 ->where('roll_no', $request->input('student'));
-            $singleStudent = $query->first();
+            $singleStudent = $query->with('enrollment')->first();
 
             if (!$singleStudent) {
                 return response()->json(['error' => true, 'message' => 'Student not found.']);
             }
 
             $preReport = \App\Models\PreChallanReport::where('branch_id', $singleStudent->owned_by)
-                ->whereIn('month', $subscriptionMontsdate ?? [$feeMonthFormatted])
+                ->whereIn('month', $subscriptionMontsdate ?: [$feeMonthFormatted])
                 ->where('status', 'Approved')
                 ->exists();
             if (!$preReport) {
@@ -1412,7 +1479,7 @@ class ChallanController extends Controller
                 ]);
             }
 
-            if ($tuitionFeeHead) {
+            if ($duration === 1 && $tuitionFeeHead) {
                 $admissionWithTuition = Challans::where('student_id', $singleStudent->id)
                     ->where('challan_type', 'Admission')
                     ->where(function ($q) use ($targetDate) {
@@ -1422,7 +1489,7 @@ class ChallanController extends Controller
                     ->whereHas('heads', fn($q) => $q->where('head_id', $tuitionFeeHead->id))
                     ->exists();
 
-                if ($admissionWithTuition) {
+                if ($admissionWithTuition && !$this->appliesJunJulFeeExemption($singleStudent, $fee_month)) {
                     return response()->json([
                         'error' => true,
                         'message' => 'Challan already generated for this month.',
@@ -1487,6 +1554,7 @@ class ChallanController extends Controller
             ->where(function ($q) {
                 $q->where('end_date', '>=', date('Y-m-d'))->orWhereNull('end_date');
             })
+            ->where('active_status',1)
             ->orderBy('end_date', 'desc')
             ->get()
             ->groupBy('student_id')
@@ -1495,26 +1563,29 @@ class ChallanController extends Controller
         // 7d. Existing Regular/Advance challans for this month per student
         $existingChallans = Challans::whereIn('student_id', $studentIds)
             ->whereIn('challan_type', ['Regular', 'Advance'])
-            ->whereRaw('LOWER(status) != ?', ['paid'])
-            ->where(function ($q) use ($targetDate) {
-                $q->whereRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') = ?", [$targetDate])
-                    ->orWhereRaw("FIND_IN_SET(?, other_months)", [$targetDate]);
+            ->where(function ($q) use ($subscriptionMonthDates) {
+                foreach ($subscriptionMonthDates as $monthDate) {
+                    $q->orWhereRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') = ?", [$monthDate])
+                        ->orWhereRaw("FIND_IN_SET(?, REPLACE(other_months, ' ', ''))", [$monthDate]);
+                }
             })
             ->get()
-            ->keyBy('student_id');
+            ->groupBy('student_id');
 
         // 7e. Admission challans WITH tuition head for this month — O(1) lookup set
-        $admissionWithTuitionIds = collect();
+        $admissionWithTuitionChallans = collect();
         if ($tuitionFeeHead) {
-            $admissionWithTuitionIds = Challans::whereIn('student_id', $studentIds)
+            $admissionWithTuitionChallans = Challans::whereIn('student_id', $studentIds)
                 ->where('challan_type', 'Admission')
-                ->where(function ($q) use ($targetDate) {
-                    $q->whereRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') = ?", [$targetDate])
-                        ->orWhereRaw("FIND_IN_SET(?, other_months)", [$targetDate]);
+                ->where(function ($q) use ($subscriptionMonthDates) {
+                    foreach ($subscriptionMonthDates as $monthDate) {
+                        $q->orWhereRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') = ?", [$monthDate])
+                            ->orWhereRaw("FIND_IN_SET(?, REPLACE(other_months, ' ', ''))", [$monthDate]);
+                    }
                 })
                 ->whereHas('heads', fn($q) => $q->where('head_id', $tuitionFeeHead->id))
-                ->pluck('student_id')
-                ->flip();
+                ->get()
+                ->groupBy('student_id');
         }
 
         // 7f. Concession policy heads keyed by concession_id → head_id
@@ -1526,9 +1597,9 @@ class ChallanController extends Controller
                 ->groupBy('concession_id')
                 ->map(fn($group) => $group->keyBy('head_id'));
         }
-
+        // dd($concessionIds);
         // 7g. Existing challan heads for existing challans
-        $existingChallanIds = $existingChallans->pluck('id')->toArray();
+        $existingChallanIds = $existingChallans->flatten()->pluck('id')->toArray();
         $existingChallanHeads = collect();
         if (!empty($existingChallanIds)) {
             $existingChallanHeads = ChallanHead::whereIn('challan_id', $existingChallanIds)
@@ -1571,7 +1642,7 @@ class ChallanController extends Controller
                 $headNameLower = strtolower($fee_head->feehead->fee_head ?? '');
                 $isOneTime = str_contains($headNameLower, 'annual fee')
                     || str_contains($headNameLower, 'late fee');
-                $multiplier = $isOneTime ? 1 : $effectiveDuration;
+                $multiplier = $isOneTime ? ($effectiveDuration > 0 ? 1 : 0) : $effectiveDuration;
                 $baseAmount = $fee_head->amount * $multiplier;
 
                 if ($concession) {
@@ -1586,6 +1657,25 @@ class ChallanController extends Controller
 
                 return [$baseAmount, $concessionAmount];
             };
+        };
+
+        $challanMonths = function ($challan) {
+            $months = [];
+
+            if (!empty($challan->fee_month)) {
+                $months[] = Carbon::parse($challan->fee_month)->format('Y-m-d');
+            }
+
+            if (!empty($challan->other_months)) {
+                foreach (explode(',', $challan->other_months) as $monthValue) {
+                    $monthValue = trim($monthValue);
+                    if ($monthValue !== '') {
+                        $months[] = Carbon::parse($monthValue)->format('Y-m-d');
+                    }
+                }
+            }
+
+            return collect($months)->unique()->sort()->values();
         };
 
         // ----------------------------------------------------------------
@@ -1612,15 +1702,34 @@ class ChallanController extends Controller
                     continue;
                 }
             }
-            // Skip if Admission challan with tuition already covers this month
-            if ($admissionWithTuitionIds->has($student->id)) {
+            $studentExistingChallans = $existingChallans->get($student->id, collect());
+            $studentAdmissionChallans = $admissionWithTuitionChallans->get($student->id, collect());
+            $coverageChallans = $studentExistingChallans->merge($studentAdmissionChallans);
+
+            $coveredMonthDates = $coverageChallans
+                ->flatMap(fn($challan) => $challanMonths($challan))
+                ->intersect($subscriptionMonthDates)
+                ->unique()
+                ->values();
+
+            $remainingMonthDates = collect($subscriptionMonthDates)
+                ->diff($coveredMonthDates)
+                ->values();
+
+            $existingChallan = $studentExistingChallans
+                ->filter(fn($challan) => strtolower(trim($challan->status ?? '')) !== 'paid')
+                ->sortByDesc(fn($challan) => strtolower(trim($challan->challan_type ?? '')) === 'advance' ? 1 : 0)
+                ->first(function ($challan) use ($challanMonths, $subscriptionMonthDates) {
+                    return $challanMonths($challan)->intersect($subscriptionMonthDates)->isNotEmpty();
+                });
+
+            if (!$existingChallan && $remainingMonthDates->isEmpty()) {
                 continue;
             }
 
             $fee_heads = $allCheckedFeeHeads->get($student->id, collect());
             $allFeeHeadsKeyed = $allFeeHeadsGrouped->get($student->id, collect());
             $concession = $concessions->get($student->id);
-            $existingChallan = $existingChallans->get($student->id);
 
             \DB::beginTransaction();
             try {
@@ -1628,7 +1737,7 @@ class ChallanController extends Controller
                 // ============================================================
                 // PATH A — UPDATE existing challan
                 // ============================================================
-                if ($existingChallan || count(array_filter(explode(',', $existingChallan->other_months ?? ''), fn($v) => trim($v) !== '')) == 1) {
+                if ($existingChallan) {
 
                     $total = 0;
                     $concession_amount = 0;
@@ -1641,19 +1750,21 @@ class ChallanController extends Controller
                     // of covered dates as comma-separated values.
                     // We count them to determine the correct multiplier so that
                     // head amounts are NOT collapsed to single-month values.
-                    $effectiveDuration = $duration; // fallback: use request value
-                    if (!empty($existingChallan->other_months)) {
-                        $monthCount = count(array_filter(
-                            explode(',', $existingChallan->other_months),
-                            fn($v) => trim($v) !== ''
-                        ));
-                        if ($monthCount == 1) {
-                            $effectiveDuration = $monthCount;
-                        }
-                    }
+                    $updatedMonthDates = $challanMonths($existingChallan)
+                        ->merge($remainingMonthDates)
+                        ->unique()
+                        ->sort()
+                        ->values();
+
+                    $chargeableMonthCount = $updatedMonthDates
+                        ->filter(fn($monthDate) => !$this->appliesJunJulFeeExemption($student, Carbon::parse($monthDate)))
+                        ->count();
+
+                    $existingChallan->other_months = $updatedMonthDates->implode(',');
+                    $existingChallan->fee_month = $updatedMonthDates->first() ?: $existingChallan->fee_month;
 
                     // Build calcAmounts with the effective duration for this challan
-                    $calcAmounts = $makeCalcAmounts($effectiveDuration);
+                    $calcAmounts = $makeCalcAmounts($chargeableMonthCount);
                     $attachedHeads = $existingChallanHeads->get($existingChallan->id, collect());
                     $attachedMap = $attachedHeads->keyBy('head_id');
 
@@ -1760,8 +1871,13 @@ class ChallanController extends Controller
                     $item = [];
                     $itemIndex = 0;
 
-                    // Build calcAmounts with the request duration for new challan
-                    $calcAmounts = $makeCalcAmounts($duration);
+                    $generatedMonthDates = $remainingMonthDates->values();
+                    $chargeableMonthCount = $generatedMonthDates
+                        ->filter(fn($monthDate) => !$this->appliesJunJulFeeExemption($student, Carbon::parse($monthDate)))
+                        ->count();
+
+                    // Build calcAmounts with only the months still missing for this student.
+                    $calcAmounts = $makeCalcAmounts($chargeableMonthCount);
 
                     $challan = new Challans;
                     $challan->student_id = $student->id;
@@ -1769,7 +1885,7 @@ class ChallanController extends Controller
                     $challan->class_id = $student->class_id;
                     $challan->challanNo = $this->challanNo();
                     $challan->challan_date = date('Y-m-d');
-                    $challan->fee_month = date('Y-m-01', strtotime($fee_month));
+                    $challan->fee_month = $generatedMonthDates->first() ?: date('Y-m-01', strtotime($fee_month));
                     $challan->challan_type = 'Regular';
                     $challan->total_amount = 0;
                     $challan->issue_date = $issueDate;
@@ -1780,16 +1896,9 @@ class ChallanController extends Controller
                     $challan->session_id = $request->session;
                     $challan->concession_id = $concession ? $concession->concession_id : '';
                     $challan->concession_amount = 0;
-                    $challan->other_months = null;
-
-                    if ($duration > 1) {
-                        $startDate = Carbon::parse(date('Y-m-01', strtotime($fee_month)));
-                        $dates = [];
-                        for ($i = 0; $i < $duration; $i++) {
-                            $dates[] = $startDate->copy()->addMonths($i)->format('Y-m-d');
-                        }
-                        $challan->other_months = implode(',', $dates);
-                    }
+                    $challan->other_months = $duration > 1
+                        ? $generatedMonthDates->implode(',')
+                        : null;
 
                     $challan->save();
 
@@ -3116,6 +3225,7 @@ class ChallanController extends Controller
         // dd($otherMonths,$feeMonth);
         if ($type == 'regular') {
             $query = StudentRegistration::query()
+                ->with('enrollment')
                 ->where('student_status', 'Enrolled')
                 ->where('session_id', $request->session_id);
             if ($request->branch_id != 'all') {
@@ -3132,7 +3242,8 @@ class ChallanController extends Controller
                 return redirect()->back()->with('error', 'No students found for the selected criteria.');
             }
         } else {
-            $students = StudentRegistration::where('roll_no', $request->student_id)
+            $students = StudentRegistration::with('enrollment')
+                ->where('roll_no', $request->student_id)
                 ->where('student_status', 'Enrolled')
                 ->where('session_id', $request->session_id)
                 ->get();
@@ -3186,6 +3297,14 @@ class ChallanController extends Controller
                         continue;
                     }
                 }
+
+                $billingMonths = $type == 'advance'
+                    ? $dates
+                    : [date('Y-m-01', strtotime($feeMonth))];
+
+                $chargeableMonthCount = collect($billingMonths)
+                    ->filter(fn($month) => !$this->appliesJunJulFeeExemption($student, Carbon::parse($month)))
+                    ->count();
 
                 // fetch fee heads + concession
                 $feeHeads = StudentFeeStructure::with('feehead')
@@ -3253,10 +3372,10 @@ class ChallanController extends Controller
                     }
 
                     if ($isAnnual) {
-                        $qty = 1;
+                        $qty = $chargeableMonthCount > 0 ? 1 : 0;
                         $annualAdded = true;
                     } else {
-                        $qty = ($type == 'advance') ? $advanceMonths : 1;
+                        $qty = $chargeableMonthCount;
                     }
 
                     $price = $fh->amount * $qty;

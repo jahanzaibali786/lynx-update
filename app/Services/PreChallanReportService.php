@@ -30,6 +30,7 @@ class PreChallanReportService
     {
         $currentMonth = Carbon::createFromFormat('Y-m', $dateInput);
         $currentYearMonth = $currentMonth->format('Y-m');
+        $currentMonthDate = $currentMonth->format('Y-m-01');
         $lastMonthDate = $currentMonth->copy()->subMonth()->format('Y-m-01');
         $lastYearMonth = date('Y-m', strtotime($lastMonthDate));
 
@@ -48,7 +49,7 @@ class PreChallanReportService
             $baseQ->where('roll_no', $filters['student']);
         }
 
-        $studentsList = $baseQ->with(['registeroption', 'class', 'section'])->get();
+        $studentsList = $baseQ->with(['registeroption', 'class', 'section', 'enrollment'])->get();
         $studentIds = $studentsList->pluck('id')->all();
 
         if (empty($studentIds)) {
@@ -119,10 +120,17 @@ class PreChallanReportService
 
         $prevChallansPass2 = Challans::whereIn('student_id', $studentIds)
             ->whereNotIn('challan_type', ['registration'])
-            ->whereRaw('FIND_IN_SET(?, other_months)', [$lastMonthDate])
+            ->where(function ($q) use ($lastMonthDate, $currentMonthDate) {
+                $q->whereRaw('FIND_IN_SET(?, other_months)', [$lastMonthDate])
+                    ->orWhereRaw('FIND_IN_SET(?, other_months)', [$currentMonthDate]);
+            })
             ->get()->groupBy('student_id');
 
-        $prevChallans = $prevChallansPass1->union($prevChallansPass2->diffKeys($prevChallansPass1));
+        $prevChallans = $prevChallansPass1
+            ->map(function ($rows, $studentId) use ($prevChallansPass2) {
+                return $rows->merge($prevChallansPass2->get($studentId, collect()))->unique('id')->values();
+            })
+            ->union($prevChallansPass2->diffKeys($prevChallansPass1));
         $prevChallanIds = $prevChallans->flatten()->pluck('id')->all();
 
         $prevChallanItems = ChallanHead::with('feehead')
@@ -173,30 +181,32 @@ class PreChallanReportService
                         $advanceChallanForCurrentMonth = null;
                         $isFirstMonthAfterChallan = false;
 
-                        if ($prevChallan) {
-                            $months = $parseOtherMonths($prevChallan->other_months);
-                            if (count($months) > 1) {
-                                $currentMonthStr = $currentMonth->format('Y-m-01');
-                                if (in_array($currentMonthStr, $months, true)) {
-                                    $advanceChallanForCurrentMonth = $prevChallan;
-                                    $sortedMonths = $months;
-                                    sort($sortedMonths);
-                                    $challanFeeMonth = Carbon::parse($prevChallan->fee_month)->format('Y-m-01');
-                                    $firstSubsequent = null;
-                                    foreach ($sortedMonths as $m) {
-                                        if ($m > $challanFeeMonth) {
-                                            $firstSubsequent = $m;
-                                            break;
-                                        }
-                                    }
-                                    if ($firstSubsequent && $firstSubsequent === $currentMonthStr) {
-                                        $isFirstMonthAfterChallan = true;
-                                    }
+                        $currentMonthStr = $currentMonth->format('Y-m-01');
+                        foreach ($studentChallans->sortByDesc('id') as $candidateChallan) {
+                            $months = $parseOtherMonths($candidateChallan->other_months);
+                            if (count($months) <= 1 || !in_array($currentMonthStr, $months, true)) {
+                                continue;
+                            }
+
+                            $advanceChallanForCurrentMonth = $candidateChallan;
+                            $sortedMonths = $months;
+                            sort($sortedMonths);
+
+                            $challanFeeMonth = Carbon::parse($candidateChallan->fee_month)->format('Y-m-01');
+                            $firstSubsequent = null;
+                            foreach ($sortedMonths as $m) {
+                                if ($m > $challanFeeMonth) {
+                                    $firstSubsequent = $m;
+                                    break;
                                 }
                             }
+
+                            $isFirstMonthAfterChallan = $firstSubsequent && $firstSubsequent === $currentMonthStr;
+                            break;
                         }
 
                         // ── Per-head amounts ──────────────────────────────────
+                        $applyJunJulFeeExemption = $this->appliesJunJulFeeExemption($student, $currentMonth);
                         $totalAmount = $totalDiscount = $totalNet = 0;
                         $headDetails = [];
 
@@ -225,7 +235,9 @@ class PreChallanReportService
 
                             $amount = $discount = 0;
 
-                            if ($advanceChallanForCurrentMonth) {
+                            if ($applyJunJulFeeExemption) {
+                                $amount = $discount = 0;
+                            } elseif ($advanceChallanForCurrentMonth) {
                                 if ($isAnnual && !$isFirstMonthAfterChallan) {
                                     $amount = $discount = 0;
                                 } else {
@@ -370,6 +382,7 @@ class PreChallanReportService
                             'class_name' => $student->class->name ?? 'N/A',
                             'section_name' => $student->section->name ?? 'N/A',
                             'concession_category' => $concession && $concession->concession ? $concession->concession->title : 'No Concession',
+                            'jun_jul_fee_exempt' => $applyJunJulFeeExemption,
                             'head_details' => $headDetails,
                             'total_amount' => $totalAmount,
                             'total_discount' => $totalDiscount,
@@ -389,5 +402,15 @@ class PreChallanReportService
             : 0;
 
         return [$reportGroups, $heads, $averageTuitionFee];
+    }
+
+    private function appliesJunJulFeeExemption(StudentRegistration $student, Carbon $currentMonth): bool
+    {
+        if (empty($student->fee_exempt_jun_jul) || !$student->enrollment || empty($student->enrollment->adm_date)) {
+            return false;
+        }
+
+        return in_array((int) $currentMonth->month, [6, 7], true)
+            && (int) Carbon::parse($student->enrollment->adm_date)->year === (int) $currentMonth->year;
     }
 }

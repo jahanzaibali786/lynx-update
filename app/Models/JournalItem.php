@@ -18,6 +18,7 @@ class JournalItem extends Model
         'types',
         'is_discount',
         'description',
+        'memo',
         'head_ids',
         'branch_id',
         'debit',

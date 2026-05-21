@@ -427,7 +427,7 @@
                                 @php
                                     $subscription = [
                                         'monthly' => 'Monthly',
-                                        // 'bi-monthly' => 'Bi-Monthly',
+                                        'bi-monthly' => 'Bi-Monthly',
                                         // 'quarterly' => 'Quarterly',
                                         // '4-monthly' => '4 Month Subscription',
                                         // '5-monthly' => '5 Month Subscription',

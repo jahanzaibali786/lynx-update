@@ -222,7 +222,7 @@
             <div class="field-row">
                 <div class="field-label">Remarks:</div>
                 <div style="flex:1;">
-                    <div class="remarks-line"></div>
+                    <div class="remarks-line">{{ !empty($adm_order->fee_exempt_jun_jul) ? 'Jun-july exempt' : '' }}</div>
                     <div class="remarks-line"></div>
                     <div class="remarks-line"></div>
                 </div>

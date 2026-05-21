@@ -942,9 +942,19 @@ class EmployeeController extends Controller
     public function employeedesiganddeprtment(Request $request)
     {
         $employees = Employee::where('department_id', $request->department_id)
-            ->where('designation_id', $request->designation_id)
-            ->get()
-            ->pluck('name', 'id')
+            ->where('designation_id', $request->designation_id);
+
+        if (!empty($request->branch_id)) {
+            $employees->where('branch_id', $request->branch_id);
+        }
+
+        $employees = $employees->get()
+            ->mapWithKeys(function ($employee) {
+                $employeeNumber = !empty($employee->employee_id) ? \Auth::user()->employeeIdFormat($employee->employee_id) : '';
+                $label = trim($employeeNumber . ' - ' . $employee->name, ' -');
+
+                return [$employee->id => $label];
+            })
             ->toArray();
 
         return response()->json($employees);

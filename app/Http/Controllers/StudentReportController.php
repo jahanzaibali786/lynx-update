@@ -6290,21 +6290,23 @@ class StudentReportController extends Controller
                 fn($q) => $q->where('type', 'branch')->where('created_by', $creatorId),
                 fn($q) => $q->where('id', $creatorId)
             )
+            ->where('is_active', 1)
             ->pluck('name', 'id')
-            ->prepend('All Branches', '');
+            ->prepend('All Branches', 'all');
 
         $sections = collect();
-        $class = collect();
-        $students = collect(['' => 'All Students']);
+        $class = collect(['all' => 'All Classes']);
+        $students = collect(['all' => 'All Students']);
 
         // ─────────────────────────────────────────────
         // 2. Base student query with filters
         // ─────────────────────────────────────────────
         $baseQ = StudentRegistration::query()
+            ->with(['registeroption', 'class', 'section', 'enrollment'])
             ->where('student_status', 'Enrolled')
             ->where($user->type == 'company' ? 'created_by' : 'owned_by', $creatorId);
 
-        if ($branchId = $request->input('branches')) {
+        if (($branchId = $request->input('branches')) && $branchId !== 'all') {
             $baseQ->where('owned_by', $branchId);
 
             $class = Classes::where('owned_by', $branchId)
@@ -6335,7 +6337,7 @@ class StudentReportController extends Controller
             ->whereNotNull('roll_no')
             ->select(DB::raw('CONCAT(roll_no, " - ", stdname, " s/d/o ", fathername) AS name'), 'roll_no')
             ->pluck('name', 'roll_no')
-            ->prepend('Select Student', '');
+            ->prepend('All Students', 'all');
 
         // ─────────────────────────────────────────────
         // 3. Date handling
@@ -6352,7 +6354,7 @@ class StudentReportController extends Controller
 
         if ($request->filled('date')) {
 
-            $studentsList = $baseQ->with(['registeroption', 'class', 'section'])->get();
+            $studentsList = $baseQ->with(['registeroption', 'class', 'section', 'enrollment'])->get();
             $studentIds = $studentsList->pluck('id')->all();
 
             // ─────────────────────────────────────────────
@@ -6444,6 +6446,7 @@ class StudentReportController extends Controller
             // Pass 2: challan whose other_months contains last month
             // ─────────────────────────────────────────────
             $lastMonthDate = $currentMonth->copy()->subMonth()->format('Y-m-01');
+            $currentMonthDate = $currentMonth->format('Y-m-01');
             $lastYearMonth = date('Y-m', strtotime($lastMonthDate));
 
             $prevChallansPass1 = Challans::whereIn('student_id', $studentIds)
@@ -6454,13 +6457,18 @@ class StudentReportController extends Controller
 
             $prevChallansPass2 = Challans::whereIn('student_id', $studentIds)
                 ->whereNotIn('challan_type', ['registration'])
-                ->whereRaw('FIND_IN_SET(?, other_months)', [$lastMonthDate])
+                ->where(function ($q) use ($lastMonthDate, $currentMonthDate) {
+                    $q->whereRaw('FIND_IN_SET(?, other_months)', [$lastMonthDate])
+                        ->orWhereRaw('FIND_IN_SET(?, other_months)', [$currentMonthDate]);
+                })
                 ->get()
                 ->groupBy('student_id');
 
-            $prevChallans = $prevChallansPass1->union(
-                $prevChallansPass2->diffKeys($prevChallansPass1)
-            );
+            $prevChallans = $prevChallansPass1
+                ->map(function ($rows, $studentId) use ($prevChallansPass2) {
+                    return $rows->merge($prevChallansPass2->get($studentId, collect()))->unique('id')->values();
+                })
+                ->union($prevChallansPass2->diffKeys($prevChallansPass1));
 
             $prevChallanIds = $prevChallans->flatten()->pluck('id')->all();
 
@@ -6549,42 +6557,38 @@ class StudentReportController extends Controller
                         $advanceChallanForCurrentMonth = null;  // challan that covers current month in other_months
                         $isFirstMonthAfterChallan = false; // should annual charges appear?
     
-                        if ($prevChallan) {
-                            $months = $parseOtherMonths($prevChallan->other_months);
+                        $currentMonthStr = $currentMonth->format('Y-m-01');
+                        foreach ($studentChallans->sortByDesc('id') as $candidateChallan) {
+                            $months = $parseOtherMonths($candidateChallan->other_months);
+                            if (count($months) <= 1 || !in_array($currentMonthStr, $months, true)) {
+                                continue;
+                            }
 
-                            if (count($months) > 1) {
-                                $currentMonthStr = $currentMonth->format('Y-m-01');
+                            $advanceChallanForCurrentMonth = $candidateChallan;
+                            $sortedMonths = $months;
+                            sort($sortedMonths);
 
-                                // Does this challan cover the current reporting month?
-                                if (in_array($currentMonthStr, $months, true)) {
-                                    $advanceChallanForCurrentMonth = $prevChallan;
+                            $challanFeeMonth = Carbon::parse($candidateChallan->fee_month)->format('Y-m-01');
+                            $firstSubsequent = null;
 
-                                    // Sort months to find the first one that comes
-                                    // AFTER the challan's own fee_month
-                                    $sortedMonths = $months;
-                                    sort($sortedMonths);
-
-                                    // The "first subsequent month" is the earliest
-                                    // month in other_months that is NOT the fee_month
-                                    $challanFeeMonth = Carbon::parse($prevChallan->fee_month)->format('Y-m-01');
-                                    $firstSubsequent = null;
-
-                                    foreach ($sortedMonths as $m) {
-                                        if ($m > $challanFeeMonth) {
-                                            $firstSubsequent = $m;
-                                            break;
-                                        }
-                                    }
-
-                                    // Annual charges appear only in that first subsequent month
-                                    if ($firstSubsequent && $firstSubsequent === $currentMonthStr) {
-                                        $isFirstMonthAfterChallan = true;
-                                    }
+                            foreach ($sortedMonths as $m) {
+                                if ($m > $challanFeeMonth) {
+                                    $firstSubsequent = $m;
+                                    break;
                                 }
                             }
+
+                            $isFirstMonthAfterChallan = $firstSubsequent && $firstSubsequent === $currentMonthStr;
+                            break;
                         }
 
                         // ─── Per-head amounts ─────────────────────────────────
+                        $applyJunJulFeeExemption = !empty($student->fee_exempt_jun_jul)
+                            && $student->enrollment
+                            && !empty($student->enrollment->adm_date)
+                            && in_array((int) $currentMonth->month, [6, 7], true)
+                            && (int) \Carbon\Carbon::parse($student->enrollment->adm_date)->year === (int) $currentMonth->year;
+
                         $totalAmount = 0;
                         $totalDiscount = 0;
                         $totalNet = 0;
@@ -6592,39 +6596,32 @@ class StudentReportController extends Controller
 
                         foreach ($heads as $head) {
 
-                            // Skip Security & Admission heads completely
-                            $excludeKeywords = ['admission', 'security'];
-                            $skipHead = false;
+                            $feeHead = strtolower(trim($head->fee_head));
 
-                            foreach ($excludeKeywords as $kw) {
-                                if (stripos($head->fee_head, $kw) !== false) {
-                                    $skipHead = true;
+                            // Skip Security & Admission heads completely
+                            if (
+                                str_contains($feeHead, 'admission') ||
+                                str_contains($feeHead, 'security') ||
+                                $feeHead === 'late fee' ||
+                                $feeHead === 'late charges' ||
+                                str_contains($feeHead, 'late fee') ||
+                                str_contains($feeHead, 'late charges')
+                            ) {
+                                continue;
+                            }
+
+
+                            $isAnnualHead = false;
+                            foreach ($annualKeywords as $kw) {
+                                if (str_contains($feeHead, strtolower($kw))) {
+                                    $isAnnualHead = true;
                                     break;
                                 }
                             }
 
-                            if ($skipHead) {
-                                continue;
-                            }
-
-                            if ($useActualChallanData) {
-
-                                $item = $actualChallanItems->firstWhere('head_id', $head->id);
-
-                                $amount = $item->price ?? 0;
-                                $discount = $item->concession ?? 0;
-
-                                $monthsCount = !empty($prevChallan->other_months)
-                                    ? max(1, count(array_filter(explode(',', $prevChallan->other_months))))
-                                    : 1;
-
-                                if ($monthsCount > 1) {
-                                    $amount /= $monthsCount;
-                                    $discount /= $monthsCount;
-                                }
-
-                                $netAmount = $amount - $discount;
-
+                            if ($applyJunJulFeeExemption || ($advanceChallanForCurrentMonth && $isAnnualHead && !$isFirstMonthAfterChallan)) {
+                                $amount = $discount = $netAmount = 0;
+                                $discountPercentage = 0;
                             } else {
 
                                 $feeStructure = $studentFeeStructures
@@ -6801,9 +6798,10 @@ class StudentReportController extends Controller
 
                             } elseif (in_array($challanStatus, ['issued', 'pending'])) {
 
-                                $dueDate = Carbon::parse($prevChallan->due_date);
-                                $today = Carbon::now();
+                                $dueDate = Carbon::parse($prevChallan->due_date)->startOfDay();
+                                $today = Carbon::now()->startOfDay();
 
+                                // Only adjust due date if due date itself is weekend
                                 if ($dueDate->isSaturday()) {
                                     $dueDate->addDays(2);
                                 } elseif ($dueDate->isSunday()) {
@@ -6811,17 +6809,15 @@ class StudentReportController extends Controller
                                 }
 
                                 if ($today->greaterThan($dueDate)) {
-                                    $lateDays = 0;
-                                    $tempDate = $dueDate->copy()->addDay();
 
-                                    while ($tempDate->lessThanOrEqualTo($today) && $lateDays < 10) {
-                                        if (!$tempDate->isWeekend()) {
-                                            $lateDays++;
-                                        }
-                                        $tempDate->addDay();
-                                    }
+                                    // Count all calendar days after adjusted due date
+                                    $lateDays = $dueDate->diffInDays($today);
 
                                     $lateFeeAmount = min($lateDays * 120, 1200);
+
+                                    if ($lateDays != 0) {
+                                        dd($prevChallan, $today, $lateDays);
+                                    }
                                 }
                             }
                         }
@@ -6832,6 +6828,7 @@ class StudentReportController extends Controller
                         return [
                             'student_id' => $student->id,
                             'roll_no' => $student->roll_no,
+                            'adm_date' => $student->enrollment->adm_date ?? '-',
                             'student_name' => $student->stdname,
                             'father_name' => $student->fathername,
                             'registration_type' => $student->registeroption->name ?? 'N/A',
@@ -6841,6 +6838,7 @@ class StudentReportController extends Controller
                             'concession_category' => $concession && $concession->concession
                                 ? $concession->concession->title
                                 : 'No Concession',
+                            'jun_jul_fee_exempt' => $applyJunJulFeeExemption,
                             'head_details' => $headDetails,
                             'total_amount' => $totalAmount,
                             'total_discount' => $totalDiscount,
@@ -6855,6 +6853,28 @@ class StudentReportController extends Controller
 
                     })->values();
                 });
+
+            $heads = $heads->filter(function ($head) use ($reportGroups) {
+                foreach ($reportGroups as $branchStudents) {
+                    foreach ($branchStudents as $studentRow) {
+                        if (!empty($studentRow['jun_jul_fee_exempt']) && array_key_exists($head->id, $studentRow['head_details'] ?? [])) {
+                            return true;
+                        }
+
+                        $details = $studentRow['head_details'][$head->id] ?? [
+                            'amount' => 0,
+                            'discount_amount' => 0,
+                            'net_amount' => 0,
+                        ];
+
+                        if ($details['amount'] != 0 || $details['discount_amount'] != 0 || $details['net_amount'] != 0) {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            });
         }
 
         $averageTuitionFee = $tuitionStudentCount > 0

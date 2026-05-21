@@ -394,6 +394,7 @@
 
                                 $previousUnpaidChallans = App\Models\Challans::where('student_id', $data->student_id)
                                     ->where('status', '!=', 'Paid')
+                                    ->where('challan_type','!=','registration')
                                     ->whereDate('fee_month', '>=', $startDate) // ✅ start from Jan 2026
                                     ->whereDate('fee_month', '<', date('Y-m-d', strtotime($data->fee_month)))
                                     ->where('id', '!=', $data->id)

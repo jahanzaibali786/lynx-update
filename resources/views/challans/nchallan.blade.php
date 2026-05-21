@@ -383,6 +383,9 @@
                                 @if ($toMonth)
                                     - {{ $toMonth->format('F, Y') }}
                                 @endif
+                                @if (!empty($showJunJulExemptionLabel))
+                                    <small style="font-size: 10px; text-transform: none;">(exempted)</small>
+                                @endif
                             </td>
                             <td class="challan-details-section-label"></td>
                             <td></td>

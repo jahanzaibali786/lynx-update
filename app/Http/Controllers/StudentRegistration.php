@@ -405,7 +405,7 @@ class StudentRegistration extends Controller
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $query = ModelsStudentRegistration::with('session', 'class')->where('owned_by', '=', \Auth::user()->ownedId());
         }
-        $student = ModelsStudentRegistration::where('id', $id)->with('class', 'session', 'branches')->first();
+        $student = ModelsStudentRegistration::where('id', $id)->with('class', 'session', 'branches', 'enrollment')->first();
         $classes = Classes::where('owned_by', $student->owned_by)->get()->pluck('name', 'id');
         $classfee = StudentFeeStructure::with('feehead')->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
 
@@ -451,7 +451,9 @@ class StudentRegistration extends Controller
                 ->first();
         }
 
-        return view('students.registration.show', ['branches' => $branches, 'concession' => $concession, 'student' => $student, 'classfee' => $classfee, 'studentchallanexist' => $studentchallanexist, 'registerOption' => $registerOptions, 'selectedOptionId' => $selectedRegisterOptionId, 'classes' => $classes]);
+        $showJunJulFeeExempt = $this->canShowJunJulFeeExempt($student);
+
+        return view('students.registration.show', ['branches' => $branches, 'concession' => $concession, 'student' => $student, 'classfee' => $classfee, 'studentchallanexist' => $studentchallanexist, 'registerOption' => $registerOptions, 'selectedOptionId' => $selectedRegisterOptionId, 'classes' => $classes, 'showJunJulFeeExempt' => $showJunJulFeeExempt]);
     }
 
     /**
@@ -479,6 +481,7 @@ class StudentRegistration extends Controller
     {
         // dd($request->all());
         $student = ModelsStudentRegistration::findOrFail($id);
+        $student->load('enrollment');
         $sectionData = $this->transformSectionData($request->input('sectionData'));
         if ($request->sectionName == 'section1') {
             $profileImage = $sectionData['profile_image'] ?? null;
@@ -644,6 +647,17 @@ class StudentRegistration extends Controller
         } else if ($request->sectionName == 'section3') {
             \DB::beginTransaction();
             try {
+                if ($this->canShowJunJulFeeExempt($student)) {
+                    $requestedExempt = !empty($sectionData['fee_exempt_jun_jul'])
+                        && (string) $sectionData['fee_exempt_jun_jul'] === '1';
+
+                    if (\Auth::user()->type === 'company') {
+                        $student->fee_exempt_jun_jul = $requestedExempt;
+                    } elseif (!$student->fee_exempt_jun_jul && $requestedExempt) {
+                        $student->fee_exempt_jun_jul = true;
+                    }
+                }
+
                 if ($sectionData['adm_class']) {
                     // dd($sectionData['adm_class'],$student->reg_class);
                     if ($sectionData['adm_class'] != $student->reg_class && $student->student_status == 'Registered') {
@@ -758,6 +772,25 @@ class StudentRegistration extends Controller
             $transformedData[$item['name']] = $item['value'];
         }
         return $transformedData;
+    }
+
+    private function canShowJunJulFeeExempt(ModelsStudentRegistration $student): bool
+    {
+        if (!in_array(\Auth::user()->type, ['company', 'branch'], true)) {
+            return false;
+        }
+
+        $admDate = optional($student->enrollment)->adm_date;
+        if (empty($admDate)) {
+            return false;
+        }
+
+        $today = Carbon::today();
+        $admissionDate = Carbon::parse($admDate);
+
+        return (int) $today->year === (int) $admissionDate->year
+            && (int) $today->month >= 1
+            && (int) $today->month <= 5;
     }
 
     function challanNo()

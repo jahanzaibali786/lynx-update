@@ -47,8 +47,13 @@ class StudentRegistration extends Model
         'custody_cnic',
         'reg_type',
         'remarks',
+        'fee_exempt_jun_jul',
         'owned_by',
         'created_by',
+    ];
+
+    protected $casts = [
+        'fee_exempt_jun_jul' => 'boolean',
     ];
     public function enrollment()
     {
