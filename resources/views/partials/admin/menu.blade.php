@@ -631,6 +631,7 @@
                                         Request::segment(1) == 'salary-history-report' ||
                                         Request::segment(1) == 'loan' ||
                                         Request::segment(1) == 'employee-advance' ||
+                                        Request::segment(1) == 'advance-tax-collection' ||
                                         Request::segment(1) == 'resignation' ||
                                         Request::segment(1) == 'termination' ||
                                         Request::segment(1) == 'employee-transfer' ||
@@ -956,6 +957,7 @@
                                                 <a class="dash-link {{ Request::segment(1) == 'loan' ||
                                                 Request::segment(1) == 'holiday-calender' ||
                                                 Request::segment(1) == 'employee-advance' ||
+                                                Request::segment(1) == 'advance-tax-collection' ||
                                                 Request::segment(1) == 'employee-transfer' ||
                                                 Request::segment(1) == 'holiday' ||
                                                 Request::segment(1) == 'policies' ||
@@ -987,6 +989,10 @@
                                                     <li class="dash-item">
                                                         <a class="dash-link  {{ Request::segment(1) == 'employee-advance' ? 'active dash-trigger' : '' }}"
                                                             href="{{ route('employee-advance.index') }}">{{ __('Set Advance') }}</a>
+                                                    </li>
+                                                    <li class="dash-item">
+                                                        <a class="dash-link  {{ Request::segment(1) == 'advance-tax-collection' ? 'active dash-trigger' : '' }}"
+                                                            href="{{ route('advance-tax-collection.index') }}">{{ __('Advance Tax Collection') }}</a>
                                                     </li>
                                                     @can('manage appraisal')
                                                         <li class="dash-item">

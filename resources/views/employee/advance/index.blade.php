@@ -39,11 +39,46 @@
                 }
             });
         }
+
+        $(document).ready(function() {
+            $('#select_all_advances').on('change', function() {
+                $('.bulk-advance-check').prop('checked', $(this).is(':checked'));
+            });
+
+            $('#open_bulk_approve_modal').on('click', function(event) {
+                event.preventDefault();
+                var selectedIds = $('.bulk-advance-check:checked').map(function() {
+                    return $(this).val();
+                }).get();
+
+                if (selectedIds.length === 0) {
+                    event.preventDefault();
+                    if (typeof show_toastr === 'function') {
+                        show_toastr('error', '{{ __('Please select at least one pending advance.') }}', 'error');
+                    } else {
+                        alert('{{ __('Please select at least one pending advance.') }}');
+                    }
+                    return false;
+                }
+
+                $('#bulk_advance_ids').val(selectedIds.join(','));
+                $('#bulk_approve_count').text(selectedIds.length);
+
+                var modal = new bootstrap.Modal(document.getElementById('bulkApproveModal'));
+                modal.show();
+            });
+        });
     </script>
 @endpush
 @section('action-btn')
     @can('create loan')
         <div class="col text-end">
+            <a href="{{ route('employee-advance.bulk-create') }}"
+                class="apply-btn btn mx-1 btn-sm btn-outline-success" data-bs-toggle="tooltip"
+                data-bs-title="{{ __('Bulk Generate') }}">
+                <span class="btn-inner--icon">{{ __('Bulk Generate') }}</span>
+            </a>
+
             <a href="#" data-url="{{ route('employee-advance.create') }}" data-size="lg" data-ajax-popup="true"
                 data-bs-title="{{ __('Create Advance') }}" class="apply-btn btn mx-1 btn-sm btn-outline-primary" data-bs-toggle="tooltip" >
                 <span class="btn-inner--icon">Create</span>
@@ -60,7 +95,7 @@
                         <div class="card-body">
                             {{ Form::open(['route' => ['employee-advance.index'], 'method' => 'GET', 'id' => 'loan_submit']) }}
                             <div class="row d-flex justify-content-end ">
-                                <div class="col-xl-10">
+                                <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12 ">
                                     <div class="row">
                                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                             <div class="btn-box">
@@ -86,15 +121,37 @@
                                                 {{ Form::select('status', ['' => 'Select Status', '0' => 'Pending', '1' => 'Approved', '2' => 'Rejected'], isset($_GET['status']) ? $_GET['status'] : '', ['class' => 'form-control select']) }}
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                                <div class="col-auto mt-4 ">
-                                    <div class="row">
-                                        <div class="col-auto mt-1">
+                                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                            <div class="btn-box">
+                                                {{ Form::label('from_month', __('From Month'), ['class' => 'form-label']) }}
+                                                {{ Form::month('from_month', request('from_month'), ['class' => 'form-control']) }}
+                                            </div>
+                                        </div>
+                                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                            <div class="btn-box">
+                                                {{ Form::label('to_month', __('To Month'), ['class' => 'form-label']) }}
+                                                {{ Form::month('to_month', request('to_month'), ['class' => 'form-control']) }}
+                                            </div>
+                                        </div>
+
+                                        <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
                                             <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
                                                 onclick="document.getElementById('loan_submit').submit(); return false;"
                                                 data-bs-title="{{ __('apply') }}" data-bs-toggle="tooltip" data-bs-title="{{ __('Search') }}">
                                                 <span class="btn-inner--icon">Search</span>
+                                            </a>
+                                            @can('edit loan')
+                                                <a href="#" id="open_bulk_approve_modal"
+                                                    class="btn mx-1 btn-sm btn-outline-success"
+                                                    data-bs-toggle="tooltip"
+                                                    data-bs-title="{{ __('Approve Selected') }}">
+                                                    <span class="btn-inner--icon">{{ __('Approve Selected') }}</span>
+                                                </a>
+                                            @endcan
+                                               <a href="{{ route('employee-advance.export', request()->query()) }}"
+                                                class="apply-btn btn mx-1 btn-sm btn-outline-secondary" data-bs-toggle="tooltip"
+                                                data-bs-title="{{ __('Export Excel') }}">
+                                                <span class="btn-inner--icon">{{ __('Export Excel') }}</span>
                                             </a>
                                             <a href="{{ route('employee-advance.index') }}"
                                                 class="btn mx-1 btn-sm btn-outline-danger"
@@ -102,8 +159,7 @@
                                                 data-bs-title="{{ __('Clear') }}">
                                                 <span class="btn-inner--icon">Clear</span>
                                             </a>
-                                        </div>
-                                    </div>
+                                     </div>
                                 </div>
                             </div>
                             {{ Form::close() }}
@@ -113,12 +169,71 @@
             </div>
         </div>
     @endif
+    @can('edit loan')
+        <div class="modal fade" id="bulkApproveModal" tabindex="-1" aria-labelledby="bulkApproveModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    {{ Form::open(['route' => 'employee-advance.bulk-approve', 'method' => 'PUT', 'id' => 'bulk_approve_form']) }}
+                    {{ Form::hidden('advance_ids', '', ['id' => 'bulk_advance_ids']) }}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="bulkApproveModalLabel">{{ __('Bulk Approve Advance') }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            {{ __('Selected Advances') }}: <strong id="bulk_approve_count">0</strong>
+                        </div>
+                        <div class="row">
+                            <div class="form-group col-md-6">
+                                {{ Form::label('approval_date', __('Approval Date'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::date('approval_date', \Carbon\Carbon::now()->format('Y-m-d'), ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                            <div class="form-group col-md-6">
+                                {{ Form::label('bank_id', __('Bank Account'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::select('bank_id', $bankAccounts, null, ['class' => 'form-control custom-select', 'required' => 'required']) }}
+                            </div>
+                            <div class="form-group col-md-6">
+                                {{ Form::label('payment_method', __('Payment By'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::select('payment_method', ['' => __('Select Payment'), 'online' => __('OL'), 'cheque' => __('CHQ'), 'cash' => __('CSH')], null, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                            <div class="form-group col-md-6">
+                                {{ Form::label('account_id', __('Account'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                <select name="account_id" class="form-control custom-select" required>
+                                    <option value="" selected disabled>{{ __('Select Account') }}</option>
+                                    @foreach ($accounts as $chartAccount)
+                                        <option value="{{ $chartAccount['id'] }}">{{ $chartAccount['code'] . ' - ' . $chartAccount['name'] }}</option>
+                                        @foreach ($subAccounts as $subAccount)
+                                            @if ($chartAccount['id'] == $subAccount['parent'])
+                                                <option value="{{ $subAccount['id'] }}"> &nbsp; &nbsp;&nbsp; {{ $subAccount['code'] . ' - ' . $subAccount['name'] }}</option>
+                                            @endif
+                                        @endforeach
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group col-md-12">
+                                {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
+                                {{ Form::text('reference', null, ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn btn-outline-primary">{{ __('Approve') }}</button>
+                    </div>
+                    {{ Form::close() }}
+                </div>
+            </div>
+        </div>
+    @endcan
     <div class="card-body full-card">
         <div class="table-responsive">
             @if (!$advance->isEmpty())
                 <table class="">
                     <thead class="">
                         <tr class="table_heads">
+                            <th style="width: 45px;">
+                                <input type="checkbox" id="select_all_advances">
+                            </th>
                             <th>#</th>
                             <th>{{ __('Employee') }}</th>
                             <th>{{ __('Advance Month') }}</th>
@@ -134,6 +249,11 @@
                     <tbody>
                         @foreach ($advance as $adv)
                             <tr>
+                                <td>
+                                    @if($adv->status == 0)
+                                        <input type="checkbox" class="bulk-advance-check" value="{{ $adv->id }}">
+                                    @endif
+                                </td>
                                 <td>{{ ($advance->currentPage() - 1) * $advance->perPage() + $loop->iteration }}</td>
                                 <td>
                                     {{ !empty($adv->employee->name) ? $adv->employee->name : '' }}

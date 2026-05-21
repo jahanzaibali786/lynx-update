@@ -179,6 +179,7 @@ use App\Http\Controllers\ClientUserController;
 use App\Http\Controllers\IsVisitorController;
 use App\Http\Controllers\PaytrController;
 use App\Http\Controllers\TrainingTypeController;
+use App\Http\Controllers\AdvanceTaxCollectionController;
 use App\Http\Controllers\EmployeeAdvanceController;
 use App\Http\Controllers\BankReciptVoucherController;
 use App\Http\Controllers\BankPaymentVoucherController;
@@ -2362,7 +2363,14 @@ Route::group(['middleware' => ['verified']], function () {
             Route::put('employee-advance-status-change/{id}', [EmployeeAdvanceController::class, 'statusChange'])->name('employee-advance.statusChange');
             Route::get('employee-advance-employee-month/{id}', [EmployeeAdvanceController::class, 'employeeLatestSalaryMonth'])->name('employee-advance.employee-month');
             Route::get('employee-advance-print/{id}', [EmployeeAdvanceController::class, 'printAdvance'])->name('employee-advance.print');
+            Route::get('employee-advance-bulk-create', [EmployeeAdvanceController::class, 'bulkCreate'])->name('employee-advance.bulk-create');
+            Route::post('employee-advance-bulk-store', [EmployeeAdvanceController::class, 'bulkStore'])->name('employee-advance.bulk-store');
+            Route::put('employee-advance-bulk-approve', [EmployeeAdvanceController::class, 'bulkApprove'])->name('employee-advance.bulk-approve');
+            Route::get('employee-advance-export', [EmployeeAdvanceController::class, 'export'])->name('employee-advance.export');
             Route::resource('employee-advance', EmployeeAdvanceController::class);
+            Route::get('advance-tax-collection-status/{id}', [AdvanceTaxCollectionController::class, 'status'])->name('advance-tax-collection.status');
+            Route::put('advance-tax-collection-status-change/{id}', [AdvanceTaxCollectionController::class, 'statusChange'])->name('advance-tax-collection.statusChange');
+            Route::resource('advance-tax-collection', AdvanceTaxCollectionController::class);
 
             // Export salary sheet
             Route::get('/export-salary-sheet', [EmployeeSalaryDetail::class, 'export_salary_sheet'])->name('export_salary_sheet');
