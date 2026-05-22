@@ -787,7 +787,7 @@ class LoanController extends Controller
         $migrationOutput = Artisan::output();
         return response(
             '<h3>Loan installment setup completed.</h3>' .
-            '<h4>Migration</h4><pre>' . e($migrationOutput) . '</pre>' .
+            '<h4>Migration</h4><pre>' . e($migrationOutput) . '</pre>' 
         );
     }
 }
