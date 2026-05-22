@@ -37,11 +37,31 @@
     $approvalDate = @$loan->approval_date ? \Carbon\Carbon::parse($loan->approval_date)->format('d M Y') : '-';
     $startDate = @$loan->from_pay_month ? \Carbon\Carbon::parse($loan->from_pay_month)->startOfMonth() : now()->startOfMonth();
     $payPeriod = max(1, (int) @$loan->pay_period);
-    $installmentAmount = (float) (@$loan->per_month_amount ?: ((float) @$loan->amount / $payPeriod));
+    $installmentRows = collect();
+
+    if ($loan->relationLoaded('installments') && $loan->installments->isNotEmpty()) {
+        $installmentRows = $loan->installments->map(function ($installment) {
+            return [
+                'no' => $installment->installment_no,
+                'month' => \Carbon\Carbon::parse($installment->due_month)->format('d M Y'),
+                'amount' => (float) $installment->amount,
+            ];
+        });
+    } else {
+        $installmentAmounts = \App\Models\Loan::roundedInstallmentAmounts((float) @$loan->amount, $payPeriod);
+        foreach ($installmentAmounts as $index => $amount) {
+            $installmentRows->push([
+                'no' => $index + 1,
+                'month' => $startDate->copy()->addMonths($index)->format('d M Y'),
+                'amount' => (float) $amount,
+            ]);
+        }
+    }
+
     $titleType = strtoupper(@$loan->emp_sec ?: 'GPF');
     $logoSrc = !empty($isPdf) ? public_path('assets/images/lynx2.jpg') : asset('assets/images/lynx2.jpg');
     $schoolTitleSrc = !empty($isPdf) ? public_path('assets/images/lynxheadertext.jpg') : asset('assets/images/lynxheadertext.jpg');
-    $isCompactPlan = $payPeriod >= 10;
+    $isCompactPlan = $installmentRows->count() >= 10;
     $total = 0;
 @endphp
 
@@ -326,17 +346,16 @@
                 </tr>
             </thead>
             <tbody>
-                @for ($i = 1; $i <= $payPeriod; $i++)
+                @foreach ($installmentRows as $row)
                     @php
-                        $month = $startDate->copy()->addMonths($i - 1)->format('d M Y');
-                        $total += $installmentAmount;
+                        $total += (float) $row['amount'];
                     @endphp
                     <tr>
-                        <td>{{ $i }}</td>
-                        <td>{{ $month }}</td>
-                        <td class="amount">{{ number_format($installmentAmount, 2) }}</td>
+                        <td>{{ $row['no'] }}</td>
+                        <td>{{ $row['month'] }}</td>
+                        <td class="amount">{{ number_format((float) $row['amount'], 2) }}</td>
                     </tr>
-                @endfor
+                @endforeach
                 <tr class="installment-total">
                     <td></td>
                     <td>TOTAL</td>

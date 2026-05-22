@@ -796,6 +796,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
                 $toDateEndOfMonth = $toDateStartOfMonth->copy()->endOfMonth();
                 $salaryLoans = Loan::where('employee_id', $data->employee_id)
+                    ->with('installments')
                     ->where('status', 1)
                     ->whereDate('from_pay_month', '<=', $toDateEndOfMonth->format('Y-m-d'))
                     ->whereDate('loan_ended', '>=', $toDateStartOfMonth->format('Y-m-d'))
@@ -807,7 +808,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
                     if ($loan->status == 1 && $toDateStartOfMonth->between($loanStartDate, $loanEndDate) && !$loan->isStoppedForMonth($toDateStartOfMonth)) {
                         $remainingLoanAmount = max(0, (float) $loan->amount - (float) $loan->received_amount);
-                        $installmentAmount = min((float) $loan->per_month_amount, $remainingLoanAmount);
+                        $installment = $loan->nextPayableInstallment($toDateStartOfMonth);
+                        $installmentAmount = $installment
+                            ? min((float) $installment->due_amount, $remainingLoanAmount)
+                            : min((float) $loan->per_month_amount, $remainingLoanAmount);
 
                         if ($installmentAmount > 0 && $loan->emp_sec == 'security') {
                             $securityLoanAmount += $installmentAmount;
@@ -818,6 +822,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                         if ($installmentAmount > 0) {
                             $salaryLoanDeductions[] = [
                                 'loan' => $loan,
+                                'installment' => $installment,
                                 'amount' => $installmentAmount,
                             ];
                         }
@@ -889,12 +894,13 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
                 foreach ($salaryLoanDeductions as $loanDeduction) {
                     $salaryLoan = $loanDeduction['loan'];
+                    $loanInstallment = $loanDeduction['installment'];
                     $salaryLoanDeductionAmount = round($loanDeduction['amount']);
                     if ($salaryLoanDeductionAmount <= 0) {
                         continue;
                     }
 
-                    SalaryDeductionDetail::create([
+                    $deductionDetail = SalaryDeductionDetail::create([
                         'salary_id' => $employeemonthlysal->id,
                         'employee_id' => $data->employee_id,
                         'type' => 'loan',
@@ -904,6 +910,17 @@ class EmployeeMonthlySalaryAttendance extends Controller
                         'note' => 'Loan installment deduction - ' . $salaryLoan->title,
                         'coa_id' => $salaryLoan->chartaccount_id,
                     ]);
+
+                    if ($loanInstallment) {
+                        $loanInstallment->paid_amount = min((float) $loanInstallment->amount, (float) $loanInstallment->paid_amount + $salaryLoanDeductionAmount);
+                        if ((float) $loanInstallment->paid_amount >= (float) $loanInstallment->amount) {
+                            $loanInstallment->status = 1;
+                            $loanInstallment->paid_at = $employeemonthlysal->salary_date;
+                        }
+                        $loanInstallment->salary_id = $employeemonthlysal->id;
+                        $loanInstallment->salary_deduction_detail_id = $deductionDetail->id;
+                        $loanInstallment->save();
+                    }
 
                     $salaryLoan->received_amount = ((float) $salaryLoan->received_amount) + round($salaryLoanDeductionAmount);
                     $salaryLoan->save();

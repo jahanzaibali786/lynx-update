@@ -19,6 +19,7 @@ use App\Models\Utility;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 
 class LoanController extends Controller
 {
@@ -321,7 +322,7 @@ class LoanController extends Controller
 
                 $amount = $request->input('amount');
                 $pay_period = $request->input('pay_period');
-                $per_month_amount = $amount / $pay_period;
+                $installmentAmounts = Loan::roundedInstallmentAmounts($amount, $pay_period);
                 $received_amount = 0;
                 $status = 0;
                 $emp =Employee::find($request->input('employee_id'));
@@ -342,12 +343,13 @@ class LoanController extends Controller
                 $loan->pay_period = $pay_period;
                 $loan->loan_ended = $request->input('loan_ended');
                 $loan->reason = $request->input('reason');
-                $loan->per_month_amount = round($per_month_amount);
+                $loan->per_month_amount = $installmentAmounts[0] ?? 0;
                 $loan->received_amount = $received_amount;
                 $loan->status = $status;
                 $loan->owned_by = $owned_by;
                 $loan->created_by = $created_by;
                 $loan->save();
+                $loan->syncInstallmentPlan($request->input('from_pay_month'));
                 \DB::commit();
                 return redirect()->route('loan.index')->with('success', __('Loan  successfully created.'));
             } catch (\Exception $e) {
@@ -451,9 +453,10 @@ class LoanController extends Controller
                     ]);
                 }
 
-                $per_month_amount = $loan->status == 1
-                    ? ($remaining_installments > 0 ? $remaining_amount / $remaining_installments : 0)
-                    : $amount / $pay_period;
+                $installmentAmounts = Loan::roundedInstallmentAmounts(
+                    $loan->status == 1 ? $remaining_amount : $amount,
+                    $loan->status == 1 ? max(1, $remaining_installments) : $pay_period
+                );
 
                 $loan->branches = $request->input('branches');
                 $loan->employee_id = $request->input('employee_id');
@@ -467,9 +470,10 @@ class LoanController extends Controller
                 $loan->pay_period = $pay_period;
                 $loan->loan_ended = $request->input('loan_ended');
                 $loan->reason = $request->input('reason');
-                $loan->per_month_amount = round($per_month_amount);
+                $loan->per_month_amount = $installmentAmounts[0] ?? 0;
                 $loan->received_amount = $received_amount;
                 $loan->save();
+                $loan->syncInstallmentPlan($request->input('from_pay_month'));
 
                 if ($loan->status == 1) {
                     $this->syncLoanVoucher($loan);
@@ -534,7 +538,7 @@ class LoanController extends Controller
     }
 
     public function printloan(Request $request, $id){
-        $loan = Loan::with('employee')->where('id', $id)->first();
+        $loan = Loan::with(['employee', 'installments'])->where('id', $id)->first();
         if (!$loan) {
             return redirect()->back()->with('error', __('Loan not found.'));
         }
@@ -661,8 +665,7 @@ class LoanController extends Controller
             'created_by' => \Auth::user()->creatorId(),
         ]);
 
-        $loan->loan_ended = \Carbon\Carbon::parse($loan->loan_ended)->startOfMonth()->addMonths($months)->format('Y-m-d');
-        $loan->save();
+        $loan->syncInstallmentPlan();
 
         return redirect()->back()->with('success', __('Loan stopped successfully.'));
     }
@@ -687,11 +690,9 @@ class LoanController extends Controller
             return redirect()->back()->with('error', __('Stop loan entry cannot be deleted because salary is already generated for stopped month.'));
         }
 
-        $months = (int) $history->months;
         $history->delete();
 
-        $loan->loan_ended = \Carbon\Carbon::parse($loan->loan_ended)->startOfMonth()->subMonths($months)->format('Y-m-d');
-        $loan->save();
+        $loan->syncInstallmentPlan();
 
         return redirect()->back()->with('success', __('Loan stop entry deleted successfully.'));
     }
@@ -706,6 +707,7 @@ class LoanController extends Controller
                 $loan->status = $request->status;
                 $loan->approved_by = \Auth::id();
                 $loan->save();
+                $loan->installments()->where('status', 0)->delete();
                 \DB::commit();
                 return redirect()->back()->with('success', __('Loan Rejected successfully.'));
             }else{
@@ -744,13 +746,15 @@ class LoanController extends Controller
                     $loan->pay_period = $payPeriod;
                     $loan->from_pay_month = $fromPayMonth->format('Y-m-d');
                     $loan->loan_ended = $loanEnded->format('Y-m-d');
-                    $loan->per_month_amount = round($amount / $payPeriod);
+                    $installmentAmounts = Loan::roundedInstallmentAmounts($amount, $payPeriod);
+                    $loan->per_month_amount = $installmentAmounts[0] ?? 0;
                     $loan->approval_date = $approvalDate->format('Y-m-d');
                     $loan->bank_id = $request->bank_id;
                     $loan->chartaccount_id = $request->account_id;
                     $loan->referance_id = $request->reference;
                     $loan->approved_by = \Auth::id();
                     $loan->save();
+                    $loan->syncInstallmentPlan($fromPayMonth);
 
                     $bankAccount = BankAccount::find($request->bank_id);
                     $dataret = $this->createLoanVoucher($loan, $bankAccount, $request->payment_method);
@@ -766,5 +770,24 @@ class LoanController extends Controller
             \DB::rollback();
             return redirect()->back()->with('error', $e);
         }
+    }
+
+    public function runInstallmentSetup()
+    {
+        if (!\Auth::check() || \Auth::user()->type != 'company') {
+            abort(403, __('Permission denied.'));
+        }
+
+        @set_time_limit(300);
+
+        Artisan::call('migrate', [
+            '--force' => true,
+            '--path' => 'database/migrations/2026_05_21_000001_create_loan_installments_table.php',
+        ]);
+        $migrationOutput = Artisan::output();
+        return response(
+            '<h3>Loan installment setup completed.</h3>' .
+            '<h4>Migration</h4><pre>' . e($migrationOutput) . '</pre>' .
+        );
     }
 }

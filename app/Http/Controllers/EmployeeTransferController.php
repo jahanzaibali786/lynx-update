@@ -347,6 +347,7 @@ public function print($id)
                 $transferMonthStart = $transferDate->copy()->startOfMonth();
                 $transferMonthEnd = $transferDate->copy()->endOfMonth();
                 $salaryLoans = Loan::where('employee_id', $employee_id)
+                    ->with('installments')
                     ->where('status', 1)
                     ->whereDate('from_pay_month', '<=', $transferMonthEnd->format('Y-m-d'))
                     ->whereDate('loan_ended', '>=', $transferMonthStart->format('Y-m-d'))
@@ -357,7 +358,9 @@ public function print($id)
                     $loanEndDate = Carbon::parse($loan->loan_ended)->endOfMonth();
                     if ($loan->status == 1 && $transferMonthStart->between($loanStartDate, $loanEndDate) && !$loan->isStoppedForMonth($transferMonthStart)) {
                         $remainingLoanAmount = max(0, (float) $loan->amount - (float) $loan->received_amount);
-                        $installmentAmount = min((float) $loan->per_month_amount * ($workingDays / $month_days), $remainingLoanAmount);
+                        $installment = $loan->nextPayableInstallment($transferMonthStart);
+                        $baseInstallmentAmount = $installment ? (float) $installment->due_amount : (float) $loan->per_month_amount;
+                        $installmentAmount = min($baseInstallmentAmount * ($workingDays / $month_days), $remainingLoanAmount);
 
                         if ($installmentAmount > 0 && $loan->emp_sec == 'security') {
                             $securityLoanAmount += $installmentAmount;
@@ -368,6 +371,7 @@ public function print($id)
                         if ($installmentAmount > 0) {
                             $salaryLoanDeductions[] = [
                                 'loan' => $loan,
+                                'installment' => $installment,
                                 'amount' => $installmentAmount,
                             ];
                         }
@@ -409,12 +413,13 @@ public function print($id)
 
                 foreach ($salaryLoanDeductions as $loanDeduction) {
                     $salaryLoan = $loanDeduction['loan'];
+                    $loanInstallment = $loanDeduction['installment'];
                     $loanDeductionAmount = round($loanDeduction['amount']);
                     if ($loanDeductionAmount <= 0) {
                         continue;
                     }
 
-                    SalaryDeductionDetail::create([
+                    $deductionDetail = SalaryDeductionDetail::create([
                         'salary_id' => $employeemonthlysal->id,
                         'employee_id' => $employee_id,
                         'type' => 'loan',
@@ -424,6 +429,17 @@ public function print($id)
                         'note' => 'Loan installment deduction - ' . $salaryLoan->title,
                         'coa_id' => $salaryLoan->chartaccount_id,
                     ]);
+
+                    if ($loanInstallment) {
+                        $loanInstallment->paid_amount = min((float) $loanInstallment->amount, (float) $loanInstallment->paid_amount + $loanDeductionAmount);
+                        if ((float) $loanInstallment->paid_amount >= (float) $loanInstallment->amount) {
+                            $loanInstallment->status = 1;
+                            $loanInstallment->paid_at = $employeemonthlysal->salary_date;
+                        }
+                        $loanInstallment->salary_id = $employeemonthlysal->id;
+                        $loanInstallment->salary_deduction_detail_id = $deductionDetail->id;
+                        $loanInstallment->save();
+                    }
 
                     $salaryLoan->received_amount = ((float) $salaryLoan->received_amount) + $loanDeductionAmount;
                     $salaryLoan->save();

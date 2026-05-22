@@ -127,6 +127,7 @@ class EmployeeAdvanceController extends Controller
         $loanAmount = 0;
 
         $loans = Loan::where('employee_id', $employeeId)
+            ->with('installments')
             ->where('status', 1)
             ->whereDate('from_pay_month', '<=', $monthEnd->format('Y-m-d'))
             ->whereDate('loan_ended', '>=', $monthStart->format('Y-m-d'))
@@ -138,7 +139,10 @@ class EmployeeAdvanceController extends Controller
             }
 
             $remainingLoanAmount = max(0, (float) $loan->amount - (float) $loan->received_amount);
-            $loanAmount += min((float) $loan->per_month_amount, $remainingLoanAmount);
+            $installment = $loan->nextPayableInstallment($monthStart);
+            $loanAmount += $installment
+                ? min((float) $installment->due_amount, $remainingLoanAmount)
+                : min((float) $loan->per_month_amount, $remainingLoanAmount);
         }
 
         return $loanAmount;

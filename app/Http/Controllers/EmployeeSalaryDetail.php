@@ -23,6 +23,7 @@ use App\Models\EmployeePayscaleDetail;
 use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\Loan;
+use App\Models\LoanInstallment;
 use App\Models\SalaryDeductionDetail;
 use App\Models\SalaryHeads;
 use App\Exports\SalarySlipExport;
@@ -1464,6 +1465,22 @@ class EmployeeSalaryDetail extends Controller
                         if ($deductionDetail->type == 'loan' && !empty($deductionDetail->reference_id)) {
                             $loan = Loan::find($deductionDetail->reference_id);
                             if ($loan) {
+                                $loanInstallment = LoanInstallment::where('salary_deduction_detail_id', $deductionDetail->id)
+                                    ->orWhere(function ($query) use ($loan, $salary) {
+                                        $query->where('loan_id', $loan->id)
+                                            ->where('salary_id', $salary->id);
+                                    })
+                                    ->first();
+
+                                if ($loanInstallment) {
+                                    $loanInstallment->paid_amount = max(0, (float) $loanInstallment->paid_amount - (float) $deductionDetail->amount);
+                                    $loanInstallment->status = 0;
+                                    $loanInstallment->salary_id = null;
+                                    $loanInstallment->salary_deduction_detail_id = null;
+                                    $loanInstallment->paid_at = null;
+                                    $loanInstallment->save();
+                                }
+
                                 $loan->received_amount = max(0, (float) $loan->received_amount - (float) $deductionDetail->amount);
                                 $loan->save();
                             }

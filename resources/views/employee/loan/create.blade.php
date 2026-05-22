@@ -208,7 +208,7 @@
         }
 
         // Calculate installment per month
-        var perMonth = loanAmount / payPeriod;
+        var perMonth = Math.round(loanAmount / payPeriod);
 
         // Set value with 2 decimal
         $('#permonth').val(perMonth.toFixed(2));

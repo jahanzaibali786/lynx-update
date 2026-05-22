@@ -60,7 +60,7 @@
                 }
             }
 
-            $('#permonth').val((amountForInstallment / installmentsForSchedule).toFixed(2));
+            $('#permonth').val(Math.round(amountForInstallment / installmentsForSchedule).toFixed(2));
         }
 
         function formatMonthValue(date) {

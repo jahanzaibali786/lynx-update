@@ -70,7 +70,7 @@
 
             validatePaidFromMonth(false);
 
-            var perMonthAmount = loanAmount / installments;
+            var perMonthAmount = Math.round(loanAmount / installments);
 
             for (var i = 1; i <= installments; i++) {
                 var installmentDate = new Date(paidFromDate);
