@@ -20,7 +20,7 @@
     <div class="row">
         <div class="form-group col-md-4">
             {{ Form::label('paymode', __('Paymode'), ['class' => 'form-label']) }}
-            {{ Form::select('paymode', $paymodes, $hasPayscale ? $selectedPaymode : '', ['class' => 'form-control', 'required']) }}
+            {{ Form::select('paymode', $paymodes, $hasPayscale ? $selectedPaymode : '', ['class' => 'form-control select custom-select', 'required']) }}
         </div>
 
         <div class="form-group col-md-4">
@@ -31,7 +31,7 @@
 
         <div class="form-group col-md-4">
             {{ Form::label('accounts', __('Bank'), ['class' => 'form-label']) }}
-            {{ Form::select('accounts', $accounts, $hasPayscale ? $lastPayscaleDetail->account_id : '', ['class' => 'form-control', 'required']) }}
+            {{ Form::select('accounts', $accounts, $hasPayscale ? $lastPayscaleDetail->account_id : '', ['class' => 'form-control select custom-select', 'required']) }}
         </div>
 
         <div class="form-group col-md-4">
@@ -41,7 +41,7 @@
                 $departments,
                 $hasPayscale ? $lastPayscaleDetail->department_id : $employee->department_id,
                 [
-                    'class' => 'form-control',
+                    'class' => 'form-control select custom-select',
                     'required',
                     'onchange' => 'departmentfunc(this.value)',
                 ],
@@ -56,7 +56,7 @@
             {{ Form::label('pay_scale', __('Pay Scale'), ['class' => 'form-label']) }}
             {{ Form::select('pay_scale', $payscales, $hasPayscale ? $lastPayscaleDetail->pay_scale_id : '', [
                 'id' => 'pay_scale',
-                'class' => 'form-control',
+                'class' => 'form-control select custom-select',
                 'required' => 'required',
                 'onchange' => 'payscalheads(this.value)',
             ]) }}
@@ -172,7 +172,7 @@
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('eobi_payable_account', __('EOBI Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('eobi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->eobi_payable_account : '', ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::select('eobi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->eobi_payable_account : '', ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         <div class="form-group col-md-2">
             {!! Form::label('pessi_percentage', __('PESSI %'), ['class' => 'form-label']) !!}
@@ -192,7 +192,7 @@
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('pessi_payable_account', __('PESSI Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('pessi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->pessi_payable_account : '', ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::select('pessi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->pessi_payable_account : '', ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         {{-- //calculate tax button --}}
         <div class="form-group col-md-2">
@@ -211,21 +211,29 @@
             {!! Form::label('prevtax', __('Prev. Tax'), ['class' => 'form-label']) !!}
             {{ Form::number('prevtax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->prevtax : '', ['class' => 'form-control', 'id' => 'prevtax', 'readonly' => 'readonly']) }}
         </div>
-        <div class="form-group col-md-4">
-            {!! Form::label('tax_payable_account', __('I.Tax Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('tax_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->tax_payable_account : '', ['class' => 'form-control', 'required' => 'required']) }}
+        <div class="form-group col-md-2">
+            {!! Form::label('salary_tax_received', __('Salary Tax'), ['class' => 'form-label']) !!}
+            {{ Form::number('salary_tax_received', '', ['class' => 'form-control', 'id' => 'salary_tax_received', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-2">
+            {!! Form::label('advance_tax_collection', __('Advance Tax'), ['class' => 'form-label']) !!}
+            {{ Form::number('advance_tax_collection', '', ['class' => 'form-control', 'id' => 'advance_tax_collection', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
+            {!! Form::label('tax_payable_account', __('I.Tax Payable Account'), ['class' => 'form-label']) !!}
+            {{ Form::select('tax_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->tax_payable_account : '', ['class' => 'form-control select custom-select', 'required' => 'required']) }}
+        </div>
+        <div class="form-group col-md-2">
             {!! Form::label('emp_sec_percentage', __('Emp Sec %'), ['class' => 'form-label']) !!}
             {{ Form::number('emp_sec_percentage', !empty($employee) ? @$employee->security : '', ['class' => 'form-control', 'id' => 'security_percentage']) }}
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-2">
             {!! Form::label('emp_sec', __('Emp Sec.'), ['class' => 'form-label']) !!}
             {{ Form::number('emp_sec', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->emp_sec : '0', ['class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly', 'id' => 'emp_sec']) }}
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('security_receive_account', __('Security Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('security_receive_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->security_receive_account : '', ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::select('security_receive_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->security_receive_account : '', ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_deduction', __('Other Deduction'), ['class' => 'form-label']) !!}
@@ -233,7 +241,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_dedu_payable_account', __('Deduction Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('other_dedu_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->other_dedu_payable_account : '', ['required' => 'required', 'class' => 'form-control']) }}
+            {{ Form::select('other_dedu_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->other_dedu_payable_account : '', ['required' => 'required', 'class' => 'form-control select custom-select']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance', __('Advance'), ['class' => 'form-label']) !!}
@@ -241,7 +249,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance_payable_account', __('Advance Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('advance_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->advance_payable_account : '', ['required' => 'required', 'class' => 'form-control']) }}
+            {{ Form::select('advance_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->advance_payable_account : '', ['required' => 'required', 'class' => 'form-control select custom-select']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net', __('Net'), ['class' => 'form-label']) !!}
@@ -249,7 +257,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net_payable_account', __('Net Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('net_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->net_payable_account : '', ['required' => 'required', 'class' => 'form-control', 'readonly' => 'readonly']) }}
+            {{ Form::select('net_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->net_payable_account : '', ['required' => 'required', 'class' => 'form-control select custom-select', 'readonly' => 'readonly']) }}
         </div>
     </div>
 </div>
@@ -272,11 +280,14 @@
 
 
     $(document).ready(function() {
+        initializeSalarySelectSearch();
+
         // Initialize event handlers once
         initializeEventHandlers();
 
         // When modal is shown, only call payscalheads ONCE per open
         $(document).on('shown.bs.modal', '.modal', function() {
+            initializeSalarySelectSearch(this);
             departmentfunc(
                 {{ $hasPayscale ? $lastPayscaleDetail->department_id : $employee->department_id }});
             // Call payscalheads only once per modal open
@@ -288,6 +299,40 @@
             $(this).off('.salaryForm');
         });
     });
+
+    function initializeSalarySelectSearch(scope) {
+        const activeModal = getCurrentModal();
+        const container = scope ? $(scope) : (activeModal.is(document) ? $('select[name="paymode"]').last().closest('form') : activeModal);
+
+        if (!container.length) {
+            return;
+        }
+
+        container.find('select').each(function() {
+            const select = $(this);
+
+            if ($.fn.select2 && select.hasClass('select2-hidden-accessible')) {
+                select.select2('destroy');
+            }
+
+            if (this.customSelectInstance) {
+                try {
+                    this.customSelectInstance.destroy();
+                } catch (e) {}
+                delete this.customSelectInstance;
+            }
+
+            if (select.next('.custom-select-wrapper').length) {
+                select.next('.custom-select-wrapper').remove();
+            }
+
+            select.removeClass('js-searchBox custom-search').addClass('select custom-select').show();
+
+            if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
+                this.customSelectInstance = window.CustomSelect.create(this);
+            }
+        });
+    }
 
     // Main initialization function
     function initializeEventHandlers() {
@@ -435,6 +480,8 @@
                 findInModal('#itax').val(data.permonthtax || 0);
                 findInModal('#totaltax').val(data.totaltax || 0);
                 findInModal('#prevtax').val(data.prevTax || 0);
+                findInModal('#salary_tax_received').val(data.salaryTaxReceived || 0);
+                findInModal('#advance_tax_collection').val(data.advanceTaxCollection || 0);
                 updateNet();
             },
             error: function(xhr, status, error) {
@@ -739,6 +786,7 @@
                         payScaleSelect.append($('<option></option>').attr('value', scale.id).text(
                             scale.title));
                     });
+                    initializeSalarySelectSearch(getCurrentModal());
                 }
             },
             error: function(xhr, status, error) {

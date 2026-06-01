@@ -2,13 +2,68 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdvanceTaxCollection;
 use App\Models\EmployeeMonthlySalary;
+use App\Models\EmployeePayscaleDetail;
 use App\Models\EmployeeScale;
 use App\Models\TaxSlab;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class TaxSlabsController extends Controller
 {
+    private function isCashPaymode($paymode)
+    {
+        return strtolower(trim((string) $paymode)) === 'cash';
+    }
+
+    private function isTaxableSalaryHead($headName)
+    {
+        return strtolower(trim((string) $headName)) !== 'medical allowance';
+    }
+
+    private function approvedAdvanceTaxCollection($employeeId, Carbon $fromDate, Carbon $toDate)
+    {
+        return (float) AdvanceTaxCollection::where('employee_id', $employeeId)
+            ->where('status', 1)
+            ->whereBetween('tax_month', [
+                $fromDate->copy()->startOfMonth()->format('Y-m-d'),
+                $toDate->copy()->endOfMonth()->format('Y-m-d'),
+            ])
+            ->sum('amount');
+    }
+
+    private function getEmployeeScalePaymode($employeeId, $scaleId)
+    {
+        $today = Carbon::now()->format('Y-m-d');
+        $query = EmployeePayscaleDetail::where('employee_id', $employeeId)
+            ->whereNotNull('paymode')
+            ->where('paymode', '!=', '')
+            ->where(function ($query) use ($today) {
+                $query->whereNull('effect_from')
+                    ->orWhereDate('effect_from', '<=', $today);
+            });
+
+        if (!empty($scaleId)) {
+            $scaleDetail = (clone $query)
+                ->where('pay_scale_id', $scaleId)
+                ->orderByRaw('effect_from IS NULL')
+                ->orderBy('effect_from', 'desc')
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if ($scaleDetail) {
+                return $scaleDetail->paymode;
+            }
+        }
+
+        return $query
+            ->orderByRaw('effect_from IS NULL')
+            ->orderBy('effect_from', 'desc')
+            ->orderBy('id', 'desc')
+            ->value('paymode');
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -141,6 +196,9 @@ class TaxSlabsController extends Controller
     public function calculateTax(Request $request)
     {
         $empScaleId = $request->empScaleId;
+        $currentPaymode = $this->getEmployeeScalePaymode($request->employee_id, $empScaleId);
+        $isCurrentCashPaymode = $this->isCashPaymode($currentPaymode);
+
         // -----------------------------
         // 1. EMPLOYEE SCALE
         // -----------------------------
@@ -157,12 +215,14 @@ class TaxSlabsController extends Controller
         // -----------------------------
         $monthlySalary = 0;
 
-        foreach ($empScale->employeeScaleHeads as $head) {
-            if (
-                $head->SalaryHeads &&
-                in_array($head->SalaryHeads->head, ['Initial Basic', 'House Rent'])
-            ) {
-                $monthlySalary += $head->head_value;
+        if (!$isCurrentCashPaymode) {
+            foreach ($empScale->employeeScaleHeads as $head) {
+                if (
+                    $head->SalaryHeads &&
+                    $this->isTaxableSalaryHead($head->SalaryHeads->head)
+                ) {
+                    $monthlySalary += $head->head_value;
+                }
             }
         }
         // previous scale additions
@@ -178,7 +238,7 @@ class TaxSlabsController extends Controller
 
             $otherAdditionsInSal = 0;
 
-            if ($lastscale) {
+            if ($lastscale && !$isCurrentCashPaymode) {
                 $otherAdditionsInSal =
                     ($lastscale->drns ?? 0) +
                     ($lastscale->conv ?? 0) +
@@ -223,6 +283,8 @@ class TaxSlabsController extends Controller
         // -----------------------------
 
         $prevSubmittedTax = 0;
+        $salaryTaxReceived = 0;
+        $advanceTaxCollection = 0;
         $prevSalAmnt = 0;
 
         if ($isRejoin) {
@@ -234,6 +296,11 @@ class TaxSlabsController extends Controller
             $months = $remainingMonths;
 
             $yearlySal = $monthlySalary * $months;
+            $fyStart = $currentMonth >= 7
+                ? Carbon::create(date('Y'), 7, 1)
+                : Carbon::create(date('Y') - 1, 7, 1);
+            $advanceTaxCollection = $this->approvedAdvanceTaxCollection($request->employee_id, $fyStart, Carbon::now());
+            $prevSubmittedTax += $advanceTaxCollection;
 
         } else {
 
@@ -242,8 +309,8 @@ class TaxSlabsController extends Controller
             // =============================
 
             $fyStart = $currentMonth >= 7
-                ? \Carbon\Carbon::create(date('Y'), 7, 1)
-                : \Carbon\Carbon::create(date('Y') - 1, 7, 1);
+                ? Carbon::create(date('Y'), 7, 1)
+                : Carbon::create(date('Y') - 1, 7, 1);
 
             $monthsPassed = $fyStart->diffInMonths(now()) + 1;
 
@@ -256,8 +323,16 @@ class TaxSlabsController extends Controller
                     $fyStart->startOfMonth(),
                     now()->subMonth()->endOfMonth()
                 ])
+                ->where(function ($query) {
+                    $query->whereNull('paymode')
+                        ->orWhereRaw('LOWER(TRIM(paymode)) != ?', ['cash']);
+                })
                 ->get();
                 // dd($previousPaidSal);
+            $salaryTaxReceived = (float) $previousPaidSal->sum('it');
+            $advanceTaxCollection = $this->approvedAdvanceTaxCollection($request->employee_id, $fyStart, Carbon::now());
+            $prevSubmittedTax = $salaryTaxReceived + $advanceTaxCollection;
+
             // last salary
                 $lastSalary = EmployeeMonthlySalary::with('scaleHeads')->where('employee_id', $request->employee_id)
                     ->orderBy('salary_date', 'desc')
@@ -276,8 +351,6 @@ class TaxSlabsController extends Controller
 
             foreach ($previousPaidSal as $sal) {
 
-                $prevSubmittedTax += $sal->it ?? 0;
-
                 // foreach ($sal->salary_heads as $head) {
                 //     if (
                 //         $head->SalaryHead &&
@@ -287,10 +360,10 @@ class TaxSlabsController extends Controller
                 //     }
                 // }
 
-                 foreach ($sal->scaleHeads as $head) {
+                 foreach ($sal->salary_heads as $head) {
                     if (
-                        $head->SalaryHeads &&
-                        in_array($head->SalaryHeads->head, ['Initial Basic', 'House Rent'])
+                        $head->SalaryHead &&
+                        $this->isTaxableSalaryHead($head->SalaryHead->head)
                     ) {
                         $prevSalAmnt += $head->head_value;
                     }
@@ -334,6 +407,23 @@ class TaxSlabsController extends Controller
             })
             ->first();
         if (!$taxSlabs) {
+            if ($isCurrentCashPaymode) {
+                return response()->json([
+                    'mode' => 'CASH_EXEMPT',
+                    'permonthtax' => 0,
+                    'totaltax' => 0,
+                    'prevTax' => round($prevSubmittedTax),
+                    'salaryTaxReceived' => round($salaryTaxReceived),
+                    'advanceTaxCollection' => round($advanceTaxCollection),
+                    'yearlySalary' => round($yearlySal),
+                    'months' => $months,
+                    'remainingMonths' => $remainingMonths,
+                    'gapMonths' => $gapMonths,
+                    'paymode' => $currentPaymode,
+                    'message' => 'Cash paymode is exempt from upcoming tax. Previous collected tax is shown.',
+                ]);
+            }
+
             return response()->json([
                 'error' => 'Tax slab not found for year ' . $currentYear
             ], 404);
@@ -371,14 +461,18 @@ class TaxSlabsController extends Controller
         // 10. RESPONSE
         // -----------------------------
         return response()->json([
-            'mode'          => $isRejoin ? 'REJOIN' : 'CONTINUE',
+            'mode'          => $isCurrentCashPaymode ? 'CASH_EXEMPT' : ($isRejoin ? 'REJOIN' : 'CONTINUE'),
             'permonthtax'   => round($perMonTax),
             'totaltax'      => round($totalTax + $taxSlabs->fixed_tax_amount),
             'prevTax'       => round($prevSubmittedTax),
+            'salaryTaxReceived' => round($salaryTaxReceived),
+            'advanceTaxCollection' => round($advanceTaxCollection),
             'yearlySalary'  => round($yearlySal),
             'months'        => $months,
             'remainingMonths' => $remainingMonths,
-            'gapMonths'     => $gapMonths
+            'gapMonths'     => $gapMonths,
+            'paymode'       => $currentPaymode,
+            'message'       => $isCurrentCashPaymode ? 'Cash paymode is exempt from upcoming tax. Previous collected tax is shown.' : null,
         ]);
     }
 }

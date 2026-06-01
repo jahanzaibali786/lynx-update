@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\SalarySheetExport;
+use App\Models\AdvanceTaxCollection;
 use App\Models\BankAccount;
 use App\Models\Department;
 use App\Models\Designation;
@@ -27,6 +28,27 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeMonthlySalaryAttendance extends Controller
 {
+    private function isCashPaymode($paymode)
+    {
+        return strtolower(trim((string) $paymode)) === 'cash';
+    }
+
+    private function isTaxableSalaryHead($headName)
+    {
+        return strtolower(trim((string) $headName)) !== 'medical allowance';
+    }
+
+    private function approvedAdvanceTaxCollection($employeeId, Carbon $fromDate, Carbon $toDate)
+    {
+        return (float) AdvanceTaxCollection::where('employee_id', $employeeId)
+            ->where('status', 1)
+            ->whereBetween('tax_month', [
+                $fromDate->copy()->startOfMonth()->format('Y-m-d'),
+                $toDate->copy()->endOfMonth()->format('Y-m-d'),
+            ])
+            ->sum('amount');
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -838,7 +860,8 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     otherAdds:     $addition,
                     workingDays:   $data->working_days,
                     monthDays:     $data->month_days,
-                    months:        $months
+                    months:        $months,
+                    paymode:       $lastPayscaleDetail->paymode
                 );
                 if($monthTax == 'noslab'){
                     return response()->json(['success' => false, 'message' => 'Tax slab not found for the year '.$taxYear.'. Please contact admin.']);
@@ -1099,8 +1122,12 @@ class EmployeeMonthlySalaryAttendance extends Controller
         float $otherAdds,
         int $workingDays,
         int $monthDays,
-        int $months
+        int $months,
+        $paymode = null
     ) {
+        if ($this->isCashPaymode($paymode)) {
+            return 0;
+        }
 
         // -----------------------------
         // 1. FISCAL YEAR SETUP
@@ -1119,9 +1146,14 @@ class EmployeeMonthlySalaryAttendance extends Controller
         $prevPaid = EmployeeMonthlySalary::with('salary_heads.SalaryHead')
             ->where('employee_id', $employee_id)
             ->whereBetween('salary_date', [$fyStart, $fyEnd])
+            ->where(function ($query) {
+                $query->whereNull('paymode')
+                    ->orWhereRaw('LOWER(TRIM(paymode)) != ?', ['cash']);
+            })
             ->get();
 
         $prevTaxPaid = (float) $prevPaid->sum('it');
+        $prevTaxPaid += $this->approvedAdvanceTaxCollection($employee_id, $fyStart, \Carbon\Carbon::parse($date));
 
         $prevOtherAdds = $prevPaid->sum(function ($s) {
             return
@@ -1143,10 +1175,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 //     }
                 // }
 
-                 foreach ($sal->scaleHeads as $head) {
+                 foreach ($sal->salary_heads as $head) {
                     if (
-                        $head->SalaryHeads &&
-                        in_array($head->SalaryHeads->head, ['Initial Basic', 'House Rent'])
+                        $head->SalaryHead &&
+                        $this->isTaxableSalaryHead($head->SalaryHead->head)
                     ) {
                         $prevSalAmnt += $head->head_value;
                     }
@@ -1168,7 +1200,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
         foreach ($scaleHeads as $head) {
             if (
                 $head->SalaryHeads &&
-                in_array($head->SalaryHeads->head, ['Initial Basic', 'House Rent'])
+                $this->isTaxableSalaryHead($head->SalaryHeads->head)
             ) {
                 $monthlyBase += $head->head_value;
             }
