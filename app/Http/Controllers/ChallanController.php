@@ -10,6 +10,7 @@ use App\Models\Classes;
 use App\Models\ClassSection;
 use App\Models\ClassWiseFee;
 use App\Models\Concession;
+use App\Models\ConcessionPolicy;
 use App\Models\ConcessionPolicyHead;
 use App\Models\EmpChildrens;
 use App\Models\Employee;
@@ -19,6 +20,8 @@ use App\Models\JournalItem;
 use App\Models\PreChallanReport;
 use App\Models\Session;
 use App\Models\StudentEnrollments;
+use App\Models\StudentFeeRevisionBatch;
+use App\Models\StudentFeeRevisionItem;
 use App\Models\StudentFeeStructure;
 use App\Models\StudentReceipt;
 use App\Models\StudentRegistration;
@@ -266,6 +269,585 @@ class ChallanController extends Controller
             return view('challans.regchallan', compact('challan', 'heads', 'previousUnpaidChallans', 'grandTotal', 'showJunJulExemptionLabel'));
         }
         return view('challans.nchallan', compact('challan', 'heads', 'previousUnpaidChallans', 'grandTotal', 'showJunJulExemptionLabel'));
+    }
+
+    public function legacyShow($id, Request $request)
+    {
+        $challan = Challans::with([
+            'heads.feeHead',
+            'branch',
+            'class',
+            'enrollstudent.session',
+            'enrollstudent.section',
+            'student.session',
+            'student.enrollment.session',
+            'student.enrollment.section',
+        ])->findOrFail($id);
+
+        $student = $challan->student;
+        $isIssued = strtolower((string) $challan->status) === 'issued';
+        $canEdit = Auth::user()->type === 'company' && $isIssued;
+        $canRollback = in_array(Auth::user()->type, ['company', 'super admin']) && $isIssued;
+        $editMode = $request->get('mode') === 'edit' && $canEdit;
+
+        $enrollSession = optional($challan->enrollstudent)->session;
+        $studentSession = optional($student)->session;
+        $defaultSessionId = $challan->session_id ?: optional($enrollSession)->id ?: optional($studentSession)->id;
+        $selectedSessionId = $request->input('session_id', $defaultSessionId);
+        $session = $selectedSessionId ? Session::find($selectedSessionId) : null;
+
+        $sessions = Session::where(function ($query) use ($challan) {
+            $query->where('owned_by', $challan->owned_by)
+                ->orWhere('created_by', $challan->created_by);
+        })
+            ->orderByDesc('id')
+            ->get()
+            ->pluck('year', 'id')
+            ->prepend('Select Session', '');
+
+        $revisionBatches = StudentFeeRevisionBatch::with([
+            'items.feehead',
+            'sessionFrom',
+            'sessionTo',
+            'branchFrom',
+            'branchTo',
+            'classFrom',
+            'classTo',
+        ])
+            ->where('reg_id', $challan->student_id)
+            ->when($selectedSessionId, function ($query) use ($selectedSessionId) {
+                $query->where(function ($q) use ($selectedSessionId) {
+                    $q->where('session_from_id', $selectedSessionId)
+                        ->orWhere('session_to_id', $selectedSessionId);
+                });
+            })
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
+            ->get();
+
+        $revisionOptionsByHead = collect();
+        foreach ($revisionBatches as $batch) {
+            foreach ($batch->items as $item) {
+                $revisionOptionsByHead->push([
+                    'head_id' => (int) $item->head_id,
+                    'head_name' => $item->feehead->fee_head ?? 'Head #' . $item->head_id,
+                    'value' => 'revision:' . $item->id,
+                    'label' => $batch->revision_type === 'branch_promotion' ? 'Branch Promotion' : 'Promotion',
+                    'context' => trim(($batch->sessionFrom->year ?? '-') . ' to ' . ($batch->sessionTo->year ?? '-')),
+                    'base_amount' => (float) ($item->new_base_amount ?? 0),
+                    'payable_amount' => (float) ($item->new_payable_amount ?? 0),
+                    'percentage' => (float) ($item->percentage ?? 0),
+                    'effective_from' => $batch->effective_from,
+                ]);
+            }
+        }
+
+        $revisionOptionsByHead = $revisionOptionsByHead->groupBy('head_id');
+        $challanHeadIds = $challan->heads->pluck('head_id');
+
+        $activeConcession = $this->activeConcessionForStudent($challan->student_id, $challan->fee_month);
+        $policyIds = collect([
+            $challan->concession_id,
+            optional($activeConcession)->concession_id,
+        ])->filter()->unique()->values();
+        $concessionPolicyTitles = $policyIds->isNotEmpty()
+            ? ConcessionPolicy::whereIn('id', $policyIds)->pluck('title', 'id')
+            : collect();
+        $concessionPolicyOptions = collect(['' => 'No Concession Policy'])->union($concessionPolicyTitles);
+        $selectedConcessionPolicyId = $request->input('concession_policy_id', $challan->concession_id ?: optional($activeConcession)->concession_id);
+        $concessionPolicies = $selectedConcessionPolicyId
+            ? ConcessionPolicyHead::where('concession_id', $selectedConcessionPolicyId)->pluck('percentage', 'head_id')
+            : collect();
+        $concessionPolicyPercentages = $policyIds->isNotEmpty()
+            ? ConcessionPolicyHead::whereIn('concession_id', $policyIds)
+                ->get()
+                ->groupBy('concession_id')
+                ->map(fn($rows) => $rows->pluck('percentage', 'head_id'))
+                ->toArray()
+            : [];
+
+        $currentStructureOptionsByHead = StudentFeeStructure::with('feehead')
+            ->where('reg_id', $challan->student_id)
+            ->where('checked_status', 1)
+            ->where(function ($query) use ($challan) {
+                $query->where('branch_id', $challan->owned_by)
+                    ->orWhere('owned_by', $challan->owned_by);
+            })
+            ->get()
+            ->mapWithKeys(function ($structure) use ($concessionPolicies) {
+                $baseAmount = (float) ($structure->amount ?? 0);
+                $payableAmount = $this->payableAmountFromPolicy(
+                    $baseAmount,
+                    (int) $structure->head_id,
+                    $concessionPolicies,
+                    (float) ($structure->discount ?? 0)
+                );
+
+                return [
+                    (int) $structure->head_id => [
+                        'head_id' => (int) $structure->head_id,
+                        'head_name' => $structure->feehead->fee_head ?? 'Head #' . $structure->head_id,
+                        'value' => 'structure:' . $structure->head_id,
+                        'label' => 'Current Student Structure',
+                        'context' => 'Checked active fee structure',
+                        'base_amount' => $baseAmount,
+                        'payable_amount' => $payableAmount,
+                        'percentage' => null,
+                        'effective_from' => null,
+                    ],
+                ];
+            });
+
+        $extraHeadIds = $revisionOptionsByHead->keys()
+            ->merge($currentStructureOptionsByHead->keys())
+            ->diff($challanHeadIds)
+            ->unique()
+            ->values();
+
+        $structureHistory = $challan->heads
+            ->map(function ($challanHead) use ($revisionOptionsByHead) {
+                $options = $revisionOptionsByHead->get((int) $challanHead->head_id, collect())->values();
+                $challanPayable = (float) (($challanHead->price ?? 0) - ($challanHead->concession ?? 0));
+                $matchedOption = $options->first(function ($option) use ($challanHead, $challanPayable) {
+                    return round((float) $option['base_amount'], 2) === round((float) ($challanHead->price ?? 0), 2)
+                        && round((float) $option['payable_amount'], 2) === round($challanPayable, 2);
+                });
+                $selected = $matchedOption['value'] ?? null;
+
+                return [
+                    'head_id' => (int) $challanHead->head_id,
+                    'head_name' => $challanHead->feeHead->fee_head ?? 'Head #' . $challanHead->head_id,
+                    'is_challan_head' => true,
+                    'checked' => true,
+                    'challan_base' => (float) ($challanHead->price ?? 0),
+                    'challan_payable' => $challanPayable,
+                    'paid' => (float) ($challanHead->paid ?? 0),
+                    'selected' => $selected,
+                    'options' => $options,
+                ];
+            })
+            ->values()
+            ->merge($extraHeadIds->map(function ($headId) use ($revisionOptionsByHead, $currentStructureOptionsByHead) {
+                $options = $revisionOptionsByHead->get((int) $headId, collect())->values();
+                $structureOption = $currentStructureOptionsByHead->get((int) $headId);
+
+                if ($structureOption) {
+                    $options = collect([$structureOption])->merge($options)->values();
+                }
+
+                $firstOption = $options->first();
+
+                return [
+                    'head_id' => (int) $headId,
+                    'head_name' => $firstOption['head_name'] ?? 'Head #' . $headId,
+                    'is_challan_head' => false,
+                    'checked' => false,
+                    'challan_base' => (float) ($structureOption['base_amount'] ?? 0),
+                    'challan_payable' => (float) ($structureOption['payable_amount'] ?? 0),
+                    'paid' => 0,
+                    'selected' => null,
+                    'options' => $options,
+                ];
+            }))
+            ->values();
+
+        $studentChallans = Challans::where('student_id', $challan->student_id)
+            ->orderByDesc('fee_month')
+            ->orderByDesc('id')
+            ->get();
+
+        $subscriptionLabel = $this->legacySubscriptionLabel($challan);
+
+        return view('students.challanlists.legacy_show', compact(
+            'challan',
+            'student',
+            'session',
+            'sessions',
+            'selectedSessionId',
+            'concessionPolicyOptions',
+            'selectedConcessionPolicyId',
+            'concessionPolicyPercentages',
+            'editMode',
+            'canEdit',
+            'canRollback',
+            'structureHistory',
+            'studentChallans',
+            'subscriptionLabel'
+        ));
+    }
+
+    public function legacyUpdate($id, Request $request)
+    {
+        $challan = Challans::with('heads.feeHead')->findOrFail($id);
+
+        if (Auth::user()->type !== 'company' || strtolower((string) $challan->status) !== 'issued') {
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'Only company users can edit issued challans from this page.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $challan->issue_date = $request->issue_date;
+            $challan->due_date = $request->due_date;
+            $challan->remarks = $request->remarks;
+            $challan->session_id = $request->session_id ?: $challan->session_id;
+            $challan->concession_id = $request->concession_policy_id ?: null;
+            $subscriptionMap = [
+                'monthly' => 1,
+                'bi-monthly' => 2,
+                'quarterly' => 3,
+                '4-monthly' => 4,
+                '5-monthly' => 5,
+                '6-monthly' => 6,
+                '7-monthly' => 7,
+                '8-monthly' => 8,
+                '9-monthly' => 9,
+                '10-monthly' => 10,
+                '11-monthly' => 11,
+                'yearly' => 12,
+            ];
+            $duration = $subscriptionMap[$request->fee_subscription] ?? 1;
+
+            if ($duration > 1) {
+                $startDate = $challan->fee_month
+                    ? Carbon::parse($challan->fee_month)
+                    : Carbon::parse($challan->issue_date);
+                $months = [];
+                for ($i = 0; $i < $duration; $i++) {
+                    $months[] = $startDate->copy()->addMonths($i)->format('Y-m-d');
+                }
+                $challan->other_months = implode(',', $months);
+            } else {
+                $challan->other_months = null;
+            }
+            $challan->save();
+
+            $selected = $request->input('selected_revision', []);
+            $checkedHeads = collect($request->input('checked_heads', []))->map(fn($headId) => (int) $headId)->unique()->values()->all();
+            $existingBaseAmounts = $request->input('existing_base_amount', []);
+            $existingPayableAmounts = $request->input('existing_payable_amount', []);
+            $selectedConcessionPolicies = $challan->concession_id
+                ? ConcessionPolicyHead::where('concession_id', $challan->concession_id)->pluck('percentage', 'head_id')
+                : collect();
+
+            $headsToRemove = ChallanHead::where('challan_id', $challan->id)
+                ->whereNotIn('head_id', $checkedHeads)
+                ->get();
+
+            foreach ($headsToRemove as $head) {
+                JournalItem::where('entry_id', $head->id)
+                    ->where('types', 'Challan')
+                    ->delete();
+                $head->delete();
+            }
+
+            if (empty($checkedHeads)) {
+                $challan->total_amount = 0;
+                $challan->concession_amount = 0;
+                $challan->paid_amount = 0;
+                $challan->status = 'paid';
+                $challan->save();
+
+                DB::commit();
+
+                return redirect()->route('challan.legacy_show', $challan->id)->with('success', 'Challan has been updated successfully.');
+            }
+
+            foreach ($checkedHeads as $headId) {
+                $headId = (int) $headId;
+                $choice = $selected[$headId] ?? null;
+                [$source, $sourceId] = array_pad(explode(':', (string) $choice, 2), 2, null);
+
+                if ($source === 'revision') {
+                    $item = StudentFeeRevisionItem::where('id', $sourceId)
+                        ->where('reg_id', $challan->student_id)
+                        ->where('head_id', $headId)
+                        ->first();
+
+                    if (!$item) {
+                        continue;
+                    }
+
+                    $unitGrossPrice = (float) $item->new_base_amount;
+                    $unitPayableAmount = $this->payableAmountFromPolicy(
+                        $unitGrossPrice,
+                        $headId,
+                        $selectedConcessionPolicies,
+                        0
+                    );
+                } else {
+                    $unitGrossPrice = isset($existingBaseAmounts[$headId])
+                        ? (float) $existingBaseAmounts[$headId]
+                        : null;
+                    $unitPayableAmount = isset($existingPayableAmounts[$headId])
+                        ? (float) $existingPayableAmounts[$headId]
+                        : null;
+
+                    if ($unitGrossPrice === null) {
+                        continue;
+                    }
+
+                    $unitPayableAmount = $this->payableAmountFromPolicy(
+                        $unitGrossPrice,
+                        $headId,
+                        $selectedConcessionPolicies,
+                        0
+                    );
+                }
+
+                $feeHead = FeeHead::find($headId);
+                $headName = strtolower($feeHead->fee_head ?? '');
+                $multiplier = (
+                    str_contains($headName, 'admission fee') ||
+                    str_contains($headName, 'annual fee') ||
+                    str_contains($headName, 'late fee')
+                ) ? 1 : $duration;
+
+                $grossPrice = $unitGrossPrice * $multiplier;
+                $payableAmount = $unitPayableAmount * $multiplier;
+                $concessionAmount = max(0, $grossPrice - $payableAmount);
+
+                $challanHead = ChallanHead::firstOrNew([
+                    'challan_id' => $challan->id,
+                    'head_id' => $headId,
+                ]);
+                $challanHead->price = $grossPrice;
+                $challanHead->concession = $concessionAmount;
+                $challanHead->paid = $challanHead->paid ?? 0;
+                $challanHead->save();
+
+                if ($feeHead) {
+                    $this->syncLegacyChallanJournalHead($challan, $challanHead, $feeHead, $grossPrice, $concessionAmount);
+                }
+            }
+
+            $challan->total_amount = ChallanHead::where('challan_id', $challan->id)->sum('price');
+            $challan->concession_amount = ChallanHead::where('challan_id', $challan->id)->sum('concession');
+            $challan->paid_amount = ChallanHead::where('challan_id', $challan->id)->sum('paid');
+            $challan->save();
+
+            DB::commit();
+
+            return redirect()->route('challan.legacy_show', $challan->id)->with('success', 'Challan fee amounts have been updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return redirect()->route('challan.legacy_show', ['id' => $challan->id, 'mode' => 'edit'])->with('error', $e->getMessage());
+        }
+    }
+
+    public function legacyRollback($id)
+    {
+        $challan = Challans::findOrFail($id);
+
+        if (!in_array(Auth::user()->type, ['company', 'super admin']) || strtolower((string) $challan->status) !== 'issued') {
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'Only issued challans can be rolled back.');
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($challan->voucher_id) {
+                JournalItem::where('journal', $challan->voucher_id)->delete();
+                JournalEntry::where('id', $challan->voucher_id)->where('voucher_type', 'JV')->delete();
+            }
+
+            ChallanHead::where('challan_id', $challan->id)->delete();
+            $challanType = $challan->challan_type;
+            $challan->delete();
+
+            DB::commit();
+
+            return redirect()->route($this->legacyChallanListRoute($challanType))->with('success', 'Challan rolled back successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return redirect()->route('challan.legacy_show', $id)->with('error', $e->getMessage());
+        }
+    }
+
+    private function activeConcessionForStudent($studentId, $asOfDate = null)
+    {
+        $date = $asOfDate ? Carbon::parse($asOfDate)->toDateString() : now()->toDateString();
+
+        return Concession::where('student_id', $studentId)
+            ->where('active_status', '!=', 0)
+            ->where('status', 'Approved')
+            ->where(function ($query) use ($date) {
+                $query->whereDate('end_date', '>=', $date)
+                    ->orWhereNull('end_date');
+            })
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    private function payableAmountFromPolicy(float $baseAmount, int $headId, $concessionPolicies, float $fallbackDiscount = 0): float
+    {
+        $percentage = $concessionPolicies->has($headId)
+            ? (float) $concessionPolicies->get($headId)
+            : $fallbackDiscount;
+
+        $discount = round(($baseAmount * $percentage) / 100);
+
+        return max(0, $baseAmount - $discount);
+    }
+
+    private function legacySubscriptionLabel(Challans $challan): string
+    {
+        $months = $challan->other_months
+            ? array_values(array_filter(array_map('trim', explode(',', $challan->other_months))))
+            : [];
+
+        $count = max(1, count($months));
+
+        return match ($count) {
+            2 => 'Bi-Monthly Fee Subscription',
+            3 => 'Quarterly Fee Subscription',
+            12 => 'Annual Fee Subscription',
+            default => $count === 1 ? 'Monthly Fee Subscription' : $count . ' Month Fee Subscription',
+        };
+    }
+
+    private function syncLegacyChallanJournalHead(Challans $challan, ChallanHead $challanHead, FeeHead $feeHead, float $grossPrice, float $concessionAmount): void
+    {
+        $journalEntry = $challan->voucher_id
+            ? JournalEntry::where('id', $challan->voucher_id)->where('voucher_type', 'JV')->first()
+            : null;
+
+        if (!$journalEntry) {
+            $journalEntry = JournalEntry::where('reference_id', $challan->id)->where('voucher_type', 'JV')->first();
+        }
+
+        if (!$journalEntry) {
+            return;
+        }
+
+        $student = $challan->student;
+        $studentName = optional($student)->stdname ?: '';
+        $rollNo = optional($student)->roll_no ?: ($challan->rollno ?? '');
+        $branchName = optional($challan->branch)->name ?: '';
+        $descriptionSuffix = ' Roll no ' . $rollNo . ' Challan no ' . $challan->challanNo . ' - ' . $studentName . ' - ' . $challan->fee_month . ' - ' . $branchName;
+
+        $regularItems = JournalItem::where('entry_id', $challanHead->id)
+            ->where('types', 'Challan')
+            ->where(function ($query) {
+                $query->where('is_discount', 0)->orWhereNull('is_discount');
+            })
+            ->get();
+
+        if ($regularItems->isEmpty()) {
+            if ($feeHead->account_id) {
+                $income = new JournalItem;
+                $income->entry_id = $challanHead->id;
+                $income->types = 'Challan';
+                $income->journal = $journalEntry->id;
+                $income->head = $feeHead->id;
+                $income->account = $feeHead->account_id;
+                $income->description = 'Income Account:' . $descriptionSuffix;
+                $income->credit = $grossPrice;
+                $income->debit = 0;
+                $income->user_type = 'Student';
+                $income->user_id = $challan->student_id;
+                $income->is_discount = 0;
+                $income->save();
+            }
+
+            if ($feeHead->receivable_account_id) {
+                $receivable = new JournalItem;
+                $receivable->entry_id = $challanHead->id;
+                $receivable->types = 'Challan';
+                $receivable->journal = $journalEntry->id;
+                $receivable->head = $feeHead->id;
+                $receivable->account = $feeHead->receivable_account_id;
+                $receivable->description = 'Account Receivable:' . $descriptionSuffix;
+                $receivable->credit = 0;
+                $receivable->debit = $grossPrice;
+                $receivable->user_type = 'Student';
+                $receivable->user_id = $challan->student_id;
+                $receivable->is_discount = 0;
+                $receivable->save();
+            }
+        } else {
+            foreach ($regularItems as $item) {
+                if ((float) $item->credit !== 0.0) {
+                    $item->credit = $grossPrice;
+                    $item->description = 'Income Account:' . $descriptionSuffix;
+                } else {
+                    $item->debit = $grossPrice;
+                    $item->description = 'Account Receivable:' . $descriptionSuffix;
+                }
+                $item->user_type = 'Student';
+                $item->user_id = $challan->student_id;
+                $item->branch_id = $challan->owned_by;
+                $item->save();
+            }
+        }
+
+        $discountItems = JournalItem::where('entry_id', $challanHead->id)
+            ->where('types', 'Challan')
+            ->where('is_discount', 1)
+            ->get();
+
+        if ($concessionAmount <= 0) {
+            foreach ($discountItems as $item) {
+                $item->delete();
+            }
+            return;
+        }
+
+        if ($discountItems->isEmpty()) {
+            if ($feeHead->discount_account_id) {
+                $discountIncome = new JournalItem;
+                $discountIncome->journal = $journalEntry->id;
+                $discountIncome->account = $feeHead->discount_account_id;
+                $discountIncome->head = $feeHead->id;
+                $discountIncome->description = 'Discount Allowed Income:' . $descriptionSuffix;
+                $discountIncome->user_id = $challan->student_id;
+                $discountIncome->user_type = 'Student';
+                $discountIncome->entry_id = $challanHead->id;
+                $discountIncome->types = 'Challan';
+                $discountIncome->is_discount = 1;
+                $discountIncome->credit = 0;
+                $discountIncome->debit = $concessionAmount;
+                $discountIncome->save();
+            }
+
+            if ($feeHead->receivable_account_id) {
+                $discountReceivable = new JournalItem;
+                $discountReceivable->journal = $journalEntry->id;
+                $discountReceivable->account = $feeHead->receivable_account_id;
+                $discountReceivable->head = $feeHead->id;
+                $discountReceivable->description = 'Discount Allowed Receivable:' . $descriptionSuffix;
+                $discountReceivable->user_id = $challan->student_id;
+                $discountReceivable->user_type = 'Student';
+                $discountReceivable->entry_id = $challanHead->id;
+                $discountReceivable->types = 'Challan';
+                $discountReceivable->is_discount = 1;
+                $discountReceivable->credit = $concessionAmount;
+                $discountReceivable->debit = 0;
+                $discountReceivable->save();
+            }
+            return;
+        }
+
+        foreach ($discountItems as $item) {
+            if ((float) $item->credit !== 0.0) {
+                $item->credit = $concessionAmount;
+                $item->description = 'Discount Allowed Receivable:' . $descriptionSuffix;
+            } else {
+                $item->debit = $concessionAmount;
+                $item->description = 'Discount Allowed Income:' . $descriptionSuffix;
+            }
+            $item->save();
+        }
+    }
+
+    private function legacyChallanListRoute(?string $challanType): string
+    {
+        return match ($challanType) {
+            'Admission' => 'admissionchallanlist',
+            'ReAdmission' => 'readmissionchallanlist',
+            'Registration' => 'registrationchallanlist',
+            default => 'regularchallanlist',
+        };
     }
 
 
@@ -1554,7 +2136,7 @@ class ChallanController extends Controller
             ->where(function ($q) {
                 $q->where('end_date', '>=', date('Y-m-d'))->orWhereNull('end_date');
             })
-            ->where('active_status',1)
+            ->where('active_status', 1)
             ->orderBy('end_date', 'desc')
             ->get()
             ->groupBy('student_id')
@@ -3024,17 +3606,26 @@ class ChallanController extends Controller
         }
 
         // ---------------- CLASS FILTER ----------------
+        // ---------------- CLASS FILTER ----------------
         if (!empty($request->class) && $request->class != 'all') {
 
+            // Fetch challans directly by class_id inside challans table
             $query->where('class_id', '=', $request->class);
+
+            // Fetch only students who have challans in this selected class
+            $studentIds = Challans::where('class_id', $request->class)
+                ->pluck('student_id')
+                ->unique()
+                ->toArray();
 
             $students = StudentRegistration::select(
                 \DB::raw('CONCAT(roll_no, " - ", stdname, " s/d/o ", fathername) AS stdname'),
                 'roll_no'
             )
-                ->where('class_id', '=', $request->class)
+                ->whereIn('id', $studentIds)
                 ->where('student_status', '!=', 'Registered')
-                ->get()->pluck('stdname', 'roll_no');
+                ->get()
+                ->pluck('stdname', 'roll_no');
 
             $students->prepend('All Students', 'all');
 

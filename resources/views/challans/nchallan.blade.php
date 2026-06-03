@@ -399,8 +399,8 @@
                         <tr>
                             <td class="challan-details-label">Class:</td>
                             <td class="challan-details-value">
-                                @if (@$challan->student->enrollment && @$challan->student->enrollment->class)
-                                    {{ @$challan->student->enrollment->class->name }}
+                                @if (@$challan->class && @$challan->class->name)
+                                    {{ @$challan->class->name }}
                                 @else
                                     NILL
                                 @endif

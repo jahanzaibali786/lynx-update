@@ -2135,6 +2135,9 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('/class-students', [ClassWiseFeeController::class, 'classStudents'])->name('class_students');
             Route::get('/challan/{id?}', [ChallanController::class, 'index'])->name('challan.index');
             Route::get('/challan/create/{id?}', [ChallanController::class, 'generate'])->name('challan.create');
+            Route::get('/challan/legacy-show/{id}', [ChallanController::class, 'legacyShow'])->name('challan.legacy_show');
+            Route::post('/challan/legacy-show/{id}', [ChallanController::class, 'legacyUpdate'])->name('challan.legacy_update');
+            Route::post('/challan/legacy-show/{id}/rollback', [ChallanController::class, 'legacyRollback'])->name('challan.legacy_rollback');
             Route::get('/challan/show/{id}', [ChallanController::class, 'show'])->name('challan.show');
             Route::post('/challan', [ChallanController::class, 'store'])->name('challan.store');
             Route::get('/challan-fine', [ChallanController::class, 'challanLateFine'])->name('challan.challanLateFine');
@@ -2227,6 +2230,9 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/studenttransferout', [StudentReportController::class, 'transferoutindex'])->name('transferout.index');
             Route::get('/studenttransferout/report', [StudentReportController::class, 'transferoutReport'])->name('transferout.report');
             Route::get('/classwisefeereport', [StudentReportController::class, 'classwisefeereportindex'])->name('classwisefeereport.index');
+            Route::get('/fee-revision-report', [StudentReportController::class, 'feeRevisionReport'])->name('fee_revision_report');
+            Route::post('/student-report/filter-students', [StudentReportController::class, 'reportFilterStudents'])->name('student_report.filter_students');
+            Route::get('/student-promotion-report', [StudentReportController::class, 'studentPromotionReport'])->name('student_promotion_report');
             Route::get('/classwisefee_structure_report/report', [StudentReportController::class, 'classwisefeeStructurereport'])->name('classwisefee_structure_report.report');
 
             Route::get('/admissionwithdrawalreport', [StudentReportController::class, 'admissionwithdrawal'])->name('admissionwithdrawal.index');

@@ -572,6 +572,11 @@
                                     data-bs-toggle="tooltip" data-bs-title="{{ __('View Challan') }}">
                                     <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                 </a>
+                                <a href="{{ route('challan.legacy_show', $challan->id) }}" target="_blank"
+                                    class="mx-1 btn btn-sm align-items-center btn-outline-secondary"
+                                    data-bs-toggle="tooltip" data-bs-title="{{ __('Legacy Challan View') }}">
+                                    <span class="btn-inner--icon"><i class="ti ti-layout-list"></i></span>
+                                </a>
                                 @if (
                                     (strtolower($challan->status) == 'issued' && \Auth::user()->type == 'super admin') ||
                                         \Auth::user()->type == 'company')

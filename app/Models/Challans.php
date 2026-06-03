@@ -38,6 +38,14 @@ class Challans extends Model
     {
         return $this->belongsTo(Classes::class, 'class_id', 'id');
     }
+    // public function section()
+    // {
+    //     return $this->belongsTo(Section::class, 'section_id', 'id');
+    // }
+    public function branch()
+    {
+        return $this->belongsTo(User::class, 'owned_by', 'id');
+    }
     public function heads()
     {
         return $this->hasMany(ChallanHead::class, 'challan_id', 'id');

@@ -217,13 +217,9 @@
                                                 </form>
                                             </li>
                                             <li>
-                                                <form method="get" action="{{ route('fee_structure.report') }}" target="_blank" style="display: inline;">
-                                                    @csrf
-                                                    <input type="hidden" name="print" value="pdf">
-                                                    <button type="submit" class="dropdown-item">
-                                                        <i class="ti ti-download me-2"></i>Pdf
-                                                    </button>
-                                                </form>
+                                                <button type="button" class="dropdown-item" onclick="printReport(); return false;">
+                                                    <i class="ti ti-download me-2"></i>Pdf
+                                                </button>
                                             </li>
                                         </ul>
                                     </div>
@@ -286,26 +282,29 @@
                     <thead>
                         <tr class="table_heads" style="background-color:grey; font-size:0.6rem;">
                             <th style="width:5%;">{{ __('Sr No') }}</th>
+                            <th style="width:10%;">{{ __('Session') }}</th>
                             <th style="width:10%;">{{ __('Class') }}</th>
                             @foreach ($heads as $head)
                                 <th style="width:10%;">{{ $head->fee_head }}</th>
                             @endforeach
                         </tr>
                         <tr class="tr" style="font-size:2rem; font-weight:600; padding:10px; background: #dcdcdc;">
-                            <td colspan="{{ count($heads) + 2 }}">
+                            <td colspan="{{ count($heads) + 3 }}">
                                 <strong>{{ $branches[$branchId] ?? 'All Branches' }}</strong> </td>
 
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($students as $session => $value)
-                            {{-- <tr  style="font-size:0.8rem;">
-                        <td colspan="{{count($heads) + 2}}" > <strong>{{ @$value[0]->session->year }}</strong> </td>
-                        
-                    </tr> --}}
+                            <tr class="tr" style="font-size:0.8rem; background:#f1f1f1; font-weight:600;">
+                                <td colspan="{{ count($heads) + 3 }}">
+                                    Session: {{ optional($value->first()->session)->year ?? '-' }}
+                                </td>
+                            </tr>
                             @foreach ($value->groupBy('class.name') as $className => $groupedStudents)
                                 <tr class="tr" style="font-size:0.8rem;">
                                     <td>{{ $i }}</td>
+                                    <td>{{ optional($groupedStudents->first()->session)->year ?? '-' }}</td>
                                     <td>{{ $className }}</td>
                                     @foreach ($heads as $head)
                                         @php

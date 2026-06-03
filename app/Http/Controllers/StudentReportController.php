@@ -23,6 +23,8 @@ use App\Exports\SessionWiseReportExport;
 use App\Exports\SessionMonthWiseReportExport;
 use App\Exports\StudentSecurityReportExport;
 use App\Exports\FeeReceiptSummaryExport;
+use App\Exports\StudentFeeRevisionReportExport;
+use App\Exports\StudentPromotionReportExport;
 use App\Exports\SessionBranchWiseReportExport;
 use App\Exports\SessionMonthWiseBranchReportExport;
 use App\Models\BankAccount;
@@ -34,6 +36,7 @@ use App\Models\ClassWiseFee;
 use App\Models\FeeHead;
 use App\Models\JournalItem;
 use App\Models\StudentPromotions;
+use App\Models\StudentFeeRevisionBatch;
 use App\Models\ConcessionPolicyHead;
 use App\Models\StudentFeeStructure;
 use App\Models\Concession;
@@ -373,6 +376,310 @@ class StudentReportController extends Controller
 
         return view('studentReports.class_wisefee_report', compact('heads', 'classes', 'branches', 'session'));
     }
+
+    public function feeRevisionReport(Request $request)
+    {
+        $user = \Auth::user();
+        $creatorId = $user->creatorId();
+        $ownedId = $user->ownedId();
+
+        if ($user->type == 'company') {
+            $branches = User::where('type', 'branch')
+                ->where('created_by', $creatorId)
+                ->pluck('name', 'id');
+            $branches->prepend($user->name, $user->id);
+        } else {
+            $branches = User::where('id', $ownedId)->pluck('name', 'id');
+        }
+        $branches->prepend('All Branches', 'all');
+
+        $sessions = Session::where('created_by', $creatorId)
+            ->pluck('year', 'id')
+            ->prepend('All Sessions', 'all');
+
+        $classes = Classes::where('created_by', $creatorId)
+            ->when($request->filled('branches') && $request->branches !== 'all', function ($q) use ($request) {
+                $q->where('owned_by', $request->branches);
+            })
+            ->pluck('name', 'id')
+            ->prepend('All Classes', 'all');
+
+        $students = StudentRegistration::where('created_by', $creatorId)
+            ->where('student_status', 'Enrolled')
+            ->where('active_status', 1)
+            ->when($user->type != 'company', fn($q) => $q->where('owned_by', $ownedId))
+            ->when($request->filled('branches') && $request->branches !== 'all', fn($q) => $q->where('owned_by', $request->branches))
+            ->when($request->filled('class') && $request->class !== 'all', function ($q) use ($request) {
+                $q->where('class_id', $request->class);
+            })
+            ->orderBy('stdname')
+            ->get()
+            ->mapWithKeys(function ($student) {
+                $label = trim(($student->roll_no ? $student->roll_no . ' - ' : '') . ($student->stdname ?? '') . ' s/d/o ' . ($student->fathername ?? ''));
+                return [$student->id => $label];
+            });
+        $students->prepend('Select Student', '');
+
+        $query = StudentFeeRevisionBatch::with([
+            'registration',
+            'student.class',
+            'student.section',
+            'student.branch',
+            'sessionFrom',
+            'sessionTo',
+            'branchFrom',
+            'branchTo',
+            'classFrom',
+            'classTo',
+            'sectionFrom',
+            'sectionTo',
+            'items.feehead',
+        ])->where('created_by', $creatorId);
+
+        if ($user->type != 'company') {
+            $query->where(function ($q) use ($ownedId) {
+                $q->where('owned_by', $ownedId)
+                    ->orWhere('branch_from_id', $ownedId)
+                    ->orWhere('branch_to_id', $ownedId);
+            });
+        }
+
+        if ($request->filled('student')) {
+            $query->where('reg_id', $request->student);
+        }
+
+        if ($request->filled('branches') && $request->branches !== 'all') {
+            $query->where(function ($q) use ($request) {
+                $q->where('branch_from_id', $request->branches)
+                    ->orWhere('branch_to_id', $request->branches)
+                    ->orWhere('owned_by', $request->branches);
+            });
+        }
+
+        if ($request->filled('class') && $request->class !== 'all') {
+            $query->where(function ($q) use ($request) {
+                $q->where('class_from_id', $request->class)
+                    ->orWhere('class_to_id', $request->class);
+            });
+        }
+
+        if ($request->filled('session_from_id') && $request->session_from_id !== 'all') {
+            $query->where('session_from_id', $request->session_from_id);
+        }
+
+        if ($request->filled('session_to_id') && $request->session_to_id !== 'all') {
+            $query->where('session_to_id', $request->session_to_id);
+        }
+
+        $report = $query
+            ->orderBy('effective_from', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $concessionHeadPercentages = Concession::with('policy_head')
+            ->whereIn('student_id', $report->pluck('reg_id')->filter()->unique()->all())
+            ->where('status', 'Approved')
+            ->where('active_status', 1)
+            ->where(function ($q) {
+                $q->where('end_date', '>=', date('Y-m-d'))
+                    ->orWhereNull('end_date');
+            })
+            ->orderByDesc('id')
+            ->get()
+            ->unique('student_id')
+            ->mapWithKeys(function ($concession) {
+                return [
+                    $concession->student_id => $concession->policy_head
+                        ->mapWithKeys(fn($head) => [$head->head_id => (float) $head->percentage])
+                        ->all(),
+                ];
+            })
+            ->all();
+
+        $studentDetail = $request->filled('student')
+            ? StudentRegistration::with(['enrollment.class', 'enrollment.section', 'enrollment.branch', 'class', 'section', 'branches'])
+                ->find($request->student)
+            : null;
+
+        $heads = FeeHead::where('created_by', $creatorId)->orderBy('id')->get();
+
+        $reportName = 'Student Fee Revision Report';
+
+        if ($request->export === 'excel') {
+            return Excel::download(
+                new StudentFeeRevisionReportExport($report, $branches, $reportName, $request->all(), $studentDetail, $heads, $concessionHeadPercentages),
+                'Student_Fee_Revision_Report.xlsx'
+            );
+        }
+
+        return view('studentReports.fee_revision_report', compact(
+            'branches',
+            'sessions',
+            'classes',
+            'students',
+            'studentDetail',
+            'heads',
+            'concessionHeadPercentages',
+            'report',
+            'reportName',
+            'request'
+        ));
+    }
+
+    public function reportFilterStudents(Request $request)
+    {
+        $user = \Auth::user();
+        $creatorId = $user->creatorId();
+        $ownedId = $user->ownedId();
+        $branchId = $request->input('branch_id');
+        $classId = $request->input('class_id');
+
+        $classes = Classes::where('created_by', $creatorId)
+            ->when($user->type != 'company', fn($q) => $q->where('owned_by', $ownedId))
+            ->when($branchId && $branchId !== 'all', fn($q) => $q->where('owned_by', $branchId))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $students = StudentRegistration::where('created_by', $creatorId)
+            ->where('student_status', 'Enrolled')
+            ->where('active_status', 1)
+            ->when($user->type != 'company', fn($q) => $q->where('owned_by', $ownedId))
+            ->when($branchId && $branchId !== 'all', fn($q) => $q->where('owned_by', $branchId))
+            ->when($classId && $classId !== 'all', fn($q) => $q->where('class_id', $classId))
+            ->orderBy('stdname')
+            ->get()
+            ->map(function ($student) {
+                return [
+                    'id' => $student->id,
+                    'name' => trim(($student->roll_no ? $student->roll_no . ' - ' : '') . ($student->stdname ?? '') . ' s/d/o ' . ($student->fathername ?? '')),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'status' => 'success',
+            'classes' => $classes,
+            'students' => $students,
+        ]);
+    }
+
+    public function studentPromotionReport(Request $request)
+    {
+        $user = \Auth::user();
+        $creatorId = $user->creatorId();
+        $ownedId = $user->ownedId();
+        $promotionType = $request->input('promotion_type', 'promotion');
+
+        if ($user->type == 'company') {
+            $branches = User::where('type', 'branch')->where('created_by', $creatorId)->pluck('name', 'id');
+            $branches->prepend($user->name, $user->id);
+        } else {
+            $branches = User::where('id', $ownedId)->pluck('name', 'id');
+        }
+        $branches->prepend('All Branches', 'all');
+
+        $sessions = Session::where('created_by', $creatorId)->pluck('year', 'id')->prepend('All Sessions', 'all');
+        $hasFilter = collect([
+            $request->input('session_from_id'),
+            $request->input('session_to_id'),
+            $request->input('branch_from'),
+            $request->input('branch_to'),
+            $request->input('class_from'),
+            $request->input('class_to'),
+        ])->contains(fn($value) => $value !== null && $value !== '' && $value !== 'all');
+
+        $classesFrom = Classes::where('created_by', $creatorId)
+            ->when($user->type != 'company', fn($q) => $q->where('owned_by', $ownedId))
+            ->when($request->filled('branch_from') && $request->branch_from !== 'all', fn($q) => $q->where('owned_by', $request->branch_from))
+            ->pluck('name', 'id')
+            ->prepend('All Classes', 'all');
+
+        $classesTo = Classes::where('created_by', $creatorId)
+            ->when($user->type != 'company', fn($q) => $q->where('owned_by', $ownedId))
+            ->when($promotionType === 'branch_promotion' && $request->filled('branch_to') && $request->branch_to !== 'all', fn($q) => $q->where('owned_by', $request->branch_to))
+            ->when($promotionType !== 'branch_promotion' && $request->filled('branch_from') && $request->branch_from !== 'all', fn($q) => $q->where('owned_by', $request->branch_from))
+            ->pluck('name', 'id')
+            ->prepend('All Classes', 'all');
+
+        $query = StudentPromotions::with([
+            'student.StudentRegistration',
+            'prevSession',
+            'newSession',
+            'classFrom',
+            'classTo',
+            'sectionFrom',
+            'sectionTo',
+            'branchFrom',
+            'branchTo',
+        ])->where('created_by', $creatorId);
+
+        if ($user->type != 'company') {
+            $query->where(function ($q) use ($ownedId) {
+                $q->where('owned_by', $ownedId)
+                    ->orWhere('branch_from', $ownedId)
+                    ->orWhere('branch_to', $ownedId);
+            });
+        }
+
+        if ($promotionType === 'branch_promotion') {
+            $query->whereColumn('branch_from', '!=', 'branch_to');
+        } else {
+            $query->whereColumn('branch_from', 'branch_to');
+        }
+
+        if ($request->filled('session_from_id') && $request->session_from_id !== 'all') {
+            $query->where('prev_session', $request->session_from_id);
+        }
+
+        if ($request->filled('session_to_id') && $request->session_to_id !== 'all') {
+            $query->where('new_session', $request->session_to_id);
+        }
+
+        if ($request->filled('branch_from') && $request->branch_from !== 'all') {
+            $query->where('branch_from', $request->branch_from);
+        }
+
+        if ($promotionType === 'branch_promotion' && $request->filled('branch_to') && $request->branch_to !== 'all') {
+            $query->where('branch_to', $request->branch_to);
+        }
+
+        if ($request->filled('class_from') && $request->class_from !== 'all') {
+            $query->where('class_from', $request->class_from);
+        }
+
+        if ($request->filled('class_to') && $request->class_to !== 'all') {
+            $query->where('class_to', $request->class_to);
+        }
+
+        $report = $hasFilter
+            ? $query->orderBy('branch_from')
+                ->orderBy('class_from')
+                ->orderBy('promotion_date', 'desc')
+                ->get()
+                ->groupBy(fn($row) => ($row->branch_from ?: 'unassigned') . '_' . ($row->class_from ?: 'unassigned') . '_' . ($row->class_to ?: 'unassigned'))
+            : collect();
+
+        $reportName = 'Student Promotion Report';
+
+        if ($request->export === 'excel') {
+            return Excel::download(
+                new StudentPromotionReportExport($report, $branches, $reportName, $request->all()),
+                'Student_Promotion_Report.xlsx'
+            );
+        }
+
+        return view('studentReports.student_promotion_report', compact(
+            'branches',
+            'sessions',
+            'classesFrom',
+            'classesTo',
+            'report',
+            'reportName',
+            'promotionType',
+            'request'
+        ));
+    }
+
     public function classwisefeeStructurereport(Request $request)
     {
         $heads = FeeHead::all();
@@ -3166,7 +3473,6 @@ class StudentReportController extends Controller
             ->orderBy('created_at', 'asc')
             ->orderBy('id', 'asc')
             ->get();
-
         // Group by challan number and fee_month to separate different months
         $challans = $challanItems->groupBy(function ($item) {
             $challan = $item->journalEntery->challan ?? null;
@@ -3180,6 +3486,14 @@ class StudentReportController extends Controller
             ->where('user_type', 'student')
             ->where('credit', '!=', 0)
             ->where('types', '!=', 'challan') // Exclude challan entries
+            ->where(function ($query) {
+                $query->whereHas('journalEntery.challan', function ($q) {
+                    $q->where('challan_type', '!=', 'Registration');
+                })
+                    ->orWhereHas('journalEntery.recipt.challan', function ($q) {
+                        $q->where('challan_type', '!=', 'Registration');
+                    });
+            })
             ->whereDate('created_at', '>=', $fromDate)
             ->whereDate('created_at', '<=', $toDate)
             ->with([
