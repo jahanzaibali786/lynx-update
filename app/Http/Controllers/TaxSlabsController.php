@@ -317,7 +317,7 @@ class TaxSlabsController extends Controller
             $months = $monthsPassed;
 
             // previous salary
-            $previousPaidSal = EmployeeMonthlySalary::with('salary_heads.SalaryHead', 'scaleHeads')
+            $previousPaidSal = EmployeeMonthlySalary::with('scaleHeads.salaryHeads')
                 ->where('employee_id', $request->employee_id)
                 ->whereBetween('salary_date', [
                     $fyStart->startOfMonth(),
@@ -348,24 +348,18 @@ class TaxSlabsController extends Controller
                         0
                     );
                 }
-
+            $monthlySalaryHeads = [];
+            $monthlySalaryTot = [];
             foreach ($previousPaidSal as $sal) {
 
-                // foreach ($sal->salary_heads as $head) {
-                //     if (
-                //         $head->SalaryHead &&
-                //         in_array($head->SalaryHead->head, ['Initial Basic', 'House Rent'])
-                //     ) {
-                //         $prevSalAmnt += $head->head_value;
-                //     }
-                // }
-
-                 foreach ($sal->salary_heads as $head) {
+                $monthTotal = 0;
+                foreach ($sal->scaleHeads as $head) {
                     if (
-                        $head->SalaryHead &&
-                        $this->isTaxableSalaryHead($head->SalaryHead->head)
+                        $head->salaryHeads &&
+                        $this->isTaxableSalaryHead($head->salaryHeads->head)
                     ) {
                         $prevSalAmnt += $head->head_value;
+                        $monthTotal += $head->head_value;
                     }
                 }
 
@@ -375,8 +369,12 @@ class TaxSlabsController extends Controller
                     ($sal->drns ?? 0) +
                     ($sal->other_add ?? 0) +
                     ($sal->chaild_con ?? 0);
-            }
+                $month = date('Y-m', strtotime($sal->salary_date));
 
+                $monthlySalaryHeads[$month] = ($monthlySalaryHeads[$month] ?? 0) + $monthTotal;
+                $monthlySalaryTot[$month] = ($monthlySalaryTot[$month] ?? 0) + $prevSalAmnt;
+            }
+            // dd($monthlySalaryHeads,$monthlySalaryTot);
             // projected future
             $futureMonths = $remainingMonths + $missingMonths;
 

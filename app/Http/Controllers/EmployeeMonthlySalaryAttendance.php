@@ -49,6 +49,55 @@ class EmployeeMonthlySalaryAttendance extends Controller
             ->sum('amount');
     }
 
+    private function firstSalaryEobiAmounts($employee, $lastPayscaleDetail, Carbon $salaryDate, $workingDays, $monthDays): array
+    {
+        $employeeEobi = (float) ($lastPayscaleDetail->eobi ?? 0);
+        $employerEobi = (float) ($lastPayscaleDetail->eobi_employer ?? 0);
+        $monthDays = (float) $monthDays;
+        $workingDays = (float) $workingDays;
+
+        if (empty($employee->company_doj) || $monthDays <= 0) {
+            return [
+                'employee' => round($employeeEobi),
+                'employer' => round($employerEobi),
+            ];
+        }
+
+        $joiningDate = Carbon::parse($employee->company_doj);
+        $salaryMonthStart = $salaryDate->copy()->startOfMonth();
+        $salaryMonthEnd = $salaryDate->copy()->endOfMonth();
+
+        $hasPreviousSalary = EmployeeMonthlySalary::where('employee_id', $employee->id)
+            ->whereDate('salary_date', '<', $salaryMonthStart->format('Y-m-d'))
+            ->exists();
+
+        $isJoiningMonthFirstSalary = !$hasPreviousSalary && $joiningDate->between($salaryMonthStart, $salaryMonthEnd);
+
+        if (!$isJoiningMonthFirstSalary) {
+            return [
+                'employee' => round($employeeEobi),
+                'employer' => round($employerEobi),
+            ];
+        }
+
+        $joiningMonthDays = min($monthDays, $joiningDate->copy()->startOfDay()->diffInDays($salaryMonthEnd) + 1);
+        $eligibleDays = min($workingDays, $joiningMonthDays);
+
+        if ($eligibleDays >= $monthDays) {
+            return [
+                'employee' => round($employeeEobi),
+                'employer' => round($employerEobi),
+            ];
+        }
+
+        $ratio = max(0, min(1, $eligibleDays / $monthDays));
+
+        return [
+            'employee' => round($employeeEobi * $ratio),
+            'employer' => round($employerEobi * $ratio),
+        ];
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -515,6 +564,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
             foreach ($rowIds as $id) {
                 $attendance = ModelsEmployeeMonthlySalaryAttendance::find($id);
+                if (!$attendance) {
+                    return response()->json(['error' => 'Attendance record not found for ID: ' . $id]);
+                }
+
                 $month = Carbon::parse($attendance->for_month_of)->month;
                 $year = Carbon::parse($attendance->for_month_of)->year;
                 $salary = EmployeeMonthlySalary::where('employee_id', $attendance->employee_id)
@@ -522,14 +575,16 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     ->whereYear('salary_date', $year)
                     ->first();
                 if ($salary) {
-                    return response()->json(['error' => 'Salary Generated For This Month. U can not unfinalize it.']);
+                    $employeeName = optional($attendance->employee)->name ?: $attendance->employee_id;
+                    $salaryMonth = Carbon::parse($salary->salary_date)->format('M-Y');
+                    return response()->json([
+                        'error' => "Salary already generated for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. Please delete/rollback the salary first, then unfinalize attendance.",
+                    ]);
                 }
-                if ($attendance) {
-                    $attendance->adm_final = 0;
-                    $attendance->save();
-                } else {
-                    return response()->json(['error' => 'Attendance record not found for ID: ' . $id]);
-                }
+
+                $attendance->accountant_finalize = 0;
+                $attendance->adm_final = 0;
+                $attendance->save();
             }
             return response()->json(['success' => true, 'message' => 'Attendance Unfinalized .']);
         } catch (\Exception $e) {
@@ -811,6 +866,15 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 }
                 $addition = $lastPayscaleDetail->other_add + $lastPayscaleDetail->conv + $lastPayscaleDetail->drns + $lastPayscaleDetail->misc + $lastPayscaleDetail->chaild_concession;
                 $grossSalary += $basicSalary + $addition;
+                $eobiAmounts = $this->firstSalaryEobiAmounts(
+                    $data->employee,
+                    $lastPayscaleDetail,
+                    $toDate,
+                    $data->working_days,
+                    $data->month_days
+                );
+                $employeeEobiAmount = $eobiAmounts['employee'];
+                $employerEobiAmount = $eobiAmounts['employer'];
 
                 $loanAmount = 0;
                 $securityLoanAmount = 0;
@@ -868,7 +932,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 }
                 // dd($monthTax, $data->employee_id, $taxYear, $daysInPeriod, $data->month_days, $payscalesauto->employeeScaleHeads, $addition);
 
-                 $deduction = $loanAmount + $securityLoanAmount + $advanceAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $lastPayscaleDetail->eobi + $lastPayscaleDetail->other_deduction;
+                 $deduction = $loanAmount + $securityLoanAmount + $advanceAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $employeeEobiAmount + $lastPayscaleDetail->other_deduction;
                 // dd($basicSalary, $grossSalary,$deduction);
                 $net_sal = ($grossSalary  - $deduction) > 0 ? ($grossSalary  - $deduction) : 0;
 
@@ -897,8 +961,8 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'pessi_employer' => $lastPayscaleDetail ? $lastPayscaleDetail->pessi_employer : '0',
                     'pessi' => $lastPayscaleDetail ? $lastPayscaleDetail->pessi : '0',
                     'it' => $monthTax ? $monthTax : '0',
-                    'eobi' => $lastPayscaleDetail ? $lastPayscaleDetail->eobi : '0',
-                    'eobi_employer' => $lastPayscaleDetail ? round($lastPayscaleDetail->eobi_employer) : '0',
+                    'eobi' => $employeeEobiAmount,
+                    'eobi_employer' => $employerEobiAmount,
                     'dedu' => $lastPayscaleDetail ? round($lastPayscaleDetail->other_deduction) : '0',
 				 	'emp_sec_loan' => $securityLoanAmount ? round($securityLoanAmount) : '0',
                     'tra_course' => 0,
@@ -1143,7 +1207,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
         // -----------------------------
         // 2. PREVIOUS SALARY (YTD)
         // -----------------------------
-        $prevPaid = EmployeeMonthlySalary::with('salary_heads.SalaryHead')
+        $prevPaid = EmployeeMonthlySalary::with('scaleHeads.salaryHeads')
             ->where('employee_id', $employee_id)
             ->whereBetween('salary_date', [$fyStart, $fyEnd])
             ->where(function ($query) {
@@ -1166,6 +1230,8 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
         foreach ($prevPaid as $sal) {
 
+                 foreach ($sal->scaleHeads as $head) {
+
                 // foreach ($sal->salary_heads as $head) {
                 //     if (
                 //         $head->SalaryHead &&
@@ -1174,11 +1240,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 //         $prevSalAmnt += $head->head_value;
                 //     }
                 // }
-
-                 foreach ($sal->salary_heads as $head) {
-                    if (
-                        $head->SalaryHead &&
-                        $this->isTaxableSalaryHead($head->SalaryHead->head)
+                 if (
+                        $head->salaryHeads &&
+                        $this->isTaxableSalaryHead($head->salaryHeads->head)
                     ) {
                         $prevSalAmnt += $head->head_value;
                     }

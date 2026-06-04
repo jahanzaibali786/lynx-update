@@ -477,6 +477,7 @@
             dataType: 'json',
             beforeSend: function() {},
             success: function(data) {
+            console.log('Tax calculation response:', data);
                 findInModal('#itax').val(data.permonthtax || 0);
                 findInModal('#totaltax').val(data.totaltax || 0);
                 findInModal('#prevtax').val(data.prevTax || 0);
