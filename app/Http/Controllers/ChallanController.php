@@ -332,7 +332,13 @@ class ChallanController extends Controller
                     'head_id' => (int) $item->head_id,
                     'head_name' => $item->feehead->fee_head ?? 'Head #' . $item->head_id,
                     'value' => 'revision:' . $item->id,
-                    'label' => $batch->revision_type === 'branch_promotion' ? 'Branch Promotion' : 'Promotion',
+                    'label' => match ($batch->revision_type) {
+                        'branch_promotion' => 'Branch Promotion',
+                        'manual_fee_structure' => 'Manual Fee Structure',
+                        'classwise_fee_structure' => 'Classwise Fee Structure',
+                        'promotion' => 'Promotion',
+                        default => ucwords(str_replace('_', ' ', (string) $batch->revision_type)),
+                    },
                     'context' => trim(($batch->sessionFrom->year ?? '-') . ' to ' . ($batch->sessionTo->year ?? '-')),
                     'base_amount' => (float) ($item->new_base_amount ?? 0),
                     'payable_amount' => (float) ($item->new_payable_amount ?? 0),
@@ -398,7 +404,46 @@ class ChallanController extends Controller
                 ];
             });
 
-        $extraHeadIds = $revisionOptionsByHead->keys()
+        $extraChallanHeadIds = $currentStructureOptionsByHead->keys()
+            ->diff($challanHeadIds)
+            ->unique()
+            ->values();
+
+        $challanHeadRows = $challan->heads
+            ->map(function ($challanHead) {
+                $challanPayable = (float) (($challanHead->price ?? 0) - ($challanHead->concession ?? 0));
+
+                return [
+                    'head_id' => (int) $challanHead->head_id,
+                    'head_name' => $challanHead->feeHead->fee_head ?? 'Head #' . $challanHead->head_id,
+                    'is_challan_head' => true,
+                    'checked' => true,
+                    'challan_base' => (float) ($challanHead->price ?? 0),
+                    'challan_payable' => $challanPayable,
+                    'paid' => (float) ($challanHead->paid ?? 0),
+                    'selected' => null,
+                    'options' => collect(),
+                ];
+            })
+            ->values()
+            ->merge($extraChallanHeadIds->map(function ($headId) use ($currentStructureOptionsByHead) {
+                $structureOption = $currentStructureOptionsByHead->get((int) $headId);
+
+                return [
+                    'head_id' => (int) $headId,
+                    'head_name' => $structureOption['head_name'] ?? 'Head #' . $headId,
+                    'is_challan_head' => false,
+                    'checked' => false,
+                    'challan_base' => (float) ($structureOption['base_amount'] ?? 0),
+                    'challan_payable' => (float) ($structureOption['payable_amount'] ?? 0),
+                    'paid' => 0,
+                    'selected' => null,
+                    'options' => collect([$structureOption])->filter()->values(),
+                ];
+            }))
+            ->values();
+
+        $extraHistoryHeadIds = $revisionOptionsByHead->keys()
             ->merge($currentStructureOptionsByHead->keys())
             ->diff($challanHeadIds)
             ->unique()
@@ -427,7 +472,7 @@ class ChallanController extends Controller
                 ];
             })
             ->values()
-            ->merge($extraHeadIds->map(function ($headId) use ($revisionOptionsByHead, $currentStructureOptionsByHead) {
+            ->merge($extraHistoryHeadIds->map(function ($headId) use ($revisionOptionsByHead, $currentStructureOptionsByHead) {
                 $options = $revisionOptionsByHead->get((int) $headId, collect())->values();
                 $structureOption = $currentStructureOptionsByHead->get((int) $headId);
 
@@ -470,6 +515,7 @@ class ChallanController extends Controller
             'editMode',
             'canEdit',
             'canRollback',
+            'challanHeadRows',
             'structureHistory',
             'studentChallans',
             'subscriptionLabel'

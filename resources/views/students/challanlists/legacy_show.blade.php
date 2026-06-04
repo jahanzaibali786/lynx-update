@@ -290,7 +290,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($structureHistory as $row)
+                                    @forelse ($challanHeadRows as $row)
                                         @php
                                             $selectedOption =
                                                 $row['options']->firstWhere('value', $row['selected']) ?:

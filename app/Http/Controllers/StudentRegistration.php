@@ -12,6 +12,8 @@ use App\Models\Registring_option;
 use App\Models\Section;
 use App\Models\StudentReceipt;
 use App\Models\Session;
+use App\Models\StudentFeeRevisionBatch;
+use App\Models\StudentFeeRevisionItem;
 use App\Models\StudentFeeStructure;
 use App\Models\User;
 use App\Models\StudentRegistration as ModelsStudentRegistration;
@@ -647,6 +649,8 @@ class StudentRegistration extends Controller
         } else if ($request->sectionName == 'section3') {
             \DB::beginTransaction();
             try {
+                $feeStructureBefore = $this->feeStructureAmountSnapshot($student);
+
                 if ($this->canShowJunJulFeeExempt($student)) {
                     $requestedExempt = !empty($sectionData['fee_exempt_jun_jul'])
                         && (string) $sectionData['fee_exempt_jun_jul'] === '1';
@@ -756,6 +760,7 @@ class StudentRegistration extends Controller
                 // dd($request->all());
 
                 $student->save();
+                $this->recordFeeStructureAmountHistory($student, $feeStructureBefore, 'manual_fee_structure', 'Manual fee structure update');
                 \DB::commit();
                 return response(['success' => 'Student Updated Successfully']);
             } catch (\Exception $e) {
@@ -791,6 +796,121 @@ class StudentRegistration extends Controller
         return (int) $today->year === (int) $admissionDate->year
             && (int) $today->month >= 1
             && (int) $today->month <= 5;
+    }
+
+    private function feeStructureAmountSnapshot(ModelsStudentRegistration $student)
+    {
+        $concessionPolicyHeads = $this->activeConcessionPolicyHeads($student->id);
+
+        return StudentFeeStructure::where('reg_id', $student->id)
+            ->where('owned_by', $student->owned_by)
+            ->get()
+            ->mapWithKeys(function ($structure) use ($concessionPolicyHeads) {
+                $baseAmount = (float) ($structure->amount ?? 0);
+
+                return [
+                    (int) $structure->head_id => [
+                        'structure_id' => $structure->id,
+                        'base_amount' => $baseAmount,
+                        'payable_amount' => $this->feeStructurePayableAmount(
+                            $baseAmount,
+                            (int) $structure->head_id,
+                            (float) ($structure->discount ?? 0),
+                            $concessionPolicyHeads
+                        ),
+                    ],
+                ];
+            });
+    }
+
+    private function activeConcessionPolicyHeads(int $studentId)
+    {
+        $concession = Concession::where('student_id', $studentId)
+            ->where('status', 'Approved')
+            ->where('active_status', 1)
+            ->where(function ($query) {
+                $query->where('end_date', '>=', date('Y-m-d'))
+                    ->orWhereNull('end_date');
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$concession) {
+            return collect();
+        }
+
+        return ConcessionPolicyHead::where('concession_id', $concession->concession_id)
+            ->pluck('percentage', 'head_id');
+    }
+
+    private function feeStructurePayableAmount(float $baseAmount, int $headId, float $structureDiscount, $concessionPolicyHeads): float
+    {
+        $discountPercentage = $concessionPolicyHeads->has($headId)
+            ? (float) $concessionPolicyHeads->get($headId)
+            : $structureDiscount;
+
+        return round($baseAmount - (($baseAmount * $discountPercentage) / 100));
+    }
+
+    private function recordFeeStructureAmountHistory(ModelsStudentRegistration $student, $before, string $revisionType, string $remarks): void
+    {
+        $after = $this->feeStructureAmountSnapshot($student);
+        $items = collect();
+
+        foreach ($after as $headId => $current) {
+            if (!$before->has($headId)) {
+                continue;
+            }
+
+            $previous = $before->get($headId);
+            $prevBase = (float) $previous['base_amount'];
+            $newBase = (float) $current['base_amount'];
+            $prevPayable = (float) $previous['payable_amount'];
+            $newPayable = (float) $current['payable_amount'];
+
+            if (round($prevBase, 2) === round($newBase, 2) && round($prevPayable, 2) === round($newPayable, 2)) {
+                continue;
+            }
+
+            $items->push([
+                'student_fee_structure_id' => $current['structure_id'],
+                'student_id' => optional($student->enrollment)->enrollId,
+                'reg_id' => $student->id,
+                'head_id' => $headId,
+                'percentage' => $prevBase > 0 ? round((($newBase - $prevBase) / $prevBase) * 100, 2) : 0,
+                'prev_base_amount' => $prevBase,
+                'new_base_amount' => $newBase,
+                'prev_payable_amount' => $prevPayable,
+                'new_payable_amount' => $newPayable,
+            ]);
+        }
+
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        $batch = StudentFeeRevisionBatch::create([
+            'revision_type' => $revisionType,
+            'student_id' => optional($student->enrollment)->enrollId,
+            'reg_id' => $student->id,
+            'session_from_id' => $student->session_id,
+            'session_to_id' => $student->session_id,
+            'branch_from_id' => $student->owned_by,
+            'branch_to_id' => $student->owned_by,
+            'class_from_id' => $student->class_id,
+            'class_to_id' => $student->class_id,
+            'section_from_id' => $student->section_id,
+            'section_to_id' => $student->section_id,
+            'effective_from' => date('Y-m-d'),
+            'status' => 'applied',
+            'remarks' => $remarks,
+            'owned_by' => $student->owned_by,
+            'created_by' => \Auth::user()->creatorId(),
+        ]);
+
+        foreach ($items as $item) {
+            StudentFeeRevisionItem::create(array_merge(['batch_id' => $batch->id], $item));
+        }
     }
 
     function challanNo()
