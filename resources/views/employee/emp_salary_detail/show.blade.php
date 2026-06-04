@@ -43,7 +43,6 @@
                 [
                     'class' => 'form-control select custom-select',
                     'required',
-                    'onchange' => 'departmentfunc(this.value)',
                 ],
             ) }}
             {{ Form::hidden('departmentid', $hasPayscale ? $lastPayscaleDetail->department_id : $employee->department_id, [
@@ -58,7 +57,6 @@
                 'id' => 'pay_scale',
                 'class' => 'form-control select custom-select',
                 'required' => 'required',
-                'onchange' => 'payscalheads(this.value)',
             ]) }}
         </div>
         <div class="form-group col-md-4">
@@ -285,17 +283,22 @@
         // Initialize event handlers once
         initializeEventHandlers();
 
-        // When modal is shown, only call payscalheads ONCE per open
-        $(document).on('shown.bs.modal', '.modal', function() {
+        $(document).off('shown.bs.modal.salaryFormModal').on('shown.bs.modal.salaryFormModal', '.modal', function() {
+            if (!$(this).find('input[name="employee_id"]').length) {
+                return;
+            }
+
             initializeSalarySelectSearch(this);
-            departmentfunc(
-                {{ $hasPayscale ? $lastPayscaleDetail->department_id : $employee->department_id }});
-            // Call payscalheads only once per modal open
+
+            if ($(this).data('salaryScaleHeadsLoaded')) {
+                return;
+            }
+
+            $(this).data('salaryScaleHeadsLoaded', true);
             payscalheads({{ $lastPayscaleDetail->pay_scale_id ?? '' }});
         });
 
-        // Clean up when modal is hidden
-        $(document).on('hidden.bs.modal', '.modal', function() {
+        $(document).off('hidden.bs.modal.salaryFormModal').on('hidden.bs.modal.salaryFormModal', '.modal', function() {
             $(this).off('.salaryForm');
         });
     });
@@ -401,6 +404,29 @@
         $(document).on('input.salaryFormGlobal', '#pessi_employer_percentage', function() {
             updatePessiEmployer();
         });
+
+        $(document).on('click.salaryFormGlobal', 'form input[type="submit"]', function(e) {
+            const form = $(this).closest('form');
+            if (form.find('input[name="employee_id"]').length && !validateRequiredSalaryDropdowns(form)) {
+                e.preventDefault();
+            }
+        });
+
+        $(document).on('submit.salaryFormGlobal', 'form', function(e) {
+            if ($(this).find('input[name="employee_id"]').length && !validateRequiredSalaryDropdowns($(this))) {
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        $(document).on('change.salaryFormGlobal', 'form select[required], form select[required="required"]', function() {
+            if ($(this).val()) {
+                $(this).next('.custom-select-wrapper').find('.custom-select-display').removeClass('is-invalid border border-danger');
+            }
+        });
+
+        document.removeEventListener('invalid', handleSalaryDropdownInvalid, true);
+        document.addEventListener('invalid', handleSalaryDropdownInvalid, true);
         //tax 
         // calculateTax();
         // Initial calculations
@@ -425,6 +451,61 @@
             return $(selector);
         }
         return element;
+    }
+
+    function salaryDropdownLabel(select) {
+        const label = select.closest('.form-group, .btn-box').find('label').first().text().replace('*', '').trim();
+        return label || select.attr('name') || 'required dropdown';
+    }
+
+    function showSalaryDropdownError(select) {
+        const label = salaryDropdownLabel(select);
+        const wrapper = select.next('.custom-select-wrapper');
+        const message = 'Please select ' + label + '.';
+        wrapper.find('.custom-select-display').addClass('is-invalid border border-danger');
+
+        if (typeof show_toastr === 'function') {
+            show_toastr('error', message, 'error');
+        } else {
+            alert(message);
+        }
+
+        if (wrapper.length && wrapper[0].scrollIntoView) {
+            wrapper[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    function validateRequiredSalaryDropdowns(scope) {
+        const container = scope && $(scope).length ? $(scope) : getCurrentModal();
+        let invalidSelect = null;
+
+        container.find('select[required], select[required="required"]').each(function() {
+            const select = $(this);
+            if (!select.val()) {
+                invalidSelect = select;
+                return false;
+            }
+        });
+
+        if (invalidSelect) {
+            showSalaryDropdownError(invalidSelect);
+            return false;
+        }
+
+        return true;
+    }
+
+    function handleSalaryDropdownInvalid(e) {
+        const select = $(e.target);
+        if (!select.is('select[required], select[required="required"]')) {
+            return;
+        }
+        if (!select.closest('form').find('input[name="employee_id"]').length) {
+            return;
+        }
+
+        e.preventDefault();
+        showSalaryDropdownError(select);
     }
 
     // Clear pay scale data
@@ -540,7 +621,7 @@
             return;
         }
         const securityPercentage = parseFloat(findInModal('#security_percentage').val()) || 0;
-        const securityValue = (basic_head_value * (securityPercentage / 100)).toFixed(2);
+        const securityValue = Math.round(basic_head_value * (securityPercentage / 100));
         findInModal('#emp_sec').val(securityValue);
 
         updateNet();
@@ -707,7 +788,7 @@
 
                     // Calculate and set security
                     const securityPercentage = parseFloat(findInModal('#security_percentage').val()) || 0;
-                    const securityValue = (initialBasicsValue * (securityPercentage / 100)).toFixed(2);
+                    const securityValue = Math.round(initialBasicsValue * (securityPercentage / 100));
                     securityElement.val(securityValue);
 
                     // Calculate net (gross - security - other deductions)
