@@ -8,14 +8,60 @@
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('Monthly Salary') }}</li>
 @endsection
+@push('css-page')
+    <style>
+        .attendance-summary-badges .badge {
+            font-size: 12px;
+            line-height: 1.4;
+            padding: 7px 10px;
+            font-weight: 600;
+        }
+    </style>
+@endpush
 
 @push('script-page')
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        let monthlySalaryProcessing = false;
+
+        function startMonthlySalaryAction(button, title) {
+            if (monthlySalaryProcessing) {
+                return false;
+            }
+
+            monthlySalaryProcessing = true;
+            $('.salary-action-btn').addClass('disabled').attr('aria-disabled', 'true');
+            $(button).data('original-html', $(button).html()).html('<span class="spinner-border spinner-border-sm me-1"></span> Processing...');
+
+            Swal.fire({
+                title: title || 'Processing...',
+                text: 'Please wait.',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => Swal.showLoading(),
+            });
+
+            return true;
+        }
+
+        function stopMonthlySalaryAction() {
+            monthlySalaryProcessing = false;
+            $('.salary-action-btn').each(function() {
+                $(this).removeClass('disabled').removeAttr('aria-disabled');
+                if ($(this).data('original-html')) {
+                    $(this).html($(this).data('original-html'));
+                    $(this).removeData('original-html');
+                }
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.generate-btn').forEach(function(button) {
                 button.addEventListener('click', function(event) {
                     event.preventDefault();
+                    if (monthlySalaryProcessing) {
+                        return;
+                    }
                     var checkedCheckboxes = document.querySelectorAll(
                         '.row-checkbox:checked'
                     );
@@ -30,6 +76,9 @@
                     var selectedDate = document.querySelector('#date').value;
                     formData.append('date', selectedDate);
                     if (checkedCheckboxes.length > 0) {
+                        if (!startMonthlySalaryAction(this, 'Generating salary...')) {
+                            return;
+                        }
                         $.ajax({
                             headers: {
                                 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -74,6 +123,9 @@
                                 }).then(() => {
                                     window.location.reload();
                                 });
+                            },
+                            complete: function() {
+                                stopMonthlySalaryAction();
                             }
                         });
                     } else {
@@ -89,6 +141,9 @@
             });
             document.querySelector('.hold-unhold-btn').addEventListener('click', function(event) {
                 event.preventDefault();
+                if (monthlySalaryProcessing) {
+                    return;
+                }
                 var checkedCheckboxes = document.querySelectorAll(
                     '.row-checkbox:checked'
                 );
@@ -102,6 +157,9 @@
                 var selectedDate = document.querySelector('#date').value;
                 formData.append('date', selectedDate);
                 if (checkedCheckboxes.length > 0) {
+                    if (!startMonthlySalaryAction(this, 'Processing hold/unhold...')) {
+                        return;
+                    }
                     $.ajax({
                         headers: {
                             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -146,6 +204,9 @@
                             }).then(() => {
                                 window.location.reload();
                             });
+                        },
+                        complete: function() {
+                            stopMonthlySalaryAction();
                         }
                     });
                 } else {
@@ -160,6 +221,9 @@
             });
             document.querySelector('.delete-salary-btn').addEventListener('click', function(event) {
                 event.preventDefault();
+                if (monthlySalaryProcessing) {
+                    return;
+                }
                 var checkedCheckboxes = document.querySelectorAll(
     '.row-checkbox:checked'
 );
@@ -173,6 +237,9 @@
                 var selectedDate = document.querySelector('#date').value;
                 formData.append('date', selectedDate);
                 if (checkedCheckboxes.length > 0) {
+                    if (!startMonthlySalaryAction(this, 'Rolling back salary...')) {
+                        return;
+                    }
                     $.ajax({
                         headers: {
                             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -217,6 +284,9 @@
                             }).then(() => {
                                 window.location.reload();
                             });
+                        },
+                        complete: function() {
+                            stopMonthlySalaryAction();
                         }
                     });
                 } else {
@@ -232,6 +302,9 @@
 
             document.querySelector('.pay-salary-btn').addEventListener('click', function(event) {
                 event.preventDefault();
+                if (monthlySalaryProcessing) {
+                    return;
+                }
                 var checkedCheckboxes = document.querySelectorAll(
     '.row-checkbox:checked'
 );
@@ -245,6 +318,9 @@
                 var selectedDate = document.querySelector('#date').value;
                 formData.append('date', selectedDate);
                 if (checkedCheckboxes.length > 0) {
+                    if (!startMonthlySalaryAction(this, 'Processing salary payment...')) {
+                        return;
+                    }
                     $.ajax({
                         headers: {
                             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -290,6 +366,9 @@
                             }).then(() => {
                                 window.location.reload();
                             });
+                        },
+                        complete: function() {
+                            stopMonthlySalaryAction();
                         }
                     });
                 } else {
@@ -304,21 +383,41 @@
             });
         });
         // Check/uncheck all checkboxes
-        document.getElementById('check-all').addEventListener('change', function(event) {
-            var checkboxes = document.querySelectorAll('.row-checkbox');
-            checkboxes.forEach(function(checkbox) {
-                checkbox.checked = event.target.checked;
+        if (document.getElementById('check-all')) {
+            document.getElementById('check-all').addEventListener('change', function(event) {
+                var checkboxes = document.querySelectorAll('.row-checkbox');
+                checkboxes.forEach(function(checkbox) {
+                    checkbox.checked = event.target.checked;
+                });
             });
-        });
-        document.getElementById('sal-finalize-btn').addEventListener('click', function(event) {
-            event.preventDefault();
+        }
+        function collectSelectedSalaryRows() {
+            if (monthlySalaryProcessing) {
+                return [];
+            }
             var checkedRows = [];
             var checkboxes = document.querySelectorAll('.row-checkbox:checked');
+            var selectedDate = document.querySelector('#date') ? document.querySelector('#date').value : '';
             checkboxes.forEach(function(checkbox) {
-                checkedRows.push(checkbox.value);
+                checkedRows.push({
+                    id: checkbox.dataset.id || '',
+                    employee_id: checkbox.dataset.employeeId || checkbox.value,
+                    date: checkbox.dataset.date || selectedDate
+                });
             });
+            return checkedRows;
+        }
+
+        function submitSalaryFinalAction(button, action) {
+            var checkedRows = collectSelectedSalaryRows();
+            var selectedDate = document.querySelector('#date') ? document.querySelector('#date').value : '';
+            var isUnfinalize = action === 'unfinalize';
+
 
             if (checkedRows.length > 0) {
+                if (!startMonthlySalaryAction(button, isUnfinalize ? 'Unfinalizing salary...' : 'Finalizing salary...')) {
+                    return;
+                }
                 $.ajax({
                     headers: {
                         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -326,14 +425,16 @@
                     url: "{{ route('finalize_salary') }}",
                     type: "POST",
                     data: {
-                        rows: checkedRows
+                        rows: checkedRows,
+                        date: selectedDate,
+                        action: action || 'finalize'
                     },
                     success: function(result) {
                         if (result.success) {
                             // alert(result.message);
                             Swal.fire({
                                 icon: 'success',
-                                title: 'Salary Finalized',
+                                title: isUnfinalize ? 'Salary UnFinalized' : 'Salary Finalized',
                                 text: result.message,
                                 confirmButtonText: 'OK',
                             }).then(() => {
@@ -350,6 +451,16 @@
                                 window.location.reload();
                             });
                         }
+                    },
+                    error: function(xhr, status, error) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Request Failed',
+                            text: error || 'Check console for details.',
+                        });
+                    },
+                    complete: function() {
+                        stopMonthlySalaryAction();
                     }
                 });
             } else {
@@ -357,11 +468,25 @@
                 Swal.fire({
                     icon: 'warning',
                     title: 'No Rows Selected',
-                    text: 'Please select at least one row to finalize.',
+                    text: isUnfinalize ? 'Please select at least one row to unfinalize.' : 'Please select at least one row to finalize.',
                     confirmButtonText: 'OK',
                 });
             }
-        });
+        }
+
+        if (document.getElementById('sal-finalize-btn')) {
+            document.getElementById('sal-finalize-btn').addEventListener('click', function(event) {
+                event.preventDefault();
+                submitSalaryFinalAction(this, 'finalize');
+            });
+        }
+
+        if (document.getElementById('sal-unfinalize-btn')) {
+            document.getElementById('sal-unfinalize-btn').addEventListener('click', function(event) {
+                event.preventDefault();
+                submitSalaryFinalAction(this, 'unfinalize');
+            });
+        }
     </script>
     <script>
         function generatedeductionsheet() {
@@ -742,6 +867,15 @@
     </div>
 @endsection
 @section('content')
+    @php
+        $salaryRowsTotal = $datas->count();
+        $salaryGeneratedCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary))->count();
+        $salaryPendingCount = $datas->filter(fn($row) => empty($row->employeemonthlysalary))->count();
+        $salaryUnpaidCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'unpaid')->count();
+        $salaryPaidCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'paid')->count();
+        $salaryFinalCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && $row->employeemonthlysalary->sal_final)->count();
+        $salaryHoldCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && $row->employeemonthlysalary->on_hold)->count();
+    @endphp
     {{-- @if (\Auth::user()->type == 'company') --}}
     <div class="row">
         <div class="col-sm-12">
@@ -756,19 +890,19 @@
                                     {{ Form::select('branches', $branchesList, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select']) }}
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                            <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('department_id', __('Department'), ['class' => 'form-label']) }}
                                     {{ Form::select('department_id', $departments, isset($_GET['department_id']) ? $_GET['department_id'] : '', ['class' => 'form-control select']) }}
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                            <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('designation_id', __('Designation'), ['class' => 'form-label']) }}
                                     {{ Form::select('designation_id', $designations, isset($_GET['designation_id']) ? $_GET['designation_id'] : '', ['class' => 'form-control select']) }}
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                            <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {!! Form::label('paymode', __('Paymode'), ['class' => 'form-label']) !!}
                                     {{ Form::select(
@@ -787,43 +921,60 @@
                                     ) }}
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                            <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}
                                     {{ Form::date('date', $date ?? now()->format('Y-m-d'), ['class' => 'form-control', 'id' => 'date']) }}
                                 </div>
                             </div>
-                            <div class="col-auto float-end ms-2 mt-4">
-                                <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
-                                    onclick="document.getElementById('employee_submit').submit(); return false;"
-                                    data-bs-toggle="tooltip" data-bs-toggle="{{ __('Apply') }}">
-                                    <span class="btn-inner--icon">Search</span>
-                                </a>
-                                <a href="#" class="btn mx-1 btn-sm btn-outline-success generate-btn"
-                                    data-bs-toggle="tooltip" data-bs-title="Generate">
-                                    <span class="btn-inner--icon">Generate</span>
-                                </a>
-                                <a href="#" class="btn mx-1 btn-sm btn-outline-warning hold-unhold-btn"
-                                    data-bs-toggle="tooltip" data-bs-title="Hold / UnHold">
-                                    <span class="btn-inner--icon">Hold / UnHold</span>
-                                </a>
-                                <a href="#" class="btn mx-1 btn-sm btn-outline-danger pay-salary-btn"
-                                    data-bs-toggle="tooltip" data-bs-title="Pay Salary">
-                                    <span class="btn-inner--icon">Pay Salary</span>
-                                </a>
-                                <a href="#" class="btn mx-1 btn-sm btn-outline-danger delete-salary-btn"
-                                    data-bs-toggle="tooltip" data-bs-title="RollBack Salary">
-                                    <span class="btn-inner--icon">RollBack Salary</span>
-                                </a>
-                                <a id="sal-finalize-btn" href="#" class="btn mx-1 btn-sm btn-outline-warning"
-                                    data-bs-title="UnFinalize / RollBack">
-                                    <span class="btn-inner--icon">Finalize</span>
-                                </a>
-                                {{-- <a href="{{ route('emp-month-sal-attendance.index') }}"
-                                    class="btn mx-1 btn-sm btn-outline-danger" data-bs-toggle="tooltip"
-                                    data-bs-title="{{ __('Reset') }}">
-                                    <span class="btn-inner--icon"><i class="ti ti-trash-off"></i></span>
-                                </a> --}}
+                            <div class="col-12 mt-4">
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <div class="d-flex flex-wrap align-items-center gap-1 attendance-summary-badges">
+                                        <span class="badge bg-secondary">{{ __('Total Rows') }}: {{ $salaryRowsTotal }}</span>
+                                        <span class="badge bg-light text-dark">{{ __('Pending Generate') }}: {{ $salaryPendingCount }}</span>
+                                        <span class="badge bg-info">{{ __('Generated') }}: {{ $salaryGeneratedCount }}</span>
+                                        <span class="badge bg-warning text-dark">{{ __('Unpaid') }}: {{ $salaryUnpaidCount }}</span>
+                                        <span class="badge bg-success">{{ __('Paid') }}: {{ $salaryPaidCount }}</span>
+                                        <span class="badge bg-primary">{{ __('Final') }}: {{ $salaryFinalCount }}</span>
+                                        <span class="badge bg-danger">{{ __('On Hold') }}: {{ $salaryHoldCount }}</span>
+                                    </div>
+                                    <div class="d-flex flex-wrap align-items-center justify-content-end gap-1">
+                                        <a href="#" class="btn btn-sm btn-outline-primary"
+                                            onclick="document.getElementById('employee_submit').submit(); return false;"
+                                            data-bs-toggle="tooltip" data-bs-toggle="{{ __('Apply') }}">
+                                            <span class="btn-inner--icon">Search</span>
+                                        </a>
+                                        <a href="#" class="btn btn-sm btn-outline-success generate-btn salary-action-btn"
+                                            data-bs-toggle="tooltip" data-bs-title="Generate">
+                                            <span class="btn-inner--icon">Generate</span>
+                                        </a>
+                                        <a href="#" class="btn btn-sm btn-outline-warning hold-unhold-btn salary-action-btn"
+                                            data-bs-toggle="tooltip" data-bs-title="Hold / UnHold">
+                                            <span class="btn-inner--icon">Hold / UnHold</span>
+                                        </a>
+                                        <a href="#" class="btn btn-sm btn-outline-danger pay-salary-btn salary-action-btn"
+                                            data-bs-toggle="tooltip" data-bs-title="Pay Salary">
+                                            <span class="btn-inner--icon">Pay Salary</span>
+                                        </a>
+                                        <a href="#" class="btn btn-sm btn-outline-danger delete-salary-btn salary-action-btn"
+                                            data-bs-toggle="tooltip" data-bs-title="RollBack Salary">
+                                            <span class="btn-inner--icon">RollBack Salary</span>
+                                        </a>
+                                        <a id="sal-finalize-btn" href="#" class="btn btn-sm btn-outline-warning salary-action-btn"
+                                            data-bs-toggle="tooltip" data-bs-title="Finalize Salary">
+                                            <span class="btn-inner--icon">Finalize</span>
+                                        </a>
+                                        <a id="sal-unfinalize-btn" href="#" class="btn btn-sm btn-outline-secondary salary-action-btn"
+                                            data-bs-toggle="tooltip" data-bs-title="UnFinalize Salary">
+                                            <span class="btn-inner--icon">UnFinalize</span>
+                                        </a>
+                                        {{-- <a href="{{ route('emp-month-sal-attendance.index') }}"
+                                            class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip"
+                                            data-bs-title="{{ __('Reset') }}">
+                                            <span class="btn-inner--icon"><i class="ti ti-trash-off"></i></span>
+                                        </a> --}}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         {{ Form::close() }}
@@ -874,6 +1025,7 @@
                         <th>{{ __('SalFinal') }}</th>
                         <th>{{ __('GmFinal') }}</th>
                         <th>{{ __('On Hold') }}</th>
+                        <th>{{ __('Status') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -900,7 +1052,9 @@
                             <td>
                                 <input type="checkbox" name="employee_ids[]" class="row-checkbox"
                                     value="{{ optional($data->employee)->id }}"
-                                    data-employee-id="{{ $data->employee->id }}">
+                                    data-id="{{ $data->id }}"
+                                    data-employee-id="{{ optional($data->employee)->id }}"
+                                    data-date="{{ $data->for_month_of }}">
                             </td>
                             <td>{{ $loop->iteration }}</td>
                             <td class="font-style">
@@ -994,6 +1148,21 @@ foreach ($heads as $scale_head) {
                             <td><input type="checkbox" name="onhold"
                                     {{ !empty($data) && @$data->employeemonthlysalary->on_hold == 1 ? 'checked' : '' }}
                                     disabled></td>
+                            <td>
+                                @if (!empty($data->employeemonthlysalary) && $data->employeemonthlysalary->on_hold == 1)
+                                    <span class="badge bg-danger">{{ __('On Hold') }}</span>
+                                @elseif (!empty($data->employeemonthlysalary) && $data->employeemonthlysalary->sal_final == 1)
+                                    <span class="badge bg-primary">{{ __('Final') }}</span>
+                                @elseif (!empty($data->employeemonthlysalary) && trim(strtolower($data->employeemonthlysalary->status ?? '')) == 'paid')
+                                    <span class="badge bg-success">{{ __('Paid') }}</span>
+                                @elseif (!empty($data->employeemonthlysalary) && trim(strtolower($data->employeemonthlysalary->status ?? '')) == 'unpaid')
+                                    <span class="badge bg-warning text-dark">{{ __('Unpaid') }}</span>
+                                @elseif (!empty($data->employeemonthlysalary))
+                                    <span class="badge bg-info">{{ __('Generated') }}</span>
+                                @else
+                                    <span class="badge bg-light text-dark">{{ __('Pending Generate') }}</span>
+                                @endif
+                            </td>
                             {{-- <td> <a href="#" data-url="{{route('salary.payments',$data->id)}}" data-ajax-popup="true" data-bs-toggle="{{__('Monthly Salary Pay')}}" class="mx-1 btn mx-1 btn-sm btn-outline-primary"  data-bs-title="{{__('Monthly Salary Pay')}}" data-bs-title="{{__('Monthly Salary Pay')}}">
                                 <span class="btn-inner--icon">Pay</span>
                                 </a></td> --}}

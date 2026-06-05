@@ -6,17 +6,65 @@
 <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
 <li class="breadcrumb-item">{{__('Final Attendance')}}</li>
 @endsection
+@push('css-page')
+<style>
+    .attendance-summary-badges .badge {
+        font-size: 12px;
+        line-height: 1.4;
+        padding: 7px 10px;
+        font-weight: 600;
+    }
+</style>
+@endpush
 @push('script-page')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-     document.getElementById('check-all').addEventListener('change', function (event) {
+     let finalAttendanceProcessing = false;
+
+     function startFinalAttendanceAction(button, title) {
+        if (finalAttendanceProcessing) {
+            return false;
+        }
+
+        finalAttendanceProcessing = true;
+        $('.attendance-action-btn').addClass('disabled').attr('aria-disabled', 'true');
+        $(button).data('original-html', $(button).html()).html('<span class="spinner-border spinner-border-sm me-1"></span> Processing...');
+
+        Swal.fire({
+            title: title || 'Processing...',
+            text: 'Please wait.',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => Swal.showLoading(),
+        });
+
+        return true;
+     }
+
+     function stopFinalAttendanceAction() {
+        finalAttendanceProcessing = false;
+        $('.attendance-action-btn').each(function() {
+            $(this).removeClass('disabled').removeAttr('aria-disabled');
+            if ($(this).data('original-html')) {
+                $(this).html($(this).data('original-html'));
+                $(this).removeData('original-html');
+            }
+        });
+     }
+
+     if (document.getElementById('check-all')) {
+        document.getElementById('check-all').addEventListener('change', function (event) {
             var checkboxes = document.querySelectorAll('.row-checkbox');
             checkboxes.forEach(function (checkbox) {
                 checkbox.checked = event.target.checked;
             });
         });
+     }
         document.getElementById('adm-finalize-btn').addEventListener('click', function (event) {
             event.preventDefault();
+            if (finalAttendanceProcessing) {
+                return;
+            }
             var checkedRows = [];
             var checkboxes = document.querySelectorAll('.row-checkbox:checked');
             checkboxes.forEach(function (checkbox) {
@@ -24,6 +72,9 @@
             });
 
             if (checkedRows.length > 0) {
+                if (!startFinalAttendanceAction(this, 'Approving attendance...')) {
+                    return;
+                }
                 $.ajax({
                     headers: {
                         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -53,6 +104,16 @@
                             window.location.reload();
                         });
                         }
+                    },
+                    error: function(xhr, status, error) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Request Failed',
+                            text: error || 'Check console for details.',
+                        });
+                    },
+                    complete: function() {
+                        stopFinalAttendanceAction();
                     }
                 });
             } else {
@@ -67,6 +128,9 @@
         });
         document.getElementById('adm-unfinalize-btn').addEventListener('click', function (event) {
             event.preventDefault();
+            if (finalAttendanceProcessing) {
+                return;
+            }
             var checkedRows = [];
             var checkboxes = document.querySelectorAll('.row-checkbox:checked');
             checkboxes.forEach(function (checkbox) {
@@ -74,6 +138,9 @@
             });
 
             if (checkedRows.length > 0) {
+                if (!startFinalAttendanceAction(this, 'Rolling back attendance...')) {
+                    return;
+                }
                 $.ajax({
                     headers: {
                         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -105,6 +172,16 @@
                                 window.location.reload();
                             });
                         }
+                    },
+                    error: function(xhr, status, error) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Request Failed',
+                            text: error || 'Check console for details.',
+                        });
+                    },
+                    complete: function() {
+                        stopFinalAttendanceAction();
                     }
                 });
             } else {
@@ -120,6 +197,13 @@
 </script>
 @endpush
 @section('content')
+@php
+    $finalAttendanceTotal = $datas->count();
+    $finalAttendancePending = $datas->where('adm_final', 0)->count();
+    $finalAttendanceApproved = $datas->where('adm_final', 1)->count();
+    $finalAttendanceSalaryFinal = $datas->where('sal_final', 1)->count();
+    $finalAttendanceGmFinal = $datas->where('gm_final', 1)->count();
+@endphp
 {{-- @if(\Auth::user()->type == 'company') --}}
 <div class="row">
     <div class="col-sm-12">
@@ -152,19 +236,30 @@
                                 {{ Form::date('date', $date ?? now()->format('Y-m-d'), ['class' => 'form-control']) }}
                             </div>
                         </div>
-                        <div class="col-auto float-end ms-2 mt-4">
-                            <a id="adm-finalize-btn" href="#" class="btn mx-1 btn-sm btn-outline-warning"  data-bs-title="Finalize">
-                                <span class="btn-inner--icon">Finalize</span>
-                            </a>
-                    <a id="adm-unfinalize-btn" href="#" class="btn mx-1 btn-sm btn-outline-warning"  data-bs-title="UnFinalize / RollBack">
-                                <span class="btn-inner--icon">UnFinalize / RollBack</span>
-                            </a>
-                        <a href="#" class="btn mx-1 btn-sm btn-outline-primary" onclick="document.getElementById('employee_submit').submit(); return false;"  data-bs-title="{{ __('Apply') }}">
-                            <span class="btn-inner--icon">Search</span>
-                        </a>
-                        <a href="{{ route('final_attendance') }}" class="btn mx-1 btn-sm btn-outline-danger"  data-bs-title="{{ __('Reset') }}">
-                            <span class="btn-inner--icon">Clear</span>
-                        </a>
+                        <div class="col-12 mt-4">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <div class="d-flex flex-wrap align-items-center gap-1 attendance-summary-badges">
+                                    <span class="badge bg-secondary">{{ __('Total Rows') }}: {{ $finalAttendanceTotal }}</span>
+                                    <span class="badge bg-light text-dark">{{ __('Pending Admin') }}: {{ $finalAttendancePending }}</span>
+                                    <span class="badge bg-warning text-dark">{{ __('Approved/Fwd') }}: {{ $finalAttendanceApproved }}</span>
+                                    <span class="badge bg-primary">{{ __('Salary Final') }}: {{ $finalAttendanceSalaryFinal }}</span>
+                                    <span class="badge bg-success">{{ __('GM Final') }}: {{ $finalAttendanceGmFinal }}</span>
+                                </div>
+                                <div class="d-flex flex-wrap align-items-center justify-content-end gap-1">
+                                    <a id="adm-finalize-btn" href="#" class="btn btn-sm btn-outline-warning attendance-action-btn"  data-bs-title="Finalize">
+                                        <span class="btn-inner--icon">Finalize</span>
+                                    </a>
+                                    <a id="adm-unfinalize-btn" href="#" class="btn btn-sm btn-outline-warning attendance-action-btn"  data-bs-title="UnFinalize / RollBack">
+                                        <span class="btn-inner--icon">UnFinalize / RollBack</span>
+                                    </a>
+                                    <a href="#" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('employee_submit').submit(); return false;"  data-bs-title="{{ __('Apply') }}">
+                                        <span class="btn-inner--icon">Search</span>
+                                    </a>
+                                    <a href="{{ route('final_attendance') }}" class="btn btn-sm btn-outline-danger"  data-bs-title="{{ __('Reset') }}">
+                                        <span class="btn-inner--icon">Clear</span>
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {{ Form::close() }}
@@ -174,6 +269,7 @@
     </div>
 </div>
 {{-- @endif --}}
+
 @if($datas->isNotEmpty())
 <div class="table-responsive">
     <table class="">
@@ -189,6 +285,7 @@
                 <th>{{__('GmFinal')}}</th>
                 <th>{{__('SalFinal')}}</th>
                 <th>{{__('Fwd to Admin')}}</th>
+                <th>{{__('Status')}}</th>
                 <th><input type="checkbox" id="check-all"></th>
             </tr>
         </thead>
@@ -216,6 +313,17 @@
                 <td><input type="checkbox" name="gmfinal" {{ !empty($data) && $data->gm_final == 1 ? 'checked' : '' }} disabled></td>
                 <td><input type="checkbox" name="salfinal" {{ !empty($data) && $data->sal_final == 1 ? 'checked' : '' }} disabled></td>
                 <td><input type="checkbox" name="admfinal" value="{{ $data->id }}" class="adm-checkbox" {{ !empty($data) && $data->adm_final == 1 ? 'checked' : '' }} {{ !empty($data) && $data->adm_final== 1 || $data->adm_final== 0 ? 'disabled' : '' }} ></td>
+                <td>
+                    @if (!empty($data) && $data->gm_final == 1)
+                        <span class="badge bg-success">{{ __('GM Final') }}</span>
+                    @elseif (!empty($data) && $data->sal_final == 1)
+                        <span class="badge bg-primary">{{ __('Salary Final') }}</span>
+                    @elseif (!empty($data) && $data->adm_final == 1)
+                        <span class="badge bg-warning text-dark">{{ __('Approved/Fwd') }}</span>
+                    @else
+                        <span class="badge bg-light text-dark">{{ __('Pending Admin') }}</span>
+                    @endif
+                </td>
                 <td><input type="checkbox" class="row-checkbox" value="{{ $data->id }}"></td>
             </tr>
             @endforeach

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\SalaryAttendanceExport;
+use App\Exports\SalaryAttendancePdfExport;
 use App\Exports\SalarySheetExport;
 use App\Models\AdvanceTaxCollection;
 use App\Models\BankAccount;
@@ -98,6 +100,47 @@ class EmployeeMonthlySalaryAttendance extends Controller
         ];
     }
 
+    private function salaryAttendanceQuery(Request $request)
+    {
+        $date = $request->input('date');
+        $department_id = $request->input('department_id');
+        $designation_id = $request->input('designation_id');
+        $branches = $request->input('branches');
+        $toDate = $date ? Carbon::parse($date)->endOfDay() : now()->endOfMonth();
+
+        $query = ModelsEmployeeMonthlySalaryAttendance::with([
+            'employee',
+            'employee.department',
+            'employee.designation',
+        ])
+            ->whereYear('for_month_of', $toDate->year)
+            ->whereMonth('for_month_of', $toDate->month);
+
+        if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
+            $query->where('created_by', '=', \Auth::user()->creatorId());
+        } else {
+            $query->where('owned_by', '=', \Auth::user()->ownedId());
+        }
+
+        if ($department_id && $department_id != 'all') {
+            $query->whereHas('employee', function ($query) use ($department_id) {
+                $query->where('department_id', $department_id);
+            });
+        }
+
+        if ($branches && $branches != null) {
+            $query->where('owned_by', $branches);
+        }
+
+        if ($designation_id && $designation_id != 'all') {
+            $query->whereHas('employee', function ($query) use ($designation_id) {
+                $query->where('designation_id', $designation_id);
+            });
+        }
+
+        return $query;
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -133,46 +176,29 @@ class EmployeeMonthlySalaryAttendance extends Controller
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $designations->prepend('All', 'all');
         }
-        if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
-            $query = ModelsEmployeeMonthlySalaryAttendance::with('employee')
-                ->whereYear('for_month_of', $toDate->year)
-                ->whereMonth('for_month_of', $toDate->month)
-                ->where('created_by', '=', \Auth::user()->creatorId());
-        } else {
-            $query = ModelsEmployeeMonthlySalaryAttendance::with('employee')
-                ->whereYear('for_month_of', $toDate->year)
-                ->whereMonth('for_month_of', $toDate->month)
-                ->where('owned_by', '=', \Auth::user()->ownedId());
-        }
-                // dd($query->where('employee_id',867)->get());
-        // dd($toDate,$fromDate,$query->get());
-        // $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
-            // dd($branches);
-            if ($date) {
-                $query->whereYear('for_month_of', $toDate->year)
-                    ->whereMonth('for_month_of', $toDate->month);
-            }
-            if ($department_id && $department_id != 'all') {
-                $query->whereHas('employee', function ($query) use ($department_id) {
-                    $query->where('department_id', $department_id);
-                });
-            }
-
-            if ($branches && $branches != null) {
-                // $query->whereHas('employee', function ($query) use ($branches) {
-                    $query->where('owned_by', $branches);
-                // });
-            }
-            if ($designation_id && $designation_id != 'all') {
-                $query->whereHas('employee', function ($query) use ($designation_id) {
-                    $query->where('designation_id', $designation_id);
-                });
-            }
-        }
-        $datas = $query->get();
+        $datas = $this->salaryAttendanceQuery($request)->get();
 
         return view('employee.monthly_salary_attendance.index', compact('branchesList', 'date', 'datas', 'designations', 'departments'));
+    }
+
+    public function export_salary_attendance(Request $request)
+    {
+        $reportType = $request->input('report_type') === 'details' ? 'details' : 'summary';
+        $datas = $this->salaryAttendanceQuery($request)->get();
+
+        if ($request->input('export_type') === 'pdf') {
+            return Excel::download(
+                new SalaryAttendanceExport($datas, $request->all(), $reportType),
+                'salary_attendance_' . $reportType . '.pdf',
+                \Maatwebsite\Excel\Excel::MPDF
+            );
+        }
+
+        return Excel::download(
+            new SalaryAttendanceExport($datas, $request->all(), $reportType),
+            'salary_attendance_' . $reportType . '.xlsx',
+            \Maatwebsite\Excel\Excel::XLSX
+        );
     }
 
 
@@ -425,13 +451,20 @@ class EmployeeMonthlySalaryAttendance extends Controller
         //     'employeemonthlysalary.salaryheads.SalaryHead',
         // ])->where('adm_final', 1)->where('id', $id)->first();
         $employeesalary = EmployeeMonthlySalary::with('employee', 'employee.designation', 'employee.department', 'employee.employee_payscale_details')->where('id', $id)->first();
-        $attendanceMonth = Carbon::parse($employeesalary->salary_date)->month;
         if (empty($employeesalary)) {
             return redirect()->route('emp-month-sal-attendance.index')->with('error', 'Salary not found.')->withInput();
         }
+        $attendanceMonth = Carbon::parse($employeesalary->salary_date)->month;
+        $attendanceYear = Carbon::parse($employeesalary->salary_date)->year;
+        $salaryAttendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $employeesalary->employee_id)
+            ->whereMonth('for_month_of', $attendanceMonth)
+            ->whereYear('for_month_of', $attendanceYear)
+            ->first();
+        $salaryEditable = trim(strtolower($employeesalary->status ?? 'unpaid')) === 'unpaid'
+            && (int) optional($salaryAttendance)->gm_final !== 1;
         $arrears = \App\Models\EmployeeMonthlySalary::where('employee_id', $employeesalary->employee_id)->whereMonth('salary_date', '<', $attendanceMonth)
             ->where('status', 'unpaid')->get();
-        return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears'));
+        return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears', 'salaryEditable'));
     }
     public function final_attendance(Request $request)
     {
@@ -577,9 +610,17 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 if ($salary) {
                     $employeeName = optional($attendance->employee)->name ?: $attendance->employee_id;
                     $salaryMonth = Carbon::parse($salary->salary_date)->format('M-Y');
-                    return response()->json([
-                        'error' => "Salary already generated for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. Please delete/rollback the salary first, then unfinalize attendance.",
-                    ]);
+                    if (trim(strtolower($salary->status ?? 'unpaid')) === 'paid') {
+                        return response()->json([
+                            'error' => "Salary already paid for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. Paid salary cannot be unfinalized.",
+                        ]);
+                    }
+
+                    if ((int) $salary->sal_final === 1 || (int) $attendance->gm_final === 1) {
+                        return response()->json([
+                            'error' => "Salary is finalized for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. Please unfinalize salary first.",
+                        ]);
+                    }
                 }
 
                 $attendance->accountant_finalize = 0;
@@ -1361,6 +1402,20 @@ class EmployeeMonthlySalaryAttendance extends Controller
     public function update(Request $request, $id)
     {
         $emp_sal = EmployeeMonthlySalary::findOrFail($id);
+        $salaryDate = Carbon::parse($emp_sal->salary_date);
+        $salaryAttendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $emp_sal->employee_id)
+            ->whereMonth('for_month_of', $salaryDate->month)
+            ->whereYear('for_month_of', $salaryDate->year)
+            ->first();
+
+        if (trim(strtolower($emp_sal->status ?? 'unpaid')) !== 'unpaid') {
+            return redirect()->back()->with('error', 'Paid salary can not be edited.');
+        }
+
+        if ((int) optional($salaryAttendance)->gm_final === 1) {
+            return redirect()->back()->with('error', 'GM finalized salary can not be edited. Please unfinalize salary first.');
+        }
+
         $emp_sal->conv = $request->conv ? $request->conv : '0';
         $emp_sal->chaild_con = $request->chaild_concession ? $request->chaild_concession : '0';
         $emp_sal->drns = $request->drns ? $request->drns : '0';
@@ -1436,6 +1491,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
             return response()->json(['success' => false, 'message' => __('No entries selected for Paid.')]);
         }
         $errors = [];
+        $paidIds = [];
         \DB::beginTransaction();
 
         try {
@@ -1445,14 +1501,32 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     ->whereYear('salary_date', $year)
                     ->where('status', '!=', 'paid')
                     ->first();
-                    if($salary->sal_final == 0){
-                        $errors[] = "Salary not finalized for employee with ID: " . $id;
-                        continue;
-                    }
-                    if($salary->on_hold == 1){
-                        $errors[] = "Salary On_Hold u can not paid: " . $id;
-                        continue;
-                    }
+
+                if (!$salary) {
+                    $errors[] = __('Salary not found or already paid for employee ID: ' . $id);
+                    continue;
+                }
+
+                $attendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $id)
+                    ->whereMonth('for_month_of', $month)
+                    ->whereYear('for_month_of', $year)
+                    ->first();
+
+                if (!$attendance || (int) $attendance->adm_final !== 1) {
+                    $errors[] = "Salary not admin approved for employee with ID: " . $id;
+                    continue;
+                }
+
+                if ($salary->sal_final == 0) {
+                    $errors[] = "Salary not finalized for employee with ID: " . $id;
+                    continue;
+                }
+
+                if ($salary->on_hold == 1) {
+                    $errors[] = "Salary On_Hold u can not paid: " . $id;
+                    continue;
+                }
+
                 if ($salary) {
                     //voucher 
 
@@ -1522,18 +1596,25 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     $salary->save();
                     $payment->journal_id = $voucher;
                     $payment->save();
-                } else {
-                    $errors[] = __('Employee not found with ID: ' . $id);
-                    continue;
+                    $paidIds[] = $salary->id;
                 }
-                \DB::commit();
             }
+
+            if (empty($paidIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was paid.'),
+                ]);
+            }
+
+            \DB::commit();
             return response()->json([
                 'success' => true,
                 'message' => 'Salary Paid successfully.',
                 'error' => $errors
             ]);
-            } catch (\Exception $e) {
+        } catch (\Exception $e) {
             \DB::rollback();
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }

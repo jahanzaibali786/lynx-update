@@ -2311,6 +2311,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/month_salary/{id?}', [EmployeeMonthlySalaryAttendance::class, 'month_salary'])->name('month_salary');
             Route::post('/month-salary-generate', [EmployeeMonthlySalaryAttendance::class, 'month_salary_generate'])->name('month_salary_generate');
             Route::delete('/emp-month-sal-attendance/bulk-delete', [EmployeeMonthlySalaryAttendance::class, 'destroy'])->name('emp-month-sal-attendance.bulkDelete');
+            Route::get('/salary-attendance-export', [EmployeeMonthlySalaryAttendance::class, 'export_salary_attendance'])->name('salary_attendance_export');
             Route::resource('/emp-month-sal-attendance', EmployeeMonthlySalaryAttendance::class);
             Route::post('salary/payment', [EmployeeMonthlySalaryAttendance::class, 'payment'])->name('salary.payments');
             Route::post('salary/{id}/payment', [EmployeeMonthlySalaryAttendance::class, 'createPayment'])->name('salary.payment');

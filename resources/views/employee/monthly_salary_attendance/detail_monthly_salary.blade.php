@@ -1,5 +1,13 @@
 {{ Form::model($employeesalary, ['route' => ['emp-month-sal-attendance.update', $employeesalary->id], 'method' => 'PUT']) }}
+@php
+    $salaryEditable = $salaryEditable ?? false;
+@endphp
 <div class="modal-body">
+    @if (!$salaryEditable)
+        <div class="alert alert-warning mb-3">
+            {{ __('This salary can be edited only while it is unpaid and not GM finalized.') }}
+        </div>
+    @endif
     <div class="row">
         <div class="col-md-3"><b>Emp Code</b> : {{@$employeesalary->employee->id}} </div>
         <div class="col-md-3"><b>Name</b> : {{@$employeesalary->employee->name}}</div>
@@ -170,11 +178,23 @@
     </div>
     @endif
 </div>
-<div class="modal-footer d-none">
+<div class="modal-footer {{ $salaryEditable ? '' : 'd-none' }}">
     <input type="button" value="{{__('Cancel')}}" class="btn  btn-light" data-bs-dismiss="modal">
     <input type="submit" value="{{__('Update')}}" class="btn  btn-primary">
 </div>
 <script>
+    if (!@json($salaryEditable)) {
+        const salaryDetailForm = document.currentScript ? document.currentScript.closest('form') : null;
+        if (salaryDetailForm) {
+            salaryDetailForm.querySelectorAll('input, select, textarea, button').forEach(field => {
+                if (field.type === 'hidden' || field.dataset.bsDismiss === 'modal') {
+                    return;
+                }
+                field.setAttribute(field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' ? 'readonly' : 'disabled', 'readonly');
+            });
+        }
+    }
+
     [ 'chaild_concession', 'drns', 'misc', 'conv', 'itax', 'other_deduction', 'advance' ].forEach(fieldName => {
         const field = document.querySelector(`input[name="${fieldName}"]`);
         if (field) {

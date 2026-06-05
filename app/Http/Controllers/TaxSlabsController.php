@@ -471,6 +471,8 @@ class TaxSlabsController extends Controller
             'gapMonths'     => $gapMonths,
             'paymode'       => $currentPaymode,
             'message'       => $isCurrentCashPaymode ? 'Cash paymode is exempt from upcoming tax. Previous collected tax is shown.' : null,
+            'monthlySalaryHeads' => $monthlySalaryHeads,
+            'monthlySalaryTot' => $monthlySalaryTot,
         ]);
     }
 }

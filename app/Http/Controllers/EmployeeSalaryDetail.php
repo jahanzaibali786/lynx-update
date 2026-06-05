@@ -316,41 +316,107 @@ class EmployeeSalaryDetail extends Controller
 
     public function finalize_salary(Request $request)
     {
-        // dd($request->all());
-        $rows = $request->input('rows');
+        $rows = $request->input('rows', []);
         $date = $request->input('date');
+        $action = $request->input('action') === 'unfinalize' ? 'unfinalize' : 'finalize';
 
         if (!$rows) {
             return response()->json(['success' => false, 'message' => __('No entries selected for finalization.')]);
         }
 
-        $finalizeMessages = [];
         $errors = [];
         $finalizedIds = [];
 
         \DB::beginTransaction();
 
         try {
-            foreach ($rows as $id) {
-                $salaryatt = EmployeeMonthlySalaryAttendance::where('id',$id)->first();
-                                $month = date('m', strtotime($salaryatt->for_month_of));
-                $year = date('Y', strtotime($salaryatt->for_month_of));
+            foreach ($rows as $row) {
+                $attendanceId = is_array($row) ? ($row['id'] ?? null) : $row;
+                $employeeId = is_array($row) ? ($row['employee_id'] ?? null) : null;
+                $rowDate = is_array($row) ? ($row['date'] ?? $date) : $date;
+
+                $salaryatt = null;
+                if (!empty($attendanceId)) {
+                    $salaryatt = EmployeeMonthlySalaryAttendance::where('id', $attendanceId)->first();
+                }
+
+                if (!$salaryatt && !empty($employeeId) && !empty($rowDate)) {
+                    $rowMonth = Carbon::parse($rowDate);
+                    $salaryatt = EmployeeMonthlySalaryAttendance::where('employee_id', $employeeId)
+                        ->whereMonth('for_month_of', $rowMonth->month)
+                        ->whereYear('for_month_of', $rowMonth->year)
+                        ->first();
+                }
+
+                if (!$salaryatt && !is_array($row) && !empty($date)) {
+                    $rowMonth = Carbon::parse($date);
+                    $salaryatt = EmployeeMonthlySalaryAttendance::where('employee_id', $row)
+                        ->whereMonth('for_month_of', $rowMonth->month)
+                        ->whereYear('for_month_of', $rowMonth->year)
+                        ->first();
+                }
+
+                if (!$salaryatt) {
+                    $errors[] = __('Attendance row not found for selected salary.');
+                    continue;
+                }
+
+                $salaryMonth = Carbon::parse($rowDate ?: $salaryatt->for_month_of);
 
                 $salary = EmployeeMonthlySalary::where('employee_id', $salaryatt->employee_id)
-                    ->whereMonth('salary_date', $month)
-                    ->whereYear('salary_date', $year)
+                    ->whereMonth('salary_date', $salaryMonth->month)
+                    ->whereYear('salary_date', $salaryMonth->year)
                     ->first();
-                if ($salary) {
-                    $salary->sal_final = 1;
-                    $salary->save();
-                    $salaryatt->sal_final = 1;
-                    $salaryatt->save();
-                } else {
-                    $errors[] = __('Employee not found with ID: ' . $id);
+
+                if (!$salary) {
+                    $errors[] = __('Salary not found for employee ID: ' . $salaryatt->employee_id);
+                    continue;
                 }
+
+                if (trim(strtolower($salary->status ?? 'unpaid')) === 'paid') {
+                    $errors[] = __('Paid salary cannot be finalized/unfinalized for employee ID: ' . $salaryatt->employee_id);
+                    continue;
+                }
+
+                if ($action === 'unfinalize') {
+                    $salary->sal_final = 0;
+                    $salary->save();
+                    $salaryatt->gm_final = 0;
+                    $salaryatt->save();
+                    $finalizedIds[] = $salary->id;
+                    continue;
+                }
+
+                if ((int) $salaryatt->adm_final !== 1) {
+                    $errors[] = __('Salary cannot be finalized before admin approval for employee ID: ' . $salaryatt->employee_id);
+                    continue;
+                }
+
+                if ((int) $salary->on_hold === 1) {
+                    $errors[] = __('Salary is on hold for employee ID: ' . $salaryatt->employee_id);
+                    continue;
+                }
+
+                $salary->sal_final = 1;
+                $salary->save();
+                $salaryatt->gm_final = 1;
+                $salaryatt->save();
+                $finalizedIds[] = $salary->id;
             }
             \DB::commit();
-            return response()->json(['success' => true, 'message' => __('Salary Finalized successfully.')]);
+
+            if (empty($finalizedIds)) {
+                return response()->json(['success' => false, 'message' => implode(' ', $errors) ?: __('No salary was updated.')]);
+            }
+
+            $message = $action === 'unfinalize'
+                ? __('Salary UnFinalized successfully.')
+                : __('Salary Finalized successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
         }   
         catch (\Exception $e) {
             \DB::rollback();
