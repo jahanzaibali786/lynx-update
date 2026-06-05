@@ -5,6 +5,7 @@ namespace App\Exports;
 use App\Models\User;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -14,13 +15,12 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
-class SalaryAttendanceExport implements FromArray, WithEvents
+class SalaryAttendanceExport implements FromArray, ShouldAutoSize, WithEvents
 {
     protected $datas;
     protected $requestdata;
     protected $reportType;
-    protected $departmentRows = [];
-    protected $totalRows = [];
+    protected $branchRows = [];
 
     public function __construct($datas, $requestdata, $reportType = 'summary')
     {
@@ -35,29 +35,31 @@ class SalaryAttendanceExport implements FromArray, WithEvents
         $header = $this->reportType === 'details'
             ? [
                 'Sr#',
-                'Dept Sr#',
+                'Branch Sr#',
                 'Emp No',
                 'Name',
                 'Salary Month',
+                'Month Days',
+                'Holidays',
                 'Working Days',
                 'Present',
-                'Holidays',
+                'Leave',
                 'Absent',
                 'Total Annual',
                 'Bal Annual',
                 'Total Casual',
                 'Bal Casual',
-                'Leave',
-                'Month Days',
                 'Status',
             ]
             : [
                 'Sr#',
+                'Branch Sr#',
                 'Emp No',
                 'Name',
+                'Month Days',
+                'Holidays',
                 'Working Days',
                 'Present',
-                'Holidays',
                 'Leave',
                 'Absent',
                 'Status',
@@ -65,81 +67,61 @@ class SalaryAttendanceExport implements FromArray, WithEvents
 
         $rows[] = $header;
 
-        $grandTotals = array_fill(0, count($header), 0);
         $globalSr = 1;
-        $grouped = $this->datas
+        $groupedItems = $this->datas
             ->sortBy([
-                fn($row) => optional(optional($row->employee)->department)->name,
+                fn($row) => optional(optional($row->employee)->user)->name,
                 fn($row) => optional($row->employee)->name,
             ])
-            ->groupBy(function ($row) {
-            return optional(optional($row->employee)->department)->name ?: 'Department';
-        });
+            ->groupBy(fn($row) => optional(optional($row->employee)->user)->name ?: 'Branch');
 
-        foreach ($grouped as $departmentName => $items) {
-            $deptSr = 1;
-            $deptRowIndex = count($rows) + 1 + 7;
-            $this->departmentRows[] = $deptRowIndex;
-            $rows[] = [$departmentName];
-
-            $deptTotals = array_fill(0, count($header), 0);
+        foreach ($groupedItems as $branchName => $items) {
+            $branchSr = 1;
+            $this->branchRows[] = count($rows) + 1 + 7;
+            $rows[] = [$branchName];
 
             foreach ($items->sortBy(fn($row) => optional($row->employee)->name) as $data) {
                 $leaveDays = (float) ($data->leave ?? 0);
                 $absentDays = (float) ($data->absents ?? 0);
-                $workingDays = $this->workingDays($data, $absentDays);
-                $holidays = $this->holidayCount($data, $workingDays, $absentDays);
-                $presentDays = max(0, $workingDays - $holidays - $leaveDays - $absentDays);
+                $monthDays = $this->workingDays($data, $absentDays);
+                $holidays = $this->holidayCount($data, $monthDays, $absentDays);
+                $workingDays = max(0, $monthDays - $holidays);
+                $presentDays = max(0, $workingDays - $leaveDays - $absentDays);
 
-                $row = $this->reportType === 'details'
+                $rows[] = $this->reportType === 'details'
                     ? [
                         $globalSr++,
-                        $deptSr++,
+                        $branchSr++,
                         optional($data->employee)->employee_id ?? '',
                         optional($data->employee)->name ?? '',
                         !empty($data->for_month_of) ? Carbon::parse($data->for_month_of)->format('M-Y') : '',
+                        $monthDays,
+                        $holidays,
                         $workingDays,
                         $presentDays,
-                        $holidays,
+                        $leaveDays,
                         $absentDays,
                         $data->total_annual ?? 0,
                         $data->bal_annual ?? 0,
                         $data->total_casual ?? 0,
                         $data->bal_casual ?? 0,
-                        $leaveDays,
-                        $data->month_days ?? 0,
                         $this->statusText($data),
                     ]
                     : [
                         $globalSr++,
+                        $branchSr++,
                         optional($data->employee)->employee_id ?? '',
                         optional($data->employee)->name ?? '',
+                        $monthDays,
+                        $holidays,
                         $workingDays,
                         $presentDays,
-                        $holidays,
                         $leaveDays,
                         $absentDays,
                         $this->statusText($data),
                     ];
-
-                $rows[] = $row;
-
-                foreach ($row as $i => $val) {
-                    if (is_numeric($val) && in_array($i, $this->totalIndexes(), true)) {
-                        $deptTotals[$i] += $val;
-                        $grandTotals[$i] += $val;
-                    }
-                }
             }
-
-            $deptTotals[0] = 'DEPARTMENT TOTAL';
-            $this->totalRows[] = count($rows) + 1 + 7;
-            $rows[] = $deptTotals;
         }
-
-        $grandTotals[0] = 'GRAND TOTAL';
-        $this->totalRows[] = count($rows) + 1 + 7;
-        $rows[] = $grandTotals;
 
         return $rows;
     }
@@ -155,7 +137,7 @@ class SalaryAttendanceExport implements FromArray, WithEvents
                 $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
                 $lastRow = $sheet->getHighestRow();
 
-                $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+                $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_PORTRAIT);
                 $sheet->getPageSetup()->setPaperSize(PageSetup::PAPERSIZE_A4);
                 $sheet->getPageSetup()->setFitToPage(true);
                 $sheet->getPageSetup()->setFitToWidth(1);
@@ -231,12 +213,21 @@ class SalaryAttendanceExport implements FromArray, WithEvents
                 $sheet->getStyle("A9:{$highestColumn}{$lastRow}")->getFont()->setSize(8);
                 $sheet->getStyle("A8:{$highestColumn}{$lastRow}")->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
                 $sheet->getStyle("A8:{$highestColumn}{$lastRow}")->getAlignment()->setWrapText(true);
+                $sheet->getStyle("A9:{$highestColumn}{$lastRow}")
+                    ->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("D8:D{$lastRow}")
+                    ->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("{$highestColumn}8:{$highestColumn}{$lastRow}")
+                    ->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
-                foreach ($this->departmentRows as $rowIndex) {
+                foreach ($this->branchRows as $rowIndex) {
                     $sheet->mergeCells("A{$rowIndex}:{$highestColumn}{$rowIndex}");
                     $sheet->getStyle("A{$rowIndex}:{$highestColumn}{$rowIndex}")->applyFromArray([
                         'font' => ['bold' => true, 'size' => 9, 'name' => 'Calibri'],
-                        'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT],
+                        'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
                             'startColor' => ['argb' => 'FFD9D9D9'],
@@ -244,23 +235,10 @@ class SalaryAttendanceExport implements FromArray, WithEvents
                     ]);
                 }
 
-                foreach ($this->totalRows as $rowIndex) {
-                    $sheet->getStyle("A{$rowIndex}:{$highestColumn}{$rowIndex}")->applyFromArray([
-                        'font' => ['bold' => true, 'size' => 8, 'name' => 'Calibri'],
-                        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                        'fill' => [
-                            'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['argb' => 'FFBFBFBF'],
-                        ],
-                    ]);
-                }
-
                 for ($col = 1; $col <= $highestColumnIndex; $col++) {
                     $columnLetter = Coordinate::stringFromColumnIndex($col);
-                    $sheet->getColumnDimension($columnLetter)->setWidth($col === 3 || $col === 4 ? 24 : 13);
+                    $sheet->getColumnDimension($columnLetter)->setAutoSize(true);
                 }
-                $sheet->getStyle("A9:B{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("D9:G{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
                 $logoPath = public_path('assets/images/lynx2.jpg');
                 if (file_exists($logoPath)) {
@@ -274,11 +252,19 @@ class SalaryAttendanceExport implements FromArray, WithEvents
                 }
 
                 $sigRow = $lastRow + 2;
-                $rightColumn = Coordinate::stringFromColumnIndex(max(1, $highestColumnIndex - 1));
+                $leftEndColumn = Coordinate::stringFromColumnIndex(min($highestColumnIndex, 3));
+                $rightColumnIndex = max(1, $highestColumnIndex - 1);
+                $rightColumn = Coordinate::stringFromColumnIndex($rightColumnIndex);
+                $rightMergeStartColumn = Coordinate::stringFromColumnIndex(max(1, $rightColumnIndex - 1));
+
+                $sheet->mergeCells("B{$sigRow}:{$leftEndColumn}{$sigRow}");
                 $sheet->setCellValue("B{$sigRow}", '________________________');
-                $sheet->setCellValue("{$rightColumn}{$sigRow}", '________________________');
-                $sheet->getStyle("B{$sigRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("{$rightColumn}{$sigRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+                $sheet->mergeCells("{$rightMergeStartColumn}{$sigRow}:{$rightColumn}{$sigRow}");
+                $sheet->setCellValue("{$rightMergeStartColumn}{$sigRow}", '________________________');
+
+                $sheet->getStyle("B{$sigRow}:{$leftEndColumn}{$sigRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("{$rightMergeStartColumn}{$sigRow}:{$rightColumn}{$sigRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
             },
         ];
     }
@@ -298,13 +284,6 @@ class SalaryAttendanceExport implements FromArray, WithEvents
             return 'Fwd to Admin';
         }
         return 'Generated';
-    }
-
-    private function totalIndexes(): array
-    {
-        return $this->reportType === 'details'
-            ? [5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-            : [3, 4, 5, 6, 7];
     }
 
     private function workingDays($data, float $absentDays): float

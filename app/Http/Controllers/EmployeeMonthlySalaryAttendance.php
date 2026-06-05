@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Exports\SalaryAttendanceExport;
-use App\Exports\SalaryAttendancePdfExport;
 use App\Exports\SalarySheetExport;
 use App\Models\AdvanceTaxCollection;
 use App\Models\BankAccount;
@@ -176,7 +175,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $designations->prepend('All', 'all');
         }
-        $datas = $this->salaryAttendanceQuery($request)->get();
+        $datas = $this->salaryAttendanceQuery($request)
+            ->get()
+            ->sortBy(fn($row) => optional($row->employee)->name)
+            ->values();
 
         return view('employee.monthly_salary_attendance.index', compact('branchesList', 'date', 'datas', 'designations', 'departments'));
     }

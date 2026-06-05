@@ -11,10 +11,21 @@
 @push('css-page')
     <style>
         .attendance-summary-badges .badge {
-            font-size: 12px;
-            line-height: 1.4;
-            padding: 7px 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 30px;
+            font-size: 12.5px;
+            line-height: 1.2;
+            padding: 7px 12px;
             font-weight: 600;
+            border-radius: 999px;
+            letter-spacing: 0;
+        }
+
+        .attendance-summary-badges .badge-count {
+            font-weight: 800;
+            font-size: 13px;
         }
     </style>
 @endpush
@@ -923,21 +934,12 @@
                             </div>
                             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
-                                    {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}
-                                    {{ Form::date('date', $date ?? now()->format('Y-m-d'), ['class' => 'form-control', 'id' => 'date']) }}
+                                    {{ Form::label('date', __('Month'), ['class' => 'form-label']) }}
+                                    {{ Form::input('month', 'date', isset($_GET['date']) ? date('Y-m', strtotime($_GET['date'])) : (!empty($date) ? date('Y-m', strtotime($date)) : now()->format('Y-m')), ['class' => 'form-control', 'id' => 'date']) }}
                                 </div>
                             </div>
                             <div class="col-12 mt-4">
-                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                    <div class="d-flex flex-wrap align-items-center gap-1 attendance-summary-badges">
-                                        <span class="badge bg-secondary">{{ __('Total Rows') }}: {{ $salaryRowsTotal }}</span>
-                                        <span class="badge bg-light text-dark">{{ __('Pending Generate') }}: {{ $salaryPendingCount }}</span>
-                                        <span class="badge bg-info">{{ __('Generated') }}: {{ $salaryGeneratedCount }}</span>
-                                        <span class="badge bg-warning text-dark">{{ __('Unpaid') }}: {{ $salaryUnpaidCount }}</span>
-                                        <span class="badge bg-success">{{ __('Paid') }}: {{ $salaryPaidCount }}</span>
-                                        <span class="badge bg-primary">{{ __('Final') }}: {{ $salaryFinalCount }}</span>
-                                        <span class="badge bg-danger">{{ __('On Hold') }}: {{ $salaryHoldCount }}</span>
-                                    </div>
+                                <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
                                     <div class="d-flex flex-wrap align-items-center justify-content-end gap-1">
                                         <a href="#" class="btn btn-sm btn-outline-primary"
                                             onclick="document.getElementById('employee_submit').submit(); return false;"
@@ -986,8 +988,21 @@
     {{-- @endif --}}
 
     @if ($datas->isNotEmpty())
-        <div class="table-responsive">
-            <table class="">
+        <div class="card mt-3">
+            <div class="card-header">
+                <div class="d-flex flex-wrap align-items-center gap-2 attendance-summary-badges">
+                    <span class="badge bg-secondary">{{ __('Total Rows') }} <span class="badge-count">{{ $salaryRowsTotal }}</span></span>
+                    <span class="badge bg-light text-dark">{{ __('Pending Generate') }} <span class="badge-count">{{ $salaryPendingCount }}</span></span>
+                    <span class="badge bg-info">{{ __('Generated') }} <span class="badge-count">{{ $salaryGeneratedCount }}</span></span>
+                    <span class="badge bg-warning text-dark">{{ __('Unpaid') }} <span class="badge-count">{{ $salaryUnpaidCount }}</span></span>
+                    <span class="badge bg-success">{{ __('Paid') }} <span class="badge-count">{{ $salaryPaidCount }}</span></span>
+                    <span class="badge bg-primary">{{ __('Final') }} <span class="badge-count">{{ $salaryFinalCount }}</span></span>
+                    <span class="badge bg-danger">{{ __('On Hold') }} <span class="badge-count">{{ $salaryHoldCount }}</span></span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="">
                 <thead>
                     <tr class="table_heads">
                         <th><input type="checkbox" id="check-all"></th>
@@ -999,7 +1014,7 @@
                         @php
                             $shortenedHeads = [
                                 'Initial Basics' => 'Ini.Basic',
-                                'House Rent' => 'H.R',
+                                'House Rent' => 'House Rent',
                                 'Medical' => 'Med',
                             ];
                         @endphp
@@ -1172,7 +1187,9 @@ foreach ($heads as $scale_head) {
                         </tr>
                     @endforeach
                 </tbody>
-            </table>
+                    </table>
+                </div>
+            </div>
         </div>
         {{-- @if ($datas->hasPages())
             <div class="pagination">

@@ -9,10 +9,21 @@
 @push('css-page')
 <style>
     .attendance-summary-badges .badge {
-        font-size: 12px;
-        line-height: 1.4;
-        padding: 7px 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        font-size: 12.5px;
+        line-height: 1.2;
+        padding: 7px 12px;
         font-weight: 600;
+        border-radius: 999px;
+        letter-spacing: 0;
+    }
+
+    .attendance-summary-badges .badge-count {
+        font-weight: 800;
+        font-size: 13px;
     }
 </style>
 @endpush
@@ -203,6 +214,8 @@
     $finalAttendanceApproved = $datas->where('adm_final', 1)->count();
     $finalAttendanceSalaryFinal = $datas->where('sal_final', 1)->count();
     $finalAttendanceGmFinal = $datas->where('gm_final', 1)->count();
+    $selectedBranch = request('branches');
+    $showBranchColumn = empty($selectedBranch) || $selectedBranch === 'all';
 @endphp
 {{-- @if(\Auth::user()->type == 'company') --}}
 <div class="row">
@@ -232,19 +245,12 @@
                         </div>
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                             <div class="btn-box">
-                                {{ Form::label('date', __('Date'), ['class' => 'form-label'])}}
-                                {{ Form::date('date', $date ?? now()->format('Y-m-d'), ['class' => 'form-control']) }}
+                                {{ Form::label('date', __('Month'), ['class' => 'form-label'])}}
+                                {{ Form::input('month', 'date', isset($_GET['date']) ? date('Y-m', strtotime($_GET['date'])) : (!empty($date) ? date('Y-m', strtotime($date)) : now()->format('Y-m')), ['class' => 'form-control']) }}
                             </div>
                         </div>
                         <div class="col-12 mt-4">
-                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="d-flex flex-wrap align-items-center gap-1 attendance-summary-badges">
-                                    <span class="badge bg-secondary">{{ __('Total Rows') }}: {{ $finalAttendanceTotal }}</span>
-                                    <span class="badge bg-light text-dark">{{ __('Pending Admin') }}: {{ $finalAttendancePending }}</span>
-                                    <span class="badge bg-warning text-dark">{{ __('Approved/Fwd') }}: {{ $finalAttendanceApproved }}</span>
-                                    <span class="badge bg-primary">{{ __('Salary Final') }}: {{ $finalAttendanceSalaryFinal }}</span>
-                                    <span class="badge bg-success">{{ __('GM Final') }}: {{ $finalAttendanceGmFinal }}</span>
-                                </div>
+                            <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
                                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-1">
                                     <a id="adm-finalize-btn" href="#" class="btn btn-sm btn-outline-warning attendance-action-btn"  data-bs-title="Finalize">
                                         <span class="btn-inner--icon">Finalize</span>
@@ -271,64 +277,81 @@
 {{-- @endif --}}
 
 @if($datas->isNotEmpty())
-<div class="table-responsive">
-    <table class="">
-        <thead>
-            <tr class="table_heads">
-                <th>#</th>
-                <th>{{__('Branch')}}</th>
-                <th>{{__('Name')}}</th>
-                <th>{{__('Sal. Month')}}</th>
-                <th>{{__('Sal. Days')}}</th>
-                <th>{{__('Leave')}}</th>
-                <th >{{__('Absents')}}</th>
-                <th>{{__('GmFinal')}}</th>
-                <th>{{__('SalFinal')}}</th>
-                <th>{{__('Fwd to Admin')}}</th>
-                <th>{{__('Status')}}</th>
-                <th><input type="checkbox" id="check-all"></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($datas as $data)
-            <tr style="color:
-            @if (isset($data->gm_final) && trim(strtolower($data->gm_final)) == 1)
-                green
-            @elseif (isset($data->sal_final) && trim(strtolower($data->sal_final)) == 1)
-                red
-            @elseif (isset($data->adm_final) && trim(strtolower($data->adm_final)) == 1)
-                red
-            @elseif (isset($data->accountant_finalize) && trim(strtolower($data->accountant_finalize)) == 1)
-                blue
-            @else
-                red
-            @endif">
-                <td>{{ $loop->iteration }}</td>
-                <td class="font-style">{{ !empty($data) ? $data->employee->user->name : '' }}</td>
-                <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
-                <td>{{ !empty($data) ? date('M-y', strtotime($data->for_month_of)) : '' }}</td>
-                <td>{{!empty($data) ? $data->working_days : '' }}</td>
-                <td>{{ !empty($data) ? $data->leave : '' }}</td>
-                <td>{{!empty($data) ? $data->absents : '' }}</td>
-                <td><input type="checkbox" name="gmfinal" {{ !empty($data) && $data->gm_final == 1 ? 'checked' : '' }} disabled></td>
-                <td><input type="checkbox" name="salfinal" {{ !empty($data) && $data->sal_final == 1 ? 'checked' : '' }} disabled></td>
-                <td><input type="checkbox" name="admfinal" value="{{ $data->id }}" class="adm-checkbox" {{ !empty($data) && $data->adm_final == 1 ? 'checked' : '' }} {{ !empty($data) && $data->adm_final== 1 || $data->adm_final== 0 ? 'disabled' : '' }} ></td>
-                <td>
-                    @if (!empty($data) && $data->gm_final == 1)
-                        <span class="badge bg-success">{{ __('GM Final') }}</span>
-                    @elseif (!empty($data) && $data->sal_final == 1)
-                        <span class="badge bg-primary">{{ __('Salary Final') }}</span>
-                    @elseif (!empty($data) && $data->adm_final == 1)
-                        <span class="badge bg-warning text-dark">{{ __('Approved/Fwd') }}</span>
+<div class="card mt-3">
+    <div class="card-header">
+        <div class="d-flex flex-wrap align-items-center gap-2 attendance-summary-badges">
+            <span class="badge bg-secondary">{{ __('Total Rows') }} <span class="badge-count">{{ $finalAttendanceTotal }}</span></span>
+            <span class="badge bg-light text-dark">{{ __('Pending Admin') }} <span class="badge-count">{{ $finalAttendancePending }}</span></span>
+            <span class="badge bg-warning text-dark">{{ __('Approved/Fwd') }} <span class="badge-count">{{ $finalAttendanceApproved }}</span></span>
+            <span class="badge bg-primary">{{ __('Salary Final') }} <span class="badge-count">{{ $finalAttendanceSalaryFinal }}</span></span>
+            <span class="badge bg-success">{{ __('GM Final') }} <span class="badge-count">{{ $finalAttendanceGmFinal }}</span></span>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="">
+                <thead>
+                    <tr class="table_heads">
+                        <th>#</th>
+                        @if ($showBranchColumn)
+                            <th>{{__('Branch')}}</th>
+                        @endif
+                        <th>{{__('Name')}}</th>
+                        <th>{{__('Sal. Month')}}</th>
+                        <th>{{__('Sal. Days')}}</th>
+                        <th>{{__('Leave')}}</th>
+                        <th >{{__('Absents')}}</th>
+                        <th>{{__('GmFinal')}}</th>
+                        <th>{{__('SalFinal')}}</th>
+                        <th>{{__('Fwd to Admin')}}</th>
+                        <th>{{__('Status')}}</th>
+                        <th><input type="checkbox" id="check-all"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($datas as $data)
+                    <tr style="color:
+                    @if (isset($data->gm_final) && trim(strtolower($data->gm_final)) == 1)
+                        green
+                    @elseif (isset($data->sal_final) && trim(strtolower($data->sal_final)) == 1)
+                        red
+                    @elseif (isset($data->adm_final) && trim(strtolower($data->adm_final)) == 1)
+                        red
+                    @elseif (isset($data->accountant_finalize) && trim(strtolower($data->accountant_finalize)) == 1)
+                        blue
                     @else
-                        <span class="badge bg-light text-dark">{{ __('Pending Admin') }}</span>
-                    @endif
-                </td>
-                <td><input type="checkbox" class="row-checkbox" value="{{ $data->id }}"></td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
+                        red
+@endif">
+                        <td>{{ $loop->iteration }}</td>
+                        @if ($showBranchColumn)
+                            <td class="font-style">{{ optional(optional($data->employee)->user)->name ?? '' }}</td>
+                        @endif
+                        <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
+                        <td>{{ !empty($data) ? date('F-Y', strtotime($data->for_month_of)) : '' }}</td>
+                        <td>{{!empty($data) ? $data->working_days : '' }}</td>
+                        <td>{{ !empty($data) ? $data->leave : '' }}</td>
+                        <td>{{!empty($data) ? $data->absents : '' }}</td>
+                        <td><input type="checkbox" name="gmfinal" {{ !empty($data) && $data->gm_final == 1 ? 'checked' : '' }} disabled></td>
+                        <td><input type="checkbox" name="salfinal" {{ !empty($data) && $data->sal_final == 1 ? 'checked' : '' }} disabled></td>
+                        <td><input type="checkbox" name="admfinal" value="{{ $data->id }}" class="adm-checkbox" {{ !empty($data) && $data->adm_final == 1 ? 'checked' : '' }} {{ !empty($data) && $data->adm_final== 1 || $data->adm_final== 0 ? 'disabled' : '' }} ></td>
+                        <td>
+                            @if (!empty($data) && $data->gm_final == 1)
+                                <span class="badge bg-success">{{ __('GM Final') }}</span>
+                            @elseif (!empty($data) && $data->sal_final == 1)
+                                <span class="badge bg-primary">{{ __('Salary Final') }}</span>
+                            @elseif (!empty($data) && $data->adm_final == 1)
+                                <span class="badge bg-warning text-dark">{{ __('Approved/Fwd') }}</span>
+                            @else
+                                <span class="badge bg-light text-dark">{{ __('Pending Admin') }}</span>
+                            @endif
+                        </td>
+                        <td><input type="checkbox" class="row-checkbox" value="{{ $data->id }}"></td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
   {{-- @if ($datas->hasPages())
     <div class="pagination">

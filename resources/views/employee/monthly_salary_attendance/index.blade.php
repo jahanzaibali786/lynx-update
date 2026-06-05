@@ -9,10 +9,21 @@
 @push('css-page')
     <style>
         .attendance-summary-badges .badge {
-            font-size: 12px;
-            line-height: 1.4;
-            padding: 7px 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 30px;
+            font-size: 12.5px;
+            line-height: 1.2;
+            padding: 7px 12px;
             font-weight: 600;
+            border-radius: 999px;
+            letter-spacing: 0;
+        }
+
+        .attendance-summary-badges .badge-count {
+            font-weight: 800;
+            font-size: 13px;
         }
     </style>
 @endpush
@@ -314,6 +325,23 @@
         });
     </script>
 @endpush
+@section('action-btn')
+    <div class="float-end d-flex align-items-center gap-2">
+        <select id="attendance_export_report_type" class="form-select" style="width: 170px;">
+            <option value="summary">{{ __('Summary') }}</option>
+            <option value="details">{{ __('Details') }}</option>
+        </select>
+        <select id="attendance_export_type" class="form-select" style="width: 170px;">
+            <option value="xlsx">{{ __('Excel Sheet') }}</option>
+            <option value="pdf">{{ __('PDF / Print') }}</option>
+        </select>
+        <a href="#" class="btn btn-sm btn-outline-secondary"
+            onclick="salaryAttendanceExport(); return false;"
+            data-bs-title="Export">
+            <span class="btn-inner--icon">{{ __('Export') }}</span>
+        </a>
+    </div>
+@endsection
 @section('content')
     @php
         $attendanceTotal = $datas->count();
@@ -322,6 +350,8 @@
         $attendanceAdminForwarded = $datas->where('adm_final', 1)->count();
         $attendanceSalaryFinal = $datas->where('sal_final', 1)->count();
         $attendanceGmFinal = $datas->where('gm_final', 1)->count();
+        $selectedBranch = request('branches');
+        $showBranchColumn = empty($selectedBranch) || $selectedBranch === 'all';
     @endphp
 
     <div class="row">
@@ -351,34 +381,12 @@
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
-                                    {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}
-                                    {{ Form::date('date', $date ?? isset($_GET['date']) ? date('Y-m-d', strtotime($_GET['date'])) : now()->format('Y-m-d'), ['class' => 'form-control']) }}
+                                    {{ Form::label('date', __('Month'), ['class' => 'form-label']) }}
+                                    {{ Form::input('month', 'date', isset($_GET['date']) ? date('Y-m', strtotime($_GET['date'])) : (!empty($date) ? date('Y-m', strtotime($date)) : now()->format('Y-m')), ['class' => 'form-control']) }}
                                 </div>
                             </div>
                             <div class="col-12 mt-4">
-                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                    <div class="d-flex flex-wrap align-items-center gap-1 attendance-summary-badges">
-                                        <span class="badge bg-secondary">{{ __('Total Rows') }}: {{ $attendanceTotal }}</span>
-                                        <span class="badge bg-light text-dark">{{ __('Generated') }}: {{ $attendanceGenerated }}</span>
-                                        <span class="badge bg-info">{{ __('Fwd to Admin') }}: {{ $attendanceFinalized }}</span>
-                                        <span class="badge bg-warning text-dark">{{ __('Finalized') }}: {{ $attendanceAdminForwarded }}</span>
-                                        <span class="badge bg-primary">{{ __('Salary Final') }}: {{ $attendanceSalaryFinal }}</span>
-                                        <span class="badge bg-success">{{ __('GM Final') }}: {{ $attendanceGmFinal }}</span>
-                                    </div>
-                                    <div class="d-flex flex-wrap align-items-center justify-content-end gap-1">
-                                        <select id="attendance_export_report_type" class="form-select form-select-sm" style="width: 130px;">
-                                            <option value="summary">{{ __('Summary') }}</option>
-                                            <option value="details">{{ __('Details') }}</option>
-                                        </select>
-                                        <select id="attendance_export_type" class="form-select form-select-sm" style="width: 130px;">
-                                            <option value="xlsx">{{ __('Excel') }}</option>
-                                            <option value="pdf">{{ __('PDF / Print') }}</option>
-                                        </select>
-                                        <a href="#" class="btn btn-sm btn-outline-secondary"
-                                            onclick="salaryAttendanceExport(); return false;"
-                                            data-bs-title="Export">
-                                            <span class="btn-inner--icon">Export</span>
-                                        </a>
+                                <div class="d-flex flex-wrap align-items-center justify-content-end gap-1">
                                         <a href="#" class="btn btn-sm btn-outline-primary"
                                             onclick="document.getElementById('employee_submit').submit(); return false;"
                                             data-bs-toggle="{{ __('Apply') }}">
@@ -401,7 +409,6 @@
                                             data-bs-title="{{ __('Reset') }}">
                                             <span class="btn-inner--icon">Clear</span>
                                         </a> --}}
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -413,11 +420,26 @@
     </div>
 
     @if ($datas->isNotEmpty())
-        <div class="table-responsive">
-            <table class="">
+        <div class="card mt-3">
+            <div class="card-header">
+                <div class="d-flex flex-wrap align-items-center gap-2 attendance-summary-badges">
+                    <span class="badge bg-secondary">{{ __('Total Rows') }} <span class="badge-count">{{ $attendanceTotal }}</span></span>
+                    <span class="badge bg-light text-dark">{{ __('Generated') }} <span class="badge-count">{{ $attendanceGenerated }}</span></span>
+                    <span class="badge bg-info">{{ __('Fwd to Admin') }} <span class="badge-count">{{ $attendanceFinalized }}</span></span>
+                    <span class="badge bg-warning text-dark">{{ __('Finalized') }} <span class="badge-count">{{ $attendanceAdminForwarded }}</span></span>
+                    <span class="badge bg-primary">{{ __('Salary Final') }} <span class="badge-count">{{ $attendanceSalaryFinal }}</span></span>
+                    <span class="badge bg-success">{{ __('GM Final') }} <span class="badge-count">{{ $attendanceGmFinal }}</span></span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="">
                 <thead>
                     <tr class="table_heads">
                         <th>{{ __('Sr. No') }}</th>
+                        @if ($showBranchColumn)
+                            <th>{{ __('Branch') }}</th>
+                        @endif
                         <th>{{ __('Name') }}</th>
                         <th>{{ __('Sal. Month') }}</th>
                         <th>{{ __('WorkingDays') }}</th>
@@ -451,8 +473,11 @@
                     @else
                         black @endif">
                             <td>{{ $loop->iteration }}</td>
+                            @if ($showBranchColumn)
+                                <td class="font-style">{{ optional(optional($data->employee)->user)->name ?? '' }}</td>
+                            @endif
                             <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
-                            <td>{{ !empty($data) ? date('M-y', strtotime($data->for_month_of)) : '' }}</td>
+                            <td>{{ !empty($data) ? date('F-Y', strtotime($data->for_month_of)) : '' }}</td>
                             <td>{{ !empty($data) ? $data->working_days : '' }}</td>
                             <td><input type="text" style="width: 50px;"
                                     value="{{ !empty($data) ? $data->absents : '' }}" readonly>
@@ -507,7 +532,9 @@
                         </tr>
                     @endforeach
                 </tbody>
-            </table>
+                    </table>
+                </div>
+            </div>
         </div>
         {{-- @if ($datas->hasPages())
             <div class="pagination">
