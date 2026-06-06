@@ -36,7 +36,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
     private function isTaxableSalaryHead($headName)
     {
-        return strtolower(trim((string) $headName)) !== 'medical allowance';
+        return !in_array(strtolower(trim((string) $headName)), [
+            'medical',
+            'medical allowance',
+        ], true);
     }
 
     private function approvedAdvanceTaxCollection($employeeId, Carbon $fromDate, Carbon $toDate)
@@ -908,6 +911,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     }
                 }
                 $addition = $lastPayscaleDetail->other_add + $lastPayscaleDetail->conv + $lastPayscaleDetail->drns + $lastPayscaleDetail->misc + $lastPayscaleDetail->chaild_concession;
+                $taxableAddition = $lastPayscaleDetail->other_add + $lastPayscaleDetail->drns + $lastPayscaleDetail->misc;
                 $grossSalary += $basicSalary + $addition;
                 $eobiAmounts = $this->firstSalaryEobiAmounts(
                     $data->employee,
@@ -964,7 +968,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     tax_year:      $taxYear,
                     date:          $date,
                     scaleHeads:    $payscalesauto->employeeScaleHeads,
-                    otherAdds:     $addition,
+                    otherAdds:     $taxableAddition,
                     workingDays:   $data->working_days,
                     monthDays:     $data->month_days,
                     months:        $months,
@@ -1264,7 +1268,6 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
         $prevOtherAdds = $prevPaid->sum(function ($s) {
             return
-                ($s->conv ?? 0) +
                 ($s->misc ?? 0) +
                 ($s->drns ?? 0) +
                 ($s->other_add ?? 0) ;
@@ -1292,11 +1295,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 }
 
                 $prevSalAmnt +=
-                    ($sal->conv ?? 0) +
                     ($sal->misc ?? 0) +
                     ($sal->drns ?? 0) +
-                    ($sal->other_add ?? 0) +
-                    ($sal->chaild_con ?? 0);
+                    ($sal->other_add ?? 0);
             }
 
         // -----------------------------

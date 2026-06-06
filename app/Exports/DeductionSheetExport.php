@@ -37,7 +37,7 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
         // HEADER
         // ==============================
         $header = ['Sr#','Dep.Sr','Emp No', 'Scale', 'Name', 'Designation', 'DOJ','Gross',
-                 'ES', 'I.Tax', 'Adv', 'Eobi', 'PESSI' , 'Loan Sec', 'Loan', 'other','Total Ded', 'NET' ];
+                 'ES', 'I.Tax', 'Salary Adv.', 'EOBI', 'PESSI' , 'Loan Sec', 'Loan', 'Other Deduction','Total Ded', 'NET' ];
 
         $rows[] = $header;
 
@@ -172,9 +172,9 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
                 $sheet->setCellValue('A5', 'Deduction Sheet Report for '.date('F Y', strtotime($this->requestdata['date'])));
 
                 $sheet->setCellValue('A7', 'EMPLOYEES DETAIL');
-                $sheet->setCellValue('I7', 'DEDUCTION');
+                $sheet->setCellValue('H7', 'DEDUCTION');
                 $sheet->mergeCells('A7:G7');   // Employee Detail
-                $sheet->mergeCells('I7:N7');   // Deductions
+                $sheet->mergeCells('H7:P7');   // Deductions
 
 
                 $sheet->mergeCells("A1:{$highestColumn}1");
@@ -306,18 +306,17 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
                 $sigRow = $lastRow + 2;
 
                 $sheet->setCellValue("B{$sigRow}", '________________________');
+                $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
+                $rightStartIndex = max(2, $highestColumnIndex - 1);
+                $rightStartColumn = Coordinate::stringFromColumnIndex($rightStartIndex);
 
-
-                $from = Coordinate::stringFromColumnIndex($lastRow - 1);
-                $to   = Coordinate::stringFromColumnIndex($lastRow);
-
-                $sheet->mergeCells("{$from}{$sigRow}:{$to}{$sigRow}")
-                    ->setCellValue("{$from}{$sigRow}", '________________________');
+                $sheet->mergeCells("{$rightStartColumn}{$sigRow}:{$highestColumn}{$sigRow}")
+                    ->setCellValue("{$rightStartColumn}{$sigRow}", '________________________');
 
                 $sheet->getStyle("B{$sigRow}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
-                $sheet->getStyle("{$highestColumn}{$sigRow}")
+                $sheet->getStyle("{$rightStartColumn}{$sigRow}:{$highestColumn}{$sigRow}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
                 // ==============================
@@ -341,7 +340,7 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
                 $drawing = new Drawing;
                 $drawing->setPath($tmpPath);
                 $drawing->setHeight(70);
-                $drawing->setCoordinates("{$from}1");
+                $drawing->setCoordinates("{$rightStartColumn}1");
                 $drawing->setWorksheet($sheet);
 
                 foreach ($this->departmentRows as $rowIndex) {

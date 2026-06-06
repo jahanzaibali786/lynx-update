@@ -210,10 +210,10 @@ $others_ytd = (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $e
 $earnings = [
     'Gross Salary' => $grossSalaryRows,
     'Enticements' => [
-        ['label' => 'Conveyance Allowance', 'pm' => $conv_pm, 'ytd' => $conv_ytd],
+        ['label' => 'Other', 'pm' => $conv_pm, 'ytd' => $conv_ytd],
         ['label' => 'Fuel Allowance', 'pm' => $fuel_pm, 'ytd' => 0],
         ['label' => 'Mobile Allowance', 'pm' => $mobile_pm, 'ytd' => $mobile_ytd],
-        ['label' => 'Others', 'pm' => $others_pm, 'ytd' => $others_ytd],
+        ['label' => 'Other Allowance', 'pm' => $others_pm, 'ytd' => $others_ytd],
     ],
     'Adjustments' => [
         [
@@ -282,7 +282,7 @@ $deductions = [
             ->sum('tra_course'),
     ],
     [
-        'label' => 'Others',
+        'label' => 'Other Allowance',
         'pm' => (float) ($data->other ?? 0),
         'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
             ->whereBetween('salary_date', [$ytdStart, $ytdEnd])

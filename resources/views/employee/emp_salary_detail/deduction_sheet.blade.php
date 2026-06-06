@@ -30,7 +30,7 @@
                     <th style="border: 1px solid #000; width: 5%;" rowspan="2">sr.#</th>
                     <th style="border: 1px solid #000; width: 20%;" rowspan="2">Name</th>
                     <th style="border: 1px solid #000; width: 15%;" rowspan="2">Designation</th>
-                    <th style="border: 1px solid #000; width: 7%;" colspan="8">Deduction</th>
+                    <th style="border: 1px solid #000; width: 7%;" colspan="9">Deduction</th>
                     <th style="border: 1px solid #000; width: 7%;" rowspan="2">Total Ded</th>
                     <th style="border: 1px solid #000; width: 7%;" rowspan="2">Net</th>
                 </tr>
@@ -38,11 +38,12 @@
                     <th style="border: 1px solid #000;">Gross</th>
                     <th style="border: 1px solid #000;">E.s</th>
                     <th style="border: 1px solid #000;">I.Tax</th>
-                    <th style="border: 1px solid #000;">Adv</th>
+                    <th style="border: 1px solid #000;">Salary Adv.</th>
                     <th style="border: 1px solid #000;">EOBI</th>
                     <th style="border: 1px solid #000;">PESSI</th>
+                    <th style="border: 1px solid #000;">Loan Sec</th>
                     <th style="border: 1px solid #000;">Loan</th>
-                    <th style="border: 1px solid #000;">Oth</th>
+                    <th style="border: 1px solid #000;">Other Deduction</th>
                 </tr>
             </thead>
             @php
@@ -52,8 +53,9 @@
                 $tot_sal_advance = 0;
                 $tot_eobi = 0;
                 $tot_pessi = 0;
+                $tot_emp_sec_loan = 0;
                 $tot_loan = 0;
-                $tot_other = 0;
+                $tot_other_deduction = 0;
                 $tot_dec = 0;
                 $tot_net = 0;
             @endphp
@@ -67,8 +69,9 @@
                     $tot_sal_advance += !empty($data->sal_advance) ? $data->sal_advance : 0;
                     $tot_eobi += !empty($data->eobi) ? $data->eobi : 0;
                     $tot_pessi += !empty($data->pessi) ? $data->pessi : 0;
+                    $tot_emp_sec_loan += !empty($data->emp_sec_loan) ? $data->emp_sec_loan : 0;
                     $tot_loan += !empty($data->loan) ? $data->loan : 0;
-                    $tot_other += !empty($data->other) ? $data->other : 0;
+                    $tot_other_deduction += !empty($data->dedu) ? $data->dedu : 0;
                     $tot_net += !empty($data->net_pay) ? $data->net_pay : 0;
 
                 @endphp
@@ -83,10 +86,11 @@
                         <td style="border: 1px solid #000;">{{ !empty($data->sal_advance) ? $data->sal_advance : 0 }}</td>
                         <td style="border: 1px solid #000;">{{ !empty($data->eobi) ? $data->eobi : 0 }}</td>
                         <td style="border: 1px solid #000;">{{ !empty($data->pessi) ? $data->pessi : 0 }}</td>
+                        <td style="border: 1px solid #000;">{{ !empty($data->emp_sec_loan) ? $data->emp_sec_loan : 0 }}</td>
                         <td style="border: 1px solid #000;">{{ !empty($data->loan) ? $data->loan : 0 }}</td>
-                        <td style="border: 1px solid #000;">{{ !empty($data->other) ? $data->other : 0 }}</td>
+                        <td style="border: 1px solid #000;">{{ !empty($data->dedu) ? $data->dedu : 0 }}</td>
                         @php
-                            $total_deduction = (!empty($data->emp_sec) ? $data->emp_sec : 0 ) + (!empty($data->it) ? $data->it : 0) + (!empty($data->sal_advance) ? $data->sal_advance : 0) + (!empty($data->eobi) ? $data->eobi : 0 ) + (!empty($data->pessi) ? $data->pessi : 0 ) + (!empty($data->loan) ? $data->loan : 0) + (!empty($data->other) ? $data->other : 0);
+                            $total_deduction = (!empty($data->emp_sec) ? $data->emp_sec : 0 ) + (!empty($data->it) ? $data->it : 0) + (!empty($data->sal_advance) ? $data->sal_advance : 0) + (!empty($data->eobi) ? $data->eobi : 0 ) + (!empty($data->pessi) ? $data->pessi : 0 ) + (!empty($data->emp_sec_loan) ? $data->emp_sec_loan : 0) + (!empty($data->loan) ? $data->loan : 0) + (!empty($data->dedu) ? $data->dedu : 0);
                             $net = (!empty($data->gross) ? $data->gross : 0) - $total_deduction ;
                             $tot_dec += $total_deduction;
                         @endphp
@@ -105,8 +109,9 @@
                         <td style="border: 1px solid #000;">{{@$tot_sal_advance}}</td>
                         <td style="border: 1px solid #000;">{{@$tot_eobi }}</td>
                         <td style="border: 1px solid #000;">{{@$tot_pessi}}</td>
+                        <td style="border: 1px solid #000;">{{@$tot_emp_sec_loan}}</td>
                         <td style="border: 1px solid #000;">{{@$tot_loan}}</td>
-                        <td style="border: 1px solid #000;">{{@$tot_other}}</td>
+                        <td style="border: 1px solid #000;">{{@$tot_other_deduction}}</td>
                         <td style="border: 1px solid #000;">{{@$tot_dec}}</td>
                         <td style="border: 1px solid #000;">{{@$tot_net}}</td>
                         {{-- <td style="border: 1px solid #000;">{{$net}}</td> --}}

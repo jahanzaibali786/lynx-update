@@ -19,7 +19,10 @@ class TaxSlabsController extends Controller
 
     private function isTaxableSalaryHead($headName)
     {
-        return strtolower(trim((string) $headName)) !== 'medical allowance';
+        return !in_array(strtolower(trim((string) $headName)), [
+            'medical',
+            'medical allowance',
+        ], true);
     }
 
     private function approvedAdvanceTaxCollection($employeeId, Carbon $fromDate, Carbon $toDate)
@@ -241,7 +244,6 @@ class TaxSlabsController extends Controller
             if ($lastscale && !$isCurrentCashPaymode) {
                 $otherAdditionsInSal =
                     ($lastscale->drns ?? 0) +
-                    ($lastscale->conv ?? 0) +
                     ($lastscale->misc ?? 0) +
                     ($lastscale->other_add ?? 0);
             }
@@ -364,11 +366,9 @@ class TaxSlabsController extends Controller
                 }
 
                 $prevSalAmnt +=
-                    ($sal->conv ?? 0) +
                     ($sal->misc ?? 0) +
                     ($sal->drns ?? 0) +
-                    ($sal->other_add ?? 0) +
-                    ($sal->chaild_con ?? 0);
+                    ($sal->other_add ?? 0);
                 $month = date('Y-m', strtotime($sal->salary_date));
 
                 $monthlySalaryHeads[$month] = ($monthlySalaryHeads[$month] ?? 0) + $monthTotal;

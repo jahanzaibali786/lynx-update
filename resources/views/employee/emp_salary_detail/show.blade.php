@@ -136,7 +136,7 @@
             {{ Form::number('drns', $hasPayscale ? $lastPayscaleDetail->drns : '', ['class' => 'form-control addition-field']) }}
         </div>
         <div class="form-group col-md-2">
-            {{ Form::label('conv', __('Conv'), ['class' => 'form-label']) }}
+            {{ Form::label('conv', __('Other'), ['class' => 'form-label']) }}
             {{ Form::number('conv', $hasPayscale ? $lastPayscaleDetail->conv : '', ['class' => 'form-control addition-field']) }}
         </div>
         <div class="form-group col-md-2">
@@ -144,7 +144,7 @@
             {{ Form::number('misc', $hasPayscale ? $lastPayscaleDetail->misc : '', ['class' => 'form-control addition-field']) }}
         </div>
         <div class="form-group col-md-2">
-            {{ Form::label('other_add', __('Other Add.'), ['class' => 'form-label']) }}
+            {{ Form::label('other_add', __('Other Allowance'), ['class' => 'form-label']) }}
             {{ Form::number('other_add', $hasPayscale ? $lastPayscaleDetail->other_add : '', ['class' => 'form-control addition-field']) }}
         </div>
 

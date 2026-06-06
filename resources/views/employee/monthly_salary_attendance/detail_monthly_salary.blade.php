@@ -66,7 +66,7 @@
             {{ Form::number('drns',  !empty($employeesalary->drns) ? $employeesalary->drns : '', ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">
-            {!! Form::label('conv', __('Conv'), ['class' => 'form-label']) !!}
+            {!! Form::label('conv', __('Other'), ['class' => 'form-label']) !!}
             {{ Form::number('conv',  !empty($employeesalary->conv) ? $employeesalary->conv : '',  ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">
@@ -74,7 +74,7 @@
             {{ Form::number('misc', !empty($employeesalary->misc) ? $employeesalary->misc : '',  ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">
-            {!! Form::label('chaild_concession', __('Chaild Cons.'), ['class' => 'form-label']) !!}
+            {!! Form::label('chaild_concession', __('Child Cons.'), ['class' => 'form-label']) !!}
             {{ Form::number('chaild_concession',  !empty($employeesalary->chaild_con) ? $employeesalary->chaild_con : '',  ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">

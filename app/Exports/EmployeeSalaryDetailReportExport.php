@@ -53,7 +53,7 @@ class EmployeeSalaryDetailReportExport implements FromQuery, WithHeadings, WithM
         ],
         $this->heads->values()->toArray(),
         [
-            'Others','Conveyance','Gross Salary','Emp Sec.',
+            'Other Allowance','Other','Drns & Misc','Gross Salary','Emp Sec.',
             'Advances','EOBI','PESSI','Loan Emp Sec.',
             'Income Tax','Other Ded','Other Loan','Net Sal'
         ]);
@@ -144,6 +144,7 @@ class EmployeeSalaryDetailReportExport implements FromQuery, WithHeadings, WithM
         // Allowances
         $last->others ?? 0,
         $last->conv ?? 0,
+        ($last->drns ?? 0) + ($last->misc ?? 0),
 
         // Gross Salary
         $gross,

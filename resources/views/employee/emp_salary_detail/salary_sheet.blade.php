@@ -29,10 +29,10 @@
             <thead>
                 <tr style="border: 1px solid #000; background-color:gray; font-size:0.9rem;">
                     <th style="border: 1px solid #000; " colspan="5">Employee Detail</th>
-                    <th style="border: 1px solid #000; " colspan="6">Allowances</th>
+                    <th style="border: 1px solid #000; " colspan="8">Allowances</th>
                     <th style="border: 1px solid #000; "></th>
                     <th style="border: 1px solid #000; "></th>
-                    <th style="border: 1px solid #000; " colspan="8">Deduction</th>
+                    <th style="border: 1px solid #000; " colspan="9">Deduction</th>
                     <th style="border: 1px solid #000; "></th>
                     <th style="border: 1px solid #000; " colspan="4">Cost To School</th>
                     <th style="border: 1px solid #000; " colspan="3">CL</th>
@@ -58,19 +58,22 @@
                         @endphp
                     @endforeach
 
-                    <th style="border: 1px solid #000;">Others</th>
+                    <th style="border: 1px solid #000;">Other Allowance</th>
+                    <th style="border: 1px solid #000;">Other</th>
+                    <th style="border: 1px solid #000;">Drns & Misc</th>
                     <th style="border: 1px solid #000;">Stop Salary</th>
 
                     <th style="border: 1px solid #000;">Gross Pay</th>
 
                     <th style="border: 1px solid #000;">E.s</th>
                     <th style="border: 1px solid #000;">I.Tax</th>
-                    <th style="border: 1px solid #000;">Adv</th>
+                    <th style="border: 1px solid #000;">Salary Adv.</th>
                     <th style="border: 1px solid #000;">EOBI Emp.</th>
                     <th style="border: 1px solid #000;">Loan Emp Sec</th>
                     <th style="border: 1px solid #000;">Stop Salary</th>
                     <th style="border: 1px solid #000;">PESSI</th>
-                    <th style="border: 1px solid #000;">Loan Adj.</th>
+                    <th style="border: 1px solid #000;">Other Deduction</th>
+                    <th style="border: 1px solid #000;">Loan</th>
 
                     <th style="border: 1px solid #000;">Net</th>
 
@@ -95,6 +98,8 @@
                 $gross = 0;
                 $total_basics = 0;
                 $total_other = 0;
+                $total_conv_other = 0;
+                $total_other_misc = 0;
                 $total_stop_sal = 0;
                 $total_gross = 0;
                 $total_emp_sec = 0;
@@ -104,6 +109,7 @@
                 $total_loan_emp_sec = 0;
                 $total_stop_sal_deductions = 0;
                 $total_pessi = 0;
+                $total_other_deduction = 0;
                 $total_loan = 0;
                 $total_net_pay = 0;
                 $total_pessi_employer = 0;
@@ -116,19 +122,24 @@
                     @foreach($datas as $key => $data)
                     @php
                         $payscale = $data->employee->employee_payscale_details->last();
+                        $conv_other = $data->conv ?? 0;
+                        $other_misc = ($data->drns ?? 0) + ($data->misc ?? 0);
                         $total_basics += $data->basics;
                         $total_other += $data->other;
+                        $total_conv_other += $conv_other;
+                        $total_other_misc += $other_misc;
                         $total_stop_sal += $data->stop_sal;
                         $total_gross += !empty($data->gross) ? @$data->gross : '0';
                         $total_emp_sec += !empty($data->emp_sec) ? @$data->emp_sec : '0';
                         $total_it += !empty($data->it) ? @$data->it : '0';
-                        $total_advance += !empty($payscale->advance) ? @$payscale->advance : '0';
+                        $total_advance += !empty($data->sal_advance) ? @$data->sal_advance : '0';
                         $total_pessi += '0';
-                        $total_loan_emp_sec = !empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0';
+                        $total_loan_emp_sec += !empty($data->emp_sec_loan) ? @$data->emp_sec_loan : '0';
                         $total_eobi += !empty($data->eobi) ? @$data->eobi : '0';
                         $total_loan += !empty($data->loan) ? @$data->loan : '0';
                         $total_net_pay += !empty($data->net_pay) ? @$data->net_pay : '0';
                         $total_stop_sal_deductions += !empty($data->stop_sal) ? @$data->stop_sal : '0';
+                        $total_other_deduction += !empty($data->dedu) ? @$data->dedu : '0';
                         $total_pessi_employer += !empty($data->pessi_employer) ? @$data->pessi_employer : '0';
                         $total_eobi_employer += !empty($data->eobi_employer) ? @$data->eobi_employer : '0';
                         $total_total_cost += !empty($total_cost) ? @$total_cost : '0';
@@ -139,7 +150,7 @@
                                 $currentDepartmentId = $data->department_id;
                             @endphp
                             <tr>
-                                <th colspan="32" style="border: 1px solid #000; text-align:left;">
+                                <th colspan="35" style="border: 1px solid #000; text-align:left;">
                                     {{ !empty($data->employee->department->name) ? $data->employee->department->name : 'No Department Name' }}
                                 </th>
                             </tr>
@@ -182,22 +193,25 @@
 
                     <td style="border: 1px solid #000;">
                         {{!empty($data->other) ? @$data->other : '0'}}</td>
+                    <td style="border: 1px solid #000;">{{ $conv_other }}</td>
+                    <td style="border: 1px solid #000;">{{ $other_misc }}</td>
                     <td style="border: 1px solid #000;">
                         {{!empty($data->stop_sal) ? @$data->stop_sal : '0'}}</td>
                     <td style="border: 1px solid #000;">{{!empty($data->gross) ? @$data->gross : '0'}}</td>
 
                     <td style="border: 1px solid #000;">{{!empty($data->emp_sec) ? @$data->emp_sec : '0'}}</td>
                     <td style="border: 1px solid #000;">{{!empty($data->it) ? @$data->it : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($payscale->advance) ? @$payscale->advance : '0'}}</td>
+                    <td style="border: 1px solid #000;">{{!empty($data->sal_advance) ? @$data->sal_advance : '0'}}</td>
                     <td style="border: 1px solid #000;">{{!empty($data->eobi) ? @$data->eobi : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0'}}
+                    <td style="border: 1px solid #000;">{{!empty($data->emp_sec_loan) ? @$data->emp_sec_loan : '0'}}
                     </td>
                     {{-- @php
-                    $net_deduction = (!empty($data->emp_sec) ? @$data->emp_sec : '0') + (!empty($data->it) ? @$data->it : '0')+(!empty($data->pessi) ? @$data->pessi : '0') + (!empty($payscale->advance) ? @$payscale->advance : '0') + (!empty($data->eobi) ? @$data->eobi : '0') + (!empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0')+ (!empty($data->stop_sal) ? @$data->stop_sal : '0');
+                    $net_deduction = (!empty($data->emp_sec) ? @$data->emp_sec : '0') + (!empty($data->it) ? @$data->it : '0')+(!empty($data->pessi) ? @$data->pessi : '0') + (!empty($data->sal_advance) ? @$data->sal_advance : '0') + (!empty($data->eobi) ? @$data->eobi : '0') + (!empty($data->emp_sec_loan) ? @$data->emp_sec_loan : '0')+ (!empty($data->stop_sal) ? @$data->stop_sal : '0');
                     @endphp --}}
 
                     <td style="border: 1px solid #000;">{{!empty($data->stop_sal) ? @$data->stop_sal : '0'}}</td>
                     <td style="border: 1px solid #000;">{{!empty($data->pessi) ? @$data->pessi : '0'}}</td>
+                    <td style="border: 1px solid #000;">{{!empty($data->dedu) ? @$data->dedu : '0'}}</td>
                     <td style="border: 1px solid #000;">{{!empty($data->loan) ? @$data->loan : '0'}}</td>
                     <td style="border: 1px solid #000;">{{!empty($data->net_pay) ? @$data->net_pay : '0'}}</td>
 
@@ -248,6 +262,8 @@
                     @endforeach
                     <!-- Add other totals for salary heads here if needed -->
                     <td style="border: 1px solid #000;">{{ $total_other }}</td>
+                    <td style="border: 1px solid #000;">{{ $total_conv_other }}</td>
+                    <td style="border: 1px solid #000;">{{ $total_other_misc }}</td>
                     <td style="border: 1px solid #000;">{{ $total_stop_sal }}</td>
                     <td style="border: 1px solid #000;">{{ $total_gross }}</td>
                     <td style="border: 1px solid #000;">{{ $total_emp_sec }}</td>
@@ -257,6 +273,7 @@
                     <td style="border: 1px solid #000;">{{ $total_loan_emp_sec }}</td>
                     <td style="border: 1px solid #000;">{{ $total_stop_sal_deductions }}</td>
                     <td style="border: 1px solid #000;">{{ $total_pessi }}</td>
+                    <td style="border: 1px solid #000;">{{ $total_other_deduction }}</td>
                     <td style="border: 1px solid #000;">{{ $total_loan }}</td>
                     <td style="border: 1px solid #000;">{{ $total_net_pay }}</td>
                     <td style="border: 1px solid #000;">{{ $total_pessi_employer }}</td>

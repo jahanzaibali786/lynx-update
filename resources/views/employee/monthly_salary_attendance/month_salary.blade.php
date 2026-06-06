@@ -1022,9 +1022,10 @@
                             <th>{{ $shortenedHeads[$head->head] ?? $head->head }}</th>
                         @endforeach
                         <th>{{ __('Basic') }}</th>
-                        <th>{{ __('Conv') }}</th>
-                        <th>{{ __('Stop sal') }}</th>
                         <th>{{ __('Other') }}</th>
+                        <th>{{ __('Stop sal') }}</th>
+                        <th>{{ __('Other Allowance') }}</th>
+                        <th>{{ __('Drns & Misc') }}</th>
                         <th>{{ __('Gross') }}</th>
                         <th>{{ __('Arears') }}</th>
                         <th>{{ __('E.s') }}</th>
@@ -1033,6 +1034,7 @@
                         <th>{{ __('EOBI') }}</th>
                         <th>{{ __('Ded') }}</th>
                         <th>{{ __('Loan') }}</th>
+                        <th>{{ __('Loan Sec') }}</th>
                         <th>{{ __('Tra. Course') }}</th>
                         <th>{{ __('Salary Adv.') }}</th>
                         <th>{{ __('Net') }}</th>
@@ -1134,6 +1136,9 @@ foreach ($heads as $scale_head) {
                             </td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->other : '0' }}
                             </td>
+                            <td>
+                                {{ !empty(@$data->employeemonthlysalary) ? (($data->employeemonthlysalary->drns ?? 0) + ($data->employeemonthlysalary->misc ?? 0)) : '0' }}
+                            </td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->gross : '0' }}
                             </td>
                             <td>{{ !empty(@$arrears) ? $arrears : '0' }}</td>
@@ -1145,6 +1150,7 @@ foreach ($heads as $scale_head) {
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->eobi : '0' }}</td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->dedu : '0' }}</td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->loan : '0' }}</td>
+                            <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->emp_sec_loan : '0' }}</td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->tra_course : '0' }}
                             </td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->sal_advance : '0' }}

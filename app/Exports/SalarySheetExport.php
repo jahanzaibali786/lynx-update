@@ -45,8 +45,8 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
         }
 
         $header = array_merge($header, [
-            'Other', 'Stop Salary', 'Gross',
-            'ES', 'IT', 'Adv', 'EOBI', 'Loan Sec', 'Stop', 'PESSI', 'other', 'Loan',
+            'Other Allowance', 'Other', 'Drns & Misc', 'Stop Salary', 'Gross',
+            'ES', 'IT', 'Salary Adv.', 'EOBI', 'Loan Sec', 'Stop', 'PESSI', 'Other Deduction', 'Loan',
             'Net', 'PESSI Comp', 'EOBI Comp', 'Total Cost', 'Cost To Comp',
             'OP', 'Lvs', 'Bal','OP', 'Lvs', 'Bal','Days',
         ]);
@@ -97,6 +97,8 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
 
                 // Other
                 $row[] = $data->other_add ?? 0;
+                $row[] = $data->conv ?? 0;
+                $row[] = ($data->drns ?? 0) + ($data->misc ?? 0);
                 $row[] = $data->stop_sal ?? 0;
                 $row[] = $data->gross ?? 0;
 
@@ -219,18 +221,40 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 }
                 $sheet->setCellValue('A5', 'Salary Sheet Report for '.date('F Y', strtotime($this->requestdata['date'])));
 
+                $allowanceStartIndex = 8; // H: Basic + salary heads + allowance columns
+                $allowanceEndIndex = $allowanceStartIndex + count($this->salaryHeads) + 5;
+                $deductionStartIndex = $allowanceEndIndex + 1;
+                $deductionEndIndex = $deductionStartIndex + 8;
+                $costStartIndex = $deductionEndIndex + 2;
+                $costEndIndex = $costStartIndex + 3;
+                $clStartIndex = $costEndIndex + 1;
+                $clEndIndex = $clStartIndex + 2;
+                $alStartIndex = $clEndIndex + 1;
+                $alEndIndex = $alStartIndex + 2;
+
+                $allowanceStartColumn = Coordinate::stringFromColumnIndex($allowanceStartIndex);
+                $allowanceEndColumn = Coordinate::stringFromColumnIndex($allowanceEndIndex);
+                $deductionStartColumn = Coordinate::stringFromColumnIndex($deductionStartIndex);
+                $deductionEndColumn = Coordinate::stringFromColumnIndex($deductionEndIndex);
+                $costStartColumn = Coordinate::stringFromColumnIndex($costStartIndex);
+                $costEndColumn = Coordinate::stringFromColumnIndex($costEndIndex);
+                $clStartColumn = Coordinate::stringFromColumnIndex($clStartIndex);
+                $clEndColumn = Coordinate::stringFromColumnIndex($clEndIndex);
+                $alStartColumn = Coordinate::stringFromColumnIndex($alStartIndex);
+                $alEndColumn = Coordinate::stringFromColumnIndex($alEndIndex);
+
                 $sheet->setCellValue('A7', 'EMPLOYEES DETAIL');
-                $sheet->setCellValue('H7', 'ALLOWANCES');
-                $sheet->setCellValue('P7', 'DEDUCTION');
-                $sheet->setCellValue('Z7', 'Cost to School');
-                $sheet->setCellValue('AD7', 'CL');
-                $sheet->setCellValue('AG7', 'AL');
+                $sheet->setCellValue("{$allowanceStartColumn}7", 'ALLOWANCES');
+                $sheet->setCellValue("{$deductionStartColumn}7", 'DEDUCTION');
+                $sheet->setCellValue("{$costStartColumn}7", 'Cost to School');
+                $sheet->setCellValue("{$clStartColumn}7", 'CL');
+                $sheet->setCellValue("{$alStartColumn}7", 'AL');
                 $sheet->mergeCells('A7:G7');   // Employee Detail
-                $sheet->mergeCells('H7:N7');   // Allowances
-                $sheet->mergeCells('P7:X7');   // Deduction
-                $sheet->mergeCells('Z7:AC7'); // CL
-                $sheet->mergeCells('AD7:AF7'); // CL
-                $sheet->mergeCells('AG7:AI7'); // AL
+                $sheet->mergeCells("{$allowanceStartColumn}7:{$allowanceEndColumn}7");   // Allowances
+                $sheet->mergeCells("{$deductionStartColumn}7:{$deductionEndColumn}7");   // Deduction
+                $sheet->mergeCells("{$costStartColumn}7:{$costEndColumn}7"); // Cost to School
+                $sheet->mergeCells("{$clStartColumn}7:{$clEndColumn}7"); // CL
+                $sheet->mergeCells("{$alStartColumn}7:{$alEndColumn}7"); // AL
 
                 $highestColumn = $sheet->getHighestColumn();
 
@@ -347,16 +371,17 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $sigRow = $lastRow + 2;
 
                 $sheet->setCellValue("B{$sigRow}", '________________________');
-                $from = Coordinate::stringFromColumnIndex($lastRow - 1);
-                $to   = Coordinate::stringFromColumnIndex($lastRow);
+                $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
+                $rightStartIndex = max(2, $highestColumnIndex - 1);
+                $rightStartColumn = Coordinate::stringFromColumnIndex($rightStartIndex);
 
-                $sheet->mergeCells("{$from}{$sigRow}:{$to}{$sigRow}")
-                    ->setCellValue("{$from}{$sigRow}", '________________________');
+                $sheet->mergeCells("{$rightStartColumn}{$sigRow}:{$highestColumn}{$sigRow}")
+                    ->setCellValue("{$rightStartColumn}{$sigRow}", '________________________');
 
                 $sheet->getStyle("B{$sigRow}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
-                $sheet->getStyle("{$highestColumn}{$sigRow}")
+                $sheet->getStyle("{$rightStartColumn}{$sigRow}:{$highestColumn}{$sigRow}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
                 // ==============================
@@ -380,7 +405,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $drawing = new Drawing;
                 $drawing->setPath($tmpPath);
                 $drawing->setHeight(70);
-                $drawing->setCoordinates("{$from}1");
+                $drawing->setCoordinates("{$rightStartColumn}1");
                 $drawing->setWorksheet($sheet);
 
                 foreach ($this->departmentRows as $rowIndex) {
