@@ -20,8 +20,15 @@ class ProductService extends Model
         'unit_id',
         'space_id',
         'type',
+        'item_type',
+        'is_subitem',
+        'parent_id',
+        'manufacturer_part_number',
+        'purchase_description',
+        'sales_description',
         'sale_chartaccount_id',
         'expense_chartaccount_id',
+        'inventory_asset_account_id',
         'owned_by',
         'created_by',
     ];
@@ -47,6 +54,31 @@ class ProductService extends Model
     public function subcategory()
     {
         return $this->hasOne('App\Models\ProductServiceSubCategory', 'id', 'sub_category_id');
+    }
+
+    public function parentItem()
+    {
+        return $this->belongsTo('App\Models\ProductService', 'parent_id');
+    }
+
+    public function childItems()
+    {
+        return $this->hasMany('App\Models\ProductService', 'parent_id');
+    }
+
+    public function saleAccount()
+    {
+        return $this->belongsTo('App\Models\ChartOfAccount', 'sale_chartaccount_id');
+    }
+
+    public function expenseAccount()
+    {
+        return $this->belongsTo('App\Models\ChartOfAccount', 'expense_chartaccount_id');
+    }
+
+    public function inventoryAssetAccount()
+    {
+        return $this->belongsTo('App\Models\ChartOfAccount', 'inventory_asset_account_id');
     }
 
     public function tax($taxes)

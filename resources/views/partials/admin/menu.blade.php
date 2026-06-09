@@ -2733,7 +2733,7 @@
                             @if (Gate::check('manage vender'))
                                 <li class="dash-item ">
                                     <a class="dash-link {{ Request::segment(1) == 'vender' ? 'active' : '' }}"
-                                        href="{{ route('vender.index') }}">{{ __('Suppiler') }}</a>
+                                        href="{{ route('vender.index') }}">{{ __('Vendor/Supplier') }}</a>
                                 </li>
                             @endif
                             <li class="dash-item">

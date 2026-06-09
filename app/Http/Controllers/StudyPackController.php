@@ -32,8 +32,8 @@ class StudyPackController extends Controller
     public function create()
     {
         $session = Session::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('year', 'id');
-        $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
-            ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
+        $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name'), 'id')
+            ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get();
         $class = array(
             "DAYCARE" => "DAYCARE",
             "PLAY GROUP" => "PLAY GROUP",
@@ -54,7 +54,7 @@ class StudyPackController extends Controller
             "IGCSE-9" => "IGCSE-9",
             "IGCSE-10" => "IGCSE-10"
         );
-        
+
         return view('students.studypack.create', compact('session', 'product_services', 'class'));
     }
 
@@ -172,8 +172,8 @@ class StudyPackController extends Controller
         if (\Auth::user()->can('edit invoice')) {
             $invoice = StudyPack::find($id);
             $session = Session::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('year', 'id');
-            $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
-                ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
+            $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name'), 'id')
+                ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get();
             $class = array(
                 "DAYCARE" => "DAYCARE",
                 "PLAY GROUP" => "PLAY GROUP",

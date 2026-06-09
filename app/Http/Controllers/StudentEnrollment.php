@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Browsershot\Browsershot;
+use Yajra\DataTables\Facades\DataTables;
 
 class StudentEnrollment extends Controller
 {
@@ -266,11 +267,83 @@ class StudentEnrollment extends Controller
         //         ->header('Content-Type', 'application/pdf')
         //         ->header('Content-Disposition', 'inline; filename="StudentDefaulter.pdf"');
         // }
-        $enrollments = $query->where('student_enrollments.active_status', 1)->get();
+        // Check if AJAX request for DataTables
+        if ($request->ajax()) {
+            return $this->getEnrollmentDataTable($query);
+        }
+
         return view(
             'students.enrollment.list',
-            compact('enrollments', 'branches', 'classes', 'sections', 'sessions')
+            compact('branches', 'classes', 'sections', 'sessions')
         );
+    }
+
+    /**
+     * Get enrollment data for DataTables AJAX
+     */
+    public function getEnrollmentDataTable($query)
+    {
+        return DataTables::of($query->where('student_enrollments.active_status', 1))
+            ->addIndexColumn()
+            ->addColumn('branch_name', function ($enrollment) {
+                return @$enrollment->branch->name ?? '-';
+            })
+            ->addColumn('reg_no', function ($enrollment) {
+                $studentData = StudentRegistration::where('id', $enrollment->regId)->first();
+                return @$studentData->reg_no ?? '-';
+            })
+            ->addColumn('roll_no', function ($enrollment) {
+                return @$enrollment->enrollId ?? '-';
+            })
+            ->addColumn('student_name', function ($enrollment) {
+                $studentData = StudentRegistration::where('id', $enrollment->regId)->first();
+                return @$studentData->stdname ?? '-';
+            })
+            ->addColumn('father_name', function ($enrollment) {
+                $studentData = StudentRegistration::where('id', $enrollment->regId)->first();
+                return @$studentData->fathername ?? '-';
+            })
+            ->addColumn('class_name', function ($enrollment) {
+                return @$enrollment->class->name ?? '-';
+            })
+            ->addColumn('section_name', function ($enrollment) {
+                $sectionName = $enrollment->section->name ?? 'Set Section';
+                $sectionUrl = route('section.show', $enrollment->id);
+                return '<a href="#" class="btn btn-sm btn-outline-primary w-100 d-flex align-items-start justify-content-start text-left"
+                        style="text-align:left; min-height:38px; white-space:normal; word-break:break-word; line-height:1.2; width:160px !important;"
+                        data-size="lg" data-url="' . $sectionUrl . '" data-ajax-popup="true" data-title="Section History">
+                        ' . $sectionName . '
+                    </a>';
+            })
+            ->addColumn('session_year', function ($enrollment) {
+                $studentData = StudentRegistration::where('id', $enrollment->regId)->first();
+                return @$studentData->session->year ?? '-';
+            })
+            ->addColumn('reg_type', function ($enrollment) {
+                $studentData = StudentRegistration::where('id', $enrollment->regId)->first();
+                return @$studentData->registeroption->name ?? '-';
+            })
+            ->addColumn('admission_date', function ($enrollment) {
+                return $enrollment->adm_date ? date('d-M-Y', strtotime($enrollment->adm_date)) : '-';
+            })
+            ->addColumn('action', function ($enrollment) {
+                $studentData = StudentRegistration::where('id', $enrollment->regId)->first();
+                $showUrl = route('registration.show', $enrollment->regId);
+                $admissionUrl = route('admission.order', $studentData->id);
+
+                return '<div class="action-btn ms-2">
+                    <a href="' . $showUrl . '" class="mx-1 btn btn-sm align-items-center btn-outline-primary"
+                        data-bs-title="Show">
+                        <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
+                    </a>
+                    <a href="' . $admissionUrl . '" class="mx-1 btn btn-sm align-items-center btn-outline-success"
+                        data-bs-title="Admission Order">
+                        <span class="btn-inner--icon"><i class="ti ti-receipt"></i></span>
+                    </a>
+                </div>';
+            })
+            ->rawColumns(['section_name', 'action'])
+            ->make(true);
     }
 
     public function exportToExcel($enrollments, $branch, $branches)

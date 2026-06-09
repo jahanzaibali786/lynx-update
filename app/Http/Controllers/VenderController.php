@@ -92,14 +92,30 @@ class VenderController extends Controller
     {
         if(\Auth::user()->can('create vender'))
         {
+            // Concatenate name fields before validation
+            $fullName = trim(
+                ($request->name_prefix ? $request->name_prefix . ' ' : '') .
+                ($request->first_name ? $request->first_name . ' ' : '') .
+                ($request->middle_initial ? $request->middle_initial . ' ' : '') .
+                ($request->last_name ? $request->last_name : '')
+            );
+
+            // Merge the concatenated name into the request
+            $request->merge([
+                'name' => $fullName,
+                'contact' => $request->main_phone // Use main_phone as contact
+            ]);
+
             $rules = [
-                'name' => 'required',
+                'first_name' => 'required',
+                'last_name' => 'required',
                 'account_id' => 'required',
-                'contact' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
+                'main_phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
                 'email' => [
                     'required',
+                    'email',
                     Rule::unique('venders')->where(function ($query) {
-                        return $query->where('created_by', \Auth::user()->id);
+                        return $query->where('created_by', \Auth::user()->creatorId());
                     })
                 ],
             ];
@@ -127,6 +143,26 @@ class VenderController extends Controller
                     $vender->tax_number       =$request->tax_number;
                     $vender->owned_by         = \Auth::user()->ownedId();
                     $vender->created_by       = \Auth::user()->creatorId();
+
+                    // New vendor fields
+                    $vender->company_name     = $request->company_name;
+                    $vender->name_prefix      = $request->name_prefix;
+                    $vender->first_name       = $request->first_name;
+                    $vender->middle_initial   = $request->middle_initial;
+                    $vender->last_name        = $request->last_name;
+                    $vender->job_title        = $request->job_title;
+                    $vender->main_phone_type  = $request->main_phone_type;
+                    $vender->main_phone       = $request->main_phone;
+                    $vender->work_phone_type  = $request->work_phone_type;
+                    $vender->work_phone       = $request->work_phone;
+                    $vender->main_email_type  = $request->main_email_type;
+                    $vender->cc_email_type    = $request->cc_email_type;
+                    $vender->cc_email         = $request->cc_email;
+                    $vender->website_type     = $request->website_type;
+                    $vender->website          = $request->website;
+                    $vender->other1_type      = $request->other1_type;
+                    $vender->other1           = $request->other1;
+
                     $vender->billing_name     = $request->billing_name;
                     $vender->billing_country  = $request->billing_country;
                     $vender->billing_state    = $request->billing_state;
@@ -221,13 +257,34 @@ class VenderController extends Controller
     {
         if(\Auth::user()->can('edit vender'))
         {
+            // Concatenate name fields before validation if they exist
+            if($request->has('first_name') || $request->has('last_name')) {
+                $fullName = trim(
+                    ($request->name_prefix ? $request->name_prefix . ' ' : '') .
+                    ($request->first_name ? $request->first_name . ' ' : '') .
+                    ($request->middle_initial ? $request->middle_initial . ' ' : '') .
+                    ($request->last_name ? $request->last_name : '')
+                );
+
+                $request->merge([
+                    'name' => $fullName,
+                    'contact' => $request->main_phone ? $request->main_phone : $request->contact
+                ]);
+            }
 
             $rules = [
-                'name' => 'required',
                 'account_id' => 'required',
-                'contact' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
             ];
 
+            // Add validation for name fields if they are present
+            if($request->has('first_name') || $request->has('last_name')) {
+                $rules['first_name'] = 'required';
+                $rules['last_name'] = 'required';
+                $rules['main_phone'] = 'required|regex:/^([0-9\s\-\+\(\)]*)$/';
+            } else {
+                $rules['name'] = 'required';
+                $rules['contact'] = 'required|regex:/^([0-9\s\-\+\(\)]*)$/';
+            }
 
             $validator = \Validator::make($request->all(), $rules);
 
@@ -242,6 +299,28 @@ class VenderController extends Controller
             $vender->contact          = $request->contact;
             $vender->tax_number      = $request->tax_number;
             $vender->created_by       = \Auth::user()->creatorId();
+
+            // Update new vendor fields if present
+            if($request->has('company_name')) {
+                $vender->company_name     = $request->company_name;
+                $vender->name_prefix      = $request->name_prefix;
+                $vender->first_name       = $request->first_name;
+                $vender->middle_initial   = $request->middle_initial;
+                $vender->last_name        = $request->last_name;
+                $vender->job_title        = $request->job_title;
+                $vender->main_phone_type  = $request->main_phone_type;
+                $vender->main_phone       = $request->main_phone;
+                $vender->work_phone_type  = $request->work_phone_type;
+                $vender->work_phone       = $request->work_phone;
+                $vender->main_email_type  = $request->main_email_type;
+                $vender->cc_email_type    = $request->cc_email_type;
+                $vender->cc_email         = $request->cc_email;
+                $vender->website_type     = $request->website_type;
+                $vender->website          = $request->website;
+                $vender->other1_type      = $request->other1_type;
+                $vender->other1           = $request->other1;
+            }
+
             $vender->billing_name     = $request->billing_name;
             $vender->billing_country  = $request->billing_country;
             $vender->billing_state    = $request->billing_state;

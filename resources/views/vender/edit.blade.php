@@ -1,17 +1,139 @@
 {{Form::model($vender,array('route' => array('vender.update', $vender->id), 'method' => 'PUT')) }}
 <div class="modal-body">
 
-    <h6 class="sub-title">{{__('Basic Info')}}</h6>
+    <h6 class="sub-title"><strong>{{__('Basic Info')}}</strong></h6>
     <div class="row">
-        <div class="col-lg-6 col-md-6 col-sm-6">
+        <!-- Company Name -->
+        <div class="col-lg-12 col-md-12 col-sm-12">
             <div class="form-group">
-                {{Form::label('name',__('Name'),array('class'=>'form-label')) }}<span class="text-danger pl-1"> *</span>
-                {{Form::text('name',null,array('class'=>'form-control','required'=>'required'))}}
+                {{Form::label('company_name',__('COMPANY NAME'),array('class'=>'form-label')) }}
+                {{Form::text('company_name',null,array('class'=>'form-control','placeholder'=>''))}}
             </div>
         </div>
-        <div class="col-lg-6 col-md-6 col-sm-6">
+
+        <!-- Full Name Section -->
+        <div class="col-lg-12 col-md-12 col-sm-12">
             <div class="form-group">
-                {{Form::label('account',__('Account'),array('class'=>'form-label')) }}<span class="text-danger pl-1"> *</span>
+                {{Form::label('full_name',__('FULL NAME'),array('class'=>'form-label')) }}<span class="text-danger pl-1"> *</span>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-2 col-sm-12">
+            <div class="form-group">
+                {{Form::select('name_prefix',[''=>'Mr/Ms.','Mr'=>'Mr.','Ms'=>'Ms.','Mrs'=>'Mrs.','Dr'=>'Dr.'],null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-4 col-sm-12">
+            <div class="form-group">
+                {{Form::text('first_name',null,array('class'=>'form-control','placeholder'=>'First','required'=>'required'))}}
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-2 col-sm-12">
+            <div class="form-group">
+                {{Form::text('middle_initial',null,array('class'=>'form-control','placeholder'=>'M.I.'))}}
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-4 col-sm-12">
+            <div class="form-group">
+                {{Form::text('last_name',null,array('class'=>'form-control','placeholder'=>'Last','required'=>'required'))}}
+            </div>
+        </div>
+
+        <!-- Job Title -->
+        <div class="col-lg-12 col-md-12 col-sm-12">
+            <div class="form-group">
+                {{Form::label('job_title',__('JOB TITLE'),array('class'=>'form-label')) }}
+                {{Form::text('job_title',null,array('class'=>'form-control','placeholder'=>''))}}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Phone Numbers (2 fields) - All in one row -->
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('main_phone_label',__('Main Phone'),array('class'=>'form-label')) }}<span class="text-danger"> *</span>
+                {{Form::select('main_phone_type',[''=>'Main Phone','Work'=>'Work','Home'=>'Home','Mobile'=>'Mobile','Other'=>'Other'],null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('main_phone',__(''),array('class'=>'form-label','style'=>'visibility:hidden;')) }}
+                {{Form::text('main_phone',null,array('class'=>'form-control','required'=>'required'))}}
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('work_phone_label',__('Work Phone'),array('class'=>'form-label')) }}
+                {{Form::select('work_phone_type',[''=>'Work Phone','Work'=>'Work','Home'=>'Home','Mobile'=>'Mobile','Other'=>'Other'],null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('work_phone',__(''),array('class'=>'form-label','style'=>'visibility:hidden;')) }}
+                {{Form::text('work_phone',null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+
+        <!-- Email Fields - All in one row -->
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('main_email_label',__('Main Email'),array('class'=>'form-label')) }}<span class="text-danger"> *</span>
+                {{Form::select('main_email_type',[''=>'Main Email','Work'=>'Work','Personal'=>'Personal','Other'=>'Other'],null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('main_email',__(''),array('class'=>'form-label','style'=>'visibility:hidden;')) }}
+                {{Form::email('email',null,array('class'=>'form-control','required'=>'required'))}}
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('cc_email_label',__('CC Email'),array('class'=>'form-label')) }}
+                {{Form::select('cc_email_type',[''=>'CC Email','Work'=>'Work','Personal'=>'Personal','Other'=>'Other'],null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('cc_email',__(''),array('class'=>'form-label','style'=>'visibility:hidden;')) }}
+                {{Form::email('cc_email',null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+
+        <!-- Website and Other - All in one row -->
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('website_label',__('Website'),array('class'=>'form-label')) }}
+                {{Form::select('website_type',[''=>'Website','Work'=>'Work','Personal'=>'Personal','Other'=>'Other'],null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('website',__(''),array('class'=>'form-label','style'=>'visibility:hidden;')) }}
+                {{Form::text('website',null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('other1_label',__('Other 1'),array('class'=>'form-label')) }}
+                {{Form::select('other1_type',[''=>'Other 1','Phone'=>'Phone','Email'=>'Email','Website'=>'Website','Other'=>'Other'],null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                {{Form::label('other1',__(''),array('class'=>'form-label','style'=>'visibility:hidden;')) }}
+                {{Form::text('other1',null,array('class'=>'form-control'))}}
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-md-6">
+            <div class="form-group">
+                {{Form::label('account',__('Account'),array('class'=>'form-label')) }}<span class="text-danger"> *</span>
                 <select name="account_id" class="form-control selectbox" required="required">
                     <option value="" selected disabled>Select Account</option>
                     @foreach ($accounts as $chartAccount)
@@ -23,147 +145,57 @@
                         @endforeach
                     @endforeach
                 </select>
-
             </div>
         </div>
-        <div class="col-lg-4 col-md-4 col-sm-4">
-            <div class="form-group">
-                {{Form::label('contact',__('Contact'),['class'=>'form-label'])}}<span class="text-danger pl-1"> *</span>
-                {{Form::number('contact',null,array('class'=>'form-control','required'=>'required'))}}
-            </div>
-        </div>
-        <div class="col-lg-4 col-md-4 col-sm-4">
-            <div class="form-group">
-                {{Form::label('email',__('Email'),['class'=>'form-label'])}}<span class="text-danger pl-1"> *</span>
-                {{Form::email('email',null,array('class'=>'form-control','required'=>'required'))}}
-
-            </div>
-        </div>
-        <div class="col-lg-4 col-md-4 col-sm-4">
+        <div class="col-md-6">
             <div class="form-group">
                 {{Form::label('tax_number',__('Tax Number'),['class'=>'form-label'])}}
                 {{Form::text('tax_number',null,array('class'=>'form-control'))}}
-
             </div>
         </div>
         @if(!$customFields->isEmpty())
-            <div class="col-lg-4 col-md-4 col-sm-6">
+            <div class="col-md-12">
                 <div class="tab-pane fade show" id="tab-2" role="tabpanel">
                     @include('customFields.formBuilder')
                 </div>
             </div>
         @endif
     </div>
-    <h6 class="sub-title">{{__('Billing Address')}}</h6>
+    <h6 class="sub-title"><strong>{{__('ADDRESS DETAILS')}}</strong></h6>
     <div class="row">
-        <div class="col-lg-6 col-md-6 col-sm-6">
-            <div class="form-group">
-                {{Form::label('billing_name',__('Name'),array('class'=>'form-label')) }}
-                {{Form::text('billing_name',null,array('class'=>'form-control'))}}
+        <!-- Billed From Column -->
+        <div class="col-lg-5 col-md-5 col-sm-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="font-weight-bold mb-0">{{__('BILLED FROM')}}</h6>
+                <button type="button" class="btn btn-sm btn-link p-0" onclick="editBillingAddress()">
+                    <i class="ti ti-pencil"></i>
+                </button>
             </div>
-        </div>
-        <div class="col-lg-6 col-md-6 col-sm-6">
-            <div class="form-group">
-                {{Form::label('billing_phone',__('Phone'),array('class'=>'form-label')) }}
-                {{Form::text('billing_phone',null,array('class'=>'form-control'))}}
-            </div>
-        </div>
-        <div class="col-md-12">
-            <div class="form-group">
-                {{Form::label('billing_address',__('Address'),array('class'=>'form-label')) }}
-                {{Form::textarea('billing_address',null,array('class'=>'form-control','rows'=>3))}}
+            <div class="form-group mt-2">
+                {{Form::textarea('billing_address',null,array('class'=>'form-control','rows'=>4,'id'=>'billing_address','placeholder'=>''))}}
             </div>
         </div>
 
-
-        <div class="col-lg-6 col-md-6 col-sm-6">
-            <div class="form-group">
-                {{Form::label('billing_city',__('City'),array('class'=>'form-label')) }}
-                {{Form::text('billing_city',null,array('class'=>'form-control'))}}
-            </div>
-        </div>
-        <div class="col-lg-6 col-md-6 col-sm-6">
-            <div class="form-group">
-                {{Form::label('billing_state',__('State'),array('class'=>'form-label')) }}
-                {{Form::text('billing_state',null,array('class'=>'form-control'))}}
-            </div>
+        <!-- Copy Button Column -->
+        <div class="col-lg-2 col-md-2 col-sm-12 d-flex align-items-center justify-content-center">
+            <button type="button" class="btn btn-outline-primary" onclick="copyAddress()" style="white-space: nowrap;">
+                {{__('Copy >>')}}
+            </button>
         </div>
 
-        <div class="col-lg-6 col-md-6 col-sm-6">
-            <div class="form-group">
-                {{Form::label('billing_country',__('Country'),array('class'=>'form-label')) }}
-                {{Form::text('billing_country',null,array('class'=>'form-control'))}}
+        <!-- Shipped From Column -->
+        <div class="col-lg-5 col-md-5 col-sm-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="font-weight-bold mb-0">{{__('SHIPPED FROM')}}</h6>
+                <button type="button" class="btn btn-sm btn-link p-0" onclick="editShippingAddress()">
+                    <i class="ti ti-pencil"></i>
+                </button>
+            </div>
+            <div class="form-group mt-2">
+                {{Form::textarea('shipping_address',null,array('class'=>'form-control','rows'=>4,'id'=>'shipping_address','placeholder'=>''))}}
             </div>
         </div>
-
-
-        <div class="col-lg-6 col-md-6 col-sm-6">
-            <div class="form-group">
-                {{Form::label('billing_zip',__('Zip Code'),array('class'=>'form-label')) }}
-                {{Form::text('billing_zip',null,array('class'=>'form-control'))}}
-            </div>
-        </div>
-
     </div>
-
-    @if(App\Models\Utility::getValByName('shipping_display')=='on')
-        <div class="col-md-12 text-end">
-            <input type="button" id="billing_data" value="{{__('Shipping Same As Billing')}}" class="btn btn-outline-primary">
-        </div>
-        <h6 class="sub-title">{{__('Shipping Address')}}</h6>
-        <div class="row">
-            <div class="col-lg-6 col-md-6 col-sm-6">
-                <div class="form-group">
-                    {{Form::label('shipping_name',__('Name'),array('class'=>'form-label')) }}
-                    {{Form::text('shipping_name',null,array('class'=>'form-control'))}}
-
-                </div>
-            </div>
-            <div class="col-lg-6 col-md-6 col-sm-6">
-                <div class="form-group">
-                    {{Form::label('shipping_phone',__('Phone'),array('class'=>'form-label')) }}
-                    {{Form::text('shipping_phone',null,array('class'=>'form-control'))}}
-
-                </div>
-            </div>
-            <div class="col-md-12">
-                <div class="form-group">
-                    {{Form::label('shipping_address',__('Address'),array('class'=>'form-label')) }}
-                    {{Form::textarea('shipping_address',null,array('class'=>'form-control','rows'=>3))}}
-
-                </div>
-            </div>
-
-
-                <div class="col-lg-6 col-md-6 col-sm-6">
-                <div class="form-group">
-                    {{Form::label('shipping_city',__('City'),array('class'=>'form-label')) }}
-                    {{Form::text('shipping_city',null,array('class'=>'form-control'))}}
-                </div>
-                </div>
-                <div class="col-lg-6 col-md-6 col-sm-6">
-                    <div class="form-group">
-                        {{Form::label('shipping_state',__('State'),array('class'=>'form-label')) }}
-                        {{Form::text('shipping_state',null,array('class'=>'form-control'))}}
-                    </div>
-                </div>
-                <div class="col-lg-6 col-md-6 col-sm-6">
-                    <div class="form-group">
-                        {{Form::label('shipping_country',__('Country'),array('class'=>'form-label')) }}
-                        {{Form::text('shipping_country',null,array('class'=>'form-control'))}}
-                    </div>
-                </div>
-
-            <div class="col-lg-6 col-md-6 col-sm-6">
-                <div class="form-group">
-                    {{Form::label('shipping_zip',__('Zip Code'),array('class'=>'form-label')) }}
-                    {{Form::text('shipping_zip',null,array('class'=>'form-control'))}}
-
-                </div>
-            </div>
-
-        </div>
-    @endif
 
 </div>
 
@@ -173,3 +205,18 @@
 </div>
 
 {{Form::close()}}
+
+<script>
+    function copyAddress() {
+        var billingAddress = document.getElementById('billing_address').value;
+        document.getElementById('shipping_address').value = billingAddress;
+    }
+
+    function editBillingAddress() {
+        document.getElementById('billing_address').focus();
+    }
+
+    function editShippingAddress() {
+        document.getElementById('shipping_address').focus();
+    }
+</script>

@@ -70,8 +70,18 @@ class ProductServiceSubCategoryController extends Controller
             $category->created_by = \Auth::user()->creatorId();
             $category->save();
 
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => __('SubCategory successfully created.'),
+                    'subcategory' => $category,
+                ]);
+            }
             return redirect()->route('product-sub-category.index')->with('success', __('SubCategory successfully created.'));
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
