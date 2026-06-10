@@ -44,6 +44,7 @@ use App\Http\Controllers\ProductServiceController;
 use App\Http\Controllers\ProductStockController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\VenderController;
+use App\Http\Controllers\VendorAdvanceController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BankTransferController;
 use App\Http\Controllers\TaxController;
@@ -605,6 +606,10 @@ Route::group(['middleware' => ['verified']], function () {
         ],
         function () {
             Route::get('vender/{id}/show', [VenderController::class, 'show'])->name('vender.show');
+            Route::get('vendor-advance-print/{id}', [VendorAdvanceController::class, 'printAdvance'])->name('vendor-advance.print');
+            Route::get('vendor-advance-status/{id}', [VendorAdvanceController::class, 'status'])->name('vendor-advance.status');
+            Route::put('vendor-advance-status-change/{id}', [VendorAdvanceController::class, 'statusChange'])->name('vendor-advance.statusChange');
+            Route::resource('vendor-advance', VendorAdvanceController::class);
             Route::resource('vender', VenderController::class);
         }
     );

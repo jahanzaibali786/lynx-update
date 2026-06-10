@@ -2717,6 +2717,10 @@
                                     <a class="dash-link {{ Request::segment(1) == 'vender' ? 'active' : '' }}"
                                         href="{{ route('vender.index') }}">{{ __('Suppiler') }}</a>
                                 </li>
+                                <li class="dash-item ">
+                                    <a class="dash-link {{ Request::segment(1) == 'vendor-advance' ? 'active' : '' }}"
+                                        href="{{ route('vendor-advance.index') }}">{{ __('Vendor Advance') }}</a>
+                                </li>
                             @endif
                             <li class="dash-item">
                                 <a class="dash-link  {{ Request::segment(1) == 'purchase' || Request::route()->getName() == 'purchase.index' || Request::route()->getName() == 'purchase.create' || Request::route()->getName() == 'purchase.edit' || Request::route()->getName() == 'purchase.show' ? ' active' : '' }}"

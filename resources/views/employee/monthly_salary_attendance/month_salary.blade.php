@@ -27,6 +27,34 @@
             font-weight: 800;
             font-size: 13px;
         }
+
+        .report-download-loader {
+            position: fixed;
+            right: 24px;
+            top: 77px;
+            z-index: 20000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .report-download-loader.d-none {
+            display: none !important;
+        }
+
+        .report-download-loader-box {
+            min-width: 210px;
+            padding: 12px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 14px 38px rgba(15, 23, 42, 0.18);
+            text-align: center;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
     </style>
 @endpush
 
@@ -500,6 +528,44 @@
         }
     </script>
     <script>
+        let reportDownloadLoaderTimer = null;
+
+        function showReportDownloadLoader(message = 'Preparing report...') {
+            const loader = document.getElementById('reportDownloadLoader');
+            if (!loader) {
+                return;
+            }
+
+            const text = loader.querySelector('[data-report-loader-text]');
+            if (text) {
+                text.textContent = message;
+            }
+
+            loader.classList.remove('d-none');
+            clearTimeout(reportDownloadLoaderTimer);
+            reportDownloadLoaderTimer = setTimeout(hideReportDownloadLoader, 15000);
+        }
+
+        function hideReportDownloadLoader() {
+            const loader = document.getElementById('reportDownloadLoader');
+            if (loader) {
+                loader.classList.add('d-none');
+            }
+
+            clearTimeout(reportDownloadLoaderTimer);
+            reportDownloadLoaderTimer = null;
+        }
+
+        window.addEventListener('pageshow', hideReportDownloadLoader);
+        window.addEventListener('focus', function() {
+            setTimeout(hideReportDownloadLoader, 700);
+        });
+
+        if (window.jQuery) {
+            $(document).ajaxStop(hideReportDownloadLoader);
+            $(document).ajaxError(hideReportDownloadLoader);
+        }
+
         function generatedeductionsheet() {
             var form = document.getElementById('employee_submit');
             var formData = new FormData(form);
@@ -564,6 +630,7 @@
         }
 
         function salarysheet(pdfAction = 'preview') {
+            showReportDownloadLoader('Preparing salary sheet...');
             var form = document.getElementById('employee_submit');
             var formData = new FormData(form);
             formData.append('pdf_action', pdfAction);
@@ -573,6 +640,7 @@
         }
 
         function salary_slip() {
+            showReportDownloadLoader('Preparing salary slip...');
             var form = document.getElementById('employee_submit');
             var formData = new FormData(form);
 
@@ -709,6 +777,7 @@
             const action = this.value;
             const sheet = document.getElementById('sheetType').value;
             if (!sheet || !action) return;
+            showReportDownloadLoader(action === 'route' ? 'Preparing Excel report...' : 'Preparing report preview...');
 
             const routes = {
                 salary: "{{ route('export_salary_sheet') }}",
@@ -852,6 +921,12 @@
     </div>
 @endsection
 @section('content')
+    <div id="reportDownloadLoader" class="report-download-loader d-none" aria-live="polite" aria-busy="true">
+        <div class="report-download-loader-box">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2 fw-semibold" data-report-loader-text>{{ __('Preparing report...') }}</div>
+        </div>
+    </div>
     @php
         $salaryRowsTotal = $datas->count();
         $salaryGeneratedCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary))->count();
