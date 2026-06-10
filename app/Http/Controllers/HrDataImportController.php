@@ -626,7 +626,7 @@ class HrDataImportController extends Controller
                         $count++;
                         continue;
                     }
-                    $salary_date = date('Y-m-d', strtotime('01-03-2026'));
+                    $salary_date = date('Y-m-d', strtotime('01-04-2026'));
                     $duplicate_salary = EmployeeMonthlySalary::where('employee_id', $employee->id)
                         ->where('salary_date', date('Y-m-d', strtotime($salary_date)))
                         ->first();
@@ -646,10 +646,27 @@ class HrDataImportController extends Controller
                         $count++;
                         continue;
                     }
+                    $salaryMonthEnd = \Carbon\Carbon::parse($salary_date)->endOfMonth();
+                    $lastPayscaleDetail = EmployeePayscaleDetail::where('employee_id', $employee->id)
+                        ->where(function ($query) use ($salaryMonthEnd) {
+                            $query->whereNull('effect_from')
+                                ->orWhereDate('effect_from', '<=', $salaryMonthEnd->format('Y-m-d'));
+                        })
+                        ->orderBy('effect_from', 'desc')
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    if (!$lastPayscaleDetail) {
+                        $lastPayscaleDetail = EmployeePayscaleDetail::where('employee_id', $employee->id)
+                            ->orderBy('id', 'desc')
+                            ->first();
+                    }
                     $created_at = date('Y-m-d H:i:s', strtotime($salary_date));
                     $employee_salary = new EmployeeMonthlySalary();
                     $employee_salary->employee_id = $employee->id;
                     $employee_salary->department_id = $employee->department_id;
+                    $employee_salary->paymode = $lastPayscaleDetail->paymode ?? ($all_data[35] ?? null);
+                    $employee_salary->account_number = $lastPayscaleDetail->account_number ?? ($all_data[36] ?? $employee->account_number ?? null);
+                    $employee_salary->bank_from_id = $lastPayscaleDetail->account_id ?? ($all_data[37] ?? null);
                     $employee_salary->scale_id = $employee_scale->id;
                     $employee_salary->scale_no = $employee_scale->scale_no;
                     $employee_salary->sal_days = $all_data[34];
