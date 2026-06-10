@@ -1,3 +1,9 @@
+@php
+    $salarySlipYtdTotals = $salarySlipYtdTotals ?? [];
+    $salarySlipHeadYtdTotals = $salarySlipHeadYtdTotals ?? [];
+    $salaryHeadNames = collect($salaryHeads ?? [])->pluck('head', 'id');
+@endphp
+
 @foreach ($datas as $key => $data)
     @php
         $payscale = $data->employee->employee_payscale_details->last();
@@ -40,24 +46,7 @@
                 <td colspan="13" style="text-align: left; font-family: calibri; font-weight: bold; font-size: 12px;">
                     <span style="text-transform: uppercase;">
                         @php
-                            $branchKey = request()->get('branches');
-                            $branchName = 'All Branches';
-
-                            if ($branchKey && (is_string($branchKey) || is_int($branchKey))) {
-                                if (
-                                    isset($branches) &&
-                                    is_array($branches) &&
-                                    array_key_exists($branchKey, $branches)
-                                ) {
-                                    $branchName = $branches[$branchKey];
-                                } elseif (isset($branches) && is_object($branches) && method_exists($branches, 'get')) {
-                                    $branchName = $branches->get($branchKey, 'All Branches');
-                                }
-                            }
-
-                            if (isset($branch) && $branch && $branchName === 'All Branches') {
-                                $branchName = $branch;
-                            }
+                            $branchName = $salarySlipBranchName ?? 'All Branches';
                         @endphp
                         {{ $branchName }}
                     </span>
@@ -155,41 +144,24 @@
         @php
             // ===== Dynamic data for the large table (EARNINGS / DEDUCTIONS / CONTRIBUTIONS) =====
             $salDate = \Carbon\Carbon::parse($data->salary_date);
-            $ytdStart = $salDate->copy()->startOfYear()->toDateString();
-            $ytdEnd = $salDate->copy()->endOfMonth()->toDateString();
             $empId = $data->employee_id;
-
-            // Map head_id -> head name from $salaryHeads
-            $headNames = collect($salaryHeads ?? [])->pluck('head', 'id');
-
-            // Current month heads (P.M)
-            $pmHeads = collect($data->salary_heads ?? [])->mapWithKeys(function ($h) use ($headNames) {
-                $name = $headNames[$h->head_id] ?? 'Head ' . $h->head_id;
-                return [$name => (float) $h->head_value];
-            });
-
-            // Y.T.D per head (sum Jan..current month)
-            $ytdHeads = \App\Models\EmployeeMonthlySalaryHeads::where('employee_id', $empId)
-                ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-                ->selectRaw('head_id, SUM(head_value) as total')
-                ->groupBy('head_id')
-                ->get()
-                ->mapWithKeys(function ($row) use ($headNames) {
-                    $name = $headNames[$row->head_id] ?? 'Head ' . $row->head_id;
-                    return [$name => (float) $row->total];
-                });
+            $employeeYtd = $salarySlipYtdTotals[$empId] ?? [];
+            $employeeHeadYtd = $salarySlipHeadYtdTotals[$empId] ?? [];
 
             // Build Gross Salary rows dynamically
             $grossSalaryRows = [];
-            foreach ($pmHeads as $name => $pmVal) {
-                $grossSalaryRows[] = ['label' => $name, 'pm' => $pmVal, 'ytd' => (float) ($ytdHeads[$name] ?? 0)];
+            foreach (($data->salary_heads ?? []) as $salaryHead) {
+                $name = $salaryHeadNames[$salaryHead->head_id] ?? 'Head ' . $salaryHead->head_id;
+                $grossSalaryRows[] = [
+                    'label' => $name,
+                    'pm' => (float) $salaryHead->head_value,
+                    'ytd' => (float) ($employeeHeadYtd[$salaryHead->head_id] ?? 0),
+                ];
             }
 
             // Gross total (trust monthly 'gross' column)
             $GrossRs = (float) ($data->gross ?? 0);
-            $grossYTD = (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-                ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-                ->sum('gross');
+            $grossYTD = (float) ($employeeYtd['gross'] ?? 0);
 
             // Enticements (from monthly slip columns)
             $conv_pm = (float) ($data->conv ?? 0);
@@ -197,15 +169,9 @@
             $mobile_pm = (float) ($data->misc ?? 0); // treat 'misc' as mobile if that's your convention
 $others_pm = (float) ($data->other ?? 0);
 
-$conv_ytd = (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-    ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-    ->sum('conv');
-$mobile_ytd = (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-    ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-    ->sum('misc');
-$others_ytd = (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-    ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-    ->sum('other');
+$conv_ytd = (float) ($employeeYtd['conv'] ?? 0);
+$mobile_ytd = (float) ($employeeYtd['misc'] ?? 0);
+$others_ytd = (float) ($employeeYtd['other'] ?? 0);
 
 $earnings = [
     'Gross Salary' => $grossSalaryRows,
@@ -230,70 +196,53 @@ $StopSalary = (float) ($data->stop_sal ?? 0);
 $enticementsYTDTotal = $conv_ytd + 0 + $mobile_ytd + $others_ytd;
 
 // Deductions (P.M + Y.T.D)
+$ytd = fn ($field) => (float) ($employeeYtd[$field] ?? 0);
 $deductions = [
     [
         'label' => 'Employee Security',
         'pm' => (float) ($data->emp_sec ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('emp_sec'),
+        'ytd' => $ytd('emp_sec'),
     ],
     [
         'label' => 'E.O.B.I',
         'pm' => (float) ($data->eobi ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('eobi'),
+        'ytd' => $ytd('eobi'),
     ],
     [
         'label' => 'P.E.S.S.I',
         'pm' => (float) ($data->pessi ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('pessi'),
+        'ytd' => $ytd('pessi'),
     ],
     [
         'label' => 'Income Tax',
         'pm' => (float) ($data->it ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('it'),
+        'ytd' => $ytd('it'),
     ],
     [
         'label' => 'Other Deduction',
         'pm' => (float) ($data->dedu ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('dedu'),
+        'ytd' => $ytd('dedu'),
     ],
     [
         'label' => 'Advance',
         'pm' => (float) ($data->sal_advance ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('sal_advance'),
+        'ytd' => $ytd('sal_advance'),
     ],
     ['label' => 'Stop Salary', 'pm' => 0, 'ytd' => '-'],
     [
         'label' => 'Training Course',
         'pm' => (float) ($data->tra_course ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('tra_course'),
+        'ytd' => $ytd('tra_course'),
     ],
     [
         'label' => 'Other Allowance',
         'pm' => (float) ($data->other ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('other'),
+        'ytd' => $ytd('other'),
     ],
     [
         'label' => 'Loan Emp Security',
         'pm' => (float) ($data->loan ?? 0),
-        'ytd' => (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-            ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-            ->sum('loan'),
+        'ytd' => $ytd('loan'),
     ],
 ];
 
@@ -303,9 +252,7 @@ $deductionsTotalYTD = array_sum(
 );
 
 // Employer contributions
-$empSecYTD = (float) \App\Models\EmployeeMonthlySalary::where('employee_id', $empId)
-    ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
-    ->sum('emp_sec');
+$empSecYTD = $ytd('emp_sec');
 
 $employerContributions = [
     'Employee Security Balance Y.T.D' => [['label' => 'Employee Security', 'amount' => $empSecYTD]],
@@ -463,7 +410,7 @@ $result = [
             <td></td>
             <td style="border-left: 1px solid black;"></td>
             <td style="font-weight: bold; font-size: 9px;">Employee#</td>
-            <td style="text-align: left; font-size: 9px;">{{ $data->employee->id }}</td>
+            <td style="text-align: left; font-size: 9px;">{{ $data->employee->employee_id }}</td>
             <td colspan="2"></td>
             <td style="font-weight: bold; font-size: 9px;">Leaves Balances</td>
             <td style="font-weight: bold; font-size: 9px; text-align: center;">C/L</td>

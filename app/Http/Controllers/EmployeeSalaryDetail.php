@@ -1274,10 +1274,14 @@ class EmployeeSalaryDetail extends Controller
 
         $salarySlipYtdTotals = [];
         $salarySlipHeadYtdTotals = [];
+        $salarySlipFiscalYear = ['from' => null, 'to' => null];
         if ($datas->isNotEmpty()) {
             $reportDate = $toDate ?: \Carbon\Carbon::parse($datas->first()->salary_date);
-            $ytdStart = $reportDate->copy()->startOfYear()->toDateString();
+            $ytdStart = $reportDate->month >= 7
+                ? $reportDate->copy()->month(7)->day(1)->startOfDay()->toDateString()
+                : $reportDate->copy()->subYear()->month(7)->day(1)->startOfDay()->toDateString();
             $ytdEnd = $reportDate->copy()->endOfMonth()->toDateString();
+            $salarySlipFiscalYear = ['from' => $ytdStart, 'to' => $ytdEnd];
             $reportEmployeeIds = $datas->pluck('employee_id')->filter()->unique()->values();
 
             $salarySlipYtdTotals = \App\Models\EmployeeMonthlySalary::whereIn('employee_id', $reportEmployeeIds)
@@ -1345,6 +1349,7 @@ class EmployeeSalaryDetail extends Controller
             'salarySlipYtdTotals' => $salarySlipYtdTotals,
             'salarySlipHeadYtdTotals' => $salarySlipHeadYtdTotals,
             'salarySlipBranchName' => $salarySlipBranchName,
+            'salarySlipFiscalYear' => $salarySlipFiscalYear,
         ];
     
         if ($exportType === 'excel') {
