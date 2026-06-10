@@ -36,7 +36,7 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
         // ==============================
         // HEADER
         // ==============================
-        $header = ['Sr#','Dep.Sr','Emp No', 'Scale', 'Name', 'Designation', 'DOJ','Gross',
+        $header = ['Sr#','Branch Sr','Emp No', 'Scale', 'Name', 'Designation', 'DOJ','Gross',
                  'ES', 'I.Tax', 'Salary Adv.', 'EOBI', 'PESSI' , 'Loan Sec', 'Loan', 'Other Deduction','Total Ded', 'NET' ];
 
         $rows[] = $header;
@@ -44,29 +44,35 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
         // ==============================
         // GROUPING
         // ==============================
-        $grouped = $this->datas->sortBy('salarydepartment.name')->groupBy('department_id');
+        $grouped = $this->datas
+            ->sortBy(function ($data) {
+                return strtolower(
+                    (optional(optional($data->employee)->user)->name ?? '') . '|' .
+                    (optional($data->employee)->name ?? '')
+                );
+            })
+            ->groupBy(function ($data) {
+                return optional(optional($data->employee)->user)->name ?: 'No Branch';
+            });
 
         $grandTotals = array_fill(0, count($header), 0);
         $globalSr = 1;
 
-        foreach ($grouped as $deptId => $items) {
+        foreach ($grouped as $branchName => $items) {
 
-            // ==============================
-            // DEPARTMENT ROW (TRACK INDEX)
-            // ==============================
-            $deptSr = 1;
+            $branchSr = 1;
             $deptRowIndex = count($rows) + 1 + 7; // +6 for title rows
             $this->departmentRows[] = $deptRowIndex;
 
             $rows[] = [
-                $items->first()->employee->department->name ?? 'Department',
+                $branchName,
             ];
-            $deptTotals = array_fill(0, count($header), 0);
+            $branchTotals = array_fill(0, count($header), 0);
 
-            foreach ($items as $data) {
+            foreach ($items->sortBy(fn ($data) => strtolower(optional($data->employee)->name ?? '')) as $data) {
                 $row = [];
                 $row[] = $globalSr++;
-                $row[] = $deptSr++;
+                $row[] = $branchSr++;
                 $row[] = $data->employee->employee_id ?? '';
                 $row[] = $data->scale_no ?? '';
                 $row[] = $data->employee->name ?? '';
@@ -90,19 +96,18 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
                 // Totals
                 foreach ($row as $i => $val) {
                     if (is_numeric($val)) {
-                        $deptTotals[$i] += $val;
+                        $branchTotals[$i] += $val;
                         $grandTotals[$i] += $val;
                     }
                 }
             }
 
-            // Department Total
-            $deptTotals[0] = 'DEPARTMENT TOTAL';
-            $rows[] = $deptTotals;
+            $branchTotals[0] = 'BRANCH TOTAL (Count: ' . $items->count() . ')';
+            $rows[] = $branchTotals;
         }
 
         // Grand Total
-        $grandTotals[0] = 'GRAND TOTAL';
+        $grandTotals[0] = 'GRAND TOTAL (Count: ' . $this->datas->count() . ')';
         $rows[] = $grandTotals;
 
         return $rows;
@@ -129,7 +134,7 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
                 // ✅ PAGE SETUP (PRINT SETTINGS)
                 // ==============================
                 $sheet->getPageSetup()->setOrientation(
-                    PageSetup::ORIENTATION_LANDSCAPE
+                    PageSetup::ORIENTATION_PORTRAIT
                 );
 
                 $sheet->getPageSetup()->setPaperSize(
@@ -218,7 +223,10 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
                 for ($r = 1; $r <= $lastRow; $r++) {
                     $cellValue = strtoupper($sheet->getCell("A{$r}")->getValue());
                     
-                    if ((strpos($cellValue, 'GRAND') !== false && strpos($cellValue, 'TOTAL') !== false) || (strpos($cellValue, 'DEPARTMENT') !== false && strpos($cellValue, 'TOTAL') !== false)) {
+                    if (
+                        (strpos($cellValue, 'GRAND') !== false && strpos($cellValue, 'TOTAL') !== false)
+                        || (strpos($cellValue, 'BRANCH') !== false && strpos($cellValue, 'TOTAL') !== false)
+                    ) {
                         $sheet->mergeCells("A{$r}:G{$r}");
                         $sheet->setCellValue("F{$r}", '');
                         $sheet->getStyle("A{$r}:{$highestColumn}{$r}")->applyFromArray([

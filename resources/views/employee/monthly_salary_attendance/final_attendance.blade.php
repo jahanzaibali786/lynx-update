@@ -65,7 +65,7 @@
 
      if (document.getElementById('check-all')) {
         document.getElementById('check-all').addEventListener('change', function (event) {
-            var checkboxes = document.querySelectorAll('.row-checkbox');
+            var checkboxes = document.querySelectorAll('.row-checkbox:not(:disabled)');
             checkboxes.forEach(function (checkbox) {
                 checkbox.checked = event.target.checked;
             });
@@ -77,7 +77,7 @@
                 return;
             }
             var checkedRows = [];
-            var checkboxes = document.querySelectorAll('.row-checkbox:checked');
+            var checkboxes = document.querySelectorAll('.row-checkbox:not(:disabled):checked');
             checkboxes.forEach(function (checkbox) {
                 checkedRows.push(checkbox.value);
             });
@@ -143,7 +143,7 @@
                 return;
             }
             var checkedRows = [];
-            var checkboxes = document.querySelectorAll('.row-checkbox:checked');
+            var checkboxes = document.querySelectorAll('.row-checkbox:not(:disabled):checked');
             checkboxes.forEach(function (checkbox) {
                 checkedRows.push(checkbox.value);
             });
@@ -252,8 +252,8 @@
                         <div class="col-12 mt-4">
                             <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
                                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-1">
-                                    <a id="adm-finalize-btn" href="#" class="btn btn-sm btn-outline-warning attendance-action-btn"  data-bs-title="Finalize">
-                                        <span class="btn-inner--icon">Finalize</span>
+                                    <a id="adm-finalize-btn" href="#" class="btn btn-sm btn-outline-warning attendance-action-btn"  data-bs-title="Approve & Forward">
+                                        <span class="btn-inner--icon">Approve & Forward</span>
                                     </a>
                                     <a id="adm-unfinalize-btn" href="#" class="btn btn-sm btn-outline-warning attendance-action-btn"  data-bs-title="UnFinalize / RollBack">
                                         <span class="btn-inner--icon">UnFinalize / RollBack</span>
@@ -345,7 +345,10 @@
                                 <span class="badge bg-light text-dark">{{ __('Pending Admin') }}</span>
                             @endif
                         </td>
-                        <td><input type="checkbox" class="row-checkbox" value="{{ $data->id }}"></td>
+                        <td>
+                            <input type="checkbox" class="row-checkbox" value="{{ $data->id }}"
+                                {{ !empty($data) && (int) $data->accountant_finalize !== 1 ? 'disabled' : '' }}>
+                        </td>
                     </tr>
                     @endforeach
                 </tbody>

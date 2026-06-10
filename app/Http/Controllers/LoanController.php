@@ -177,6 +177,39 @@ class LoanController extends Controller
         return $latestSalary ? \Carbon\Carbon::parse($latestSalary->salary_date)->startOfMonth() : null;
     }
 
+    private function getFiscalYearOptions()
+    {
+        $currentYear = \Carbon\Carbon::now()->month >= 7
+            ? \Carbon\Carbon::now()->year
+            : \Carbon\Carbon::now()->year - 1;
+
+        $years = [];
+        for ($year = $currentYear + 1; $year >= $currentYear - 7; $year--) {
+            $years[$year . '-' . ($year + 1)] = $year . '-' . ($year + 1);
+        }
+
+        return collect(['' => __('Select Fiscal Year')])->merge($years);
+    }
+
+    private function getFiscalYearDateRange($fiscalYear)
+    {
+        if (!preg_match('/^(\d{4})-(\d{4})$/', (string) $fiscalYear, $matches)) {
+            return null;
+        }
+
+        $startYear = (int) $matches[1];
+        $endYear = (int) $matches[2];
+
+        if ($endYear !== $startYear + 1) {
+            return null;
+        }
+
+        return [
+            \Carbon\Carbon::create($startYear, 7, 1)->startOfDay(),
+            \Carbon\Carbon::create($endYear, 6, 30)->endOfDay(),
+        ];
+    }
+
     public function index(Request $request)
     {
         if (\Auth::user()->type == 'company') {
@@ -197,6 +230,21 @@ class LoanController extends Controller
             $designations->prepend('Select Designation', '');
         }
 
+        $employeeQuery = Employee::query()->orderBy('name');
+        if (\Auth::user()->type == 'company') {
+            $employeeQuery->where('created_by', \Auth::user()->creatorId());
+        } else {
+            $employeeQuery->where('owned_by', \Auth::user()->ownedId());
+        }
+
+        if (!empty($request->branches)) {
+            $employeeQuery->where('branch_id', $request->branches);
+        }
+
+        $employees = $employeeQuery->get()->pluck('name', 'id');
+        $employees->prepend(__('Select Employee'), '');
+        $fiscalYears = $this->getFiscalYearOptions();
+
         if(!empty($request->branches)){
             $query->whereHas('employee', function($query) use ($request) {
                 $query->where('branch_id', $request->branches);
@@ -212,8 +260,20 @@ class LoanController extends Controller
                 $query->where('designation_id', $request->designation_id);
             });
         }
-        if(!empty($request->status)){
+        if($request->filled('status')){
             $query->where('status',$request->status);
+        }
+        if(!empty($request->employee_id)){
+            $query->where('employee_id', $request->employee_id);
+        }
+        if(!empty($request->fiscal_year)){
+            $fiscalRange = $this->getFiscalYearDateRange($request->fiscal_year);
+            if ($fiscalRange) {
+                $query->whereBetween('from_pay_month', [
+                    $fiscalRange[0]->format('Y-m-d'),
+                    $fiscalRange[1]->format('Y-m-d'),
+                ]);
+            }
         }
         if ($request->filled('is_print') && $request->is_print == 1) {
             $loans = $query->get();
@@ -264,8 +324,8 @@ class LoanController extends Controller
             $dompdf->render();
             return $dompdf->stream('loan_report.pdf', ['Attachment' => false]);
         }
-        $loans= $query->paginate(25);
-        return view('employee.loan.index', compact('loans','branches','departments','designations'));
+        $loans= $query->orderBy('id', 'desc')->get();
+        return view('employee.loan.index', compact('loans','branches','departments','designations', 'employees', 'fiscalYears'));
     }
     public function create()
     {

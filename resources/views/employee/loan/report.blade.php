@@ -7,8 +7,8 @@
                 <th>{{ __('Employee') }}</th>
                 <th>{{ __('Title') }}</th>
                 <th>{{ __('Loan Amount') }}</th>
-                <th>{{ __('Deduction start Date') }}</th>
-                <th>{{ __('End Date') }}</th>
+                <th>{{ __('Deduction Start Month') }}</th>
+                <th>{{ __('End Month') }}</th>
                 <th>{{ __('Received Amount') }}</th>
                 <th>{{ __('charge amnt/mon') }}</th>
                 <th>{{ __('Status') }}</th>
@@ -23,8 +23,8 @@
                     </td>
                     <td>{{ $loan->title }}</td>
                     <td>{{ @$loan->amount }}</td>
-                    <td>{{ @$loan->from_pay_month }}</td>
-                    <td>{{ @$loan->loan_ended }}</td>
+                    <td>{{ !empty($loan->from_pay_month) ? \Carbon\Carbon::parse($loan->from_pay_month)->format('M Y') : '-' }}</td>
+                    <td>{{ !empty($loan->loan_ended) ? \Carbon\Carbon::parse($loan->loan_ended)->format('M Y') : '-' }}</td>
                     <td>{{ @$loan->received_amount }}</td>
                     <td>{{ @$loan->per_month_amount }}</td>
                     <td>

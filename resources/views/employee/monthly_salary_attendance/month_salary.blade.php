@@ -563,35 +563,13 @@
             });
         }
 
-        function salarysheet() {
+        function salarysheet(pdfAction = 'preview') {
             var form = document.getElementById('employee_submit');
             var formData = new FormData(form);
+            formData.append('pdf_action', pdfAction);
             var queryString = new URLSearchParams(formData).toString();
 
-            $.ajax({
-                url: "{{ route('salary_sheet') }}?" + queryString,
-                method: 'GET',
-                headers: {
-                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                },
-                success: function(response) {
-                    const base64Pdf = response.base64Pdf;
-                    const byteCharacters = atob(base64Pdf);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], {
-                        type: 'application/pdf'
-                    });
-                    const blobUrl = URL.createObjectURL(blob);
-                    window.open(blobUrl, '_blank');
-                },
-                error: function(xhr) {
-                    console.log(xhr.responseText);
-                }
-            });
+            window.open("{{ route('salary_sheet') }}?" + queryString, '_blank');
         }
 
         function salary_slip() {
@@ -606,32 +584,9 @@
                 });
             }
 
+            formData.append('export_type', 'pdf');
             var queryString = new URLSearchParams(formData).toString();
-
-            $.ajax({
-                url: "{{ route('salary_slip') }}?" + queryString,
-                method: 'GET',
-                headers: {
-                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                },
-                success: function(response) {
-                    const base64Pdf = response.base64Pdf;
-                    const byteCharacters = atob(base64Pdf);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], {
-                        type: 'application/pdf'
-                    });
-                    const blobUrl = URL.createObjectURL(blob);
-                    window.open(blobUrl, '_blank');
-                },
-                error: function(xhr) {
-                    console.log(xhr.responseText);
-                }
-            });
+            window.open("{{ route('salary_slip') }}?" + queryString, '_blank');
         }
 
 
@@ -786,12 +741,30 @@
                         .toString();
                     window.location.href = routes[sheet] + '?' + qs;
                 }
+            } else if (action === 'pdf') {
+                const fd = new FormData(document.getElementById('employee_submit'));
+                fd.append('export_type', 'pdf');
+                const qs = new URLSearchParams(fd).toString();
+
+                if (sheet === 'salary') {
+                    window.location.href = routes[sheet] + '?' + qs;
+                } else if (sheet === 'slip') {
+                    salary_slip('pdf');
+                } else if (sheet === 'deduction') {
+                    generatedeductionsheet();
+                } else if (sheet === 'paymode') {
+                    paymode();
+                } else if (sheet === 'gross') {
+                    gross_sheet();
+                } else if (sheet === 'advance') {
+                    advance();
+                }
             } else if (action === 'onclick') {
                 // keep your existing PDF/Print functions
                 if (sheet === 'slip') {
                     salary_slip('pdf');
                 } else if (sheet === 'salary') {
-                    salarysheet();
+                    salarysheet('preview');
                 } else if (sheet === 'deduction') {
                     generatedeductionsheet();
                 } else if (sheet === 'paymode') {
@@ -872,7 +845,8 @@
         <!-- Action Selector -->
         <select id="sheetAction" class="form-select" style="width: 170px;">
             <option value="" selected disabled>Select Mode</option>
-            <option value="onclick">PDF / Print</option>
+            <option value="onclick">Print / Preview PDF</option>
+            {{-- <option value="pdf">PDF Download</option> --}}
             <option value="route">Excel Sheet</option>
         </select>
     </div>

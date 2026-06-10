@@ -42,7 +42,7 @@
     $employeeNumber = @$employee->employee_id ?: @$employee->id;
     $joiningDate = @$employee->company_doj ? \Carbon\Carbon::parse($employee->company_doj)->format('d M Y') : '-';
     $approvalDate = @$advance->approval_date ? \Carbon\Carbon::parse($advance->approval_date)->format('d M Y') : '-';
-    $advanceMonth = @$advance->advance_date ? \Carbon\Carbon::parse($advance->advance_date)->startOfMonth()->format('d M Y') : '-';
+    $advanceMonth = @$advance->advance_date ? \Carbon\Carbon::parse($advance->advance_date)->startOfMonth()->format('M Y') : '-';
     $logoSrc = !empty($isPdf) ? public_path('assets/images/lynx2.jpg') : asset('assets/images/lynx2.jpg');
     $schoolTitleSrc = !empty($isPdf) ? public_path('assets/images/lynxheadertext.jpg') : asset('assets/images/lynxheadertext.jpg');
     $total = (float) @$advance->advance_amount;

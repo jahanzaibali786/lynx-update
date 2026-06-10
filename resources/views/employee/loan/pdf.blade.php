@@ -43,7 +43,7 @@
         $installmentRows = $loan->installments->map(function ($installment) {
             return [
                 'no' => $installment->installment_no,
-                'month' => \Carbon\Carbon::parse($installment->due_month)->format('d M Y'),
+                'month' => \Carbon\Carbon::parse($installment->due_month)->format('M Y'),
                 'amount' => (float) $installment->amount,
             ];
         });
@@ -52,7 +52,7 @@
         foreach ($installmentAmounts as $index => $amount) {
             $installmentRows->push([
                 'no' => $index + 1,
-                'month' => $startDate->copy()->addMonths($index)->format('d M Y'),
+                'month' => $startDate->copy()->addMonths($index)->format('M Y'),
                 'amount' => (float) $amount,
             ]);
         }

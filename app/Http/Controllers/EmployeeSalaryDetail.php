@@ -678,9 +678,21 @@ class EmployeeSalaryDetail extends Controller
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
-                $query = EmployeeMonthlySalary::with('employee', 'employee.designation')->where('created_by', '=', \Auth::user()->creatorId());
+                $query = EmployeeMonthlySalary::with(
+                    'employee',
+                    'employee.department',
+                    'employee.designation',
+                    'employee.user',
+                    'salarydepartment'
+                )->where('created_by', '=', \Auth::user()->creatorId());
             } else {
-                $query = EmployeeMonthlySalary::with('employee', 'employee.designation')->where('on_hold', 0)->where('owned_by', '=', \Auth::user()->ownedId());
+                $query = EmployeeMonthlySalary::with(
+                    'employee',
+                    'employee.department',
+                    'employee.designation',
+                    'employee.user',
+                    'salarydepartment'
+                )->where('on_hold', 0)->where('owned_by', '=', \Auth::user()->ownedId());
             }
             if ($date) {
                 $query->whereYear('salary_date', $toDate->year)
@@ -702,18 +714,27 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->get();
+            $datas = $query->get()
+                ->sortBy(function ($salary) {
+                    return strtolower(
+                        (optional(optional($salary->employee)->user)->name ?? '') . '|' .
+                        (optional($salary->employee)->name ?? '')
+                    );
+                })
+                ->values();
         }
 
         $viewData = [
             'datas' => $datas,
+            'requestdata' => $request->all(),
+            'isPdf' => true,
         ];
         $html = view('employee.emp_salary_detail.deduction_sheet', $viewData)->render();
         $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
         $html = '<html><head>
              <style>
                  @page {
-                     margin-top: 100px;
+                     margin-top: 40px;
                      margin-bottom: 100px;
                  }
                  .footer { position: fixed; bottom: -30px; height: 50px; left:0px; right:0px; }
@@ -826,7 +847,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -841,7 +865,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -873,13 +900,21 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->orderBy('department_id')->get();
+            $datas = $query->get()
+                ->sortBy(function ($salary) {
+                    return strtolower(
+                        (optional(optional($salary->employee)->user)->name ?? '') . '|' .
+                        (optional($salary->employee)->name ?? '')
+                    );
+                })
+                ->values();
         }
 
         $viewData = [
             'salaryHeads' => $salaryHeads,
             'datas' => $datas,
             'requestdata' => $request->all(),
+            'isPdf' => true,
         ];
         $html = view('employee.emp_salary_detail.salary_sheet', $viewData)->render();
         $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
@@ -902,6 +937,13 @@ class EmployeeSalaryDetail extends Controller
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A3', 'Landscape');
         $dompdf->render();
+
+        if (in_array($request->input('pdf_action'), ['preview', 'download'], true)) {
+            return $dompdf->stream('salary_sheet.pdf', [
+                'Attachment' => $request->input('pdf_action') === 'download',
+            ]);
+        }
+
         $pdfContent = $dompdf->output();
         $base64Pdf = base64_encode($pdfContent);
 
@@ -921,7 +963,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -936,7 +981,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -968,21 +1016,29 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->get();
+            $datas = $query->get()
+                ->sortBy(function ($salary) {
+                    return strtolower(
+                        (optional(optional($salary->employee)->user)->name ?? '') . '|' .
+                        (optional($salary->employee)->name ?? '')
+                    );
+                })
+                ->values();
         }
 
         $viewData = [
             'salaryHeads' => $salaryHeads,
             'datas' => $datas,
             'requestdata' => $request->all(),
+            'isPdf' => true,
         ];
         $html = view('employee.emp_salary_detail.gross_sheet', $viewData)->render();
         $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
         $html = '<html><head>
              <style>
                  @page {
-                     margin-top: 100px;
-                     margin-bottom: 100px;
+                     margin-top: 40px;
+                     margin-bottom: 50px;
                  }
                  .footer { position: fixed; bottom: -30px; height: 50px; left:0px; right:0px; }
              </style>
@@ -1016,7 +1072,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1026,12 +1085,15 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('on_hold', 0)->where('status', 'paid')->where('created_by', '=', \Auth::user()->creatorId());
+                ])->where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1041,7 +1103,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('on_hold', 0)->where('status', 'paid')->where('owned_by', '=', \Auth::user()->ownedId());
+                ])->where('owned_by', '=', \Auth::user()->ownedId());
             }
 
             if ($date) {
@@ -1063,23 +1125,32 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->get();
+            $datas = $query->get()
+                ->sortBy(function ($salary) {
+                    return strtolower(
+                        (optional(optional($salary->employee)->user)->name ?? '') . '|' .
+                        (optional($salary->salarydepartment)->name ?? optional(optional($salary->employee)->department)->name ?? '') . '|' .
+                        (optional($salary->employee)->name ?? '')
+                    );
+                })
+                ->values();
         }
 
         $viewData = [
             'salaryHeads' => $salaryHeads,
             'datas' => $datas,
             'requestdata' => $request->all(),
+            'isPdf' => true,
         ];
         $html = view('employee.emp_salary_detail.advance', $viewData)->render();
         $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
         $html = '<html><head>
              <style>
                  @page {
-                     margin-top: 100px;
-                     margin-bottom: 100px;
+                     margin-top: 40px;
+                     margin-bottom: 60px;
                  }
-                 .footer { position: fixed; bottom: -30px; height: 50px; left:0px; right:0px; }
+                 .footer { position: fixed; bottom: -40px; height: 50px; left:0px; right:0px; }
              </style>
              </head><body>
              <div class="footer">' . $footerHtml . '</div>
@@ -1141,7 +1212,9 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = \App\Models\SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
                 $query = \App\Models\EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1156,7 +1229,9 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = \App\Models\SalaryHeads::where('owned_by', \Auth::user()->ownedId())->get();
                 $query = \App\Models\EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1166,13 +1241,8 @@ class EmployeeSalaryDetail extends Controller
                               ->whereMonth('for_month_of', $toDate->month);
                         }
                     },
-                ])->where('on_hold', 0)
-                  ->where('status', 'unpaid')
-                  ->where('owned_by', \Auth::user()->ownedId());
+                ])->where('owned_by', \Auth::user()->ownedId());
             }
-    
-            $employeeIds = collect($request->input('employee_ids', []))
-            ->filter()->map(fn($v) => (int)$v)->values()->all();
         
         if ($toDate) {
             $query->whereYear('salary_date', $toDate->year)
@@ -1187,7 +1257,7 @@ class EmployeeSalaryDetail extends Controller
                 $query->whereHas('employee', fn($q) => $q->where('department_id', $department_id));
             }
     
-            if ($branches) {
+            if ($branches && $branches !== 'all') {
                 $query->whereHas('employee', fn($q) => $q->where('branch_id', $branches));
             }
     
@@ -1195,28 +1265,98 @@ class EmployeeSalaryDetail extends Controller
                 $query->whereHas('employee', fn($q) => $q->where('designation_id', $designation_id));
             }
     
-            $datas = $query->get();
+            $datas = $query->get()
+                ->sortBy(fn ($salary) => strtolower(optional($salary->employee)->name ?? ''))
+                ->values();
         } else {
             $salaryHeads = collect();
+        }
+
+        $salarySlipYtdTotals = [];
+        $salarySlipHeadYtdTotals = [];
+        if ($datas->isNotEmpty()) {
+            $reportDate = $toDate ?: \Carbon\Carbon::parse($datas->first()->salary_date);
+            $ytdStart = $reportDate->copy()->startOfYear()->toDateString();
+            $ytdEnd = $reportDate->copy()->endOfMonth()->toDateString();
+            $reportEmployeeIds = $datas->pluck('employee_id')->filter()->unique()->values();
+
+            $salarySlipYtdTotals = \App\Models\EmployeeMonthlySalary::whereIn('employee_id', $reportEmployeeIds)
+                ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
+                ->selectRaw('
+                    employee_id,
+                    SUM(gross) as gross,
+                    SUM(conv) as conv,
+                    SUM(misc) as misc,
+                    SUM(other) as other,
+                    SUM(emp_sec) as emp_sec,
+                    SUM(eobi) as eobi,
+                    SUM(pessi) as pessi,
+                    SUM(it) as it,
+                    SUM(dedu) as dedu,
+                    SUM(sal_advance) as sal_advance,
+                    SUM(tra_course) as tra_course,
+                    SUM(loan) as loan
+                ')
+                ->groupBy('employee_id')
+                ->get()
+                ->mapWithKeys(function ($row) {
+                    return [
+                        $row->employee_id => [
+                            'gross' => (float) $row->gross,
+                            'conv' => (float) $row->conv,
+                            'misc' => (float) $row->misc,
+                            'other' => (float) $row->other,
+                            'emp_sec' => (float) $row->emp_sec,
+                            'eobi' => (float) $row->eobi,
+                            'pessi' => (float) $row->pessi,
+                            'it' => (float) $row->it,
+                            'dedu' => (float) $row->dedu,
+                            'sal_advance' => (float) $row->sal_advance,
+                            'tra_course' => (float) $row->tra_course,
+                            'loan' => (float) $row->loan,
+                        ],
+                    ];
+                })
+                ->all();
+
+            $salarySlipHeadYtdTotals = \App\Models\EmployeeMonthlySalaryHeads::whereIn('employee_id', $reportEmployeeIds)
+                ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
+                ->selectRaw('employee_id, head_id, SUM(head_value) as total')
+                ->groupBy('employee_id', 'head_id')
+                ->get()
+                ->groupBy('employee_id')
+                ->map(function ($rows) {
+                    return $rows->pluck('total', 'head_id')
+                        ->map(fn ($value) => (float) $value)
+                        ->all();
+                })
+                ->all();
+        }
+
+        $salarySlipBranchName = 'All Branches';
+        if (!empty($branches) && $branches !== 'all') {
+            $salarySlipBranchName = optional(\App\Models\User::find($branches))->name ?: 'All Branches';
         }
     
         $viewData = [
             'salaryHeads' => $salaryHeads ?? [],
             'datas'       => $datas,
             'requestdata' => $request->all(),
+            'salarySlipYtdTotals' => $salarySlipYtdTotals,
+            'salarySlipHeadYtdTotals' => $salarySlipHeadYtdTotals,
+            'salarySlipBranchName' => $salarySlipBranchName,
         ];
     
         if ($exportType === 'excel') {
             return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\SalarySlipExport($viewData), 'salary_slip.xlsx');
         }
     
-        // PDF (unchanged)
-        $html = view('employee.emp_salary_detail.salary_slip', $viewData)->render();
+        $html = view('employee.emp_salary_detail.salary_slip_pdf', $viewData)->render();
         $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
         $html = '<html><head>
             <style>
-                @page { margin-top: 100px; margin-bottom: 100px; }
-                .footer { position: fixed; bottom: -30px; height: 50px; left:0; right:0; }
+                @page { size: A4 portrait; margin: 12px 12px 18px 12px; }
+                .footer { position: fixed; bottom: -18px; height: 18px; left:0; right:0; }
             </style>
         </head><body>
           <div class="footer">'.$footerHtml.'</div>'.$html.'
@@ -1229,9 +1369,10 @@ class EmployeeSalaryDetail extends Controller
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'Portrait');
         $dompdf->render();
-        $pdfContent = $dompdf->output();
-    
-        return response()->json(['base64Pdf' => base64_encode($pdfContent)]);
+
+        return $dompdf->stream('salary_slip.pdf', [
+            'Attachment' => $request->input('pdf_action') === 'download',
+        ]);
     }
 
     public function salary_history_detail($id)
@@ -1624,7 +1765,9 @@ class EmployeeSalaryDetail extends Controller
 
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1639,7 +1782,9 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1671,7 +1816,15 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->orderBy('department_id')->get();
+            $datas = $query->get()
+                ->sortBy(function ($salary) {
+                    return strtolower(
+                        (optional(optional($salary->employee)->user)->name ?? '') . '|' .
+                        (optional($salary->salarydepartment)->name ?? optional(optional($salary->employee)->department)->name ?? '') . '|' .
+                        (optional($salary->employee)->name ?? '')
+                    );
+                })
+                ->values();
         } else {
             return redirect()->back()->with('error', __('Search please.'));
         }
@@ -1686,7 +1839,41 @@ class EmployeeSalaryDetail extends Controller
         // just take month selectedMonth
         $monthSelected = date('m', strtotime($selectedMonth));
         $requestdata['month'] = $monthSelected;
-        return Excel::download(new SalarySheetExport($salaryHeads, $datas, $requestdata), 'salary_sheet.xlsx');
+        $export = new SalarySheetExport($salaryHeads, $datas, $requestdata);
+
+        if ($request->input('export_type') === 'pdf') {
+            $viewData = [
+                'salaryHeads' => @$salaryHeads,
+                'datas' => $datas,
+                'requestdata' => $requestdata,
+                'isPdf' => true,
+            ];
+            $html = view('employee.emp_salary_detail.salary_sheet', $viewData)->render();
+            $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
+            $html = '<html><head>
+            <style>
+                @page {
+                    margin-top: 100px;
+                    margin-bottom: 100px;
+                }
+                .footer { position: fixed; bottom: -30px; height: 50px; left:0px; right:0px; }
+            </style>
+            </head><body>
+            <div class="footer">' . $footerHtml . '</div>
+            ' . $html . '
+            </body></html>';
+            $options = new Options();
+            $options->set('isHtml5ParserEnabled', true);
+            $options->set('isRemoteEnabled', true);
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A3', 'Landscape');
+            $dompdf->render();
+
+            return $dompdf->stream('salary_sheet.pdf', ['Attachment' => true]);
+        }
+
+        return Excel::download($export, 'salary_sheet.xlsx');
 
     }
 
@@ -1706,7 +1893,10 @@ class EmployeeSalaryDetail extends Controller
 
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1721,7 +1911,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1753,7 +1946,14 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->orderBy('department_id')->get();
+            $datas = $query->get()
+                ->sortBy(function ($salary) {
+                    return strtolower(
+                        (optional(optional($salary->employee)->user)->name ?? '') . '|' .
+                        (optional($salary->employee)->name ?? '')
+                    );
+                })
+                ->values();
         } else {
             return redirect()->back()->with('error', __('Search please.'));
         }
@@ -1814,7 +2014,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1829,7 +2032,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1861,7 +2067,15 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->get();
+            $datas = $query->get()
+                ->sortBy(function ($salary) {
+                    return strtolower(
+                        (optional(optional($salary->employee)->user)->name ?? '') . '|' .
+                        (optional($salary->salarydepartment)->name ?? optional(optional($salary->employee)->department)->name ?? '') . '|' .
+                        (optional($salary->employee)->name ?? '')
+                    );
+                })
+                ->values();
         }
 
         $requestdata = $request->all();
@@ -1937,7 +2151,10 @@ class EmployeeSalaryDetail extends Controller
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1947,12 +2164,15 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('on_hold', 0)->where('status', 'paid')->where('created_by', '=', \Auth::user()->creatorId());
+                ])->where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
                     'employee',
+                    'employee.department',
                     'employee.designation',
+                    'employee.user',
+                    'salarydepartment',
                     'salary_heads',
                     'employee.employee_payscale_details',
                     'employee.employee_payscale_details.scale',
@@ -1962,7 +2182,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('on_hold', 0)->where('status', 'paid')->where('owned_by', '=', \Auth::user()->ownedId());
+                ])->where('owned_by', '=', \Auth::user()->ownedId());
             }
 
             if ($date) {
@@ -1984,7 +2204,14 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
-            $datas = $query->get();
+            $datas = $query->get()
+                ->sortBy(function ($salary) {
+                    return strtolower(
+                        (optional(optional($salary->employee)->user)->name ?? '') . '|' .
+                        (optional($salary->employee)->name ?? '')
+                    );
+                })
+                ->values();
         }
         $requestdata = $request->all();
 

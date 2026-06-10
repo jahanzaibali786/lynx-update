@@ -42,6 +42,27 @@ class EmployeeMonthlySalaryAttendance extends Controller
         ], true);
     }
 
+    private function normalizeMonthDate($value)
+    {
+        if (is_string($value) && preg_match('/^\d{4}-\d{2}$/', $value)) {
+            return $value . '-01';
+        }
+
+        return $value;
+    }
+
+    private function normalizeRequestMonthDate(Request $request): ?string
+    {
+        $date = $this->normalizeMonthDate($request->input('date'));
+
+        if ($date) {
+            $date = Carbon::parse($date)->startOfMonth()->format('Y-m-d');
+            $request->merge(['date' => $date]);
+        }
+
+        return $date;
+    }
+
     private function approvedAdvanceTaxCollection($employeeId, Carbon $fromDate, Carbon $toDate)
     {
         return (float) AdvanceTaxCollection::where('employee_id', $employeeId)
@@ -104,7 +125,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
     private function salaryAttendanceQuery(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
@@ -150,7 +171,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
      */
     public function index(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
@@ -188,6 +209,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
     public function export_salary_attendance(Request $request)
     {
+        $this->normalizeRequestMonthDate($request);
         $reportType = $request->input('report_type') === 'details' ? 'details' : 'summary';
         $datas = $this->salaryAttendanceQuery($request)->get();
 
@@ -228,7 +250,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
      */
      public function store(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
+        if (!$date) {
+            return response()->json(['success' => false, 'message' => __('Please select month.')]);
+        }
         $inputDate = Carbon::parse($date);
         $day = $inputDate->day;
         $base = Carbon::parse($date);
@@ -414,7 +439,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $employeemonthlySlaryDetail->bal_casual = $employee->employee_leaves->casual_total - $employee->employee_leaves->casual_consumed;
                 $employeemonthlySlaryDetail->leave = $leaveDays;
                 $employeemonthlySlaryDetail->month_days = $monthDays;
-                $employeemonthlySlaryDetail->for_month_of = $request->input('date');
+                $employeemonthlySlaryDetail->for_month_of = $date;
                 $employeemonthlySlaryDetail->gm_final = 0;
                 $employeemonthlySlaryDetail->sal_final = 0;
                 $employeemonthlySlaryDetail->adm_final = 0;
@@ -473,7 +498,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
     }
     public function final_attendance(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
@@ -510,14 +535,14 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 })
                 ->whereYear('for_month_of', $toDate->year)
                 ->whereMonth('for_month_of', $toDate->month)
-                ->where('accountant_finalize', 1)->where('created_by', '=', \Auth::user()->creatorId());
+                ->where('created_by', '=', \Auth::user()->creatorId());
         } else {
             $query = ModelsEmployeeMonthlySalaryAttendance::with('employee', 'employee.user')
                 ->whereHas('employee', function ($query) {
                     $query->where('is_res_ter', 0);
                 })->whereYear('for_month_of', $toDate->year)
                 ->whereMonth('for_month_of', $toDate->month)
-                ->where('accountant_finalize', 1)->where('owned_by', '=', \Auth::user()->ownedId());
+                ->where('owned_by', '=', \Auth::user()->ownedId());
         }
         if ($date || $department_id || $designation_id || $branches) {
             if ($date) {
@@ -539,7 +564,11 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 });
             }
         }
-        $datas = $query->get();
+        $datas = $query->get()
+            ->sortBy(function ($attendance) {
+                return strtolower(optional($attendance->employee)->name ?? '');
+            })
+            ->values();
 
         return view('employee.monthly_salary_attendance.final_attendance', compact('branchesList', 'date', 'datas', 'designations', 'departments'));
 
@@ -576,14 +605,32 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 return response()->json(['success' => false, 'message' => 'Invalid data provided.'], 400);
             }
 
+            $attendances = ModelsEmployeeMonthlySalaryAttendance::with('employee')
+                ->whereIn('id', $rowIds)
+                ->get()
+                ->keyBy('id');
+            $errors = [];
+
             foreach ($rowIds as $id) {
-                $attendance = ModelsEmployeeMonthlySalaryAttendance::find($id);
-                if ($attendance) {
-                    $attendance->adm_final = 1;
-                    $attendance->save();
-                } else {
-                    return response()->json(['success' => false, 'message' => 'Attendance record not found for ID: ' . $id], 404);
+                $attendance = $attendances->get($id);
+                if (!$attendance) {
+                    $errors[] = 'Attendance record not found for ID: ' . $id;
+                    continue;
                 }
+
+                if ((int) $attendance->accountant_finalize !== 1) {
+                    $employeeName = optional($attendance->employee)->name ?: $attendance->employee_id;
+                    $errors[] = "Attendance is not accountant approved for {$employeeName}.";
+                }
+            }
+
+            if (!empty($errors)) {
+                return response()->json(['success' => false, 'message' => implode(' ', $errors)]);
+            }
+
+            foreach ($attendances as $attendance) {
+                $attendance->adm_final = 1;
+                $attendance->save();
             }
             return response()->json(['success' => true, 'message' => 'Attendance finalized And forwarded to Admin.']);
         } catch (\Exception $e) {
@@ -641,7 +688,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
     }
     public function month_salary(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $paymode = $request->input('paymode');
@@ -654,6 +701,8 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
             $fromDate = now()->firstOfMonth();
             $toDate = now()->lastOfMonth();
+            $date = $toDate->copy()->startOfMonth()->format('Y-m-d');
+            $request->merge(['date' => $date]);
         }
              $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $departments->prepend('All', 'all');
@@ -759,28 +808,25 @@ class EmployeeMonthlySalaryAttendance extends Controller
     }
     public function month_salary_generate(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $employee_ids = $request->input('employee_ids', []);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $paymodeFilter = $request->input('paymode');
         $branches = $request->input('branches');
        
-        if ($date) {
-            $inputDate = Carbon::parse($date);
-            $fromDate = $inputDate->copy()->startOfMonth();
-            $toDate = $inputDate->copy()->endOfMonth();
-
-            //previous month
-            $previousMonth = $inputDate->copy()->subMonth();
-            $previousMonthStart = $previousMonth->copy()->startOfMonth();
-            $previousMonthEnd = $previousMonth->copy()->endOfMonth();
-        } else {
-            $fromDate = null;
-            $toDate = null;
-            $previousMonthStart = null;
-            $previousMonthEnd = null;
+        if (!$date) {
+            return response()->json(['success' => false, 'message' => __('Please select month.')]);
         }
+
+        $inputDate = Carbon::parse($date);
+        $fromDate = $inputDate->copy()->startOfMonth();
+        $toDate = $inputDate->copy()->endOfMonth();
+
+        //previous month
+        $previousMonth = $inputDate->copy()->subMonth();
+        $previousMonthStart = $previousMonth->copy()->startOfMonth();
+        $previousMonthEnd = $previousMonth->copy()->endOfMonth();
 
         if (empty($employee_ids)) {
             return response()->json(['success' => false, 'message' => 'No employees selected.']);
@@ -1486,7 +1532,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
         // {
         // dd($request->all());
         $ids = $request->input('employee_ids');
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
+        if (!$date) {
+            return response()->json(['success' => false, 'message' => __('Please select month.')]);
+        }
         $month = date('m', strtotime($date));
         $year = date('Y', strtotime($date));
 

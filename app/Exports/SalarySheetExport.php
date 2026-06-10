@@ -56,100 +56,123 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
         // ==============================
         // GROUPING
         // ==============================
-        $grouped = $this->datas->sortBy('salarydepartment.name')->groupBy('department_id');
+        $grouped = $this->datas
+            ->sortBy(function ($data) {
+                return strtolower(
+                    (optional(optional($data->employee)->user)->name ?? '') . '|' .
+                    (optional($data->salarydepartment)->name ?? optional(optional($data->employee)->department)->name ?? '') . '|' .
+                    (optional($data->employee)->name ?? '')
+                );
+            })
+            ->groupBy(function ($data) {
+                return optional(optional($data->employee)->user)->name ?: 'No Branch';
+            });
 
         $grandTotals = array_fill(0, count($header), 0);
         $globalSr = 1;
-        foreach ($grouped as $deptId => $items) {
+        foreach ($grouped as $branchName => $branchItems) {
+            $branchRowIndex = count($rows) + 1 + 7;
+            $this->departmentRows[] = $branchRowIndex;
+            $rows[] = [$branchName];
+            $branchTotals = array_fill(0, count($header), 0);
 
-            // ==============================
-            // DEPARTMENT ROW (TRACK INDEX)
-            // ==============================
-            $deptSr = 1;
-            $deptRowIndex = count($rows) + 1 + 7; // +6 for title rows
-            $this->departmentRows[] = $deptRowIndex;
+            foreach ($branchItems->groupBy('department_id') as $deptId => $items) {
 
-            $rows[] = [
-                $items->first()->employee->department->name ?? 'Department',
-            ];
+                // ==============================
+                // DEPARTMENT ROW (TRACK INDEX)
+                // ==============================
+                $deptSr = 1;
+                $deptRowIndex = count($rows) + 1 + 7; // +7 for title rows
+                $this->departmentRows[] = $deptRowIndex;
 
-            $deptTotals = array_fill(0, count($header), 0);
+                $rows[] = [
+                    optional($items->first()->salarydepartment)->name
+                        ?? optional(optional($items->first()->employee)->department)->name
+                        ?? 'Department',
+                ];
 
-            foreach ($items as $data) {
-                $p = $data->employee->employee_payscale_details->last();
-                $e = $data->employee->employee_monthly_salaries_attend->first();
+                $deptTotals = array_fill(0, count($header), 0);
 
-                $row = [];
-                $row[] = $globalSr++;
-                $row[] = $deptSr++;
-                $row[] = $data->employee->employee_id ?? '';
-                $row[] = $data->scale_no ?? '';
-                $row[] = $data->employee->name ?? '';
-                $row[] = $data->employee->designation->name ?? '';
-                $row[] = Date::PHPToExcel(new \DateTime($data->employee->company_doj));
-                $row[] = $data->basics ?? 0;
+                foreach ($items->sortBy(fn ($data) => strtolower(optional($data->employee)->name ?? '')) as $data) {
+                    $p = $data->employee->employee_payscale_details->last();
+                    $e = $data->employee->employee_monthly_salaries_attend->first();
 
-                // Salary Heads
-                foreach ($this->salaryHeads as $h) {
-                    $val = optional($data->salary_heads->firstWhere('head_id', $h->id))->head_value ?? 0;
-                    $row[] = $val;
-                }
+                    $row = [];
+                    $row[] = $globalSr++;
+                    $row[] = $deptSr++;
+                    $row[] = $data->employee->employee_id ?? '';
+                    $row[] = $data->scale_no ?? '';
+                    $row[] = $data->employee->name ?? '';
+                    $row[] = $data->employee->designation->name ?? '';
+                    $row[] = Date::PHPToExcel(new \DateTime($data->employee->company_doj));
+                    $row[] = $data->basics ?? 0;
 
-                // Other
-                $row[] = $data->other_add ?? 0;
-                $row[] = $data->conv ?? 0;
-                $row[] = ($data->drns ?? 0) + ($data->misc ?? 0);
-                $row[] = $data->stop_sal ?? 0;
-                $row[] = $data->gross ?? 0;
+                    // Salary Heads
+                    foreach ($this->salaryHeads as $h) {
+                        $val = optional($data->salary_heads->firstWhere('head_id', $h->id))->head_value ?? 0;
+                        $row[] = $val;
+                    }
 
-                $row[] = $data->emp_sec ?? 0;
-                $row[] = $data->it ?? 0;
-                $row[] = $data->sal_advance ?? 0;
-                $row[] = $data->eobi ?? 0;
-                $row[] = $data->emp_sec_loan ?? 0;
-                $row[] = $data->stop_sal ?? 0;
-                $row[] = $data->pessi ?? 0;
-                $row[] = $data->dedu ?? 0;
-                $row[] = $data->loan ?? 0;
+                    // Other
+                    $row[] = $data->other_add ?? 0;
+                    $row[] = $data->conv ?? 0;
+                    $row[] = ($data->drns ?? 0) + ($data->misc ?? 0);
+                    $row[] = $data->stop_sal ?? 0;
+                    $row[] = $data->gross ?? 0;
 
-                $row[] = $data->net_pay ?? 0;
+                    $row[] = $data->emp_sec ?? 0;
+                    $row[] = $data->it ?? 0;
+                    $row[] = $data->sal_advance ?? 0;
+                    $row[] = $data->eobi ?? 0;
+                    $row[] = $data->emp_sec_loan ?? 0;
+                    $row[] = $data->stop_sal ?? 0;
+                    $row[] = $data->pessi ?? 0;
+                    $row[] = $data->dedu ?? 0;
+                    $row[] = $data->loan ?? 0;
 
-                $row[] = $data->pessi_employer ?? 0;
-                $row[] = $data->eobi_employer ?? 0;
+                    $row[] = $data->net_pay ?? 0;
 
-                $totalCost = ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
-                $costComp = $totalCost + ($data->gross ?? 0);
+                    $row[] = $data->pessi_employer ?? 0;
+                    $row[] = $data->eobi_employer ?? 0;
 
-                $row[] = $totalCost;
-                $row[] = $costComp;
+                    $totalCost = ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
+                    $costComp = $totalCost + ($data->gross ?? 0);
 
-                // Leaves
-                $cas = ($e->total_casual ?? 0) - ($e->bal_casual ?? 0);
-                $ann = ($e->total_annual ?? 0) - ($e->bal_annual ?? 0);
+                    $row[] = $totalCost;
+                    $row[] = $costComp;
 
-                $row[] = $e->total_casual ?? 0;
-                $row[] = $cas;
-                $row[] = $e->bal_casual ?? 0;
+                    // Leaves
+                    $cas = ($e->total_casual ?? 0) - ($e->bal_casual ?? 0);
+                    $ann = ($e->total_annual ?? 0) - ($e->bal_annual ?? 0);
 
-                $row[] = $e->total_annual ?? 0;
-                $row[] = $ann;
-                $row[] = $e->bal_annual ?? 0;
+                    $row[] = $e->total_casual ?? 0;
+                    $row[] = $cas;
+                    $row[] = $e->bal_casual ?? 0;
 
-                $row[] = $data->sal_days ?? 0;
+                    $row[] = $e->total_annual ?? 0;
+                    $row[] = $ann;
+                    $row[] = $e->bal_annual ?? 0;
 
-                $rows[] = $row;
-                // Totals
-                foreach ($row as $i => $val) {
-                    if (is_numeric($val)) {
-                        $deptTotals[$i] += $val;
-                        $grandTotals[$i] += $val;
+                    $row[] = $data->sal_days ?? 0;
+
+                    $rows[] = $row;
+                    // Totals
+                    foreach ($row as $i => $val) {
+                        if (is_numeric($val)) {
+                            $deptTotals[$i] += $val;
+                            $branchTotals[$i] += $val;
+                            $grandTotals[$i] += $val;
+                        }
                     }
                 }
+
+                // Department Total
+                $deptTotals[0] = 'DEPARTMENT TOTAL';
+                $rows[] = $deptTotals;
             }
 
-            // Department Total
-            $deptTotals[0] = 'DEPARTMENT TOTAL';
-            $rows[] = $deptTotals;
+            $branchTotals[0] = 'BRANCH TOTAL';
+            $rows[] = $branchTotals;
         }
 
         // Grand Total
@@ -298,7 +321,11 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $lastRow = $sheet->getHighestRow();
                 for ($r = 1; $r <= $lastRow; $r++) {
                     $cellValue = strtoupper($sheet->getCell("A{$r}")->getValue());
-                    if ((strpos($cellValue, 'GRAND') !== false && strpos($cellValue, 'TOTAL') !== false) || (strpos($cellValue, 'DEPARTMENT') !== false && strpos($cellValue, 'TOTAL') !== false)) {
+                    if (
+                        (strpos($cellValue, 'GRAND') !== false && strpos($cellValue, 'TOTAL') !== false)
+                        || (strpos($cellValue, 'BRANCH') !== false && strpos($cellValue, 'TOTAL') !== false)
+                        || (strpos($cellValue, 'DEPARTMENT') !== false && strpos($cellValue, 'TOTAL') !== false)
+                    ) {
                         $sheet->mergeCells("A{$r}:G{$r}");
                         $sheet->setCellValue("E{$r}", '');
                         $sheet->getStyle("A{$r}:{$highestColumn}{$r}")->applyFromArray([

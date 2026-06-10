@@ -44,16 +44,19 @@
                                 text: cls.name
                             }));
                         }
-                        $('#service_tenure').val('');
-                        $('#total_sec').val('');
-                        $('#loan_error').text('');
-                        $('#loan_amount').val('');
-                        $('#max_amount').val('');
+                        if ($('#employee_id').data('selected')) {
+                            $('#employee_id').val($('#employee_id').data('selected'));
+                        }
+                        $('#employee_id').trigger('change');
                     }
                     if (result.status == 'error') {}
                 }
             });
         }
+
+        $(document).ready(function() {
+            $('#employee_id').data('selected', "{{ request('employee_id') }}");
+        });
     </script>
 @endpush
 @section('action-btn')
@@ -68,7 +71,6 @@
     @endcan
 @endsection
 @section('content')
-    @if (\Auth::user()->type == 'company')
         <div class="row">
             <div class="col-sm-12">
                 <div class="mt-2 " id="multiCollapseExample1">
@@ -76,30 +78,43 @@
                         <div class="card-body filter_change">
                             {{ Form::open(['route' => ['loan.index'], 'method' => 'GET', 'id' => 'loan_submit']) }}
                             <div class="row d-flex justify-content-end ">
-                                <div class="col-xl-10">
+                                <div class="col-xl-11">
                                     <div class="row">
-                                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                             <div class="btn-box">
                                                 {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                                {{ Form::select('branches', $branches, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select', 'onchange' => 'branchtype(this.value)']) }}
+                                                {{ Form::select('branches', $branches, request('branches'), ['class' => 'form-control select', 'onchange' => 'branchemployees(this.value)']) }}
                                             </div>
                                         </div>
-                                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                             <div class="btn-box">
                                                 {{ Form::label('department_id', __('Department'), ['class' => 'form-label']) }}
-                                                {{ Form::select('department_id', $departments, isset($_GET['department_id']) ? $_GET['department_id'] : '', ['class' => 'form-control  ']) }}
+                                                {{ Form::select('department_id', $departments, request('department_id'), ['class' => 'form-control  ']) }}
                                             </div>
                                         </div>
-                                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                             <div class="btn-box">
                                                 {{ Form::label('designation_id', __('Designation'), ['class' => 'form-label']) }}
-                                                {{ Form::select('designation_id', $designations, isset($_GET['designation_id']) ? $_GET['designation_id'] : '', ['class' => 'form-control  ']) }}
+                                                {{ Form::select('designation_id', $designations, request('designation_id'), ['class' => 'form-control  ']) }}
                                             </div>
                                         </div>
-                                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-2">
+                                            <div class="btn-box">
+                                                {{ Form::label('employee_id', __('Employee'), ['class' => 'form-label']) }}
+                                                {{ Form::select('employee_id', $employees, request('employee_id'), ['class' => 'form-control select custom-select', 'id' => 'employee_id']) }}
+                                            </div>
+                                        </div>
+
+                                        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-2">
+                                            <div class="btn-box">
+                                                {{ Form::label('fiscal_year', __('Fiscal Year'), ['class' => 'form-label']) }}
+                                                {{ Form::select('fiscal_year', $fiscalYears, request('fiscal_year'), ['class' => 'form-control select']) }}
+                                            </div>
+                                        </div>
+                                       <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                             <div class="btn-box">
                                                 {{ Form::label('status', __('Status'), ['class' => 'form-label']) }}
-                                                {{ Form::select('status', ['' => 'Select Status', '0' => 'Pending', '1' => 'Approved', '2' => 'Rejected'], isset($_GET['status']) ? $_GET['status'] : '', ['class' => 'form-control select']) }}
+                                                {{ Form::select('status', ['' => 'Select Status', '0' => 'Pending', '1' => 'Approved', '2' => 'Rejected'], request('status'), ['class' => 'form-control select']) }}
                                             </div>
                                         </div>
                                     </div>
@@ -113,7 +128,7 @@
                                                 style="align-content: space-evenly;">
                                                 <span class="btn-inner--icon">Search</span>
                                             </a>
-                                            <a href="{{ route('employee-salary-detail.index') }}"
+                                            <a href="{{ route('loan.index') }}"
                                                 class="btn mx-1 btn-sm btn-outline-danger" 
                                                 data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ __('Reset') }}" style="align-content: space-evenly;">
                                                 <span class="btn-inner--icon">Clear</span>
@@ -128,11 +143,10 @@
                 </div>
             </div>
         </div>
-    @endif
     <div class="card-body full-card">
         <div class="table-responsive">
             @if (!$loans->isEmpty())
-                <table class="">
+                <table class="datatable">
                     <thead class="">
                         <tr class="table_heads">
                             <th>#</th>
@@ -140,8 +154,8 @@
                             <th>{{ __('Title') }}</th>
                             <th>{{ __('Loan Amount') }}</th>
                             <th>{{ __('Received Amount') }}</th>
-                            <th>{{ __('Deduction start Date') }}</th>
-                            <th>{{ __('End Date') }}</th>
+                            <th>{{ __('Deduction Start Month') }}</th>
+                            <th>{{ __('End Month') }}</th>
                             <th>{{ __('Stopped Months') }}</th>
                             <th>{{ __('charge amnt/mon') }}</th>
                             <th>{{ __('Status') }}</th>
@@ -155,7 +169,7 @@
                         @foreach ($loans as $loan)
                             
                             <tr>
-                                <td>{{ ($loans->currentPage() - 1) * $loans->perPage() + $loop->iteration }}</td>
+                                <td>{{ $loop->iteration }}</td>
                                 <td style='width:100px;'>
                                     @if(!empty($loan->employee))
                                     @can('show employee profile')
@@ -174,8 +188,8 @@
                                 <td>{{ $loan->title }}</td>
                                 <td>{{ @$loan->amount }}</td>
                                 <td>{{ @$loan->received_amount }}</td>
-                                <td>{{ !empty($loan->from_pay_month) ? \Carbon\Carbon::parse($loan->from_pay_month)->format('d-M-Y') : '-' }}</td>
-                                <td>{{ !empty($loan->loan_ended) ? \Carbon\Carbon::parse($loan->loan_ended)->format('d-M-Y') : '-' }}</td>
+                                <td>{{ !empty($loan->from_pay_month) ? \Carbon\Carbon::parse($loan->from_pay_month)->format('M Y') : '-' }}</td>
+                                <td>{{ !empty($loan->loan_ended) ? \Carbon\Carbon::parse($loan->loan_ended)->format('M Y') : '-' }}</td>
                                 <td>{{ $loan->stopHistories->sum('months') }}</td>
                                 <td>{{ @$loan->per_month_amount }}</td>
                                 <td>
@@ -264,50 +278,5 @@
             @endif
         </div>
     </div>
-
-    @if ($loans->hasPages())
-            <div class="pagination">
-                <ul>
-                    @if ($loans->onFirstPage())
-                        <li class="disabled">&laquo; Previous</li>
-                    @else
-                        <li><a href="{{ $loans->appends(request()->query())->previousPageUrl() }}"
-                                rel="prev">&laquo; Previous</a></li>
-                    @endif
-                    @if ($loans->currentPage() > 1)
-                        <li><a href="{{ $loans->appends(request()->query())->url(1) }}">First</a></li>
-                    @endif
-                    @php
-                        $currentPage = $loans->currentPage();
-                        $lastPage = $loans->lastPage();
-                        $startPage = max(1, $currentPage - 4);
-                        $endPage = min($lastPage, $currentPage + 5);
-                        if ($endPage - $startPage < 9) {
-                            if ($currentPage < $lastPage - 9) {
-                                $endPage = $startPage + 9;
-                            } else {
-                                $startPage = max(1, $lastPage - 9);
-                            }
-                        }
-                    @endphp
-                    @for ($page = $startPage; $page <= $endPage; $page++)
-                        <li class="{{ $page == $loans->currentPage() ? 'active' : '' }}">
-                            <a href="{{ $loans->appends(request()->query())->url($page) }}">{{ $page }}</a>
-                        </li>
-                    @endfor
-                    @if ($loans->hasMorePages())
-                        <li><a href="{{ $loans->appends(request()->query())->nextPageUrl() }}" rel="next">Next
-                                &raquo;</a></li>
-                    @else
-                        <li class="disabled">Next &raquo;</li>
-                    @endif
-                    @if ($loans->currentPage() < $loans->lastPage())
-                        <li><a
-                                href="{{ $loans->appends(request()->query())->url($loans->lastPage()) }}">Last</a>
-                        </li>
-                    @endif
-                </ul>
-            </div>
-        @endif
 
 @endsection
