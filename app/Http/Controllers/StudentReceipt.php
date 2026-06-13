@@ -825,12 +825,35 @@ class StudentReceipt extends Controller
         array $oldItems
     ): void {
         $challan = Challans::find($receipt->challan_id);
+        $processedHeadIds = [];
 
         foreach ($items as $item) {
             $newAmount = (float) ($item['amount'] ?? 0);
             $headId = isset($item['head_id']) ? (int) $item['head_id'] : null;
 
-            if ($newAmount <= 0 || !$headId) {
+            if (!$headId) {
+                continue;
+            }
+            $processedHeadIds[] = $headId;
+
+            $oldContribution = 0.0;
+
+            foreach ($oldItems as $oldItem) {
+                $oldHeadId = isset($oldItem['head_id']) ? (int) $oldItem['head_id'] : null;
+
+                if ($oldHeadId === $headId) {
+                    $oldContribution = (float) ($oldItem['amount'] ?? 0);
+                    break;
+                }
+            }
+
+            if ($newAmount <= 0) {
+                if ($oldContribution > 0) {
+                    $this->removeReceiptCreditLines($journal, $receipt, [[
+                        'head_id' => $headId,
+                        'amount' => $oldContribution,
+                    ]]);
+                }
                 continue;
             }
 
@@ -844,17 +867,6 @@ class StudentReceipt extends Controller
 
             if (!$account) {
                 throw new \Exception('Chart of Account not found for FeeHead: ' . $headId);
-            }
-
-            $oldContribution = 0.0;
-
-            foreach ($oldItems as $oldItem) {
-                $oldHeadId = isset($oldItem['head_id']) ? (int) $oldItem['head_id'] : null;
-
-                if ($oldHeadId === $headId) {
-                    $oldContribution = (float) ($oldItem['amount'] ?? 0);
-                    break;
-                }
             }
 
             $existingLine = JournalItem::where('journal', $journal->id)
@@ -899,6 +911,18 @@ class StudentReceipt extends Controller
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
+            }
+        }
+
+        foreach ($oldItems as $oldItem) {
+            $oldHeadId = isset($oldItem['head_id']) ? (int) $oldItem['head_id'] : null;
+            $oldContribution = (float) ($oldItem['amount'] ?? 0);
+
+            if ($oldHeadId && $oldContribution > 0 && !in_array($oldHeadId, $processedHeadIds, true)) {
+                $this->removeReceiptCreditLines($journal, $receipt, [[
+                    'head_id' => $oldHeadId,
+                    'amount' => $oldContribution,
+                ]]);
             }
         }
     }

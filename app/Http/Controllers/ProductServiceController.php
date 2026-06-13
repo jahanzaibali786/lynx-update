@@ -177,11 +177,9 @@ class ProductServiceController extends Controller
             $productService->sale_price = $request->sale_price;
             $productService->tax_id = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
             $productService->unit_id = $request->unit_id;
-            if (!empty($request->quantity)) {
-                $productService->quantity = $request->quantity;
-            } else {
-                $productService->quantity = 0;
-            }
+            $productService->quantity = $request->quantity ?? 0;
+            $productService->used_quantity = $request->used_quantity ?? 0;
+            $productService->damaged_quantity = $request->damaged_quantity ?? 0;
             $productService->type = $request->item_type === 'service' ? 'service' : 'product';
             $productService->sale_chartaccount_id = $request->sale_chartaccount_id;
             $productService->category_id = $request->category_id;

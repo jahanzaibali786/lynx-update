@@ -15,6 +15,7 @@ class StockReport extends Model
         'type',
         'type_id',
         'description',
+        'owned_by',
     ];
 
 

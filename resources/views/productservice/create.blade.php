@@ -150,6 +150,18 @@
                             {{ Form::label('inventory_asset_account_id', __('Inventory Asset Account'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
                             {{ Form::select('inventory_asset_account_id', $inventoryAssetAccounts, old('inventory_asset_account_id'), ['class' => 'form-control select', 'id' => 'inventory_asset_account_id', 'required' => 'required']) }}
                         </div>
+                        <div class="form-group col-md-2">
+                            {{ Form::label('quantity', __('Opening Stock (New)'), ['class' => 'form-label']) }}
+                            {{ Form::number('quantity', old('quantity', 0), ['class' => 'form-control', 'min' => 0]) }}
+                        </div>
+                        <div class="form-group col-md-2">
+                            {{ Form::label('used_quantity', __('Opening Stock (Used)'), ['class' => 'form-label']) }}
+                            {{ Form::number('used_quantity', old('used_quantity', 0), ['class' => 'form-control', 'min' => 0]) }}
+                        </div>
+                        <div class="form-group col-md-2">
+                            {{ Form::label('damaged_quantity', __('Opening Stock (Damaged)'), ['class' => 'form-label']) }}
+                            {{ Form::number('damaged_quantity', old('damaged_quantity', 0), ['class' => 'form-control', 'min' => 0]) }}
+                        </div>
                         @if (!$customFields->isEmpty())
                             <div class="form-group col-md-6">
                                 @include('customFields.formBuilder')

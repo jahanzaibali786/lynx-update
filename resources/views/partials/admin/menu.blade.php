@@ -2740,6 +2740,10 @@
                                 <a class="dash-link  {{ Request::segment(1) == 'purchase' || Request::route()->getName() == 'purchase.index' || Request::route()->getName() == 'purchase.create' || Request::route()->getName() == 'purchase.edit' || Request::route()->getName() == 'purchase.show' ? ' active' : '' }}"
                                     href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
                             </li>
+                            <li class="dash-item">
+                                <a class="dash-link {{ Request::segment(1) == 'grn' || in_array(Request::route()->getName(), ['grn.index', 'grn.create', 'grn.edit', 'grn.show']) ? ' active' : '' }}"
+                                    href="{{ route('grn.index') }}">{{ __('GRN') }}</a>
+                            </li>
                             <li class="dash-item ">
                                 <a class="dash-link {{ Request::segment(1) == 'invoice' || Request::route()->getName() == 'invoice.index' || Request::route()->getName() == 'invoice.create' || Request::route()->getName() == 'invoice.edit' || Request::route()->getName() == 'invoice.show' ? ' active' : '' }}"
                                     href="{{ route('invoice.index') }}">{{ __('Invoice') }}</a>

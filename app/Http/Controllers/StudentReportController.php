@@ -47,8 +47,10 @@ use App\Models\StudentEnrollments;
 use App\Models\StudentRegistration;
 use App\Models\StudentTransfer;
 use App\Models\StudentWithdrawal;
+use App\Models\StudentAccountPreviousDataFile;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Auth;
 use App\Models\StudentSecurity;
 use Carbon\Carbon;
@@ -3398,6 +3400,18 @@ class StudentReportController extends Controller
         }
 
         // Prepare view data
+        $previousStatementBranchId = $std ? $std->owned_by : null;
+        $previousStatementBranchName = $previousStatementBranchId
+            ? User::where('id', $previousStatementBranchId)->value('name')
+            : null;
+
+        $previousStatementFile = $previousStatementBranchId
+            ? StudentAccountPreviousDataFile::where('branch_id', $previousStatementBranchId)
+                ->where('created_by', \Auth::user()->creatorId())
+                ->latest()
+                ->first()
+            : null;
+
         $viewData = compact(
             'branches',
             'students',
@@ -3407,7 +3421,10 @@ class StudentReportController extends Controller
             'to_date',
             'selected_branch',
             'selected_class',
-            'selected_student'
+            'selected_student',
+            'previousStatementFile',
+            'previousStatementBranchId',
+            'previousStatementBranchName'
         );
 
         // Add std only if it exists
@@ -3416,6 +3433,132 @@ class StudentReportController extends Controller
         }
 
         return view('studentReports.student_single_account', $viewData);
+    }
+
+    public function uploadStudentAccountPreviousData(Request $request)
+    {
+        $user = \Auth::user();
+
+        $request->validate([
+            'student_id' => 'required|exists:student_registrations,id',
+            'previous_data_file' => 'required|file|mimes:xlsx,xls,csv|max:20480',
+        ]);
+
+        $student = StudentRegistration::query()
+            ->where('id', $request->student_id)
+            ->when(
+                $user->type == 'company',
+                fn($q) => $q->where('created_by', $user->creatorId()),
+                fn($q) => $q->where('owned_by', $user->ownedId())
+            )
+            ->first();
+
+        if (!$student) {
+            return redirect()->back()->with('error', __('Invalid student selected.'));
+        }
+
+        $branchId = $student->owned_by;
+
+        $branch = User::where('id', $branchId)
+            ->where('created_by', $user->creatorId())
+            ->first();
+
+        if (!$branch && (int) $branchId !== (int) $user->creatorId()) {
+            return redirect()->back()->with('error', __('Invalid branch selected.'));
+        }
+
+        $activeFile = StudentAccountPreviousDataFile::where('branch_id', $branchId)
+            ->where('created_by', $user->creatorId())
+            ->latest()
+            ->first();
+
+        if ($user->type != 'company' && $activeFile && $activeFile->finalized_at) {
+            return redirect()->back()->with('error', __('Previous data sheet is finalized. You can only download it.'));
+        }
+
+        if ($activeFile && ($user->type == 'company' || !$activeFile->finalized_at)) {
+            if (Storage::exists($activeFile->file_path)) {
+                Storage::delete($activeFile->file_path);
+            }
+
+            $activeFile->deleted_by = $user->id;
+            $activeFile->save();
+            $activeFile->delete();
+        }
+
+        $file = $request->file('previous_data_file');
+        $safeRollNo = preg_replace('/[^A-Za-z0-9_-]+/', '_', trim((string) $student->roll_no));
+        $safeStudentName = preg_replace('/[^A-Za-z0-9_-]+/', '_', trim((string) $student->stdname));
+        $safeRollNo = $safeRollNo ?: 'student_' . $student->id;
+        $safeStudentName = $safeStudentName ?: 'account_statement';
+        $extension = strtolower($file->getClientOriginalExtension() ?: 'xlsx');
+        $storedFileName = $safeRollNo . '_' . $safeStudentName . '.' . $extension;
+        $path = 'student_previous_account_statements/branch_' . $branchId . '/' . $storedFileName;
+
+        Storage::put($path, file_get_contents($file->getRealPath()));
+
+        StudentAccountPreviousDataFile::create([
+            'branch_id' => $branchId,
+            'original_name' => $storedFileName,
+            'file_path' => $path,
+            'mime_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+            'uploaded_by' => $user->id,
+            'created_by' => $user->creatorId(),
+            'finalized_at' => $user->type == 'company' ? now() : null,
+        ]);
+
+        return redirect()->back()->with('success', __('Previous data sheet uploaded successfully.'));
+    }
+
+    public function finalizeStudentAccountPreviousData($id)
+    {
+        $user = \Auth::user();
+        $file = StudentAccountPreviousDataFile::where('created_by', $user->creatorId())->findOrFail($id);
+
+        if ($user->type != 'company' && (int) $file->branch_id !== (int) $user->ownedId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $file->finalized_at = now();
+        $file->save();
+
+        return redirect()->back()->with('success', __('Previous data sheet finalized successfully.'));
+    }
+
+    public function rollbackStudentAccountPreviousData($id)
+    {
+        $user = \Auth::user();
+
+        if ($user->type != 'company') {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $file = StudentAccountPreviousDataFile::where('created_by', $user->creatorId())->findOrFail($id);
+        $file->finalized_at = null;
+        $file->save();
+
+        return redirect()->back()->with('success', __('Previous data sheet rolled back. Branch can upload again.'));
+    }
+
+    public function downloadStudentAccountPreviousData($id)
+    {
+        $user = \Auth::user();
+        $file = StudentAccountPreviousDataFile::findOrFail($id);
+
+        if ($file->created_by != $user->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if ($user->type != 'company' && (int) $file->branch_id !== (int) $user->ownedId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if (!Storage::exists($file->file_path)) {
+            return redirect()->back()->with('error', __('Previous data sheet file was not found in storage.'));
+        }
+
+        return Storage::download($file->file_path, $file->original_name);
     }
 
     /**

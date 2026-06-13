@@ -38,6 +38,23 @@
             color: green;
             font-weight: 500;
         }
+
+        .finalize-glow {
+            color: #dc3545 !important;
+            font-weight: 700;
+            animation: finalizeGlow 1.2s ease-in-out infinite;
+        }
+
+        @keyframes finalizeGlow {
+            0%, 100% {
+                text-shadow: 0 0 0 rgba(220, 53, 69, 0);
+                transform: scale(1);
+            }
+            50% {
+                text-shadow: 0 0 8px rgba(220, 53, 69, 0.85);
+                transform: scale(1.04);
+            }
+        }
     </style>
     <script>
         $(document).on('change', '#student_select, #class_select, #status_select, #branches', function() {
@@ -329,6 +346,93 @@
             </div>
         </div>
     </div>
+
+    @if (isset($std) && $std)
+    @php
+        $previousStatementFinalized = !empty($previousStatementFile) && !empty($previousStatementFile->finalized_at);
+    @endphp
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ __('Previous Data Sheet') }}</h5>
+                    @if (!empty($previousStatementFile))
+                        <small class="text-muted">
+                            @if ($previousStatementFinalized)
+                                {{ __('Finalized') }}:
+                                {{ optional($previousStatementFile->finalized_at)->format('d-M-Y h:i A') }}
+                            @else
+                                {{ __('Unfinalized') }}
+                            @endif
+                        </small>
+                    @endif
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-end">
+                        <div class="col-md-5 d-flex">
+                            @if (!empty($previousStatementFile))
+                                <p class="mb-1" style="width: fit-content;">
+                                    <strong>{{ __('Current Sheet') }}:</strong>
+                                    {{ $previousStatementFile->original_name }}
+                                    <a href="{{ route('student_single_account.previous_data.download', $previousStatementFile->id) }}"
+                                        class="ms-2 text-primary" title="{{ __('Download') }}">
+                                        <i class="ti ti-download"></i>
+                                    </a>
+                                    @if (!$previousStatementFinalized)
+                                        {{ Form::open(['route' => ['student_single_account.previous_data.finalize', $previousStatementFile->id], 'method' => 'POST', 'class' => 'd-inline']) }}
+                                            <button type="submit" class="border-0 bg-transparent p-0 ms-2 finalize-glow"
+                                                title="{{ __('Finalize') }}">
+                                                <i class="ti ti-check"></i> Finalize
+                                            </button>
+                                        {{ Form::close() }}
+                                    @elseif (\Auth::user()->type == 'company')
+                                        {{ Form::open(['route' => ['student_single_account.previous_data.rollback', $previousStatementFile->id], 'method' => 'POST', 'class' => 'd-inline']) }}
+                                            <button type="submit" class="border-0 bg-transparent p-0 ms-2 text-warning"
+                                                title="{{ __('Rollback') }}">
+                                                <i class="ti ti-rotate-2"></i> Rollback
+                                            </button>
+                                        {{ Form::close() }}
+                                    @endif
+                                </p>
+                            @else
+                                <p class="text-muted mb-0">
+                                    {{ __('No previous data sheet finalized yet.') }}
+                                </p>
+                            @endif
+                        </div>
+
+                        <div class="col-md-7">
+                            <div class="d-flex flex-wrap justify-content-end gap-2">
+                                @if (\Auth::user()->type == 'company')
+                                    {{ Form::open(['route' => 'student_single_account.previous_data.upload', 'method' => 'POST', 'files' => true, 'class' => 'd-flex flex-wrap justify-content-end gap-2', 'style' => 'width: 100%;']) }}
+                                        {{ Form::hidden('student_id', $std->id) }}
+                                        {{ Form::file('previous_data_file', ['class' => 'form-control form-control-sm', 'style' => 'max-width: 260px;', 'required' => 'required', 'accept' => '.xlsx,.xls,.csv']) }}
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            <i class="ti ti-upload me-1 text-light"></i>{{ !empty($previousStatementFile) ? __('Replace') : __('Upload') }}
+                                        </button>
+                                    {{ Form::close() }}
+                                @elseif (empty($previousStatementFile) || !$previousStatementFinalized)
+                                    {{ Form::open(['route' => 'student_single_account.previous_data.upload', 'method' => 'POST', 'files' => true, 'class' => 'd-flex flex-wrap justify-content-end gap-2', 'style' => 'width: 100%;']) }}
+                                        {{ Form::hidden('student_id', $std->id) }}
+                                        {{ Form::file('previous_data_file', ['class' => 'form-control form-control-sm', 'style' => 'max-width: 300px;', 'required' => 'required', 'accept' => '.xlsx,.xls,.csv']) }}
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            <i class="ti ti-upload me-1 text-light"></i>{{ __('Upload') }}
+                                        </button>
+                                    {{ Form::close() }}
+                                @endif
+                            </div>
+                            @if (\Auth::user()->type != 'company' && $previousStatementFinalized)
+                                <small class="text-muted d-block text-end mt-2">
+                                    {{ __('This sheet is finalized. Branch users can download only.') }}
+                                </small>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 
     <div class="content" id="report-content">
         <div class="card p-4 table-responsive maximumHeightNew">

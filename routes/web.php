@@ -51,6 +51,7 @@ use App\Http\Controllers\TaxController;
 use App\Http\Controllers\ProductServiceCategoryController;
 use App\Http\Controllers\ProductServiceUnitController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\GrnController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\DebitNoteController;
 use App\Http\Controllers\BillController;
@@ -672,6 +673,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('invoice/{id}/payment/{pid}/destroy', [InvoiceController::class, 'paymentDestroy'])->name('invoice.payment.destroy');
             Route::get('invoice/items', [InvoiceController::class, 'items'])->name('invoice.items');
 
+            Route::post('grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
+            Route::resource('grn', GrnController::class);
 
 
             Route::resource('invoice', InvoiceController::class);
@@ -2269,6 +2272,10 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/student-defaulter/report', [StudentReportController::class, 'student_defaulter_report'])->name('student-defaultert.report');
             Route::get('/student-defaulter-sm', [StudentReportController::class, 'student_defaulter_sm'])->name('student_defaulter_sm');
             Route::get('/student-single-account', [StudentReportController::class, 'student_single_account'])->name('student_single_account');
+            Route::post('/student-single-account/previous-data', [StudentReportController::class, 'uploadStudentAccountPreviousData'])->name('student_single_account.previous_data.upload');
+            Route::post('/student-single-account/previous-data/{id}/finalize', [StudentReportController::class, 'finalizeStudentAccountPreviousData'])->name('student_single_account.previous_data.finalize');
+            Route::post('/student-single-account/previous-data/{id}/rollback', [StudentReportController::class, 'rollbackStudentAccountPreviousData'])->name('student_single_account.previous_data.rollback');
+            Route::get('/student-single-account/previous-data/{id}/download', [StudentReportController::class, 'downloadStudentAccountPreviousData'])->name('student_single_account.previous_data.download');
             Route::get('/student-single-account-detail', [StudentReportController::class, 'student_single_account_details'])->name('student_single_account_details');
             Route::get('/withdrawl_notice', [StudentReportController::class, 'withdarawl_notice'])->name('withdarawl_notice');
             Route::get('/student-withdarawl-listing', [StudentReportController::class, 'student_withdarawl_listing'])->name('student_withdarawl_listing');

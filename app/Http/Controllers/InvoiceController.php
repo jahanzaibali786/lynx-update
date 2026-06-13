@@ -572,6 +572,11 @@ class InvoiceController extends Controller
         $taxPrice = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
 
+        // Add stock quantities for all three types
+        $data['stock_new'] = $product->quantity ?? 0;
+        $data['stock_used'] = $product->used_quantity ?? 0;
+        $data['stock_damaged'] = $product->damaged_quantity ?? 0;
+
         return json_encode($data);
     }
 
@@ -629,13 +634,33 @@ class InvoiceController extends Controller
                     $invoiceProduct->discount = $products[$i]['discount'] ?? 0;
                     $invoiceProduct->price = $products[$i]['price'];
                     // $invoiceProduct->description = $products[$i]['description'];
-                    $invoiceProduct->type = $products[$i]['type'] ?? 0;
+                    $invoiceProduct->type = $products[$i]['type'] ?? 'new';
                     $invoiceProduct->save();
+
+                    // Deduct stock based on type
+                    $product = ProductService::find($products[$i]['item']);
+                    if ($product) {
+                        $type = $products[$i]['type'] ?? 'new';
+                        $qty = $products[$i]['quantity'];
+
+                        switch($type) {
+                            case 'new':
+                                $product->quantity = max(0, ($product->quantity ?? 0) - $qty);
+                                break;
+                            case 'use':
+                                $product->used_quantity = max(0, ($product->used_quantity ?? 0) - $qty);
+                                break;
+                            case 'damage':
+                                $product->damaged_quantity = max(0, ($product->damaged_quantity ?? 0) - $qty);
+                                break;
+                        }
+                        $product->save();
+                    }
 
                     $newitems[$i]['prod_id'] = $invoiceProduct->id;
                     Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $products[$i]['item'], $products[$i]['quantity']);
                     $description = $products[$i]['quantity'] . '  ' . __(' quantity sold in invoice') . ' ' . \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
-                    Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], 'invoice', $description, $invoice->id);
+                    // Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], 'invoice', $description, $invoice->id);
                 }
                 // $data['id'] =$invoice->id;
                 // $data['date'] =$invoice->issue_date;
@@ -759,6 +784,8 @@ class InvoiceController extends Controller
                 $newitems = $request->items;
                 for ($i = 0; $i < count($products); $i++) {
                     $invoiceProduct = InvoiceProduct::find($products[$i]['id']);
+                    $oldQuantity = 0;
+                    $oldType = 'new';
 
                     if ($invoiceProduct == null) {
                         $invoiceProduct = new InvoiceProduct();
@@ -768,6 +795,27 @@ class InvoiceController extends Controller
 
                         $updatePrice = ($products[$i]['price'] * $products[$i]['quantity']) + ($products[$i]['itemTaxPrice']);
                     } else {
+                        // Store old values to restore stock
+                        $oldQuantity = $invoiceProduct->quantity;
+                        $oldType = $invoiceProduct->type ?? 'new';
+
+                        // Restore old stock
+                        $product = ProductService::find($invoiceProduct->product_id);
+                        if ($product) {
+                            switch($oldType) {
+                                case 'new':
+                                    $product->quantity = ($product->quantity ?? 0) + $oldQuantity;
+                                    break;
+                                case 'use':
+                                    $product->used_quantity = ($product->used_quantity ?? 0) + $oldQuantity;
+                                    break;
+                                case 'damage':
+                                    $product->damaged_quantity = ($product->damaged_quantity ?? 0) + $oldQuantity;
+                                    break;
+                            }
+                            $product->save();
+                        }
+
                         Utility::total_quantity('plus', $invoiceProduct->quantity, $invoiceProduct->product_id);
                     }
 
@@ -780,7 +828,28 @@ class InvoiceController extends Controller
                     $invoiceProduct->tax = $products[$i]['tax'];
                     //                    $invoiceProduct->discount    = isset($products[$i]['discount']) ? $products[$i]['discount'] : 0;
                     $invoiceProduct->price = $products[$i]['price'];
+                    $invoiceProduct->type = $products[$i]['type'] ?? 'new';
                     $invoiceProduct->save();
+
+                    // Deduct new stock based on type
+                    $product = ProductService::find($products[$i]['item']);
+                    if ($product) {
+                        $type = $products[$i]['type'] ?? 'new';
+                        $qty = $products[$i]['quantity'];
+
+                        switch($type) {
+                            case 'new':
+                                $product->quantity = max(0, ($product->quantity ?? 0) - $qty);
+                                break;
+                            case 'use':
+                                $product->used_quantity = max(0, ($product->used_quantity ?? 0) - $qty);
+                                break;
+                            case 'damage':
+                                $product->damaged_quantity = max(0, ($product->damaged_quantity ?? 0) - $qty);
+                                break;
+                        }
+                        $product->save();
+                    }
 
                     // Utility::total_quantity('plus',$products[$i]['quantity'],$invoiceProduct->product_id);
                     if ($products[$i]['id'] > 0) {
@@ -793,7 +862,7 @@ class InvoiceController extends Controller
                     $type_id = $invoice->id;
                     StockReport::where('type', '=', 'invoice')->where('product_id', $products[$i]['item'])->where('type_id', '=', $invoice->id)->delete();
                     $description = $products[$i]['quantity'] . '  ' . __(' quantity sold in invoice') . ' ' . \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
-                    Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], $type, $description, $type_id);
+                    // Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], $type, $description, $type_id);
 
                     Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $products[$i]['item'], $products[$i]['quantity']);
 
