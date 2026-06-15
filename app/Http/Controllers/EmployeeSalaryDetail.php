@@ -673,10 +673,11 @@ class EmployeeSalaryDetail extends Controller
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
+        $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
+        if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $query = EmployeeMonthlySalary::with(
                     'employee',
@@ -713,6 +714,9 @@ class EmployeeSalaryDetail extends Controller
                 $query->whereHas('employee', function ($query) use ($designation_id) {
                     $query->where('designation_id', $designation_id);
                 });
+            }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -839,10 +843,11 @@ class EmployeeSalaryDetail extends Controller
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
+        $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
+        if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -900,6 +905,9 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
+            }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
                     return strtolower(
@@ -955,10 +963,11 @@ class EmployeeSalaryDetail extends Controller
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
+        $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
+        if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -1016,6 +1025,9 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
+            }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
                     return strtolower(
@@ -1064,10 +1076,11 @@ class EmployeeSalaryDetail extends Controller
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
+        $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
+        if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -1125,6 +1138,9 @@ class EmployeeSalaryDetail extends Controller
                     $query->where('designation_id', $designation_id);
                 });
             }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
+            }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
                     return strtolower(
@@ -1174,6 +1190,7 @@ class EmployeeSalaryDetail extends Controller
         $department_id  = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches       = $request->input('branches');
+        $paymode        = $request->input('paymode');
         $exportType     = $request->input('export_type', 'pdf');
     
         $toDate   = $date ? \Carbon\Carbon::parse($date)->endOfDay() : null;
@@ -1207,7 +1224,7 @@ class EmployeeSalaryDetail extends Controller
     
         $datas = collect();
     
-        if ($date || $department_id || $designation_id || $branches || !empty($employeeIds)) {
+        if ($date || $department_id || $designation_id || $branches || $paymode || !empty($employeeIds)) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $salaryHeads = \App\Models\SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
                 $query = \App\Models\EmployeeMonthlySalary::with([
@@ -1263,6 +1280,9 @@ class EmployeeSalaryDetail extends Controller
     
             if ($designation_id && $designation_id !== 'all') {
                 $query->whereHas('employee', fn($q) => $q->where('designation_id', $designation_id));
+            }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
             }
     
             $datas = $query->get()
@@ -1760,10 +1780,11 @@ class EmployeeSalaryDetail extends Controller
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
+        $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
+        if ($date || $department_id || $designation_id || $branches || $paymode) {
 
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
@@ -1820,6 +1841,9 @@ class EmployeeSalaryDetail extends Controller
                 $query->whereHas('employee', function ($query) use ($designation_id) {
                     $query->where('designation_id', $designation_id);
                 });
+            }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -1888,10 +1912,11 @@ class EmployeeSalaryDetail extends Controller
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
+        $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
+        if ($date || $department_id || $designation_id || $branches || $paymode) {
 
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
@@ -1950,6 +1975,9 @@ class EmployeeSalaryDetail extends Controller
                 $query->whereHas('employee', function ($query) use ($designation_id) {
                     $query->where('designation_id', $designation_id);
                 });
+            }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -2011,10 +2039,11 @@ class EmployeeSalaryDetail extends Controller
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
+        $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
+        if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -2071,6 +2100,9 @@ class EmployeeSalaryDetail extends Controller
                 $query->whereHas('employee', function ($query) use ($designation_id) {
                     $query->where('designation_id', $designation_id);
                 });
+            }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -2148,10 +2180,11 @@ class EmployeeSalaryDetail extends Controller
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
+        $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
         $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
         $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
+        if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                 $salaryHeads = SalaryHeads::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -2208,6 +2241,9 @@ class EmployeeSalaryDetail extends Controller
                 $query->whereHas('employee', function ($query) use ($designation_id) {
                     $query->where('designation_id', $designation_id);
                 });
+            }
+            if (!empty($paymode)) {
+                $query->where('paymode', $paymode);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {

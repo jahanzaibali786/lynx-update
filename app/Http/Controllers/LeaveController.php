@@ -10,6 +10,7 @@ use App\Models\LeaveType;
 use App\Models\User;
 use DB;
 use App\Models\Utility;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -20,29 +21,53 @@ class LeaveController extends Controller
     {
 
         if (\Auth::user()->can('manage leave')) {
+            $fromDate = $request->input('from_date', Carbon::now()->subMonths(2)->startOfMonth()->format('Y-m-d'));
+            $toDate = $request->input('to_date', Carbon::now()->format('Y-m-d'));
+            $selectedBranch = $request->input('branches');
+            $selectedEmployee = $request->input('employee_id');
+
             if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $query = Leave::where('created_by', '=', \Auth::user()->creatorId());
+                $query = Leave::with(['employees', 'leaveType'])->where('created_by', '=', \Auth::user()->creatorId());
+                $employeeQuery = Employee::where('created_by', '=', \Auth::user()->creatorId())->where('is_res_ter', 0);
             } else if (\Auth::user()->type == 'Employee') {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
                 $user = \Auth::user();
                 $employee = Employee::where('user_id', '=', $user->id)->first();
-                $query = Leave::where('employee_id', '=', $employee->id);
+                $query = Leave::with(['employees', 'leaveType'])->where('employee_id', '=', $employee->id);
+                $employeeQuery = Employee::where('id', '=', optional($employee)->id);
             } else {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = Leave::where('owned_by', '=', \Auth::user()->ownedId());
+                $query = Leave::with(['employees', 'leaveType'])->where('owned_by', '=', \Auth::user()->ownedId());
+                $employeeQuery = Employee::where('owned_by', '=', \Auth::user()->ownedId())->where('is_res_ter', 0);
             }
-            if (!empty($request->branches)) {
-                $query->where('owned_by', '=', $request->branches);
+            if (!empty($selectedBranch)) {
+                $query->where('owned_by', '=', $selectedBranch);
+                $employeeQuery->where(function ($query) use ($selectedBranch) {
+                    $query->where('owned_by', $selectedBranch)
+                        ->orWhere('branch_id', $selectedBranch);
+                });
             }
-            $leaves = $query->paginate(25);
+            if (!empty($selectedEmployee)) {
+                $query->where('employee_id', '=', $selectedEmployee);
+            }
+            if (!empty($fromDate)) {
+                $query->whereDate('start_date', '>=', $fromDate);
+            }
+            if (!empty($toDate)) {
+                $query->whereDate('start_date', '<=', $toDate);
+            }
+
+            $employees = $employeeQuery->orderBy('name')->get()->pluck('name', 'id');
+            $employees->prepend('All Employees', '');
+            $leaves = $query->orderBy('start_date', 'desc')->orderBy('id', 'desc')->get();
 
 
-            return view('leave.index', compact('leaves', 'branches'));
+            return view('leave.index', compact('leaves', 'branches', 'employees', 'fromDate', 'toDate', 'selectedBranch', 'selectedEmployee'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -111,8 +136,8 @@ class LeaveController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
             }
-
-            $employee = Employee::where('user_id', '=', \Auth::user()->id)->first();
+// dd($request->all());
+            $employee = Employee::where('id', '=', $request->employee_id)->first();
             $leave_type = LeaveType::find($request->leave_type_id);
             $startDate = new \DateTime($request->start_date);
             $endDate = new \DateTime($request->end_date);
@@ -139,7 +164,7 @@ class LeaveController extends Controller
                 $leave->leave_reason = $request->leave_reason;
                 $leave->remark = $request->remark;
                 $leave->status = 'Pending';
-                $leave->owned_by = $leave->employee->branch_id ?? \Auth::user()->ownedId();
+                $leave->owned_by = $employee->owned_by;
                 $leave->created_by = \Auth::user()->creatorId();
                 $leave->save();
 
