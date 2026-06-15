@@ -1466,6 +1466,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
         }
 
         $emp_sal->conv = $request->conv ? $request->conv : '0';
+        $emp_sal->other_add = $request->other_add ? $request->other_add : '0';
         $emp_sal->chaild_con = $request->chaild_concession ? $request->chaild_concession : '0';
         $emp_sal->drns = $request->drns ? $request->drns : '0';
         $emp_sal->misc = $request->misc ? $request->misc : '0';

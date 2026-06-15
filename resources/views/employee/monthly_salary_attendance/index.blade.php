@@ -442,14 +442,16 @@
                         @endif
                         <th>{{ __('Name') }}</th>
                         <th>{{ __('Sal. Month') }}</th>
+                        <th>{{ __('MonthDays') }}</th>
+                        <th>{{ __('Holidays') }}</th>
                         <th>{{ __('WorkingDays') }}</th>
                         <th style="width: 50px;">{{ __('Absents') }}</th>
                         <th>{{ __('Total Annual') }}</th>
-                        <th>{{ __('Bal.Annual') }}</th>
+                        <th>{{ __('Bal. Annual') }}</th>
                         <th>{{ __('Total Casual') }}</th>
                         <th>{{ __('Bal. Casual') }}</th>
                         <th>{{ __('Leave') }}</th>
-                        <th>{{ __('MonthDays') }}</th>
+                        <th>{{ __('Employee Working Days') }}</th>
                         <th>{{ __('Status') }}</th>
                         <th>{{ __('Finalize') }}</th>
                         <th>{{ __('AdmFinal') }}</th>
@@ -461,6 +463,31 @@
                 </thead>
                 <tbody>
                     @foreach ($datas as $data)
+                        @php
+                            $attendanceWorkingDays = (float) ($data->working_days ?? 0);
+                            $attendanceLeaveDays = (float) ($data->leave ?? 0);
+                            $attendanceAbsentDays = (float) ($data->absents ?? 0);
+                            $attendanceEmployeeMonthDays = $attendanceWorkingDays + $attendanceAbsentDays;
+                            $attendanceMonthDays = $attendanceEmployeeMonthDays > 0 && $attendanceEmployeeMonthDays < 24
+                                ? $attendanceEmployeeMonthDays
+                                : (float) ($data->month_days ?? $attendanceEmployeeMonthDays);
+                            $attendanceHolidays = 0;
+
+                            if (!($attendanceEmployeeMonthDays > 0 && $attendanceEmployeeMonthDays < 24) && !empty($data->for_month_of)) {
+                                $attendanceMonth = \Carbon\Carbon::parse($data->for_month_of);
+
+                                for ($day = $attendanceMonth->copy()->startOfMonth(); $day->lte($attendanceMonth->copy()->endOfMonth()); $day->addDay()) {
+                                    if ($day->isSunday()) {
+                                        $attendanceHolidays++;
+                                    }
+                                }
+
+                                $attendanceHolidays = min($attendanceHolidays, (int) $attendanceMonthDays);
+                            }
+
+                            $attendanceWorkingDays = max(0, $attendanceMonthDays - $attendanceHolidays);
+                            $attendanceEmployeeWorkingDays = $attendanceWorkingDays + $attendanceHolidays - $attendanceAbsentDays;
+                        @endphp
                         <tr
                             style="color:
                     @if (isset($data->gm_final) && trim(strtolower($data->gm_final)) == 1) green
@@ -478,7 +505,9 @@
                             @endif
                             <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
                             <td>{{ !empty($data) ? date('F-Y', strtotime($data->for_month_of)) : '' }}</td>
-                            <td>{{ !empty($data) ? $data->working_days : '' }}</td>
+                            <td>{{ number_format($attendanceMonthDays, 0) }}</td>
+                            <td>{{ number_format($attendanceHolidays, 0) }}</td>
+                            <td>{{ number_format($attendanceWorkingDays, 0) }}</td>
                             <td><input type="text" style="width: 50px;"
                                     value="{{ !empty($data) ? $data->absents : '' }}" readonly>
                             </td>
@@ -489,7 +518,7 @@
                             <td><input type="text" style="width: 50px;" value="{{ !empty($data) ? $data->leave : '' }}"
                                     readonly>
                             </td>
-                            <td>{{ !empty($data) ? $data->month_days : '' }}</td>
+                            <td>{{ number_format($attendanceEmployeeWorkingDays, 0) }}</td>
                             <td>
                                 @if (!empty($data) && $data->gm_final == 1)
                                     <span class="badge bg-success">{{ __('GM Final') }}</span>

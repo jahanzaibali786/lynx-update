@@ -70,6 +70,10 @@
             {{ Form::number('conv',  !empty($employeesalary->conv) ? $employeesalary->conv : '',  ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">
+            {!! Form::label('other_add', __('Other Allowance'), ['class' => 'form-label']) !!}
+            {{ Form::number('other_add', !empty($employeesalary->other_add) ? $employeesalary->other_add : '', ['class' => 'form-control']) }}
+        </div>
+        <div class="form-group col-md-3">
             {!! Form::label('misc', __('Misc'), ['class' => 'form-label']) !!}
             {{ Form::number('misc', !empty($employeesalary->misc) ? $employeesalary->misc : '',  ['class' => 'form-control']) }}
         </div>
@@ -125,7 +129,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_deduction', __('Other Deduction'), ['class' => 'form-label']) !!}
-            {{ Form::number('other_deduction',  !empty($employeesalary) ? $employeesalary->other : '',  ['class' => 'form-control']) }}
+            {{ Form::number('other_deduction',  !empty($employeesalary) ? $employeesalary->dedu : '',  ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_dedu_payable_account', __('Deduction Payable Account'), ['class' => 'form-label'])
@@ -195,15 +199,22 @@
         }
     }
 
-    [ 'chaild_concession', 'drns', 'misc', 'conv', 'itax', 'other_deduction', 'advance' ].forEach(fieldName => {
+    const earningFields = [ 'chaild_concession', 'drns', 'misc', 'conv', 'other_add' ];
+    const deductionFields = [ 'itax', 'other_deduction', 'advance' ];
+
+    earningFields.concat(deductionFields).forEach(fieldName => {
         const field = document.querySelector(`input[name="${fieldName}"]`);
         if (field) {
             const netElement = document.querySelector('input[name="net"]');
             let previousValue = parseFloat(field.value) || 0;
             field.addEventListener('input', function() {
                 const newValue = parseFloat(this.value) || 0; 
-                const difference = newValue - previousValue;   
-                netElement.value = (parseFloat(netElement.value) - difference).toFixed(2);
+                const difference = newValue - previousValue;
+                const currentNet = parseFloat(netElement.value) || 0;
+                netElement.value = (earningFields.includes(fieldName)
+                    ? currentNet + difference
+                    : currentNet - difference
+                ).toFixed(2);
                 previousValue = newValue;
             });
         }

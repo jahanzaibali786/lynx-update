@@ -62,6 +62,7 @@ class SalaryAttendanceExport implements FromArray, ShouldAutoSize, WithEvents
                 'Present',
                 'Leave',
                 'Absent',
+                'Employee Working Days',
                 'Status',
             ];
 
@@ -87,6 +88,7 @@ class SalaryAttendanceExport implements FromArray, ShouldAutoSize, WithEvents
                 $holidays = $this->holidayCount($data, $monthDays, $absentDays);
                 $workingDays = max(0, $monthDays - $holidays);
                 $presentDays = max(0, $workingDays - $leaveDays - $absentDays);
+                $employeeWorkingDays = $this->employeeWorkingDays($workingDays, $holidays, $absentDays);
 
                 $rows[] = $this->reportType === 'details'
                     ? [
@@ -118,6 +120,7 @@ class SalaryAttendanceExport implements FromArray, ShouldAutoSize, WithEvents
                         $presentDays,
                         $leaveDays,
                         $absentDays,
+                        $employeeWorkingDays,
                         $this->statusText($data),
                     ];
             }
@@ -316,6 +319,11 @@ class SalaryAttendanceExport implements FromArray, ShouldAutoSize, WithEvents
         }
 
         return min($sundays, (int) $workingDays);
+    }
+
+    private function employeeWorkingDays(float $workingDays, float $holidays, float $absentDays): float
+    {
+        return $workingDays + $holidays - $absentDays;
     }
 
     private function branchTitle(): string
