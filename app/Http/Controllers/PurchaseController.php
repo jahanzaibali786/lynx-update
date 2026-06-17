@@ -539,20 +539,7 @@ class PurchaseController extends Controller
                     $purchaseProduct->save();
 
                     $newitems[$i]['prod_id'] = $purchaseProduct->id;
-                    //inventory management (Quantity)
-                    Utility::total_quantity('plus', $purchaseProduct->quantity, $purchaseProduct->product_id);
-
-
-                    //Product Stock Report
-                    $type = 'purchase';
-                    $type_id = $purchase->id;
-                    $description = $products[$i]['quantity'] . '  ' . __(' quantity add in purchase') . ' ' . \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
-                    Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], $type, $description, $type_id);
-
-                    //Warehouse Stock Report
-                    if (isset($products[$i]['item'])) {
-                        Utility::addWarehouseStock($products[$i]['item'], $products[$i]['quantity'], $request->warehouse_id);
-                    }
+                    // Removed stock and warehouse updates as per request to keep it as a record only
 
                 }
                 $ven = Vender::where('id', $request->vender_id)->first();
@@ -580,7 +567,7 @@ class PurchaseController extends Controller
                 $purchase->save();
 
                 DB::commit();
-                return redirect()->route('purchase.index', $purchase->id)->with('success', __('Purchase successfully created.'));
+                return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))->with('success', __('Purchase successfully created.'));
             } catch (\Exception $e) {
                 DB::rollback();
                 // dd($e);
@@ -687,8 +674,7 @@ class PurchaseController extends Controller
                                 $purchaseProduct = new PurchaseProduct();
                                 $purchaseProduct->purchase_id = $purchase->id;
                                 $purchaseProduct->quantity = $products[$i]['quantity'];
-                                // new item quantity added in product
-                                Utility::total_quantity('plus', $products[$i]['quantity'], $products[$i]['item']);
+                                // new item quantity added in product (Removed for record-only)
                                 $old_qty = 0;
                                 if (isset($products[$i]['item'])) {
                                     $purchaseProduct->product_id = $products[$i]['item'];
@@ -698,6 +684,7 @@ class PurchaseController extends Controller
                                 $purchaseProduct->price = $products[$i]['price'];
                                 $purchaseProduct->description = $products[$i]['description'];
                                 $purchaseProduct->save();
+
                                 $product = ProductService::where('id', $purchaseProduct->product_id)->first();
                                 // new item added in Voucher
                                 $journalItem = new JournalItem();
@@ -733,7 +720,7 @@ class PurchaseController extends Controller
 
                             } else {
                                 $old_qty = $purchaseProduct->quantity;
-                                Utility::total_quantity('minus', $purchaseProduct->quantity, $purchaseProduct->product_id);
+                                // Removed total_quantity minus
                                 if (isset($products[$i]['item'])) {
                                     $purchaseProduct->product_id = $products[$i]['item'];
                                 }
@@ -785,26 +772,7 @@ class PurchaseController extends Controller
 
 
 
-                            if ($products[$i]['id'] > 0) {
-                                Utility::total_quantity('plus', $products[$i]['quantity'], $purchaseProduct->product_id);
-                            }
-
-                            //Product Stock Report
-                            $type = 'purchase';
-                            $type_id = $purchase->id;
-                            StockReport::where('type', '=', 'purchase')->where('type_id', '=', $purchase->id)->delete();
-                            $description = $products[$i]['quantity'] . '  ' . __(' quantity add in purchase') . ' ' . \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
-
-                            if (isset($products[$i]['item'])) {
-                                Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], $type, $description, $type_id);
-                            }
-
-                            //Warehouse Stock Report
-                            $new_qty = $purchaseProduct->quantity;
-                            $total_qty = $new_qty - $old_qty;
-                            if (isset($products[$i]['item'])) {
-                                Utility::addWarehouseStock($products[$i]['item'], $total_qty, $request->warehouse_id);
-                            }
+                            // Stock updates removed
 
                         }
                         $ven = Vender::find($request->vender_id);
@@ -891,38 +859,7 @@ class PurchaseController extends Controller
                     $purchasepayment->delete();
                 }
 
-                foreach ($purchase_products as $purchase_product) {
-                    $warehouse_qty = WarehouseProduct::where('warehouse_id', $purchase->warehouse_id)->where('product_id', $purchase_product->product_id)->first();
-
-                    $warehouse_transfers = WarehouseTransfer::where('product_id', $purchase_product->product_id)->where('from_warehouse', $purchase->warehouse_id)->get();
-                    foreach ($warehouse_transfers as $warehouse_transfer) {
-                        $temp = WarehouseProduct::where('warehouse_id', $warehouse_transfer->to_warehouse)->first();
-                        if ($temp) {
-                            $temp->quantity = $temp->quantity - $warehouse_transfer->quantity;
-                            if ($temp->quantity > 0) {
-                                $temp->save();
-                            } else {
-                                $temp->delete();
-                            }
-
-                        }
-                    }
-                    if (!empty($warehouse_qty)) {
-                        $warehouse_qty->quantity = $warehouse_qty->quantity - $purchase_product->quantity;
-                        if ($warehouse_qty->quantity > 0) {
-                            $warehouse_qty->save();
-                        } else {
-                            $warehouse_qty->delete();
-                        }
-                    }
-                    $product_qty = ProductService::where('id', $purchase_product->product_id)->first();
-                    if (!empty($product_qty)) {
-                        $product_qty->quantity = $product_qty->quantity - $purchase_product->quantity;
-                        $product_qty->save();
-                    }
-                    $purchase_product->delete();
-
-                }
+                    // Stock decrement logic removed for record-only
 
                 $purchase->delete();
                 PurchaseProduct::where('purchase_id', '=', $purchase->id)->delete();
@@ -1503,19 +1440,7 @@ class PurchaseController extends Controller
                 $res = PurchaseProduct::where('id', '=', $request->id)->first();
                 $purchase = Purchase::find($res->purchase_id);
                 if ($purchase->status == 0 || $purchase->status == 1) {
-                    $warehouse_id = $purchase->warehouse_id;
-                    $ware_pro = WarehouseProduct::where('warehouse_id', $warehouse_id)->where('product_id', $res->product_id)->first();
-
-                    $qty = $ware_pro->quantity;
-                    // if($res->quantity == $qty || $res->quantity > $qty)
-                    // {
-                    //     $ware_pro->delete();
-                    // }
-                    // elseif($res->quantity < $qty)
-                    // {
-                    $ware_pro->quantity = $qty - $res->quantity;
-                    $ware_pro->save();
-                    // }
+                    // Removed stock decrement for record-only
                     // Deleting voucher entry
                     $voucher = JournalEntry::where('category', 'Purchase')->where('reference_id', $purchase->id)->where('voucher_type', 'JV')->first();
                     $item = JournalItem::where('journal', $voucher->id)->where('entry_id', $res->id)->delete();
@@ -1646,5 +1571,89 @@ class PurchaseController extends Controller
         return view('purchase.vendor_summary', compact('vender', 'purchases', 'vendorSummary', 'request', 'dateFrom', 'dateTo'));
     }
 
+    public function fwToHo($id)
+    {
+        $purchase = Purchase::findOrFail($id);
+        $purchase->status = 5; // Fw to Ho
+        $purchase->save();
+        return redirect()->back()->with('success', __('Purchase forwarded to Head Office.'));
+    }
 
+    public function finalize($id)
+    {
+        $purchase = Purchase::findOrFail($id);
+        if ($purchase->status == 5 && \Auth::user()->type == 'company') {
+            $purchase->status = 6; // Finalized
+            $purchase->save();
+
+            // Apply stock updates
+            foreach ($purchase->items as $purchaseProduct) {
+                Utility::total_quantity('plus', $purchaseProduct->quantity, $purchaseProduct->product_id);
+                $type = 'purchase';
+                $description = $purchaseProduct->quantity . '  ' . __(' quantity add in purchase') . ' ' . \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
+                Utility::addProductStock($purchaseProduct->product_id, $purchaseProduct->quantity, $type, $description, $purchase->id);
+                Utility::addWarehouseStock($purchaseProduct->product_id, $purchaseProduct->quantity, $purchase->warehouse_id);
+            }
+
+            return redirect()->back()->with('success', __('Purchase finalized. Stock updated.'));
+        }
+        return redirect()->back()->with('error', __('Permission denied.'));
+    }
+
+    public function reject($id)
+    {
+        $purchase = Purchase::findOrFail($id);
+        if ($purchase->status == 5 && \Auth::user()->type == 'company') {
+            $purchase->status = 0; // Draft
+            $purchase->save();
+            return redirect()->back()->with('success', __('Purchase rejected and sent back to draft.'));
+        }
+        return redirect()->back()->with('error', __('Permission denied.'));
+    }
+
+    public function convertToGrn($id)
+    {
+        $purchase = Purchase::with('items')->findOrFail($id);
+
+        if ($purchase->status != 6 || \Auth::user()->type != 'company') {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $user = \Auth::user();
+
+        DB::beginTransaction();
+        try {
+            $grn = \App\Models\Grn::create([
+                'grn_no' => ((int) \App\Models\Grn::where('created_by', $user->creatorId())->max('grn_no')) + 1,
+                'vendor_id' => $purchase->vender_id,
+                'warehouse_id' => $purchase->warehouse_id,
+                'grn_date' => now()->format('Y-m-d'),
+                'reference_no' => $user->purchaseNumberFormat($purchase->purchase_id),
+                'remarks' => __('Auto-generated from Purchase') . ' ' . $user->purchaseNumberFormat($purchase->purchase_id),
+                'status' => 0,
+                'owned_by' => $user->creatorId(),
+                'created_by' => $user->creatorId(),
+            ]);
+
+            $purchase->grn_converted = 1;
+            $purchase->save();
+
+            foreach ($purchase->items as $item) {
+                \App\Models\GrnItem::create([
+                    'grn_id' => $grn->id,
+                    'product_id' => $item->product_id,
+                    'condition' => 'new',
+                    'quantity' => (float) $item->quantity,
+                    'price' => (float) $item->price,
+                    'description' => $item->description,
+                ]);
+            }
+
+            DB::commit();
+            return redirect()->route('grn.show', $grn->id)->with('success', __('GRN created successfully from Purchase.'));
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+    }
 }

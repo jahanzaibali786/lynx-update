@@ -12,6 +12,7 @@ class Grn extends Model
         'warehouse_id',
         'grn_date',
         'reference_no',
+        'purchase_order_id',
         'remarks',
         'status',
         'owned_by',
@@ -21,6 +22,11 @@ class Grn extends Model
     public static $statues = [
         'Draft',
         'Received',
+        '',
+        '',
+        '',
+        'Fw to Ho',
+        'Finalized',
     ];
 
     public function vendor()
@@ -42,6 +48,8 @@ class Grn extends Model
     {
         return $this->hasMany(GrnItem::class, 'grn_id');
     }
+
+
 
     public function getSubTotal()
     {

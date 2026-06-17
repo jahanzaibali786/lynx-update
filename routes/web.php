@@ -673,7 +673,9 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('invoice/{id}/payment/{pid}/destroy', [InvoiceController::class, 'paymentDestroy'])->name('invoice.payment.destroy');
             Route::get('invoice/items', [InvoiceController::class, 'items'])->name('invoice.items');
 
-            Route::post('grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
+            Route::get('grn/{grn}/fw-to-ho', [GrnController::class, 'fwToHo'])->name('grn.fw_to_ho');
+            Route::get('grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
+            Route::get('grn/{grn}/reject', [GrnController::class, 'reject'])->name('grn.reject');
             Route::resource('grn', GrnController::class);
 
 
@@ -1871,6 +1873,19 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('purchase/create/{cid}', [PurchaseController::class, 'create'])->name('purchase.create');
             Route::get('purchase/{id}/sent', [PurchaseController::class, 'sent'])->name('purchase.sent');
             Route::get('purchase/{id}/resent', [PurchaseController::class, 'resent'])->name('purchase.resent');
+            Route::get('purchase/{id}/fw_to_ho', [PurchaseController::class, 'fwToHo'])->name('purchase.fw_to_ho');
+            Route::get('purchase/{id}/finalize', [PurchaseController::class, 'finalize'])->name('purchase.finalize');
+            Route::get('purchase/{id}/reject', [PurchaseController::class, 'reject'])->name('purchase.reject');
+            Route::get('purchase/{id}/convert-to-grn', [PurchaseController::class, 'convertToGrn'])->name('purchase.convert_to_grn');
+
+            Route::resource('branchpurchase', \App\Http\Controllers\BranchPurchaseController::class);
+            Route::get('branchpurchase/create/{cid}', [\App\Http\Controllers\BranchPurchaseController::class, 'create'])->name('branchpurchase.create');
+            Route::post('branchpurchase/vender', [\App\Http\Controllers\BranchPurchaseController::class, 'vender'])->name('branchpurchase.vender');
+            Route::post('branchpurchase/product', [\App\Http\Controllers\BranchPurchaseController::class, 'product'])->name('branchpurchase.product');
+            Route::get('branchpurchase/{id}/fw_to_ho', [\App\Http\Controllers\BranchPurchaseController::class, 'fwToHo'])->name('branchpurchase.fw_to_ho');
+            Route::post('branchpurchase/{id}/finalize', [\App\Http\Controllers\BranchPurchaseController::class, 'finalize'])->name('branchpurchase.finalize');
+            Route::get('branchpurchase/{id}/reject', [\App\Http\Controllers\BranchPurchaseController::class, 'reject'])->name('branchpurchase.reject');
+            Route::get('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'convertToInvoice'])->name('branchpurchase.convert_to_invoice');
 
         }
 

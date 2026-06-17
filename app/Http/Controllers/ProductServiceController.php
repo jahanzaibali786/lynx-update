@@ -205,6 +205,19 @@ class ProductServiceController extends Controller
             $productService->save();
             CustomField::saveData($productService, $request->customField);
 
+            if ($productService->quantity > 0) {
+                $desc = $productService->quantity . ' New opening balance added against product code ' . $productService->sku;
+                Utility::addProductStock($productService->id, $productService->quantity, 'opening_balance', $desc, 0);
+            }
+            if ($productService->used_quantity > 0) {
+                $desc = $productService->used_quantity . ' Used opening balance added against product code ' . $productService->sku;
+                Utility::addProductStock($productService->id, $productService->used_quantity, 'opening_balance', $desc, 0);
+            }
+            if ($productService->damaged_quantity > 0) {
+                $desc = $productService->damaged_quantity . ' Damaged opening balance added against product code ' . $productService->sku;
+                Utility::addProductStock($productService->id, $productService->damaged_quantity, 'opening_balance', $desc, 0);
+            }
+
             return redirect()->route('productservice.index')->with('success', __('Product successfully created.'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));

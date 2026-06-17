@@ -129,6 +129,12 @@
                                     @elseif($purchase->status == 4)
                                         <span
                                             class="purchase_status badge bg-primary p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                    @elseif($purchase->status == 5)
+                                        <span
+                                            class="purchase_status badge bg-info p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                    @elseif($purchase->status == 6)
+                                        <span
+                                            class="purchase_status badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
                                     @endif
                                 </td>
 
@@ -155,6 +161,14 @@
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
                                                 @endcan
+                                                @if($purchase->status == 6 && \Auth::user()->type == 'company' && !$purchase->grn_converted)
+                                                    <a href="{{ route('purchase.convert_to_grn', $purchase->id) }}"
+                                                        class="mx-1 btn btn-outline-primary btn-sm align-items-center"
+                                                        title="Convert to GRN"
+                                                        data-bs-title="{{ __('Convert to GRN') }}">
+                                                        <span class="btn-inner--icon"><i class="ti ti-file-import"></i></span>
+                                                    </a>
+                                                @endif
                                                 {{-- @can('delete purchase')
                                                     {!! Form::open([
                                                         'method' => 'DELETE',

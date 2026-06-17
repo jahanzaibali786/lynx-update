@@ -605,11 +605,17 @@ class Utility extends Model
 
     public static function tax($taxes)
     {
+        if (empty($taxes)) {
+            return [];
+        }
 
         $taxArr = explode(',', $taxes);
         $taxes = [];
         foreach ($taxArr as $tax) {
-            $taxes[] = Tax::find($tax);
+            $taxModel = Tax::find($tax);
+            if (!empty($taxModel)) {
+                $taxes[] = $taxModel;
+            }
         }
 
         return $taxes;
@@ -624,12 +630,17 @@ class Utility extends Model
 
     public static function totalTaxRate($taxes)
     {
+        if (empty($taxes)) {
+            return 0;
+        }
 
         $taxArr = explode(',', $taxes);
         $taxRate = 0;
         foreach ($taxArr as $tax) {
-            $tax = Tax::find($tax);
-            $taxRate += !empty($tax->rate) ? $tax->rate : 0;
+            $taxModel = Tax::find($tax);
+            if (!empty($taxModel)) {
+                $taxRate += !empty($taxModel->rate) ? $taxModel->rate : 0;
+            }
         }
 
         return $taxRate;

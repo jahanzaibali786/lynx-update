@@ -165,10 +165,31 @@
                         <small class="text-muted d-block">{{ __('Inventory Asset Account') }}</small>
                         <span>{{ $accountName($productService->inventoryAssetAccount) }}</span>
                     </div>
-                    <div>
-                        <small class="text-muted d-block">{{ __('Quantity') }}</small>
-                        <span>{{ $productService->type == 'product' ? $productService->quantity : '-' }}</span>
-                    </div>
+                    @if($productService->type == 'product')
+                        <div class="row">
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">{{ __('New') }}</small>
+                                <span>{{ $productService->quantity }}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">{{ __('Used') }}</small>
+                                <span>{{ $productService->used_quantity }}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">{{ __('Damaged') }}</small>
+                                <span>{{ $productService->damaged_quantity }}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block">{{ __('Total') }}</small>
+                                <span>{{ $productService->quantity + $productService->used_quantity + $productService->damaged_quantity }}</span>
+                            </div>
+                        </div>
+                    @else
+                        <div>
+                            <small class="text-muted d-block">{{ __('Quantity') }}</small>
+                            <span>-</span>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -184,7 +205,10 @@
                             <thead>
                                 <tr>
                                     <th>{{ __('Warehouse') }}</th>
-                                    <th>{{ __('Quantity') }}</th>
+                                    <th>{{ __('New') }}</th>
+                                    <th>{{ __('Used') }}</th>
+                                    <th>{{ __('Damaged') }}</th>
+                                    <th>{{ __('Total') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -192,10 +216,13 @@
                                     <tr>
                                         <td>{{ optional($warehouseProduct->warehousedetail)->name ?? '-' }}</td>
                                         <td>{{ $warehouseProduct->quantity }}</td>
+                                        <td>{{ $warehouseProduct->used_quantity }}</td>
+                                        <td>{{ $warehouseProduct->damaged_quantity }}</td>
+                                        <td>{{ $warehouseProduct->quantity + $warehouseProduct->used_quantity + $warehouseProduct->damaged_quantity }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="2" class="text-center">{{ __('Product not select in warehouse') }}</td>
+                                        <td colspan="5" class="text-center">{{ __('Product not select in warehouse') }}</td>
                                     </tr>
                                 @endforelse
                             </tbody>

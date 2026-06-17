@@ -21,6 +21,7 @@ class Purchase extends Model
         'category_id',
         'created_by',
         'voucher_id',
+        'grn_converted',
     ];
     public static $statues = [
         'Draft',
@@ -28,6 +29,8 @@ class Purchase extends Model
         'Unpaid',
         'Partialy Paid',
         'Paid',
+        'Fw to Ho',
+        'Finalized',
     ];
     public function vender()
     {

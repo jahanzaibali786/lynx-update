@@ -2741,6 +2741,10 @@
                                     href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
                             </li>
                             <li class="dash-item">
+                                <a class="dash-link {{ Request::segment(1) == 'branchpurchase' || in_array(Request::route()->getName(), ['branchpurchase.index', 'branchpurchase.create', 'branchpurchase.edit', 'branchpurchase.show']) ? ' active' : '' }}"
+                                    href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a>
+                            </li>
+                            <li class="dash-item">
                                 <a class="dash-link {{ Request::segment(1) == 'grn' || in_array(Request::route()->getName(), ['grn.index', 'grn.create', 'grn.edit', 'grn.show']) ? ' active' : '' }}"
                                     href="{{ route('grn.index') }}">{{ __('GRN') }}</a>
                             </li>

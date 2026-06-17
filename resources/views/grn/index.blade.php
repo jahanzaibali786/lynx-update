@@ -83,33 +83,52 @@
                     <td>{{ $grn->reference_no ?? '-' }}</td>
                     <td>{{ \Auth::user()->priceFormat($grn->getSubTotal()) }}</td>
                     <td>
-                        <span class="status_badge badge {{ $grn->status == 1 ? 'bg-primary' : 'bg-secondary' }} p-2 px-3 rounded">
-                            {{ __(App\Models\Grn::$statues[$grn->status] ?? 'Received') }}
+                        @php
+                            $statusLabel = App\Models\Grn::$statues[$grn->status] ?? 'Draft';
+                        @endphp
+                        <span class="status_badge badge
+                            @if($grn->status == 0) bg-secondary
+                            @elseif($grn->status == 5) bg-info
+                            @elseif($grn->status == 6) bg-success
+                            @else bg-secondary
+                            @endif p-2 px-3 rounded">
+                            {{ __($statusLabel) }}
                         </span>
                     </td>
                     <td class="Action">
                         <a href="{{ route('grn.show', $grn->id) }}"
                             class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Show') }}">
-                            <i class="ti ti-eye text-white"></i>
+                            <i class="ti ti-eye"></i>
                         </a>
                         @if ($grn->status == 0)
                             <a href="{{ route('grn.edit', $grn->id) }}"
-                                class="mx-1 btn btn-sm btn-outline-primary align-items-center" title="{{ __('Edit') }}">
-                                <i class="ti ti-pencil text-white"></i>
+                                class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Edit') }}">
+                                <i class="ti ti-pencil"></i>
                             </a>
-                            {{ Form::open(['route' => ['grn.finalize', $grn->id], 'method' => 'POST', 'class' => 'd-inline']) }}
-                                <button type="submit" class="mx-1 btn btn-sm btn-outline-success"
-                                    onclick="return confirm('{{ __('Finalize this GRN? Stock and vendor balance will be updated.') }}')">
-                                    <i class="ti ti-check text-white"></i>
+                            <a href="{{ route('grn.fw_to_ho', $grn->id) }}"
+                                class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Fw to Ho') }}">
+                                <i class="ti ti-mail-forward"></i>
+                            </a>
+                        @endif
+                        @if($grn->status == 5 && \Auth::user()->type == 'company')
+                            <a href="{{ route('grn.finalize', $grn->id) }}"
+                                class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Finalize') }}"
+                                onclick="return confirm('{{ __('Finalize this GRN? Stock and vendor balance will be updated.') }}')">
+                                <i class="ti ti-check"></i>
+                            </a>
+                            <a href="{{ route('grn.reject', $grn->id) }}"
+                                class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Reject') }}">
+                                <i class="ti ti-x"></i>
+                            </a>
+                        @endif
+                        @if($grn->status != 6)
+                            {{ Form::open(['route' => ['grn.destroy', $grn->id], 'method' => 'DELETE', 'class' => 'd-inline']) }}
+                                <button type="submit" class="mx-1 btn btn-sm btn-outline-info"
+                                    onclick="return confirm('{{ __('Are you sure you want to delete this GRN? Stock will be reversed.') }}')">
+                                    <i class="ti ti-trash"></i>
                                 </button>
                             {{ Form::close() }}
                         @endif
-                        {{ Form::open(['route' => ['grn.destroy', $grn->id], 'method' => 'DELETE', 'class' => 'd-inline']) }}
-                            <button type="submit" class="mx-1 btn btn-sm btn-outline-danger"
-                                onclick="return confirm('{{ __('Are you sure you want to delete this GRN? Stock will be reversed.') }}')">
-                                <i class="ti ti-trash text-white"></i>
-                            </button>
-                        {{ Form::close() }}
                     </td>
                 </tr>
             @empty

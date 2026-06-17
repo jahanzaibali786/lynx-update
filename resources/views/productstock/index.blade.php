@@ -111,7 +111,10 @@
                         <th>{{ __('Sr.') }}</th>
                         <th>{{ __('Name') }}</th>
                         <th>{{ __('Product Code') }}</th>
-                        <th>{{ __('Current Quantity') }}</th>
+                        <th>{{ __('New') }}</th>
+                        <th>{{ __('Used') }}</th>
+                        <th>{{ __('Damaged') }}</th>
+                        <th>{{ __('Total Quantity') }}</th>
                         {{-- <th>{{ __('Action') }}</th> --}}
                     </tr>
                 </thead>
@@ -122,6 +125,9 @@
                             <td>{{ $productService->name }}</td>
                             <td>{{ $productService->sku }}</td>
                             <td>{{ $productService->quantity }}</td>
+                            <td>{{ $productService->used_quantity }}</td>
+                            <td>{{ $productService->damaged_quantity }}</td>
+                            <td>{{ $productService->quantity + $productService->used_quantity + $productService->damaged_quantity }}</td>
 
                             {{-- <td class="Action">
                                 <div class="action-btn bg-info ms-2">

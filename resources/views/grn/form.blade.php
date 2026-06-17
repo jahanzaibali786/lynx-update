@@ -1,22 +1,26 @@
 @php
     $isEdit = !empty($grn);
     $initialItems = $isEdit
-        ? $grn->items->map(function ($item) {
-            return [
-                'product_id' => $item->product_id,
-                'condition' => $item->condition,
-                'quantity' => (float) $item->quantity,
-                'price' => (float) $item->price,
-                'description' => $item->description,
-            ];
-        })->values()
-        : collect([[
-            'product_id' => '',
-            'condition' => 'new',
-            'quantity' => 1,
-            'price' => 0,
-            'description' => '',
-        ]]);
+        ? $grn->items
+            ->map(function ($item) {
+                return [
+                    'product_id' => $item->product_id,
+                    'condition' => $item->condition,
+                    'quantity' => (float) $item->quantity,
+                    'price' => (float) $item->price,
+                    'description' => $item->description,
+                ];
+            })
+            ->values()
+        : collect([
+            [
+                'product_id' => '',
+                'condition' => 'new',
+                'quantity' => 1,
+                'price' => 0,
+                'description' => '',
+            ],
+        ]);
 @endphp
 
 @push('script-page')
@@ -27,6 +31,7 @@
             background: #f8f9fa;
             pointer-events: none;
         }
+
         .grn-action {
             width: 34px;
             height: 34px;
@@ -203,7 +208,12 @@
             if (e.key === 'Enter' && e.shiftKey) {
                 e.preventDefault();
                 if (lockRow($(this).closest('tr'))) {
-                    addRow({condition: 'new', quantity: 1, price: 0, description: ''}, false, true);
+                    addRow({
+                        condition: 'new',
+                        quantity: 1,
+                        price: 0,
+                        description: ''
+                    }, false, true);
                 }
                 return false;
             }
@@ -218,7 +228,12 @@
                     $row.find('.condition-select').focus();
                 } else if ($(this).hasClass('condition-select')) {
                     if (lockRow($row)) {
-                        addRow({condition: 'new', quantity: 1, price: 0, description: ''}, false, true);
+                        addRow({
+                            condition: 'new',
+                            quantity: 1,
+                            price: 0,
+                            description: ''
+                        }, false, true);
                     }
                 }
                 return false;
@@ -267,7 +282,12 @@
         });
 
         $(document).on('click', '#add-grn-row', function() {
-            addRow({condition: 'new', quantity: 1, price: 0, description: ''}, false, true);
+            addRow({
+                condition: 'new',
+                quantity: 1,
+                price: 0,
+                description: ''
+            }, false, true);
         });
 
         $(document).on('keydown', function(e) {
@@ -277,7 +297,12 @@
                     return;
                 }
                 e.preventDefault();
-                addRow({condition: 'new', quantity: 1, price: 0, description: ''}, false, true);
+                addRow({
+                    condition: 'new',
+                    quantity: 1,
+                    price: 0,
+                    description: ''
+                }, false, true);
             }
         });
 
@@ -335,6 +360,10 @@
                 </div>
                 <div class="row mt-3">
                     <div class="col-md-3">
+                        {{ Form::label('purchase_order_id', __('Purchase Order'), ['class' => 'form-label']) }}
+                        {{ Form::text('purchase_order_id', old('purchase_order_id', $isEdit ? $grn->purchase_order_id : ''), ['class' => 'form-control']) }}
+                    </div>
+                    <div class="col-md-3">
                         {{ Form::label('warehouse_id', __('Store'), ['class' => 'form-label']) }}
                         <select name="warehouse_id" id="warehouse_id" class="form-control select" required>
                             <option value="">{{ __('Select Store') }}</option>
@@ -346,7 +375,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-9">
+                    <div class="col-md-6">
                         {{ Form::label('remarks', __('Remarks'), ['class' => 'form-label']) }}
                         {{ Form::text('remarks', old('remarks', $isEdit ? $grn->remarks : ''), ['class' => 'form-control']) }}
                     </div>

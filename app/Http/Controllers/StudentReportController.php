@@ -3401,12 +3401,13 @@ class StudentReportController extends Controller
 
         // Prepare view data
         $previousStatementBranchId = $std ? $std->owned_by : null;
+
         $previousStatementBranchName = $previousStatementBranchId
             ? User::where('id', $previousStatementBranchId)->value('name')
             : null;
 
-        $previousStatementFile = $previousStatementBranchId
-            ? StudentAccountPreviousDataFile::where('branch_id', $previousStatementBranchId)
+        $previousStatementFile = $std
+            ? StudentAccountPreviousDataFile::where('student_id', $std->id)
                 ->where('created_by', \Auth::user()->creatorId())
                 ->latest()
                 ->first()
@@ -3467,7 +3468,7 @@ class StudentReportController extends Controller
             return redirect()->back()->with('error', __('Invalid branch selected.'));
         }
 
-        $activeFile = StudentAccountPreviousDataFile::where('branch_id', $branchId)
+        $activeFile = StudentAccountPreviousDataFile::where('student_id', $student->id)
             ->where('created_by', $user->creatorId())
             ->latest()
             ->first();
@@ -3493,12 +3494,12 @@ class StudentReportController extends Controller
         $safeStudentName = $safeStudentName ?: 'account_statement';
         $extension = strtolower($file->getClientOriginalExtension() ?: 'xlsx');
         $storedFileName = $safeRollNo . '_' . $safeStudentName . '.' . $extension;
-        $path = 'student_previous_account_statements/branch_' . $branchId . '/' . $storedFileName;
-
+        $path = 'student_previous_account_statements/student_' . $student->id . '/' . $storedFileName;
         Storage::put($path, file_get_contents($file->getRealPath()));
 
         StudentAccountPreviousDataFile::create([
-            'branch_id' => $branchId,
+            'student_id' => $student->id,
+            'branch_id' => $branchId, // optional if you still need it
             'original_name' => $storedFileName,
             'file_path' => $path,
             'mime_type' => $file->getClientMimeType(),

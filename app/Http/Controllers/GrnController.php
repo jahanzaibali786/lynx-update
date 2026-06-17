@@ -67,6 +67,7 @@ class GrnController extends Controller
                 'warehouse_id' => $data['warehouse_id'],
                 'grn_date' => $data['grn_date'],
                 'reference_no' => $data['reference_no'] ?? null,
+                'purchase_order_id' => $data['purchase_order_id'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'status' => 0,
                 'owned_by' => $ownedBy,
@@ -86,7 +87,7 @@ class GrnController extends Controller
     public function edit(Grn $grn)
     {
         $this->authorizeGrn($grn);
-        if ($grn->status == 1) {
+        if ($grn->status >= 5) {
             return redirect()->route('grn.show', $grn->id)->with('error', __('Finalized GRN cannot be edited.'));
         }
 
@@ -104,7 +105,7 @@ class GrnController extends Controller
     public function update(Request $request, Grn $grn)
     {
         $this->authorizeGrn($grn);
-        if ($grn->status == 1) {
+        if ($grn->status >= 5) {
             return redirect()->route('grn.show', $grn->id)->with('error', __('Finalized GRN cannot be edited.'));
         }
         $data = $this->validatedData($request);
@@ -116,6 +117,7 @@ class GrnController extends Controller
                 'warehouse_id' => $data['warehouse_id'],
                 'grn_date' => $data['grn_date'],
                 'reference_no' => $data['reference_no'] ?? null,
+                'purchase_order_id' => $data['purchase_order_id'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'owned_by' => $this->resolveOwnedBy($request),
             ]);
@@ -139,7 +141,7 @@ class GrnController extends Controller
 
         DB::beginTransaction();
         try {
-            if ($grn->status == 1) {
+            if ($grn->status == 6) {
                 $this->reverseStock($grn);
                 Utility::updateUserBalance('vendor', $grn->vendor_id, $grn->getSubTotal(), 'credit');
             }
@@ -159,31 +161,57 @@ class GrnController extends Controller
     {
         $this->authorizeGrn($grn);
 
-        if ($grn->status == 1) {
-            return redirect()->back()->with('error', __('GRN is already finalized.'));
-        }
+        if ($grn->status == 5 && \Auth::user()->type == 'company') {
+            DB::beginTransaction();
+            try {
+                $grn->load('items');
 
-        DB::beginTransaction();
-        try {
-            $grn->load('items');
+                if ($grn->items->isEmpty()) {
+                    DB::rollBack();
+                    return redirect()->back()->with('error', __('Please add at least one item before finalizing GRN.'));
+                }
 
-            if ($grn->items->isEmpty()) {
+                $this->applyStock($grn);
+                Utility::userBalance('vendor', $grn->vendor_id, $grn->getSubTotal(), 'credit');
+
+                $grn->status = 6;
+                $grn->save();
+
+                DB::commit();
+                return redirect()->route('grn.show', $grn->id)->with('success', __('GRN finalized successfully. Stock and vendor balance updated.'));
+            } catch (\Throwable $e) {
                 DB::rollBack();
-                return redirect()->back()->with('error', __('Please add at least one item before finalizing GRN.'));
+                return redirect()->back()->with('error', $e->getMessage());
             }
-
-            $this->applyStock($grn);
-            Utility::userBalance('vendor', $grn->vendor_id, $grn->getSubTotal(), 'credit');
-
-            $grn->status = 1;
-            $grn->save();
-
-            DB::commit();
-            return redirect()->route('grn.show', $grn->id)->with('success', __('GRN finalized successfully. Stock and vendor balance updated.'));
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return redirect()->back()->with('error', $e->getMessage());
         }
+        return redirect()->back()->with('error', __('Permission denied.'));
+    }
+
+    public function fwToHo(Grn $grn)
+    {
+        $this->authorizeGrn($grn);
+
+        if ($grn->status != 0) {
+            return redirect()->back()->with('error', __('GRN cannot be forwarded from current status.'));
+        }
+
+        $grn->status = 5;
+        $grn->save();
+
+        return redirect()->back()->with('success', __('GRN forwarded to Head Office.'));
+    }
+
+    public function reject(Grn $grn)
+    {
+        $this->authorizeGrn($grn);
+
+        if ($grn->status == 5 && \Auth::user()->type == 'company') {
+            $grn->status = 0;
+            $grn->save();
+            return redirect()->back()->with('success', __('GRN rejected and sent back to draft.'));
+        }
+
+        return redirect()->back()->with('error', __('Permission denied.'));
     }
 
     private function validatedData(Request $request)
@@ -193,6 +221,7 @@ class GrnController extends Controller
             'warehouse_id' => 'required|integer',
             'grn_date' => 'required|date',
             'reference_no' => 'nullable|string|max:191',
+            'purchase_order_id' => 'nullable|string|max:191',
             'remarks' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer|exists:product_services,id',
@@ -295,6 +324,12 @@ class GrnController extends Controller
                 'price' => $item['price'] ?? 0,
                 'description' => $item['description'] ?? null,
             ]);
+
+            $product = ProductService::find($item['product_id']);
+            if ($product && $product->type != 'service' && (float) ($item['price'] ?? 0) > 0 && $product->purchase_price != (float) $item['price']) {
+                $product->purchase_price = (float) $item['price'];
+                $product->save();
+            }
         }
     }
 

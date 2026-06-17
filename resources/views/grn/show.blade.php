@@ -12,17 +12,6 @@
 
 @section('action-btn')
     <div class="float-end">
-        @if ($grn->status == 0)
-            <a href="{{ route('grn.edit', $grn->id) }}" class="btn btn-sm btn-outline-primary">
-                <i class="ti ti-pencil text-light"></i> {{ __('Edit') }}
-            </a>
-            {{ Form::open(['route' => ['grn.finalize', $grn->id], 'method' => 'POST', 'class' => 'd-inline']) }}
-                <button type="submit" class="btn btn-sm btn-outline-success"
-                    onclick="return confirm('{{ __('Finalize this GRN? Stock and vendor balance will be updated.') }}')">
-                    <i class="ti ti-check text-light"></i> {{ __('Finalize') }}
-                </button>
-            {{ Form::close() }}
-        @endif
         <a href="{{ route('grn.index') }}" class="btn btn-sm btn-outline-secondary">
             {{ __('Back') }}
         </a>
@@ -30,13 +19,118 @@
 @endsection
 
 @section('content')
+    @if($grn->status != 6)
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row timeline-wrapper">
+                            <div class="col-md-4" style="height: 150px">
+                                <div class="timeline-step h-100">
+                                    <div class="timeline-content">
+                                        <div class="timeline-icons"><span class="timeline-dots"></span>
+                                            <i class="ti ti-plus text-primary"></i>
+                                        </div>
+                                        <h6 class="text-primary my-3">{{__('Create GRN')}}</h6>
+                                        <p class="text-muted text-sm mb-3"><i class="ti ti-clock mr-2"></i>{{__('Created on ')}}{{\Auth::user()->dateFormat($grn->grn_date)}}</p>
+                                        <div class="timeline-action">
+                                            @if($grn->status == 0)
+                                                <a href="{{ route('grn.edit', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{__('Edit')}}"><span class="btn-inner--icon"><i class="ti ti-pencil mr-2"></i></span>{{__('Edit')}}</a>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4" style="height: 150px">
+                                <div class="timeline-step h-100">
+                                    <div class="timeline-content">
+                                        <div class="timeline-icons"><span class="timeline-dots"></span>
+                                            <i class="ti ti-mail-forward text-warning"></i>
+                                        </div>
+                                        <h6 class="text-warning my-3">{{__('Fw to Ho')}}</h6>
+                                        <p class="text-muted text-sm mb-3">
+                                            @if($grn->status >= 5)
+                                                <i class="ti ti-clock mr-2"></i>{{__('Forwarded on')}} {{\Auth::user()->dateFormat($grn->updated_at)}}
+                                            @elseif($grn->status == 0)
+                                                <small>{{__('Status')}} : {{__('Draft')}}</small>
+                                            @else
+                                                <small>{{__('Status')}} : {{__('Not Forwarded')}}</small>
+                                            @endif
+                                        </p>
+                                        <div class="timeline-action">
+                                            @if($grn->status == 0)
+                                                <a href="{{ route('grn.fw_to_ho', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-warning">
+                                                    <span class="btn-inner--icon"><i class="ti ti-mail-forward mr-2"></i></span>{{__('Fw to Ho')}}
+                                                </a>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4" style="height: 150px">
+                                <div class="timeline-step h-100">
+                                    <div class="timeline-content">
+                                        <div class="timeline-icons"><span class="timeline-dots"></span>
+                                            @if($grn->status == 6)
+                                                <i class="ti ti-checks text-success"></i>
+                                            @elseif($grn->status == 5 && \Auth::user()->type == 'company')
+                                                <i class="ti ti-hourglass-empty text-info"></i>
+                                            @else
+                                                <i class="ti ti-clock text-muted"></i>
+                                            @endif
+                                        </div>
+                                        @if(\Auth::user()->type == 'company')
+                                            <h6 class="my-3 @if($grn->status == 6) text-success @elseif($grn->status == 5) text-info @else text-muted @endif">
+                                                {{__('Approval')}}
+                                            </h6>
+                                        @else
+                                            <h6 class="my-3 @if($grn->status == 6) text-success @else text-muted @endif">
+                                                @if($grn->status == 5) {{__('Under Approval')}} @else {{__('Approval')}} @endif
+                                            </h6>
+                                        @endif
+                                        <p class="text-muted text-sm mb-3">
+                                            @if($grn->status == 6)
+                                                <i class="ti ti-clock mr-2"></i>{{__('Finalized')}}
+                                            @elseif($grn->status == 5 && \Auth::user()->type == 'company')
+                                                <small>{{__('Pending your decision')}}</small>
+                                            @elseif($grn->status == 5)
+                                                <small>{{__('Under review at Head Office')}}</small>
+                                            @else
+                                                <small>{{__('Awaiting forwarding')}}</small>
+                                            @endif
+                                        </p>
+                                        <div class="timeline-action">
+                                            @if($grn->status == 5 && \Auth::user()->type == 'company')
+                                                <a href="{{ route('grn.finalize', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-success" onclick="return confirm('{{ __('Finalize this GRN? Stock and vendor balance will be updated.') }}')">
+                                                    <span class="btn-inner--icon"><i class="ti ti-check mr-2"></i></span>{{__('Finalize')}}
+                                                </a>
+                                                <a href="{{ route('grn.reject', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-danger">
+                                                    <span class="btn-inner--icon"><i class="ti ti-x mr-2"></i></span>{{__('Reject')}}
+                                                </a>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="row">
         <div class="col-sm-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">GRN-{{ sprintf('%05d', $grn->grn_no) }}</h5>
-                    <span class="badge {{ $grn->status == 1 ? 'bg-primary' : 'bg-secondary' }} p-2 px-3">
-                        {{ __(App\Models\Grn::$statues[$grn->status] ?? 'Received') }}
+                    <span class="badge
+                        @if($grn->status == 0) bg-secondary
+                        @elseif($grn->status == 5) bg-info
+                        @elseif($grn->status == 6) bg-success
+                        @else bg-secondary
+                        @endif p-2 px-3">
+                        {{ __(App\Models\Grn::$statues[$grn->status] ?? 'Draft') }}
                     </span>
                 </div>
                 <div class="card-body">
@@ -57,6 +151,12 @@
                             <small class="text-muted d-block">{{ __('Reference No') }}</small>
                             <strong>{{ $grn->reference_no ?? '-' }}</strong>
                         </div>
+                        @if($grn->purchase_order_id)
+                            <div class="col-md-3 mb-3">
+                                <small class="text-muted d-block">{{ __('Purchase Order') }}</small>
+                                <strong>{{ $grn->purchase_order_id }}</strong>
+                            </div>
+                        @endif
                         <div class="col-md-12">
                             <small class="text-muted d-block">{{ __('Remarks') }}</small>
                             <span>{{ $grn->remarks ?? '-' }}</span>

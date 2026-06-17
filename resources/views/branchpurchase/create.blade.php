@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{__('Purchase Edit')}}
+    {{ __('Branch Purchase Create') }}
 @endsection
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
-    <li class="breadcrumb-item"><a href="{{route('purchase.index')}}">{{__('Purchase')}}</a></li>
-    <li class="breadcrumb-item">{{__('Purchase Edit')}}</li>
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a></li>
+    <li class="breadcrumb-item">{{ __('Branch Purchase Create') }}</li>
 @endsection
 @push('script-page')
 <style>
@@ -33,7 +33,6 @@ var MAX_OPEN_ROWS = 10;
 var csrfToken = '{{ csrf_token() }}';
 var productUrl = '{{ route("purchase.product") }}';
 var currencySymbol = '{{ \Auth::user()->currencySymbol() }}';
-var existingItems = {!! json_encode($purchase->items) !!};
 
 var PRODUCT_OPTS = '<option value="">— Select Item —</option>';
 @if(isset($product_services) && count($product_services) > 0)
@@ -49,43 +48,6 @@ function formatAmount(value) {
 function appendHidden(wrapper, name, value) {
     wrapper.append($('<input>', { type: 'hidden', name: name, value: value || '' }));
 }
-
-function getProductName(productId) {
-    var name = '';
-@if(isset($product_services) && count($product_services) > 0)
-@foreach ($product_services as $val => $label)
-    if ('{{ $val }}' == productId) { name = '{{ addslashes($label) }}'; }
-@endforeach
-@endif
-    return name;
-}
-
-$(function() {
-    if (existingItems && existingItems.length > 0) {
-        $('#empty-row').hide();
-        $.each(existingItems, function(_, item) {
-            var entry = {
-                id: item.id || Date.now() + Math.random(),
-                item_id: item.product_id || item.item,
-                item_name: getProductName(item.product_id || item.item),
-                quantity: parseFloat(item.quantity) || 0,
-                price: parseFloat(item.price) || 0,
-                discount: parseFloat(item.discount) || 0,
-                unit: '',
-                amount: ((parseFloat(item.quantity) || 0) * (parseFloat(item.price) || 0)) - (parseFloat(item.discount) || 0),
-                tax_display: '-',
-                tax: item.tax || '',
-                itemTaxPrice: parseFloat(item.itemTaxPrice) || 0,
-                itemTaxRate: parseFloat(item.itemTaxRate) || 0,
-                description: item.description || ''
-            };
-            $('#items-tbody').append(buildLockedRow(entry));
-            purchaseItems.push(entry);
-        });
-        renderHiddenInputs();
-        updateTotals();
-    }
-});
 
 $(document).on('click', '#addItemBtn', function() {
     var openRows = $('#items-tbody tr[data-row-id]').length;
@@ -111,13 +73,10 @@ function appendInlineRow() {
         '<span class="unit-label" id="unit-' + rid + '"></span>' +
         '</td>' +
         '<td class="col-price">' +
-        '<input type="number" class="form-control form-control-sm row-price" data-rid="' + rid + '" placeholder="0.00" min="0" step="0.01">' +
+        '<input type="number" class="form-control form-control-sm row-price" data-rid="' + rid + '" placeholder="0.00" min="0" step="0.01" readonly>' +
         '</td>' +
         '<td class="col-discount">' +
-        '<input type="number" class="form-control form-control-sm row-discount" data-rid="' + rid + '" placeholder="0.00" min="0" step="0.01" value="0">' +
-        '</td>' +
-        '<td class="col-tax text-end">' +
-        '<span class="tax-display" id="tax-display-' + rid + '">-</span>' +
+        '<input type="number" class="form-control form-control-sm row-discount" data-rid="' + rid + '" placeholder="0.00" min="0" step="0.01" value="0" readonly>' +
         '</td>' +
         '<td class="col-amount text-end">' +
         '<span class="amount-display" id="amount-' + rid + '">0.00</span>' +
@@ -159,19 +118,9 @@ $(document).on('change', '.row-item', function() {
             var data = JSON.parse(response);
             var product = data.product;
 
-            $('.row-price[data-rid="' + rid + '"]').val(parseFloat(product.purchase_price || 0).toFixed(2));
+            $('.row-price[data-rid="' + rid + '"]').val(parseFloat(product.sale_price || 0).toFixed(2));
 
             $('#unit-' + rid).text(data.unit || '');
-
-            var taxHtml = '-';
-            if (data.taxes && data.taxes.length > 0) {
-                taxHtml = '';
-                for (var t = 0; t < data.taxes.length; t++) {
-                    taxHtml += '<span class="badge bg-primary tax-badge">' + data.taxes[t].name + ' (' + data.taxes[t].rate + '%)</span> ';
-                }
-            }
-            $('#tax-display-' + rid).html(taxHtml);
-
             calculateRowAmount(rid);
         },
         error: function() {
@@ -183,7 +132,6 @@ $(document).on('change', '.row-item', function() {
 function clearItemData(rid) {
     $('.row-price[data-rid="' + rid + '"]').val('');
     $('#unit-' + rid).text('');
-    $('#tax-display-' + rid).html('-');
     $('#amount-' + rid).text('0.00');
 }
 
@@ -211,20 +159,9 @@ $(document).on('click', '.confirm-row-btn', function() {
     var discount = parseFloat($('.row-discount[data-rid="' + rid + '"]').val()) || 0;
     var unit = $('#unit-' + rid).text();
     var amount = parseFloat($('#amount-' + rid).text()) || 0;
-    var taxHtml = $('#tax-display-' + rid).html() || '-';
-
-    if (!itemId) {
-        show_toastr('error', 'Please select an item.', 'error');
-        return;
-    }
-    if (quantity <= 0) {
-        show_toastr('error', 'Please enter a valid quantity.', 'error');
-        return;
-    }
-    if (price <= 0) {
-        show_toastr('error', 'Please enter a valid price.', 'error');
-        return;
-    }
+    if (!itemId) { show_toastr('error', 'Please select an item.', 'error'); return; }
+    if (quantity <= 0) { show_toastr('error', 'Please enter a valid quantity.', 'error'); return; }
+    if (price <= 0) { show_toastr('error', 'Please enter a valid price.', 'error'); return; }
 
     var entry = {
         id: Date.now(),
@@ -235,10 +172,6 @@ $(document).on('click', '.confirm-row-btn', function() {
         discount: discount,
         unit: unit,
         amount: amount,
-        tax_display: taxHtml,
-        tax: '',
-        itemTaxPrice: 0,
-        itemTaxRate: 0,
         description: ''
     };
 
@@ -255,7 +188,6 @@ function buildLockedRow(e) {
         '<td>' + e.quantity + (e.unit ? ' <small class="text-muted">' + e.unit + '</small>' : '') + '</td>' +
         '<td class="text-end">' + formatAmount(e.price) + '</td>' +
         '<td class="text-end">' + formatAmount(e.discount) + '</td>' +
-        '<td class="text-end">' + (e.tax_display || '-') + '</td>' +
         '<td class="text-end fw-semibold">' + formatAmount(e.amount) + '</td>' +
         '<td class="text-center">' +
         '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id + '" title="Edit"><i class="ti ti-pencil"></i></a>' +
@@ -273,7 +205,6 @@ $(document).on('click', '.remove-entry-btn', function(e) {
     e.preventDefault();
     var id = parseInt($(this).data('id'));
     if (!confirm('Remove this item?')) return;
-
     purchaseItems = purchaseItems.filter(function(item) { return item.id !== id; });
     $('tr[data-entry-id="' + id + '"]').remove();
     renderHiddenInputs();
@@ -286,44 +217,22 @@ $(document).on('click', '.edit-entry-btn', function(e) {
     var id = parseInt($(this).data('id'));
     var entry = purchaseItems.find(function(item) { return item.id === id; });
     if (!entry) return;
-
     var tr = $('tr[data-entry-id="' + id + '"]');
-
-    tr.find('td').eq(1).html(
-        '<input type="number" class="form-control form-control-sm edit-quantity" value="' + entry.quantity +
-        '" min="1" step="1" data-id="' + id + '" style="width:80px;">' +
-        (entry.unit ? ' <small class="text-muted">' + entry.unit + '</small>' : '')
-    );
-    tr.find('td').eq(2).html(
-        '<input type="number" class="form-control form-control-sm edit-price" value="' + entry.price +
-        '" min="0" step="0.01" data-id="' + id + '" style="width:100px;">'
-    );
-    tr.find('td').eq(3).html(
-        '<input type="number" class="form-control form-control-sm edit-discount" value="' + entry.discount +
-        '" min="0" step="0.01" data-id="' + id + '" style="width:80px;">'
-    );
-    tr.find('td').eq(4).html(
-        '<span class="edit-tax">' + (entry.tax_display || '-') + '</span>'
-    );
-    tr.find('td').eq(5).html(
-        '<span class="edit-amount text-end fw-semibold">' + formatAmount(entry.amount) + '</span>'
-    );
-    tr.find('td').eq(6).html(
-        '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id + '" title="Save"><i class="ti ti-check"></i></a>' +
-        '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id + '" title="Cancel"><i class="ti ti-x"></i></a>'
-    );
+    tr.find('td').eq(1).html('<input type="number" class="form-control form-control-sm edit-quantity" value="' + entry.quantity + '" min="1" step="1" data-id="' + id + '" style="width:80px;">' + (entry.unit ? ' <small class="text-muted">' + entry.unit + '</small>' : ''));
+    tr.find('td').eq(2).html('<strong class="text-muted">' + formatAmount(entry.price) + '</strong>');
+    tr.find('td').eq(3).html('<strong class="text-muted">' + formatAmount(entry.discount) + '</strong>');
+    tr.find('td').eq(4).html('<span class="edit-amount text-end fw-semibold">' + formatAmount(entry.amount) + '</span>');
+    tr.find('td').eq(5).html('<a href="#" class="save-edit-btn text-success me-1" data-id="' + id + '" title="Save"><i class="ti ti-check"></i></a><a href="#" class="cancel-edit-btn text-muted" data-id="' + id + '" title="Cancel"><i class="ti ti-x"></i></a>');
 });
 
-$(document).on('input', '.edit-quantity, .edit-price, .edit-discount', function() {
+$(document).on('input', '.edit-quantity, .edit-discount', function() {
     var id = parseInt($(this).data('id'));
     var tr = $('tr[data-entry-id="' + id + '"]');
-
+    var entry = purchaseItems.find(function(item) { return item.id === id; });
+    if (!entry) return;
     var quantity = parseFloat(tr.find('.edit-quantity').val()) || 0;
-    var price = parseFloat(tr.find('.edit-price').val()) || 0;
     var discount = parseFloat(tr.find('.edit-discount').val()) || 0;
-    var totalAmount = (quantity * price) - discount;
-
-    tr.find('.edit-amount').text(formatAmount(totalAmount));
+    tr.find('.edit-amount').text(formatAmount((quantity * entry.price) - discount));
 });
 
 $(document).on('click', '.save-edit-btn', function(e) {
@@ -331,28 +240,12 @@ $(document).on('click', '.save-edit-btn', function(e) {
     var id = parseInt($(this).data('id'));
     var tr = $('tr[data-entry-id="' + id + '"]');
     var entry = purchaseItems.find(function(item) { return item.id === id; });
-
     var quantity = parseFloat(tr.find('.edit-quantity').val()) || 0;
-    var price = parseFloat(tr.find('.edit-price').val()) || 0;
     var discount = parseFloat(tr.find('.edit-discount').val()) || 0;
-
-    if (quantity <= 0) {
-        show_toastr('error', 'Please enter a valid quantity.', 'error');
-        return;
-    }
-    if (price <= 0) {
-        show_toastr('error', 'Please enter a valid price.', 'error');
-        return;
-    }
-
-    entry.quantity = quantity;
-    entry.price = price;
-    entry.discount = discount;
-    entry.amount = (quantity * price) - discount;
-
+    if (quantity <= 0) { show_toastr('error', 'Please enter a valid quantity.', 'error'); return; }
+    entry.quantity = quantity; entry.discount = discount; entry.amount = (quantity * entry.price) - discount;
     tr.replaceWith(buildLockedRow(entry));
-    renderHiddenInputs();
-    updateTotals();
+    renderHiddenInputs(); updateTotals();
 });
 
 $(document).on('click', '.cancel-edit-btn', function(e) {
@@ -365,16 +258,14 @@ $(document).on('click', '.cancel-edit-btn', function(e) {
 function renderHiddenInputs() {
     var wrapper = $('#hidden-inputs');
     wrapper.empty();
-
     $.each(purchaseItems, function(i, item) {
         var prefix = 'items[' + i + ']';
-        appendHidden(wrapper, prefix + '[id]', item.id && item.id.toString().length < 15 ? item.id : '0');
+        appendHidden(wrapper, prefix + '[id]', '0');
         appendHidden(wrapper, prefix + '[item]', item.item_id);
         appendHidden(wrapper, prefix + '[quantity]', item.quantity);
         appendHidden(wrapper, prefix + '[price]', item.price);
         appendHidden(wrapper, prefix + '[discount]', item.discount);
-        appendHidden(wrapper, prefix + '[tax]', item.tax || '');
-        appendHidden(wrapper, prefix + '[itemTaxPrice]', formatAmount(item.itemTaxPrice));
+        appendHidden(wrapper, prefix + '[tax]', '');
         appendHidden(wrapper, prefix + '[description]', item.description || '');
     });
 }
@@ -385,11 +276,9 @@ function updateTotals() {
         subTotal += (item.quantity * item.price);
         totalDiscount += item.discount;
     });
-    var totalAmount = subTotal - totalDiscount;
-
     $('.subTotal').text(formatAmount(subTotal));
     $('.totalDiscount').text(formatAmount(totalDiscount));
-    $('.totalAmount').text(formatAmount(totalAmount));
+    $('.totalAmount').text(formatAmount(subTotal - totalDiscount));
 }
 
 function checkEmptyState() {
@@ -400,69 +289,55 @@ function checkEmptyState() {
 $(document).on('keydown', '.row-item, .row-quantity, .row-price, .row-discount', function(e) {
     var rid = $(this).data('rid');
     if (!rid) return;
-
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        return false;
-    }
-
-    if (e.key === 'Enter' && e.shiftKey) {
-        e.preventDefault();
-        $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
-        setTimeout(function() { $('#addItemBtn').trigger('click'); }, 100);
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
-    } else if (e.key === 'Escape') {
-        e.preventDefault();
-        $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
-    }
+    if (e.key === 'Tab') { e.preventDefault(); return false; }
+    if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click'); setTimeout(function() { $('#addItemBtn').trigger('click'); }, 100); }
+    else if (e.key === 'Enter') { e.preventDefault(); $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click'); }
+    else if (e.key === 'Escape') { e.preventDefault(); $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click'); }
 });
 
-$(document).on('keydown', '.edit-quantity, .edit-price, .edit-discount', function(e) {
+$(document).on('keydown', '.edit-quantity', function(e) {
     var id = $(this).data('id');
     if (!id) return;
-
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        return false;
-    }
-
-    if (e.key === 'Enter' && e.shiftKey) {
-        e.preventDefault();
-        $('.save-edit-btn[data-id="' + id + '"]').trigger('click');
-        setTimeout(function() { $('#addItemBtn').trigger('click'); }, 100);
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        $('.save-edit-btn[data-id="' + id + '"]').trigger('click');
-    } else if (e.key === 'Escape') {
-        e.preventDefault();
-        $('.cancel-edit-btn[data-id="' + id + '"]').trigger('click');
-    }
+    if (e.key === 'Tab') { e.preventDefault(); return false; }
+    if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); $('.save-edit-btn[data-id="' + id + '"]').trigger('click'); setTimeout(function() { $('#addItemBtn').trigger('click'); }, 100); }
+    else if (e.key === 'Enter') { e.preventDefault(); $('.save-edit-btn[data-id="' + id + '"]').trigger('click'); }
+    else if (e.key === 'Escape') { e.preventDefault(); $('.cancel-edit-btn[data-id="' + id + '"]').trigger('click'); }
 });
 
-$(document).on('submit', '#purchase-form', function(e) {
-    if (purchaseItems.length === 0) {
-        e.preventDefault();
-        show_toastr('error', 'Please add at least one item.', 'error');
-        return false;
-    }
+$(document).on('submit', '#branchpurchase-form', function(e) {
+    if (purchaseItems.length === 0) { e.preventDefault(); show_toastr('error', 'Please add at least one item.', 'error'); return false; }
 });
 
 $(document).on('keydown', function(e) {
-    if (e.key === 'Enter' && e.shiftKey) {
-        var target = $(e.target);
-        if (target.is('textarea')) return;
-        e.preventDefault();
-        $('#addItemBtn').trigger('click');
-    }
+    if (e.key === 'Enter' && e.shiftKey) { var target = $(e.target); if (target.is('textarea')) return; e.preventDefault(); $('#addItemBtn').trigger('click'); }
+});
+
+$(document).on('change', '#branch_id', function() {
+    $('#branch_detail').removeClass('d-none').addClass('d-block');
+    $('#branch-box').removeClass('d-block').addClass('d-none');
+    var id = $(this).val();
+    var url = $(this).data('url');
+    $.ajax({
+        url: url, type: 'POST',
+        headers: { 'X-CSRF-TOKEN': csrfToken },
+        data: { 'id': id }, cache: false,
+        success: function(data) {
+            if (data != '') { $('#branch_detail').html(data); }
+            else { $('#branch-box').removeClass('d-none').addClass('d-block'); $('#branch_detail').removeClass('d-block').addClass('d-none'); }
+        }
+    });
+});
+
+$(document).on('click', '#remove', function() {
+    $('#branch-box').removeClass('d-none').addClass('d-block');
+    $('#branch_detail').removeClass('d-block').addClass('d-none');
 });
 </script>
 @endpush
 
 @section('content')
     <div class="row">
-        {{ Form::model($purchase, array('route' => array('purchase.update', $purchase->id), 'method' => 'PUT','class'=>'w-100', 'id' => 'purchase-form')) }}
+        {{ Form::open(['url' => 'branchpurchase', 'class' => 'w-100', 'id' => 'branchpurchase-form']) }}
         <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
         <div id="hidden-inputs"></div>
         <div class="col-12">
@@ -470,32 +345,32 @@ $(document).on('keydown', function(e) {
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="form-group" id="vender-box">
-                                {{ Form::label('vender_id', __('Vendor'),['class'=>'form-label']) }}
-                                {{ Form::select('vender_id', $venders,null, array('class' => 'form-control select','id'=>'vender','data-url'=>route('purchase.vender'),'required'=>'required')) }}
+                            <div class="form-group" id="branch-box">
+                                {{ Form::label('branch_id', __('Branch'), ['class' => 'form-label']) }}
+                                {{ Form::select('branch_id', $branches, $branchId, ['class' => 'form-control select', 'id' => 'branch_id', 'data-url' => route('branchpurchase.vender'), 'required' => 'required']) }}
                             </div>
-                            <div id="vender_detail" class="d-none"></div>
+                            <div id="branch_detail" class="d-none"></div>
                         </div>
                         <div class="col-md-6">
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        {{ Form::label('warehouse_id', __('Warehouse'),['class'=>'form-label']) }}
-                                        {{ Form::select('warehouse_id', $warehouse,null, array('class' => 'form-control select','required'=>'required')) }}
+                                        {{ Form::label('warehouse_id', __('Warehouse'), ['class' => 'form-label']) }}
+                                        {{ Form::select('warehouse_id', $warehouse, null, ['class' => 'form-control select', 'required' => 'required']) }}
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        {{ Form::label('purchase_number', __('Purchase Number'),['class'=>'form-label']) }}
-                                        <input type="text" class="form-control" value="{{$purchase_number}}" readonly>
+                                        {{ Form::label('purchase_number', __('Purchase Number'), ['class' => 'form-label']) }}
+                                        <input type="text" class="form-control" value="{{ $purchase_number }}" readonly>
                                     </div>
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        {{ Form::label('purchase_date', __('Purchase Date'),['class'=>'form-label']) }}
-                                        {{Form::date('purchase_date',null,array('class'=>'form-control','required'=>'required'))}}
+                                        {{ Form::label('purchase_date', __('Purchase Date'), ['class' => 'form-label']) }}
+                                        {{ Form::date('purchase_date', null, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
                                 </div>
                             </div>
@@ -504,10 +379,11 @@ $(document).on('keydown', function(e) {
                 </div>
             </div>
         </div>
+
         <div class="col-12">
             <div class="card" style="padding-bottom:100px!important;">
                 <div class="card-body py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">{{__('Product / Item')}}</h6>
+                    <h6 class="mb-0">{{ __('Product / Items') }}</h6>
                     <button type="button" class="btn btn-sm btn-outline-primary" id="addItemBtn">
                         <i class="ti ti-plus"></i> {{ __('Add Item') }}
                     </button>
@@ -520,31 +396,30 @@ $(document).on('keydown', function(e) {
                                 <th class="col-quantity">{{ __('Quantity') }}</th>
                                 <th class="col-price text-end">{{ __('Price') }}</th>
                                 <th class="col-discount text-end">{{ __('Discount') }}</th>
-                                <th class="text-end">{{ __('Tax') }}</th>
                                 <th class="col-amount text-end">{{ __('Amount') }}</th>
                                 <th class="col-actions"></th>
                             </tr>
                         </thead>
                         <tbody id="items-tbody">
                             <tr id="empty-row">
-                                <td colspan="7" class="text-center text-muted py-4">
+                                <td colspan="6" class="text-center text-muted py-4">
                                     {{ __('No items added yet. Click "Add Item" to begin. Shortcut "SHIFT + ENTER"') }}
                                 </td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="5" class="text-end"><strong>{{ __('Sub Total') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
+                                <td colspan="4" class="text-end"><strong>{{ __('Sub Total') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
                                 <td class="text-end subTotal fw-bold">0.00</td>
                                 <td></td>
                             </tr>
                             <tr>
-                                <td colspan="5" class="text-end"><strong>{{ __('Discount') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
+                                <td colspan="4" class="text-end"><strong>{{ __('Discount') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
                                 <td class="text-end totalDiscount">0.00</td>
                                 <td></td>
                             </tr>
                             <tr>
-                                <td colspan="5" class="text-end"><strong>{{ __('Total Amount') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
+                                <td colspan="4" class="text-end"><strong>{{ __('Total Amount') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
                                 <td class="text-end totalAmount fw-bold">0.00</td>
                                 <td></td>
                             </tr>
@@ -555,8 +430,8 @@ $(document).on('keydown', function(e) {
         </div>
 
         <div class="modal-footer">
-            <input type="button" value="{{__('Cancel')}}" onclick="location.href = '{{route("purchase.index")}}';" class="btn btn-outline-light">
-            <input type="submit" value="{{__('Update')}}" class="btn btn-outline-primary">
+            <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('branchpurchase.index') }}';" class="btn btn-outline-light">
+            <input type="submit" value="{{ __('Create') }}" class="btn btn-outline-primary">
         </div>
         {{ Form::close() }}
     </div>

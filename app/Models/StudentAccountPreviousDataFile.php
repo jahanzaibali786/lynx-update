@@ -11,6 +11,7 @@ class StudentAccountPreviousDataFile extends Model
 
     protected $fillable = [
         'branch_id',
+        'student_id',
         'original_name',
         'file_path',
         'mime_type',
@@ -29,5 +30,10 @@ class StudentAccountPreviousDataFile extends Model
     public function branch()
     {
         return $this->belongsTo(User::class, 'branch_id');
+    }
+
+    public function student()
+    {
+        return $this->belongsTo(StudentRegistration::class, 'student_id', 'id');
     }
 }
