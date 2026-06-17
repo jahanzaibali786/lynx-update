@@ -40,7 +40,7 @@ use Illuminate\Support\Facades\View;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\SalaryHistoryExport;
 use App\Exports\EmployeeSalaryDetailReportExport;
-use App\Models\SalaryHistoryReportExport;
+use App\Exports\SalaryHistoryReportExport;
 use Str;
 
 class EmployeeSalaryDetail extends Controller
@@ -429,7 +429,7 @@ class EmployeeSalaryDetail extends Controller
             if (\Auth::user()->type == 'Employee') {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = EmployeePayscaleDetail::with('scale', 'employee')
+                $query = EmployeePayscaleDetail::with('scale', 'employee.userbranch', 'employee.department', 'employee.designation')
                     ->where('employee_id', '=', \Auth::user()->id)
                     ->whereHas('employee', function ($query) {
                         $query->where('owned_by', \Auth::user()->creatorId());
@@ -439,7 +439,7 @@ class EmployeeSalaryDetail extends Controller
                 $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $query = EmployeePayscaleDetail::with('scale', 'employee')
+                $query = EmployeePayscaleDetail::with('scale', 'employee.userbranch', 'employee.department', 'employee.designation')
                     ->whereHas('employee', function ($query) {
                         $query->where('created_by', \Auth::user()->creatorId());
                     });
@@ -450,7 +450,7 @@ class EmployeeSalaryDetail extends Controller
             } else {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = EmployeePayscaleDetail::with('scale', 'employee')
+                $query = EmployeePayscaleDetail::with('scale', 'employee.userbranch', 'employee.department', 'employee.designation')
                     ->whereHas('employee', function ($query) {
                         $query->where('owned_by', \Auth::user()->ownedId());
                     });
@@ -471,12 +471,18 @@ class EmployeeSalaryDetail extends Controller
             // Check if the user requested Excel download
             if ($request->has('export') && $request->export == 'excel') {
                 $employees = $query->get();  // Get all employees for Excel export
-                return Excel::download(new SalaryHistoryExport($employees), 'salary_history.xlsx');
+                return Excel::download(new SalaryHistoryExport($employees, $request->all()), 'salary_history.xlsx');
             }
             // dd($query->get());
             // Normal view logic for web
 
-            $employeesscale = $query->orderByDesc('id')->get();
+            $employeesscale = $query->get()
+                ->sortBy([
+                    fn($row) => optional(optional($row->employee)->userbranch)->name,
+                    fn($row) => optional($row->employee)->name,
+                    fn($row) => $row->effect_from,
+                ])
+                ->values();
             // dd($employeesscale); 
             return view('employee.emp_salary_detail.history', compact('employeesscale', 'branches'));
         } else {
@@ -563,7 +569,10 @@ class EmployeeSalaryDetail extends Controller
                         }
                     },
                     'employee_monthly_salaries.salaryheads.SalaryHead',
-                    'employee_payscale_details'
+                    'employee_payscale_details',
+                    'userbranch',
+                    'department',
+                    'designation',
                 ])->where('created_by', \Auth::user()->creatorId());
             } else {
                 $branches = User::where('id', \Auth::user()->ownedId())->pluck('name', 'id');
@@ -591,7 +600,10 @@ class EmployeeSalaryDetail extends Controller
                         }
                     },
                     'employee_monthly_salaries.salaryheads.SalaryHead',
-                    'employee_payscale_details'
+                    'employee_payscale_details',
+                    'userbranch',
+                    'department',
+                    'designation',
                 ])->where('owned_by', \Auth::user()->ownedId());
             }
             if (!empty($request->branches)) {
@@ -612,11 +624,11 @@ class EmployeeSalaryDetail extends Controller
             }
             if ($request->has('export') && $request->export == 'excel') {
                 $employee = $query->get();
-                return Excel::download(new SalaryHistoryReportExport($employee), 'salary_history_report.xlsx');
+                return Excel::download(new SalaryHistoryReportExport($employee, $request->all()), 'salary_history_report.xlsx');
             }
             if ($request->has('export') && $request->export == 'pdf') {
                 $employee = $query->get();
-                return Excel::download(new SalaryHistoryReportExport($employee), 'salary_history_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
+                return Excel::download(new SalaryHistoryReportExport($employee, $request->all()), 'salary_history_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
             }
             if ($filterApplied) {
                 $employee = $query->get();
