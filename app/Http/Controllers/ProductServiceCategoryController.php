@@ -69,8 +69,18 @@ class ProductServiceCategoryController extends Controller
             $category->created_by = \Auth::user()->creatorId();
             $category->save();
 
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Category successfully created.'),
+                    'category' => $category,
+                ]);
+            }
             return redirect()->route('product-category.index')->with('success', __('Category successfully created.'));
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }

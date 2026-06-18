@@ -34,9 +34,6 @@ return new class extends Migration
             $table->decimal('it', 15, 2)->nullable();
             $table->decimal('eobi', 15, 2)->nullable();
             $table->decimal('eobi_employer', 15, 2)->nullable();
-            $table->string('paymode')->nullable();
-            $table->string('account_number')->nullable();
-            $table->integer('bank_from_id')->nullable();
             $table->decimal('dedu', 15, 2)->nullable();
             $table->decimal('loan', 15, 2)->nullable();
             $table->decimal('tra_course', 15, 2)->nullable();

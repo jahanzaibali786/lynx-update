@@ -917,7 +917,7 @@
                                     </div>
                                     <div class="form-group col-md-6">
                                         {!! Form::label('effect_from', 'Effective From', ['class' => 'form-label']) !!}
-                                        {!! Form::date('effect_from', !empty($payscalesauto) ? $payscalesauto->effect_from : '', [
+                                        {!! Form::date('effect_from', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->effect_from : '', [
                                             'class' => 'form-control ',
                                             'readonly' => 'readonly',
                                         ]) !!}

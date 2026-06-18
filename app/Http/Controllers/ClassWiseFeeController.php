@@ -10,10 +10,14 @@ use App\Models\StudentEnrollments;
 use App\Models\StudyPack;
 use Auth;
 use App\Models\ClassWiseFee;
+use App\Models\Concession;
+use App\Models\ConcessionPolicyHead;
 use App\Models\FeeHead;
 use App\Models\Session;
 use App\Models\StudentFeeStructure;
 use App\Models\StudentRegistration;
+use App\Models\StudentFeeRevisionBatch;
+use App\Models\StudentFeeRevisionItem;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Dompdf\Dompdf;
@@ -90,7 +94,20 @@ class ClassWiseFeeController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
+   public function getbranchstudent(Request $request)
+    {
 
+        $students = StudentRegistration::where('owned_by', $request->branch_id)
+            ->where('student_status', 'Enrolled')
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+            });
+        // dd($students);
+
+        return response()->json(['status' => 'success', 'students' => $students]);
+    }
     public function create($id)
     {
         // if(\Auth::user()->can('create session'))
@@ -290,6 +307,7 @@ class ClassWiseFeeController extends Controller
             if ($request->type == 'registration') {
                 $students = StudentRegistration::where('class_id', $request->class_id)
                     ->where('student_status', 'Registered')
+                    ->where('active_status', 1)
                     ->where('created_by', \Auth::user()->creatorId())
                     ->get()
                     ->mapWithKeys(function ($student) {
@@ -298,6 +316,7 @@ class ClassWiseFeeController extends Controller
             } else {
                 $students = StudentRegistration::where('class_id', $request->class_id)
                     ->where('student_status', 'Enrolled')
+                    ->where('active_status', 1)
                     ->where('created_by', \Auth::user()->creatorId())
                     ->get()
                     ->mapWithKeys(function ($student) {
@@ -311,6 +330,7 @@ class ClassWiseFeeController extends Controller
 
         return response()->json(['status' => 'error', 'message' => 'Invalid request.']);
     }
+
 
     public function classStudents(Request $request)
     {
@@ -328,17 +348,20 @@ class ClassWiseFeeController extends Controller
     }
     public function getClasswithdrawStudents(Request $request)
     {
+        // dd($request->all());
         if ($request->ajax()) {
             $status = $request->input('status');
-            $query = StudentRegistration::select(\DB::raw('CONCAT(roll_no, " - ", stdname, " s/d/o ", fathername) AS stdname'), 'roll_no')->whereNotNull('roll_no')
-                ->where('class_id', '=', $request->class_id);
+
+            $query = StudentRegistration::select(\DB::raw('CONCAT(roll_no, " - ", stdname, " s/d/o ", fathername) AS stdname'), 'roll_no')->whereNotNull('roll_no');
             if ($status == 'active') {
+                if ($request->class_id != 'all' && $request->class_id != null) {
+                    $query->where('class_id', $request->class_id);
+                }
                 $query->whereDoesntHave('withdrawal');
             } else if ($status == 'withdraw') {
                 $query->whereHas('withdrawal');
             }
-            $students = $query->get()->pluck('stdname', 'roll_no');
-            ;
+            $students = $query->get()->pluck('stdname', 'roll_no');;
             return response()->json(['status' => 'success', 'students' => $students]);
         }
 
@@ -361,37 +384,50 @@ class ClassWiseFeeController extends Controller
     public function student_fee_generate($id)
     {
         $student = StudentRegistration::where('id', $id)->first();
-        if(!$student){
+        if (!$student) {
             return redirect()->back()->with('error', 'Student not found.');
         }
-        $classfee = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->get();
 
-        if (!empty($classfee)) {
-            foreach ($classfee as $fee) {
-                $keys = [
-                    'reg_id' => $student->id,
-                    'branch_id' => $student->owned_by,
-                    'head_id' => $fee['head_id'],
-                ];
-                $values = [
-                    'amount' => $fee['amount'],
-                    'class_id' => $student->class_id,
-                    'owned_by' => $student->owned_by,
-                    'created_by' => $student->created_by,
-                ];
-                $sfs = StudentFeeStructure::where($keys)->first();
-                if ($sfs) {
-                    if ($sfs->checked_status == 1) {
-                        $sfs->update($values);
+        \DB::beginTransaction();
+        try {
+            $feeStructureBefore = $this->feeStructureAmountSnapshot($student);
+            $classfee = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->get();
+            // dd($classfee);
+            if ($classfee->isNotEmpty()) {
+                foreach ($classfee as $fee) {
+                    $keys = [
+                        'reg_id' => $student->id,
+                        'branch_id' => $student->owned_by,
+                        'head_id' => $fee['head_id'],
+                    ];
+                    $values = [
+                        'amount' => $fee['amount'],
+                        'class_id' => $student->class_id,
+                        'owned_by' => $student->owned_by,
+                        'created_by' => $student->created_by,
+                    ];
+                    $sfs = StudentFeeStructure::where($keys)->first();
+                    if ($sfs) {
+                        if ($sfs->checked_status == 1) {
+                            $sfs->update($values);
+                        }
+                    } else {
+                        StudentFeeStructure::create(array_merge($keys, $values));
                     }
-                } else {
-                    StudentFeeStructure::create(array_merge($keys, $values));
                 }
             }
-        }
 
-        return redirect()->route('registration.show', ['registration' => $student->id])->with('success', 'Student Fee Structure Genereated Successfull.');
+            $this->recordFeeStructureAmountHistory($student, $feeStructureBefore, 'classwise_fee_structure', 'Classwise fee structure generated');
+            \DB::commit();
+
+            return redirect()->route('registration.show', ['registration' => $student->id])->with('success', 'Student Fee Structure Genereated Successfull.');
+        } catch (\Exception $e) {
+            \DB::rollBack();
+
+            return redirect()->back()->with('error', $e->getMessage());
+        }
     }
+
 
     public function classWiseFeeReport(Request $request)
     {
@@ -616,5 +652,120 @@ if (!empty($request->branches)) {
         $base64Pdf = base64_encode($pdfContent);
         return response()->json(['base64Pdf' => $base64Pdf]);
 
+    }
+	private function feeStructureAmountSnapshot(StudentRegistration $student)
+    {
+        $concessionPolicyHeads = $this->activeConcessionPolicyHeads($student->id);
+
+        return StudentFeeStructure::where('reg_id', $student->id)
+            ->where('owned_by', $student->owned_by)
+            ->get()
+            ->mapWithKeys(function ($structure) use ($concessionPolicyHeads) {
+                $baseAmount = (float) ($structure->amount ?? 0);
+
+                return [
+                    (int) $structure->head_id => [
+                        'structure_id' => $structure->id,
+                        'base_amount' => $baseAmount,
+                        'payable_amount' => $this->feeStructurePayableAmount(
+                            $baseAmount,
+                            (int) $structure->head_id,
+                            (float) ($structure->discount ?? 0),
+                            $concessionPolicyHeads
+                        ),
+                    ],
+                ];
+            });
+    }
+
+    private function activeConcessionPolicyHeads(int $studentId)
+    {
+        $concession = Concession::where('student_id', $studentId)
+            ->where('status', 'Approved')
+            ->where('active_status', 1)
+            ->where(function ($query) {
+                $query->where('end_date', '>=', date('Y-m-d'))
+                    ->orWhereNull('end_date');
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$concession) {
+            return collect();
+        }
+
+        return ConcessionPolicyHead::where('concession_id', $concession->concession_id)
+            ->pluck('percentage', 'head_id');
+    }
+
+    private function feeStructurePayableAmount(float $baseAmount, int $headId, float $structureDiscount, $concessionPolicyHeads): float
+    {
+        $discountPercentage = $concessionPolicyHeads->has($headId)
+            ? (float) $concessionPolicyHeads->get($headId)
+            : $structureDiscount;
+
+        return round($baseAmount - (($baseAmount * $discountPercentage) / 100));
+    }
+
+    private function recordFeeStructureAmountHistory(StudentRegistration $student, $before, string $revisionType, string $remarks): void
+    {
+        $student->loadMissing('enrollment');
+        $after = $this->feeStructureAmountSnapshot($student);
+        $items = collect();
+
+        foreach ($after as $headId => $current) {
+            if (!$before->has($headId)) {
+                continue;
+            }
+
+            $previous = $before->get($headId);
+            $prevBase = (float) $previous['base_amount'];
+            $newBase = (float) $current['base_amount'];
+            $prevPayable = (float) $previous['payable_amount'];
+            $newPayable = (float) $current['payable_amount'];
+
+            if (round($prevBase, 2) === round($newBase, 2) && round($prevPayable, 2) === round($newPayable, 2)) {
+                continue;
+            }
+
+            $items->push([
+                'student_fee_structure_id' => $current['structure_id'],
+                'student_id' => optional($student->enrollment)->enrollId,
+                'reg_id' => $student->id,
+                'head_id' => $headId,
+                'percentage' => $prevBase > 0 ? round((($newBase - $prevBase) / $prevBase) * 100, 2) : 0,
+                'prev_base_amount' => $prevBase,
+                'new_base_amount' => $newBase,
+                'prev_payable_amount' => $prevPayable,
+                'new_payable_amount' => $newPayable,
+            ]);
+        }
+
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        $batch = StudentFeeRevisionBatch::create([
+            'revision_type' => $revisionType,
+            'student_id' => optional($student->enrollment)->enrollId,
+            'reg_id' => $student->id,
+            'session_from_id' => $student->session_id,
+            'session_to_id' => $student->session_id,
+            'branch_from_id' => $student->owned_by,
+            'branch_to_id' => $student->owned_by,
+            'class_from_id' => $student->class_id,
+            'class_to_id' => $student->class_id,
+            'section_from_id' => $student->section_id,
+            'section_to_id' => $student->section_id,
+            'effective_from' => date('Y-m-d'),
+            'status' => 'applied',
+            'remarks' => $remarks,
+            'owned_by' => $student->owned_by,
+            'created_by' => \Auth::user()->creatorId(),
+        ]);
+
+        foreach ($items as $item) {
+            StudentFeeRevisionItem::create(array_merge(['batch_id' => $batch->id], $item));
+        }
     }
 }

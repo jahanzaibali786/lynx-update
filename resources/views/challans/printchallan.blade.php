@@ -471,8 +471,11 @@
                                 <td class="detail-value" style="text-transform: uppercase;">
                                     {{ $fromMonth->format('F, Y') }}
 
-                                    @if ($toMonth)
+                                    @if ( $toMonth != null && $toMonth != $fromMonth)
                                         - {{ $toMonth->format('F, Y') }}
+                                    @endif
+									@if (!empty($showJunJulExemptionLabel))
+                                        <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
                                     @endif
                                 </td>
                             </tr>
@@ -729,6 +732,9 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
+									@if (!empty($showJunJulExemptionLabel))
+                                        <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
+                                    @endif
                                 </td>
                             </tr>
                             <tr>
@@ -974,6 +980,9 @@
 
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
+                                    @endif
+									@if (!empty($showJunJulExemptionLabel))
+                                        <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
                                     @endif
                                 </td>
                             </tr>

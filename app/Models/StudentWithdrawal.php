@@ -17,6 +17,8 @@ class StudentWithdrawal extends Model
         'branch_id',
         'withdraw_date',
         'reason',
+        'remark',
+        'other_reason',
         'approved_by',
         'status',
         'created_by',
@@ -64,4 +66,8 @@ class StudentWithdrawal extends Model
     {
         return $this->hasOne('App\Models\Classes', 'id', 'class_id');
     }
+    protected $casts = [
+    'withdraw_date' => 'date',
+];
+
 }

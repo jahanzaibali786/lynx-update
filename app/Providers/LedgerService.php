@@ -80,7 +80,7 @@ class LedgerService
     $totals = ['balance' => 0];
 
     foreach ($chartAccounts as $account) {
-        $data = Utility::getAccountData($account->id, $start, $end, null, $branch=null);
+        $data = Utility::getAccountData($account->id, $start, $end, null, $branch = null);
 
         // Skip if no journal data
         if (empty($data['journalItem'])) {

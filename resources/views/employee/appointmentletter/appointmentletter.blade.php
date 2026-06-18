@@ -76,8 +76,8 @@
                         {{-- <td>{{ @$letter->no }}</td> --}}
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ \Carbon\Carbon::parse(@$letter->date)->format('d-M-Y') }}</td>
-                        <td>{{ ucfirst($letter->type )}}</td>
-                        <td>{{ \Illuminate\Support\Str::limit(@$letter->datacontent, 200, '...') }}</td>
+						<td>{{ ucfirst($letter->type )}}</td>
+                        <td>{{ \Illuminate\Support\Str::limit(@$letter->datacontent, 180, '...') }}</td>
                         <td>
                             <div class="action-btn ms-2">
                                 <a href="#" data-size="xl"

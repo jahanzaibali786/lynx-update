@@ -169,7 +169,7 @@
         <thead>
             <tr>
                 <th colspan="7">Student Information</th>
-                <th colspan="2">Monthly Fee</th>
+                <th colspan="3">Monthly Fee</th>
                 @foreach ($heads as $head)
                     <th colspan="3">{{ $head->fee_head }}</th>
                 @endforeach
@@ -185,6 +185,7 @@
                 <th>B Sr.</th>
                 <th>Roll No</th>
                 <th>Student Name</th>
+				<th>Admission Date</th>
                 <th>Reg Type</th>
                 <th>Class</th>
                 <th>Billing Month</th>
@@ -209,7 +210,7 @@
         <tbody>
             @foreach ($report as $branchId => $students)
                 @php
-                    $totalCols = 10 + $heads->count() * 3 + 7; // Updated for late fee column
+                   $totalCols = 18 + ($heads->count() * 3);
                 @endphp
                 <tr>
                     <td colspan="4"
@@ -266,11 +267,12 @@
                         <td>{{ $index + 1 }}</td>
                         <td>{{ $stu['roll_no'] }}</td>
                         <td>{{ $stu['student_name'] }}</td>
+						<td>{{ $stu['adm_date'] ? \Carbon\Carbon::parse($stu['adm_date'])->format('d-M-Y') : '-' }}</td>
                         <td>{{ $stu['registration_type'] }}</td>
                         <td>{{ $stu['class_name'] }}</td>
 
                         {{-- ↓ Raw Y-m-d so export class converts to Excel date serial --}}
-                        <td>{{ \Carbon\Carbon::parse($dateInput)->format('Y-m-d') }}</td>
+                        <td>{{ \Carbon\Carbon::parse($dateInput)->format('Y-M') }}</td>
 
                         <td>{{ $stu['challan_type_short'] }}</td>
                         <td class="num">{{ (int) $stu['total_amount'] }}</td>
@@ -346,7 +348,7 @@
                                 : 'inherit');
                 @endphp
                 <tr>
-                    <td colspan="8"
+                    <td colspan="9"
                         style="background:gray; font-size:8px; text-align:center; border:1px solid black; font-weight:bold;">
                         Branch Total
                     </td>
@@ -403,7 +405,7 @@
                     $grandTotal['difference'] > 0 ? 'green' : ($grandTotal['difference'] < 0 ? '#cc0000' : 'inherit');
             @endphp
             <tr>
-                <td colspan="8"
+                <td colspan="9"
                     style="background:gray; font-size:8px; border:1px solid black; text-align:center;
                            border-top:2px double black; border-bottom:2px double black; font-weight:bold;">
                     Grand Total

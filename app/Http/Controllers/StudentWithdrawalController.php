@@ -58,7 +58,7 @@ class StudentWithdrawalController extends Controller
         // if (!empty($request->end_date)) {
         //     $query->whereDate('withdraw_date', '<', $request->end_date);
         // }
-        if(!empty($request->start_date) && !empty($request->end_date)){
+        if (!empty($request->start_date) && !empty($request->end_date)) {
             $query->whereBetween('withdraw_date', [$request->start_date, $request->end_date]);
         }
         if (empty($request->start_date) || empty($request->end_date)) {
@@ -67,7 +67,7 @@ class StudentWithdrawalController extends Controller
             $dateFrom = ($currentMonth >= 7) ? "$currentYear-07-01" : date('Y-07-01', strtotime('-1 year'));
             $dateTo = ($currentMonth >= 7) ? date('Y-06-30', strtotime('+1 year')) : "$currentYear-06-30";
             $query->whereBetween('withdraw_date', [$request->start_date, $request->end_date]);
-        }else{
+        } else {
             $dateFrom = $request->start_date;
             $dateTo = $request->end_date;
             $query->whereBetween('withdraw_date', [$request->start_date, $request->end_date]);
@@ -104,8 +104,8 @@ class StudentWithdrawalController extends Controller
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branches->prepend('Select Branch', '');
         }
-            $document_no = $this->Documentno();
-        return view('students.student_withdrawal.create', compact('branches','document_no'));
+        $document_no = $this->Documentno();
+        return view('students.student_withdrawal.create', compact('branches', 'document_no'));
         // }
         // else
         // {
@@ -158,20 +158,21 @@ class StudentWithdrawalController extends Controller
             $withdrawal->apply_date = $request->application_date;
             $withdrawal->reason = $request->reason;
             $withdrawal->remark = $request->remark;
+            $withdrawal->other_reason = $request->reason == 'Other' ? $request->other_reason : null;
             $withdrawal->owned_by = $std->owned_by;
             $withdrawal->session_id = $std->session_id;
             $withdrawal->created_by = \Auth::user()->creatorId();
             $withdrawal->save();
 
-            $reg= StudentRegistration::where('id', $std->regId)->first();
-            if(!$reg){
-                $reg= StudentRegistration::where('reg_no', $std->regId)->first();
+            $reg = StudentRegistration::where('id', $std->regId)->first();
+            if (!$reg) {
+                $reg = StudentRegistration::where('reg_no', $std->regId)->first();
             }
             $reg->active_status = 0;
             $reg->student_status = 'withdrawal';
             $reg->save();
             $enroll = StudentEnrollments::where('enrollId', $reg->roll_no)->first();
-            if($enroll){
+            if ($enroll) {
                 $enroll->active_status = 0;
                 $enroll->save();
             }
@@ -189,8 +190,8 @@ class StudentWithdrawalController extends Controller
             $his->save();
 
             $duplicate = Challans::where('student_id', $reg->id)
-            ->where('challan_date', $request->challan_date)
-            ->where('challan_type', 'Withdrawal')->first();
+                ->where('challan_date', $request->challan_date)
+                ->where('challan_type', 'Withdrawal')->first();
             if (!$duplicate) {
                 $chaallan = new Challans();
                 $chaallan->student_id = $reg->id;
@@ -210,7 +211,7 @@ class StudentWithdrawalController extends Controller
                 $chaallan->created_by = $withdrawal->created_by;
                 $chaallan->save();
             }
-            
+
 
             DB::commit();
             return redirect()->route('withdrawlstudent.index')->with('success', 'Student Withdrawal has been created successfully.');
@@ -238,7 +239,7 @@ class StudentWithdrawalController extends Controller
     }
     public function Documentno()
     {
-        $doc_no =StudentWithdrawal::where('created_by', Auth::user()->creatorId())->orderBy('id','desc')->first();
+        $doc_no = StudentWithdrawal::where('created_by', Auth::user()->creatorId())->orderBy('id', 'desc')->first();
         return  $doc_no ? $doc_no->document_no + 1 : 1;
     }
 
@@ -298,6 +299,7 @@ class StudentWithdrawalController extends Controller
                 'application_date' => 'required',
                 'reason' => 'required',
                 'remark' => 'required',
+                'other_reason' => 'required_if:reason,Other|max:70',
             ]
         );
 
@@ -317,18 +319,19 @@ class StudentWithdrawalController extends Controller
             $withdrawal->apply_date = $request->application_date;
             $withdrawal->reason = $request->reason;
             $withdrawal->remark = $request->remark;
+            $withdrawal->other_reason = $request->reason == 'Other' ? $request->other_reason : null;
+
             $withdrawal->save();
-            $reg= StudentRegistration::where('id', $withdrawal->student_id)->first();
-            if(!$reg){
-                $reg= StudentRegistration::where('reg_no', $withdrawal->student_id)->first();
+            $reg = StudentRegistration::where('id', $withdrawal->student_id)->first();
+            if (!$reg) {
+                $reg = StudentRegistration::where('reg_no', $withdrawal->student_id)->first();
             }
-        
-            $his = StudentHistory::where('reg_id', $reg->id)->where('student_id', $reg->roll_no)->
-            where('event_type', 'withdraw')->where('effective_date', $old->withdraw_date)->first();
+
+            $his = StudentHistory::where('reg_id', $reg->id)->where('student_id', $reg->roll_no)->where('event_type', 'withdraw')->where('effective_date', $old->withdraw_date)->first();
             $his->effective_date = $request->withdraw_date;
             $his->save();
             $challan = Challans::where('student_id', $reg->id)->where('challan_type', 'Withdrawal')->where('fee_month', date('Y-m-01', strtotime($old->withdraw_date)))->first();
-            if($challan){
+            if ($challan) {
                 $challan->fee_month = date('Y-m-01', strtotime($request->withdraw_date));
                 $challan->challan_date = $request->withdraw_date;
                 $challan->issue_date = $request->withdraw_date;
@@ -379,7 +382,7 @@ class StudentWithdrawalController extends Controller
             ->where('status', 'Paid')
             ->orderByDesc('fee_month')
             ->first();
-            // dd($lastPaidChallan);
+        // dd($lastPaidChallan);
 
         // Get security deposit info
         $securityHead = \App\Models\FeeHead::whereRaw('LOWER(fee_head) LIKE ?', ['%security%'])->first();
@@ -430,11 +433,11 @@ class StudentWithdrawalController extends Controller
 
     public function withdrawlapplication($id)
     {
-        
+
         $studentwithdrawal = StudentWithdrawal::where('id', $id)
-        ->with('student', 'branch', 'student.class')->where('created_by', Auth::user()->creatorId())->first();
+            ->with('student', 'branch', 'student.class')->where('created_by', Auth::user()->creatorId())->first();
         $enrollment = StudentEnrollments::where('regId', $studentwithdrawal->student_id)->first();
-          if (!$enrollment) {
+        if (!$enrollment) {
             return redirect()->back()->with('error', 'Enrollment record not found for this student.');
         }
         $studentchallan = Challans::where('rollno', $enrollment->enrollId)
@@ -443,7 +446,7 @@ class StudentWithdrawalController extends Controller
 
         $PrevChallan = Challans::where('rollno', $enrollment->enrollId)
             ->where('status', '!=', 'Paid')->where('challan_type', '!=', 'Transfer')
-            ->wheredate('fee_month', '<=', date('Y-m-d',strtotime($studentwithdrawal->withdraw_date)))->get();
+            ->wheredate('fee_month', '<=', date('Y-m-d', strtotime($studentwithdrawal->withdraw_date)))->get();
 
         $head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower('%security%')])->first();
         $challan = ChallanHead::leftjoin('challans', 'challan_heads.challan_id', '=', 'challans.id')
@@ -452,7 +455,7 @@ class StudentWithdrawalController extends Controller
             ->orderBy('challans.id', 'Desc')
             ->first();
 
-            $payable = 0;
+        $payable = 0;
         if ($challan) {
             $payable = $challan->paid - $challan->concession;
         }
@@ -461,14 +464,14 @@ class StudentWithdrawalController extends Controller
         $adj_entry = ChallanSecAdjustment::with('challan')->where('roll_no', $enrollment->enrollId)->get();
         $payables = $payable - $adj_entry->sum('amount');
         $withdrawal_challan = Challans::where('student_id', $studentwithdrawal->student_id)->where('challan_type', 'Withdrawal')
-        ->whereDate('fee_month', date('Y-m-d',strtotime($studentwithdrawal->withdraw_date)))->orderBy('id', 'desc')->first();
-        return view('students.student_withdrawal.application', compact('studentwithdrawal','PrevChallan','payable','adj_entry','all_accounts','withdrawal_challan'));
+            ->whereDate('fee_month', date('Y-m-d', strtotime($studentwithdrawal->withdraw_date)))->orderBy('id', 'desc')->first();
+        return view('students.student_withdrawal.application', compact('studentwithdrawal', 'PrevChallan', 'payable', 'adj_entry', 'all_accounts', 'withdrawal_challan'));
     }
     public function calculateBalance(Request $request)
     {
         $id = $request->input('student_id');
         $student = StudentRegistration::where('id', $id)->first();
-        if(!$student){
+        if (!$student) {
             $student = StudentRegistration::where('reg_no', $id)->first();
         }
         $studentwithdrawal = StudentWithdrawal::where('student_id', $id)->where('created_by', Auth::user()->creatorId())->orderby('id', 'desc')->first();
@@ -536,7 +539,7 @@ class StudentWithdrawalController extends Controller
         // dd($student);
         $arrearsTotal = Challans::where('rollno', $student->roll_no)
             ->where('status', '!=', 'Paid')->where('challan_type', '!=', 'Transfer')
-            ->wheredate('fee_month', '<=', date('Y-m-d',strtotime($studentwithdrawal->withdraw_date)))
+            ->wheredate('fee_month', '<=', date('Y-m-d', strtotime($studentwithdrawal->withdraw_date)))
             ->select(\DB::raw('SUM(total_amount - (paid_amount + concession_amount)) AS arrears_total'))->value('arrears_total');
         $adj = ChallanSecAdjustment::where('roll_no', $student->roll_no)->sum('amount');
         return response()->json([
@@ -555,13 +558,13 @@ class StudentWithdrawalController extends Controller
 
     public function submit_adjustment(Request $request)
     {
-        if($request->used == 0){
+        if ($request->used == 0) {
             redirect()->back()->with('error', 'Please enter a valid adjustment amount.');
         }
         DB::beginTransaction();
         try {
             $filtered = [];
-            
+
             $item = [];
             $i = 0;
             $total = 0;
@@ -581,8 +584,8 @@ class StudentWithdrawalController extends Controller
                 }
             }
 
-            if($total <= $request->total_available){
-                foreach($item as $it){
+            if ($total <= $request->total_available) {
+                foreach ($item as $it) {
                     $challanhead = ChallanHead::with('challan')->where('challan_id', $request->challan_id)->where('head_id', $it['head'])->first();
                     $challanhead->paid = $challanhead->paid + $it['total'];
                     $challanhead->save();
@@ -601,28 +604,28 @@ class StudentWithdrawalController extends Controller
                 'created_by' => $admissionChallan->created_by,
             ]);
 
-                $data['id'] = $admissionChallan->id;
-                $data['no'] = $admissionChallan->challanNo;
-                $data['date'] = date('Y-m-d');
-                // $data['adj_entry'] = $recipts->id;
-                $data['reference'] = $admissionChallan->student_id;
-                $data['description'] = 'Adjusment Voucher for Challan no '.$admissionChallan->challanNo;
-                $data['user_id'] = $admissionChallan->student_id;
-                $data['total'] = $total;
-                $data['user_type'] = 'Student';
-                $data['category'] = 'Adjusment';
-                $data['owned_by'] = $admissionChallan->owned_by;
-                $data['created_by'] = $admissionChallan->created_by;
-                $data['items'] = $item;
+            $data['id'] = $admissionChallan->id;
+            $data['no'] = $admissionChallan->challanNo;
+            $data['date'] = date('Y-m-d');
+            // $data['adj_entry'] = $recipts->id;
+            $data['reference'] = $admissionChallan->student_id;
+            $data['description'] = 'Adjusment Voucher for Challan no ' . $admissionChallan->challanNo;
+            $data['user_id'] = $admissionChallan->student_id;
+            $data['total'] = $total;
+            $data['user_type'] = 'Student';
+            $data['category'] = 'Adjusment';
+            $data['owned_by'] = $admissionChallan->owned_by;
+            $data['created_by'] = $admissionChallan->created_by;
+            $data['items'] = $item;
 
-                $dataret = Utility::adj_voucher($data);
-                // $adj_challan->amount = $adj_amount;
-                $adj_challan->voucher_id = $dataret;
-                $adj_challan->save();
+            $dataret = Utility::adj_voucher($data);
+            // $adj_challan->amount = $adj_amount;
+            $adj_challan->voucher_id = $dataret;
+            $adj_challan->save();
             // $challanhead = ChallanHead::with('challan')->where('challan_id', $admissionChallan->id)
             // ->select('id', 'head_id','challan_id', 'price', 'paid', 'concession', \DB::raw('(price - (paid + concession)) AS arrears'))
             // ->having('arrears', '>', 0)->orderby('id','Asc')->get();
-            
+
             // dd($admissionChallan,$challanhead,$request->all(),$filtered,$item);
 
             // if($request->adjAmount > 0){
@@ -698,8 +701,7 @@ class StudentWithdrawalController extends Controller
             //         DB::commit();
             // }
             DB::commit();
-           return redirect()->back()->with('success', 'Adjustment has been created successfully.');
-
+            return redirect()->back()->with('success', 'Adjustment has been created successfully.');
         } catch (\Exception $e) {
             DB::rollback();
             dd($e);
@@ -711,16 +713,16 @@ class StudentWithdrawalController extends Controller
     {
         DB::beginTransaction();
         try {
-            $adj_challan = ChallanSecAdjustment::where('id',$request->id)->first();
+            $adj_challan = ChallanSecAdjustment::where('id', $request->id)->first();
             $v = 0;
             $i = 0;
             $item = [];
             $challan = Challans::where('id', $adj_challan->challan_id)->first();
             $voucher = JournalEntry::where('id', $adj_challan->voucher_id)->first();
-            $items = JournalItem::where('journal',$adj_challan->voucher_id)->get();
-            foreach($items as $it){
+            $items = JournalItem::where('journal', $adj_challan->voucher_id)->get();
+            foreach ($items as $it) {
                 $challanhead = ChallanHead::with('challan')->where('challan_id', $challan->id)->where('head_id', $it->head)->first();
-                if($it->credit != 0){
+                if ($it->credit != 0) {
                     $challanhead->paid = $challanhead->paid - $it->credit;
                     $challanhead->save();
                     $v += $it->credit;
@@ -729,7 +731,7 @@ class StudentWithdrawalController extends Controller
             }
             $challan->paid_amount = $challan->paid_amount - $v;
             $challan->save();
-            $items = JournalItem::where('journal',$adj_challan->voucher_id)->delete();
+            $items = JournalItem::where('journal', $adj_challan->voucher_id)->delete();
             $voucher->delete();
             $adj_challan->delete();
 
@@ -784,25 +786,24 @@ class StudentWithdrawalController extends Controller
             //     // $adj_challan->amount = $adj_amount;
             //     // $adj_challan->voucher_id = $dataret;
             //     // $adj_challan->save();
-                DB::commit();
+            DB::commit();
 
             return response()->json([
                 'success' => 'success',
             ]);
-
         } catch (\Exception $e) {
             DB::rollback();
             dd($e);
             return redirect()->back()->with('error', $e);
         }
     }
-    public function withdrawlapplicationstore(Request $request,$id)
+    public function withdrawlapplicationstore(Request $request, $id)
     {
         DB::beginTransaction();
         try {
             // dd($request->all());
             $studentwithdrawal = StudentWithdrawal::where('id', $id)->first();
-            if($request->net_balance != 0 && $request->challan_date != null){
+            if ($request->net_balance != 0 && $request->challan_date != null) {
                 //payable challan 
             }
             // $studentwithdrawal->withdraw_date = $request->withdrawl_date;
@@ -813,16 +814,16 @@ class StudentWithdrawalController extends Controller
             $studentwithdrawal->expected_readmission_date = $request->expected_readmission_date;
             $studentwithdrawal->status = 'approved';
             $studentwithdrawal->save();
-            $reg= StudentRegistration::where('id', $studentwithdrawal->student_id)->first();
-            if(!$reg){
-                $reg= StudentRegistration::where('reg_no', $studentwithdrawal->student_id)->first();
+            $reg = StudentRegistration::where('id', $studentwithdrawal->student_id)->first();
+            if (!$reg) {
+                $reg = StudentRegistration::where('reg_no', $studentwithdrawal->student_id)->first();
             }
             $reg->student_status = 'withdrawl';
             $reg->save();
-            
+
             $duplicate = Challans::where('student_id', $reg->id)
-            ->where('challan_date', $request->challan_date)
-            ->where('challan_type', 'Withdrawal')->first();
+                ->where('challan_date', $request->challan_date)
+                ->where('challan_type', 'Withdrawal')->first();
             if (!$duplicate) {
                 $chaallan = new Challans();
                 $chaallan->student_id = $reg->id;
@@ -856,7 +857,6 @@ class StudentWithdrawalController extends Controller
             $his->save();
             DB::commit();
             return redirect()->route('withdrawlstudent.index')->with('success', 'Student Withdrawal has been created successfully.');
-
         } catch (\Exception $e) {
             DB::rollback();
             dd($e);
@@ -864,7 +864,7 @@ class StudentWithdrawalController extends Controller
         }
     }
 
-   public function certificatePdf($id)
+    public function certificatePdf($id)
     {
         $withdrawal = StudentWithdrawal::with(['student', 'branch', 'class'])->findOrFail($id);
         $student = $withdrawal->student;
@@ -880,6 +880,7 @@ class StudentWithdrawalController extends Controller
             ->where('status', 'Paid')
             ->orderByDesc('fee_month')
             ->first();
+		dd($lastPaidChallan);
 
         $securityHead = \App\Models\FeeHead::whereRaw('LOWER(fee_head) LIKE ?', ['%security%'])->first();
         $securityChallan = null;
@@ -929,69 +930,82 @@ class StudentWithdrawalController extends Controller
     }
 
     public function certificatePrint($id)
-    {
-        $withdrawal = StudentWithdrawal::with(['student', 'branch', 'class'])->findOrFail($id);
-        $student = $withdrawal->student;
-        $branch = $withdrawal->branch;
-        $class = $withdrawal->class;
+{
+    $withdrawal = StudentWithdrawal::with(['student', 'branch', 'class'])->findOrFail($id);
+    $student = $withdrawal->student;
+    $branch = $withdrawal->branch;
+    $class = $withdrawal->class;
 
-        $enrollment = null;
-        if ($student) {
-            $enrollment = \App\Models\StudentEnrollments::where('regId', $student->reg_no)->first();
+    $enrollment = null;
+    if ($student) {
+        $enrollment = \App\Models\StudentEnrollments::where('regId', $student->id)->first();
+    }
+
+    $sectionName = '-';
+    if ($enrollment) {
+        $classSection = \App\Models\ClassSection::find($enrollment->section_id);
+        if ($classSection) {
+            $section = \App\Models\Section::find($classSection->section_id);
+            $sectionName = $section->name ?? '-';
         }
+    }
 
-        $lastPaidChallan = \App\Models\Challans::where('student_id', $student->id)
-            ->where('status', 'Paid')
-            ->orderByDesc('fee_month')
+    $lastPaidChallan = \App\Models\Challans::where('student_id', $student->id)
+        ->where('status', 'Paid')
+        ->orderByDesc('fee_month')
+        ->first();
+
+    $securityHead = \App\Models\FeeHead::whereRaw('LOWER(fee_head) LIKE ?', ['%security%'])->first();
+    $securityChallan = null;
+    $securityDeposit = 0;
+    $securityDepositDate = null;
+
+    if ($securityHead) {
+        $securityChallan = \App\Models\ChallanHead::leftJoin('challans', 'challan_heads.challan_id', '=', 'challans.id')
+            ->where('challans.student_id', $student->id)
+            ->where('challan_heads.head_id', $securityHead->id)
+            ->orderBy('challans.id', 'Desc')
+            ->select('challan_heads.*', 'challans.challan_date')
             ->first();
 
-        $securityHead = \App\Models\FeeHead::whereRaw('LOWER(fee_head) LIKE ?', ['%security%'])->first();
-        $securityChallan = null;
-        $securityDeposit = 0;
-        $securityDepositDate = null;
-        if ($securityHead) {
-            $securityChallan = \App\Models\ChallanHead::leftJoin('challans', 'challan_heads.challan_id', '=', 'challans.id')
-                ->where('challans.student_id', $student->id)
-                ->where('challan_heads.head_id', $securityHead->id)
-                ->orderBy('challans.id', 'Desc')   
-                ->select('challan_heads.*', 'challans.challan_date')
-                ->first();
-            if ($securityChallan) {
-                // $securityDeposit = $securityChallan->price - $securityChallan->concession;
-                $securityDeposit = $securityChallan->paid;
-                $securityDepositDate = $securityChallan->challan_date;
-            }
+        if ($securityChallan) {
+            $securityDeposit = $securityChallan->paid;
+            $securityDepositDate = $securityChallan->challan_date;
         }
-        $arrearsTotal = \App\Models\Challans::where('student_id', $student->id)
-            ->where('status', '!=', 'Paid')
-            ->where('challan_type', '!=', 'Transfer')
-            ->wheredate('fee_month', '<=', date('Y-m-01'))
-            ->select(\DB::raw('SUM(total_amount - (paid_amount + concession_amount)) AS arrears_total'))
-            ->value('arrears_total');
-        $adj = \App\Models\ChallanSecAdjustment::where('roll_no', $student->roll_no)->sum('amount');
-        $securityPayable = $securityDeposit - $adj;
-        $totalPayables = $securityPayable;
-        $totalReceivables = $arrearsTotal - $securityPayable;
-        $netBalance = $arrearsTotal - $securityPayable;
-
-        $pdf = Pdf::loadView('students.student_withdrawal.printWithdrawalCertificate', [
-            'withdrawal' => $withdrawal,
-            'student' => $student,
-            'branch' => $branch,
-            'class' => $class,
-            'enrollment' => $enrollment,
-            'lastPaidChallan' => $lastPaidChallan,
-            'securityDeposit' => $securityDeposit,
-            'securityDepositDate' => $securityDepositDate,
-            'arrearsTotal' => $arrearsTotal,
-            'securityPayable' => $securityPayable,
-            'totalPayables' => $totalPayables,
-            'totalReceivables' => $totalReceivables,
-            'netBalance' => $netBalance,
-        ]);
-
-        return $pdf->stream('withdrawal_certificate.pdf');
     }
+
+    $arrearsTotal = \App\Models\Challans::where('student_id', $student->id)
+        ->where('status', '!=', 'Paid')
+        ->where('challan_type', '!=', 'Transfer')
+        ->wheredate('fee_month', '<=', date('Y-m-01'))
+        ->select(\DB::raw('SUM(total_amount - (paid_amount + concession_amount)) AS arrears_total'))
+        ->value('arrears_total');
+
+    $adj = \App\Models\ChallanSecAdjustment::where('roll_no', $student->roll_no)->sum('amount');
+    $securityPayable = $securityDeposit - $adj;
+    $totalPayables = $securityPayable;
+    $totalReceivables = $arrearsTotal - $securityPayable;
+    $netBalance = $arrearsTotal - $securityPayable;
+
+    $pdf = Pdf::loadView('students.student_withdrawal.printWithdrawalCertificate', [
+        'withdrawal' => $withdrawal,
+        'student' => $student,
+        'branch' => $branch,
+        'class' => $class,
+        'enrollment' => $enrollment,
+        'sectionName' => $sectionName,
+        'lastPaidChallan' => $lastPaidChallan,
+        'securityDeposit' => $securityDeposit,
+        'securityDepositDate' => $securityDepositDate,
+        'arrearsTotal' => $arrearsTotal,
+        'securityPayable' => $securityPayable,
+        'totalPayables' => $totalPayables,
+        'totalReceivables' => $totalReceivables,
+        'netBalance' => $netBalance,
+    ]);
+
+    return $pdf->stream('withdrawal_certificate.pdf');
+}
     public function fwdtoho(Request $request, $id)
     {
         DB::beginTransaction();
@@ -1023,14 +1037,14 @@ class StudentWithdrawalController extends Controller
     {
         $lastChallan = Challans::with('unpaidHeads')->where('id', $request->id)->first();
         if ($lastChallan) {
-          $head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower('%security%')])->first();
+            $head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower('%security%')])->first();
             $challan = ChallanHead::leftjoin('challans', 'challan_heads.challan_id', '=', 'challans.id')
                 ->where('challans.rollno', $lastChallan->rollno)
                 ->where('challan_heads.head_id', $head->id)
                 ->orderBy('challans.id', 'Desc')
                 ->first();
 
-                $payable = 0;
+            $payable = 0;
             if ($challan) {
                 $payable = $challan->paid - $challan->concession;
             }
@@ -1043,7 +1057,6 @@ class StudentWithdrawalController extends Controller
                 'html' => view('students.student_withdrawal.challan_detail', compact('lastChallan', 'totalAvailable'))->render()
             ]);
         } else {
-
         }
     }
     public function studentadjustdetail(Request $request)
@@ -1053,8 +1066,8 @@ class StudentWithdrawalController extends Controller
         $entry_item = JournalItem::where('journal', $adjustment->voucher_id)->where('credit', '!=', 0)->get();
         $heads = [];
         $i = 0;
-        foreach($entry_item as $entry){
-            $head_id =$entry->head;
+        foreach ($entry_item as $entry) {
+            $head_id = $entry->head;
             $challan_head = ChallanHead::with('feehead')->where('head_id', $head_id)->where('challan_id', $challan->id)->first();
             $heads[$i]['head_id'] = $head_id;
             $heads[$i]['head_name'] = $challan_head->feehead->fee_head;
@@ -1062,9 +1075,8 @@ class StudentWithdrawalController extends Controller
             $heads[$i]['description'] = $entry->description;
             $i++;
         }
-            return response()->json([
-                'html' => view('students.student_withdrawal.challan_detail_adjustment', compact('adjustment', 'challan','heads'))->render()
-            ]);
-        
+        return response()->json([
+            'html' => view('students.student_withdrawal.challan_detail_adjustment', compact('adjustment', 'challan', 'heads'))->render()
+        ]);
     }
 }

@@ -6,7 +6,7 @@
     <script src="{{ asset('js/jquery.min.js') }}"></script>
     <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
     <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
-    
+
     <script>
         $(document).ready(function() {
 
@@ -22,15 +22,18 @@
                         student_id: studentId
                     },
                     success: function(response) {
-                        if (response.error) {
-                            alert(response.error);
-                            return;
+                        if (response.admission_error) {
+                            $('#error_ch')
+                                .text(response.admission_error)
+                                .css('color', 'red')
+                                .show();
+                        } else {
+                            $('#error_ch').text('').hide();
                         }
-                        console.log(response);
 
                         $('#actual_fee').val(response.actual_fee);
                         $('#security_deposit').val(Number(response.security_deposit).toFixed(
-                            2));
+                        2));
                         $('#security_payable').val(response.security_payable);
                         $('#other_fee').val(response.other_fee);
                         $('#refund').val(response.refund);
@@ -51,7 +54,6 @@
             });
 
             $('.adj_put').on('input', function() {
-                console.log($(this).data('max'));
                 var max = parseFloat($(this).data('max')) || 0;
                 var val = parseFloat($(this).val());
                 if (isNaN(val) || val < 0) {
@@ -71,7 +73,6 @@
             let py = parseFloat($('#pya').val()) || 0; // Total available
             let originalMax = parseFloat($(this).attr('data-original-max')) || parseFloat($(this).attr('max')) || 0;
             var val = parseFloat($(this).val());
-            console.log(originalMax, py)
             // Adjust max based on py
             let currentMax = (py < originalMax) ? py : originalMax;
             $(this).attr('max', currentMax); // Set max attribute to the new max
@@ -110,8 +111,6 @@
             var headIds = [];
             var amounts = [];
             var valid = true;
-
-            console.log(challanNo);
 
             // const adjAmount = document.getElementById(challanNo).value;
 
@@ -153,36 +152,45 @@
 
 
 
-    function deleteAdjustment(id) {
-        console.log(id);
+        function deleteAdjustment(id) {
 
-            // Ensure the value is valid before proceeding
-            // if (adjAmount === "" || adjAmount < 0) {
-            //     alert("Please enter a valid adjustment amount.");
-            //     return;
-            // }
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "This adjustment will be permanently deleted!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ff3a6e', //red color for delete action
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Rollback!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
 
-            // AJAX request to submit the data
-            $.ajax({
-                url: '{{ route('delete_adjustment') }}',
-                type: 'POST',
-                data: {
-                    id: id,
-                    // adjAmount: adjAmount,
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        show_toastr('success', 'Adjustment delete successfully!', 'success');
-                        location.reload();
-                    } else {
-                        show_toastr('error', 'Failed to submit adjustment', 'error');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error("AJAX Error:", error);
-                    alert("An error occurred. Please try again.");
+                if (!result.isConfirmed) {
+                    return;
                 }
+
+                $.ajax({
+                    url: '{{ route('delete_adjustment') }}',
+                    type: 'POST',
+                    data: {
+                        id: id,
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+
+                        if (response.success) {
+                            show_toastr('success', 'Adjustment deleted successfully!', 'success');
+                            location.reload();
+                        } else {
+                            show_toastr('error', 'Failed to delete adjustment', 'error');
+                        }
+
+                    },
+                    error: function() {
+                        show_toastr('error', 'Something went wrong', 'error');
+                    }
+                });
+
             });
         }
         $(document).on('click', '.challan-detail-link', function() {
@@ -190,6 +198,8 @@
             var challanNo = $(this).data('challan_id');
 
             var py = parseFloat($('#pya').val()) || 0; // Previously stored amount
+            // console.log(py,payable,challanNo);
+            console.log(py);
 
             if (py > 0) { // ✅ If previously stored amount is greater than zero
 
@@ -253,7 +263,7 @@
         $(document).ready(function() {
             // Automatically trigger the click event
             $('#calculateBalance').trigger('click');
-            
+
         });
     </script>
 @endpush
@@ -268,7 +278,7 @@
             <a href="{{ route('fwdtoho', @$studentwithdrawal->id) }}" title="Send to Head Office"
                 class="btn btn-sm btn-outline-warning">Send to HO</a>
         @endif
-        @if(@$withdrawal_challan)
+        @if (@$withdrawal_challan)
             <button type="button" class="btn btn-sm btn-primary"
                 onclick="window.open('{{ route('challan.show', $withdrawal_challan->id) }}', '_blank')"
                 data-bs-title="{{ __('Challan') }}">
@@ -356,7 +366,7 @@
         <hr>
         <div class="row d-flex justify-content-start mt-1 ">
             @if ($PrevChallan->isNotEmpty())
-                <h4>Un Paid Challans</h4>
+                <h4>Unpaid Challans</h4>
                 <table class="">
                     <thead class="table_heads">
                         <tr>
@@ -384,17 +394,18 @@
                                         onclick="deleteAdjustment('{{ $prev->challanNo }}')">Rollback</button> --}}
                                     <button type="button" class="btn btn-sm btn-primary"
                                         id="submit_{{ $prev->challanNo }}"
-                                        onclick="window.open('{{ route('challan.show', $prev->id) }}', '_blank')" data-bs-toggle="Print Challan"
-                                        data-bs-title="Send to Head Office" data-bs-title="{{ __('Preview') }}">
+                                        onclick="window.open('{{ route('challan.show', $prev->id) }}', '_blank')"
+                                        data-bs-toggle="Print Challan" data-bs-title="Send to Head Office"
+                                        data-bs-title="{{ __('Preview') }}">
                                         Preview
                                     </button>
                                 </td>
                                 <!-- <td>
-                                        <input type="number" name="form-control adj_amount{{ $prev->challanNo }}"
-                                            id="{{ $prev->challanNo }}" data-ids="{{ $prev->challanNo }}"
-                                            data-max="{{ $payable }}" class="adj_put" min="0"
-                                            max='{{ $payable }}' />
-                                    </td> -->
+                                                            <input type="number" name="form-control adj_amount{{ $prev->challanNo }}"
+                                                                id="{{ $prev->challanNo }}" data-ids="{{ $prev->challanNo }}"
+                                                                data-max="{{ $payable }}" class="adj_put" min="0"
+                                                                max='{{ $payable }}' />
+                                                        </td> -->
 
                                 <td>
                                     <a href="javascript:void(0);" class="challan-detail-link btn-sm btn-primary"
@@ -415,22 +426,23 @@
                                 <td id="tot_{{ $prev->challanNo }}">
                                     {{ $prev->total_amount - $prev->concession_amount }}</td>
                                 @php
-                                    $tot = $prev->total_amount - ($prev->paid_amount + $prev->concession_amount);
-                                    $rec = $prev->total_amount - $prev->concession_amount;
+                                    $tot += $prev->total_amount - ($prev->paid_amount + $prev->concession_amount);
+                                    $rec += $prev->total_amount - $prev->concession_amount;
                                 @endphp
                             </tr>
                         @endforeach
                         <tr>
-                            <td colspan="4" style="text-align: center;"><strong> Total </strong></td>
+                            <td colspan="5" style="text-align:right;"><strong> Total </strong></td>
                             <td><strong>{{ $tot }} </strong></td>
                             <td><strong>{{ $rec }} </strong></td>
                         </tr>
                     </tbody>
                 </table>
             @else
-                <p>No previous challans available.</p>
+                <p>No pending challan All challans are paid.</p>
             @endif
         </div>
+        <hr>
         <div class="row d-flex justify-content-start mt-1 ">
             @if ($adj_entry->isNotEmpty())
                 <h4>Previous Adjustments</h4>
@@ -440,9 +452,9 @@
                             <th>#</th>
                             <th>Action</th>
                             <th>Challan No</th>
-                            <th>Adjusted Amount</th>
                             <th>Billing Month</th>
                             <th>Adjusted Date</th>
+                            <th>Adjusted Amount</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -462,20 +474,21 @@
                                         Challan No: {{ $pre->challan->challanNo }}
                                     </a>
                                 </td>
+                                <td>{{ date('M-Y', strtotime($pre->challan->fee_month)) }}</td>
+                                <td>{{ date('d-M-Y', strtotime($pre->date)) }}</td>
                                 <td>
-                                    Adjusted Amount : {{ $pre->amount }}
+                                    {{ $pre->amount }}
                                 </td>
 
-                                <td>{{ date('M-Y', strtotime($pre->challan->fee_month)) }}</td>
-                                <td>{{ date('M-Y', strtotime($pre->date)) }}</td>
+
                                 {{-- <td id="pay_{{ $pre->challan_id }}"> {{ $pre }}</td> --}}
                                 @php
-                                    $rel = $pre->amount;
+                                    $rel += $pre->amount;
                                 @endphp
                             </tr>
                         @endforeach
                         <tr>
-                            <td colspan="4" style="text-align: center;"><strong> Total Adjusted Amount </strong></td>
+                            <td colspan="5" style="text-align: right;"><strong> Total Adjusted Amount </strong></td>
                             <td><strong>{{ $rel }} </strong></td>
                         </tr>
                     </tbody>
@@ -488,13 +501,14 @@
         <div class="row d-flex justify-content-end mt-1 ">
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
-                    {{ Form::label('actual_fee', __('Actual Fee'), ['class' => 'form-label']) }}
+                    {{ Form::label('actual_fee', __('Outstanding Dues'), ['class' => 'form-label']) }}
                     {{ Form::text('actual_fee', '', ['id' => 'actual_fee', 'class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
-                    {{ Form::label('security_deposit', __('Security Deposit'), ['class' => 'form-label']) }}
+                    {{ Form::label('security_deposit', __('Security Deposit'), ['class' => 'form-label']) }} <span
+                        id="error_ch" style="font-size:12px;"></span>
                     {{ Form::text('security_deposit', '', ['id' => 'security_deposit', 'class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
@@ -507,7 +521,7 @@
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('other_fee', __('Other Fee'), ['class' => 'form-label']) }}
-                    {{ Form::text('other_fee', '0', ['id' => 'other_fee', 'class' => 'form-control', ]) }}
+                    {{ Form::text('other_fee', '0', ['id' => 'other_fee', 'class' => 'form-control']) }}
                 </div>
             </div>
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
@@ -529,7 +543,7 @@
                     {{ Form::text('refund', '0', ['id' => 'refund', 'class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
-      
+
         </div>
         <div class="row d-flex justify-content-end mt-1 ">
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
@@ -568,7 +582,7 @@
                 </div>
             </div>
         </div>
-        <div class="modal fade"  id="challanDetailModal" tabindex="-1" aria-labelledby="challanDetailModalLabel"
+        <div class="modal fade" id="challanDetailModal" tabindex="-1" aria-labelledby="challanDetailModalLabel"
             aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">

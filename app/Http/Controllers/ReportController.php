@@ -1280,7 +1280,7 @@ class ReportController extends Controller
     {
         $user = \Auth::user();
         if (\Auth::user()->can('ledger report')) {
-            if (\Auth::user()->type == 'company') {
+             if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', 'branch')->where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('All Branches', 'All Branches');
@@ -1292,11 +1292,9 @@ class ReportController extends Controller
             $creatorId = $user->creatorId();
             $start = $request->start_date ?? date('Y-m-01');
             $end = $request->end_date ?? date('Y-m-d', strtotime('+1 day'));
-            if($request->branch == 'All Branches'){
-                $selectedBranch = null;
-            }else{
-                $selectedBranch = $request->branch;
-            }
+
+
+            $selectedBranch = $request->branch ?? null;
 
             $isAccountFiltered = !empty($request->account);
             $type = $isAccountFiltered ? 'other' : 'group';
@@ -1305,9 +1303,6 @@ class ReportController extends Controller
             $chartAccountsQuery = ChartOfAccount::where('created_by', $creatorId);
             if ($isAccountFiltered) {
                 $chartAccountsQuery->where('id', $request->account);
-            }else{
-                $a = ChartOfAccount::where('created_by', $creatorId)->where('parent', 0)->first();
-                $chartAccountsQuery->where('id', $a->id);
             }
             $chart_accounts = $chartAccountsQuery->get();
 
@@ -1334,7 +1329,6 @@ class ReportController extends Controller
             if($request->old){
                 return view('report.ledger_summary_old', compact('filter', 'chart_accounts', 'accounts', 'subAccounts', 'type'));
             }
-            // dd($chart_accounts, $type, $start, $end, $selectedBranch);
             $rows = $this->ledgerService->buildLedgerRows($chart_accounts, $type, $start, $end, $selectedBranch);
             // dd($rows);
             return view('report.ledger_summary', compact('filter', 'chart_accounts', 'accounts', 'subAccounts', 'type', 'rows', 'branches'));      
@@ -3496,7 +3490,7 @@ class ReportController extends Controller
         $i = 1;
         foreach ($rows as $row) {
             // Convert date string to Excel serial date for proper date formatting
-            $dateValue = $row['date'];
+            $dateValue =  $row['date'];
 
             $data[] = [
                 $i++,

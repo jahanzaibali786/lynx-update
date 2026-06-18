@@ -31,6 +31,33 @@
         document.getElementById('guardiancnic').addEventListener('keyup', function() {
             formatCNIC(this);
         });
+		$(document).ready(function() {
+
+            $('#profileInput').on('change', function() {
+                let file = this.files[0];
+                if (!file) return;
+                $('#imageMsg').text('');
+
+                // Validate size (1MB = 1024 * 1024)
+                if (file.size > 500 * 1024) {
+                    $('#imageError').text('Image must be less than 500KB');
+                    $(this).val('');
+                    return;
+                } else {
+                    $('#imageError').text('');
+                }
+
+                // Preview Image
+                let reader = new FileReader();
+
+                reader.onload = function(e) {
+                    $('#profilePreview').attr('src', e.target.result);
+                }
+
+                reader.readAsDataURL(file);
+            });
+
+        });
     </script>
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
@@ -98,6 +125,7 @@
             // console.log("due date:", dueDate);
             url = '{{ route('generateChallan') }}';
             var appurl = '{{ env('APP_URL') }}';
+            var instview = '{{ route('installmentview', ':id') }}';
    
             var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
@@ -110,8 +138,8 @@
                     if (xhr.status === 200) {
                         var response = JSON.parse(xhr.responseText); // Parse the JSON response
                         const basePath = window.location.pathname.split('/')[1];
-                        window.location.href = `${appurl}/installments/${response.data.id}`;
-                    } else if (xhr.status === 422) { // ✅ Correct way to check HTTP status
+                        window.location.href = instview.replace(':id', response.data.id); 
+					} else if (xhr.status === 422) { // ✅ Correct way to check HTTP status
                         console.error('Challan already generated.');
                         var response = JSON.parse(xhr.responseText);
                         alert(response.message); // Optionally show a message to the user
@@ -162,14 +190,53 @@
                     }
                 });
             }
-            $('#submitBtnSection1').click(function() {
-                var formData = {
-                    sectionName: 'section1',
-                    sectionData: $('#section1 :input').serializeArray()
-                };
-                sendFormData(formData);
-            });
+            // $('#submitBtnSection1').click(function() {
+            //     var formData = {
+            //         sectionName: 'section1',
+            //         sectionData: $('#section1 :input').serializeArray()
+            //     };
+            //     sendFormData(formData);
+            // });
+$('#submitBtnSection1').click(function() {
 
+                let sectionData = $('#section1 :input').serializeArray();
+
+                let file = $('#profileInput')[0].files[0];
+
+                // function that sends final payload
+                function submitRequest(imageValue = null) {
+
+                    if (imageValue) {
+                        sectionData.push({
+                            name: 'profile_image',
+                            value: imageValue
+                        });
+                    }
+
+                    var formData = {
+                        sectionName: 'section1',
+                        sectionData: sectionData
+                    };
+
+                    sendFormData(formData);
+                }
+
+                // if image exists → convert then send
+                if (file) {
+
+                    let reader = new FileReader();
+
+                    reader.onload = function(e) {
+                        submitRequest(e.target.result); // base64 image
+                    };
+
+                    reader.readAsDataURL(file);
+
+                } else {
+                    // no image → send immediately
+                    submitRequest();
+                }
+            });
             $('#submitBtnSection2').click(function() {
                 var formData = {
                     sectionName: 'section2',
@@ -408,11 +475,28 @@
                                 Withdrawal</button>
                         </div> --}}
                         </div>
-                        <div class="img col-6 col-md-6 col-lg-6 d-flex justify-content-end align-items-start"
-                            style="margin-top: 70px;">
+                         <div class="img col-6 col-md-6 col-lg-6 d-flex justify-content-end align-items-start"
+                            style="margin-top: 30px; display:grid !important;">
 
-                            <img src="{{ asset('assets/images/Student_profile.png') }}" alt=""
-                                style="border:1px solid var(--primary);">
+                            <label for="profileInput" style="cursor:pointer;">
+                                @php
+                                    $profile =
+                                        $student->profile_image && file_exists(storage_path('app/public/' . $student->profile_image))
+                                            ? asset('storage/' . $student->profile_image)
+                                            : asset('assets/images/Student_profile.png');
+                                @endphp
+
+                                <img id="profilePreview" src="{{ $profile }}" alt="Profile"
+                                    style="border:1px solid var(--primary); width:200px; height:200px; object-fit:cover;">
+                                {{-- <img id="profilePreview" src="{{ asset('assets/images/Student_profile.png') }}"
+                                    alt="Profile"
+                                    style="border:1px solid var(--primary); width:200px; height:200px; object-fit:cover;"> --}}
+                            </label>
+
+                            <input type="file" id="profileInput" name="profile_image" accept="image/*"
+                                style="display:none;">
+                            <small class="text-primary" id="imageMsg">Upload Image</small>
+                            <small class="text-danger" id="imageError"></small>
                         </div>
                     </div>
                     <div class="general-details col-12 col-md-12 col-lg-12">
@@ -750,6 +834,26 @@
                             </div>
                         </div>
                     </div>
+					@if (!empty($showJunJulFeeExempt))
+                        @php
+                            $canUncheckJunJulExempt = \Auth::user()->type === 'company';
+                            $disableJunJulExempt = !$canUncheckJunJulExempt && !empty($student->fee_exempt_jun_jul);
+                        @endphp
+                        <div class="form-group">
+                            <div class="form-check">
+                                @if ($canUncheckJunJulExempt)
+                                    <input type="hidden" name="fee_exempt_jun_jul" value="0">
+                                @endif
+                                <input type="checkbox" class="form-check-input" id="fee_exempt_jun_jul"
+                                    name="fee_exempt_jun_jul" value="1"
+                                    {{ !empty($student->fee_exempt_jun_jul) ? 'checked' : '' }}
+                                    {{ $disableJunJulExempt ? 'disabled' : '' }}>
+                                <label class="form-check-label" for="fee_exempt_jun_jul">
+                                    {{ __('Fee Exempt (Jun-Jul)') }}
+                                </label>
+                            </div>
+                        </div>
+                    @endif
                     <div class="d-flex " style="justify-content: space-between;">
                     <div class="form-group">
                         <a href="{{ route('student.fee_generate', $student->id) }}"

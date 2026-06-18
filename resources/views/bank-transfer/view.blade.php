@@ -45,24 +45,18 @@
             }
 
             .page-wrapper {
-                width: 100% !important;
-                /* fill the full printable width */
+                width: 100% !important;       /* fill the full printable width */
                 max-width: 100% !important;
-                padding: 0 !important;
-                /* @page margin already provides the gap */
+                padding:10  !important;         /* @page margin already provides the gap */
                 margin: 0 !important;
                 box-shadow: none !important;
                 background: #fff !important;
             }
 
-            .no-print {
-                display: none !important;
-            }
+            .no-print { display: none !important; }
 
             /* * { color: #000 !important; } */
-            .col-header-row {
-                background-color: #878787 !important;
-            }
+            .col-header-row { background-color: #878787 !important; }
         }
 
         /* ── SCREEN ── */
@@ -99,9 +93,8 @@
         .page-wrapper {
             width: 794px;
             background: #fff;
-            padding: 30px 38px;
-            /* ~10mm equivalent on screen */
-            box-shadow: 0 2px 12px rgba(0, 0, 0, .18);
+            padding: 30px 38px;   /* ~10mm equivalent on screen */
+            box-shadow: 0 2px 12px rgba(0,0,0,.18);
         }
 
         .separator {
@@ -133,13 +126,8 @@
             margin-top: 1px;
         }
 
-        .logo-area {
-            height: 60px;
-        }
-
-        .logo-area img {
-            height: 100%;
-        }
+        .logo-area { height: 60px; }
+        .logo-area img { height: 100%; }
 
         /* ── REF & DATE ── */
         .ref-date-row {
@@ -148,9 +136,7 @@
             margin: 8px 0 4px 0;
         }
 
-        .ref-date-table {
-            border-collapse: collapse;
-        }
+        .ref-date-table { border-collapse: collapse; }
 
         .ref-date-table td {
             padding: 1px 5px;
@@ -158,15 +144,8 @@
             white-space: nowrap;
         }
 
-        .ref-date-table td.lbl {
-            font-weight: 700;
-            text-align: right;
-        }
-
-        .ref-date-table td.val {
-            font-weight: 400;
-            text-align: right;
-        }
+        .ref-date-table td.lbl { font-weight: 700; text-align: right; }
+        .ref-date-table td.val { font-weight: 400; text-align: right; }
 
         /* ══════════════════════════════════
            VOUCHER TABLE
@@ -178,21 +157,10 @@
             margin-bottom: 8px;
         }
 
-        .col-left {
-            width: 42%;
-        }
-
-        .col-debit {
-            width: 13%;
-        }
-
-        .col-right-section {
-            width: 31%;
-        }
-
-        .col-credit {
-            width: 14%;
-        }
+        .col-left          { width: 42%; }
+        .col-debit         { width: 13%; }
+        .col-right-section { width: 31%; }
+        .col-credit        { width: 14%; }
 
         .voucher-table td,
         .voucher-table th {
@@ -202,9 +170,7 @@
         }
 
         /* Bank header row — top border to open the block */
-        .bank-header-row {
-            border-top: var(--border);
-        }
+        .bank-header-row { border-top: var(--border); }
 
         .voucher-table .bank-header-row td {
             font-weight: 700;
@@ -234,39 +200,18 @@
             border: var(--border);
         }
 
-        .voucher-table .col-header-row td.left {
-            text-align: left;
-        }
-
-        .voucher-table .col-header-row td.right {
-            text-align: right;
-        }
+        .voucher-table .col-header-row td.left  { text-align: left; }
+        .voucher-table .col-header-row td.right { text-align: right; }
 
         /* Data rows */
-        .voucher-table .data-row td {
-            font-size: var(--fs-sm);
-        }
+        .voucher-table .data-row td { font-size: var(--fs-sm); }
 
-        .voucher-table .data-row td:first-child {
-            border-left: var(--border);
-            border-right: var(--border);
-        }
+        .voucher-table .data-row td:first-child  { border-left: var(--border); border-right: var(--border); }
+        .voucher-table .data-row td:nth-child(2) { border-right: var(--border); }
+        .voucher-table .data-row td:nth-child(3) { border-right: var(--border); }
+        .voucher-table .data-row td:last-child   { border-right: var(--border); }
 
-        .voucher-table .data-row td:nth-child(2) {
-            border-right: var(--border);
-        }
-
-        .voucher-table .data-row td:nth-child(3) {
-            border-right: var(--border);
-        }
-
-        .voucher-table .data-row td:last-child {
-            border-right: var(--border);
-        }
-
-        .voucher-table .data-row:last-child td {
-            border-bottom: var(--border);
-        }
+        .voucher-table .data-row:last-child td   { border-bottom: var(--border); }
 
         /* closing balance row gets a top border too */
         .voucher-table .data-row.closing-row td:nth-child(3),
@@ -274,9 +219,7 @@
             border-top: var(--border);
         }
 
-        .voucher-table .data-row td.amount {
-            text-align: right;
-        }
+        .voucher-table .data-row td.amount { text-align: right; }
 
         /* Amount in words */
         .words-row {
@@ -284,14 +227,11 @@
             margin: 6px 0 16px 0;
         }
 
-        .words-row span {
-            text-decoration: underline;
-        }
+
+        .words-row span { text-decoration: underline; }
 
         /* Signatures */
-        .signature-section {
-            margin-top: 20px;
-        }
+        .signature-section { margin-top: 20px; }
 
         .sig-row {
             display: flex;
@@ -326,10 +266,7 @@
             margin-top: 1px;
         }
 
-        .checked-row {
-            display: flex;
-            justify-content: flex-start;
-        }
+        .checked-row { display: flex; justify-content: flex-start; }
     </style>
 </head>
 
@@ -347,7 +284,7 @@
 
     <div class="page-wrapper">
 
-        @php
+       @php
             if (!function_exists('numberToWords')) {
                 function numberToWords($number)
                 {
@@ -504,23 +441,27 @@
 
             <div class="words-row">
                 <b>Received Rs. in Words:</b>&nbsp;<span>{{ ucwords(strtolower($amountWords)) }}</span>
+            <br>
+            <br>
+                <b>Remarks:</b> {{ $transfer->description }}
             </div>
-
+              
             <div class="signature-section">
                 <div class="sig-row">
-                    <div class="sig-block">
-                        <div class="sig-line"></div>
-                        <div class="sig-label">Received by: (Name/Sign)</div>
-                        <div class="sig-sublabel">Accountant</div>
-                    </div>
-                    <div class="sig-block" style="align-items:flex-end;">
+                     <div class="sig-block" style="align-items:center;">
                         <div class="sig-line"></div>
                         <div class="sig-label">Issued by: (Name/Sign)</div>
                         <div class="sig-sublabel">Accountant</div>
                     </div>
-                </div>
-                <div class="checked-row">
-                    <div class="sig-block">
+                    <div class="sig-block" style="align-items:center;">
+                        <div class="sig-line"></div>
+                        <div class="sig-label">Received by: (Name/Sign)</div>
+                        <div class="sig-sublabel">Accountant</div>
+                    </div>
+                   
+                {{-- </div> --}}
+                {{-- <div class="checked-row"> --}}
+                    <div class="sig-block" style="align-items:center;">
                         <div class="sig-line"></div>
                         <div class="sig-label">Checked by: (Name/Sign)</div>
                         <div class="sig-sublabel">Accounts Department (HO)</div>
@@ -614,23 +555,27 @@
 
             <div class="words-row">
                 <b>Received Rs. in Words:</b>&nbsp;<span>{{ ucwords(strtolower($amountWords)) }}</span>
+            <br>
+            <br>
+                    <b>Remarks:</b> {{ $transfer->description }}
             </div>
-
+             
             <div class="signature-section">
                 <div class="sig-row">
-                    <div class="sig-block">
-                        <div class="sig-line"></div>
-                        <div class="sig-label">Received by: (Name/Sign)</div>
-                        <div class="sig-sublabel">Accountant</div>
-                    </div>
-                    <div class="sig-block" style="align-items:flex-end;">
+                     <div class="sig-block" style="align-items:center;">
                         <div class="sig-line"></div>
                         <div class="sig-label">Issued by: (Name/Sign)</div>
                         <div class="sig-sublabel">Accountant</div>
                     </div>
-                </div>
-                <div class="checked-row">
-                    <div class="sig-block">
+                    <div class="sig-block" style="align-items:center;">
+                        <div class="sig-line"></div>
+                        <div class="sig-label">Received by: (Name/Sign)</div>
+                        <div class="sig-sublabel">Accountant</div>
+                    </div>
+                   
+                {{-- </div> --}}
+                {{-- <div class="checked-row"> --}}
+                    <div class="sig-block" style="align-items:center;">
                         <div class="sig-line"></div>
                         <div class="sig-label">Checked by: (Name/Sign)</div>
                         <div class="sig-sublabel">Accounts Department (HO)</div>
@@ -645,22 +590,11 @@
         function downloadPDF() {
             const element = document.querySelector('.page-wrapper');
             const opt = {
-                margin: [10, 10, 10, 10],
-                /* 10mm on all sides */
+                margin: [10, 10, 10, 10],   /* 10mm on all sides */
                 filename: "{{ 'Funds-Transfer-Detail-' . ($ref ?? '000000') }}.pdf",
-                image: {
-                    type: 'jpeg',
-                    quality: 1
-                },
-                html2canvas: {
-                    scale: 3,
-                    useCORS: true
-                },
-                jsPDF: {
-                    unit: 'mm',
-                    format: 'a4',
-                    orientation: 'portrait'
-                }
+                image: { type: 'jpeg', quality: 1 },
+                html2canvas: { scale: 3, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
             html2pdf().set(opt).from(element).save();
         }

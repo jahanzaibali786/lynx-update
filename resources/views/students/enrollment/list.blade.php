@@ -75,22 +75,9 @@
                                     title="Clear Filter" data-bs-title="{{ __('Reset') }}">
                                     <span class="btn-inner--icon">Clear</span>
                                 </a>
-                                {{-- //export  --}}
-                                {{-- <button class="btn btn-sm btn-outline-warning" type="submit" name="print"
-                                    value="class_print" formtarget="_blank" title="Class Print" data-bs-title="{{ __('Class Print') }}">
-                                    <span class="btn-inner--icon">Class Print</span>
-                                </button>
-                                <button class="btn btn-sm btn-outline-success" type="submit" name="print" value="pdf"
-                                    title="Print / PDF" formtarget="_blank" data-bs-title="{{ __('Print / PDF') }}">
-                                    <span class="btn-inner--icon">Print / PDF</span>
-                                </button>
-                                <button class="btn btn-sm btn-outline-success" type="submit" name="export" value="excel"
-                                    title="Export" data-bs-title="{{ __('Export') }}"><span
-                                        class="btn-inner--icon">Export</span>
-                                </button> --}}
                                 <!-- Actions Dropdown -->
                                 <div class="dropdown d-inline-block mx-1">
-                                    <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
+                                    <button class="btn btn-sm btn-secondary dropdown-toggle" type="button"
                                         id="actionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                                         Export
                                     </button>
@@ -107,6 +94,26 @@
                                         </li>
                                     </ul>
                                 </div>
+                                <div class="dropdown d-inline-block mx-1">
+                                    <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
+                                        id="actionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        Class List
+                                    </button>
+                                    <ul class="dropdown-menu" aria-labelledby="actionDropdown">
+                                        <li>
+                                            <button class="dropdown-item" type="submit" name="class_list_export"
+                                                value="excel">
+                                                <i class="ti ti-file me-2"></i>Excel
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item" type="submit" name="Class Listexport"
+                                                value="pdf">
+                                                <i class="ti ti-download me-2"></i>Pdf
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
 
@@ -117,7 +124,7 @@
     </div>
     {{-- @endif --}}
 
-    <table class="datatable">
+    <table class="datatable" id="enrollment-table">
         <thead class="table_heads">
             <tr>
                 <th>{{ __('Sr No') }}</th>
@@ -131,63 +138,45 @@
                 <th>{{ __('Session') }}</th>
                 <th>{{ __('Reg Type') }}</th>
                 <th>{{ __('Admission Date') }}</th>
-                <th width="200px">{{__('Action')}}</th>
-                {{-- <th width="200px">{{__('Action')}}</th> --}}
+                <th width="200px">{{ __('Action') }}</th>
+                {{-- <th width="200px">{{__('Action')}}</th> -- --}}
+
             </tr>
         </thead>
         <tbody>
             @foreach ($enrollments as $enroll)
-                {{-- @if($loop->iteration == 2)
-                @dd($enroll)
-                @endif --}}
                 <tr>
-                    @php
-                        $studentData = App\Models\StudentRegistration::with(
-                            'enrollment.class',
-                            'enrollment.section',
-                            'registeroption',
-                            'session',
-                        )
-                            ->where('id', $enroll->regId)
-                            ->first();
-                    @endphp
-                    {{-- @dd($studentData,$enroll) --}}
                     <td>{{ $loop->iteration }}</td>
-                    <td>{{ @$enroll->branch->name }}</td>
-                    <td>{{ @$studentData->reg_no }}</td>
-                    <td>{{ @$enroll->enrollId }}</td>
-                    <td>{{ @$studentData->stdname }}</td>
-                    <td>{{ @$studentData->fathername }}</td>
-                    <td>{{ @$enroll->class->name }}</td>
-                    <td>{{ @$enroll->section->name }}</td>
-                    <td>{{ @$studentData->session->year }}</td>
-                    <td>{{ @$studentData->registeroption->name }}</td>
-                    <td>{{ @$enroll->adm_date ? date('d-M-Y',strtotime($enroll->adm_date)) : '-' }}</td>
-
+                    <td>{{ $enroll->branch->name ?? '-' }}</td>
+                    <td>{{ $enroll->StudentRegistration->reg_no ?? '-' }}</td>
+                    <td>{{ $enroll->enrollId }}</td>
+                    <td>{{ $enroll->StudentRegistration->stdname ?? '-' }}</td>
+                    <td>{{ $enroll->StudentRegistration->fathername ?? '-' }}</td>
+                    <td>{{ $enroll->class->name ?? '-' }}</td>
+                    <td>{{ $enroll->section->name ?? '-' }}</td>
+                    <td>{{ $enroll->StudentRegistration->session->year ?? '-' }}</td>
+                    <td>{{ $enroll->StudentRegistration->registeroption->name ?? '-' }}</td>
+                    <td>{{ $enroll->adm_date ? date('d-M-Y', strtotime($enroll->adm_date)) : '-' }}</td>
                     <td>
                         <div class="action-btn ms-2">
                             <a href="{{ route('registration.show', $enroll->regId) }}"
-                                class="mx-1 btn btn-sm align-items-center btn-outline-primary"
-                                data-bs-title="{{ __('Show') }}" data-bs-title="{{ __('Show') }}"><span
-                                    class="btn-inner--icon"><i class="ti ti-eye"></i></span></a>
-
-                            <a href="{{ route('admission.order', $studentData->id) }}"
-                                class="mx-1 btn btn-sm align-items-center btn-outline-success"
-                                data-bs-title="{{ __('Admission Order') }}"
-                                data-bs-title="{{ __('Admission Order') }}"><span class="btn-inner--icon"><i
-                                        class="ti ti-receipt"></i></span></a>
-
+                                class="mx-1 btn btn-sm align-items-center btn-outline-primary">
+                                <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
+                            </a>
+                            <a href="{{ route('admission.order', $enroll->regId) }}"
+                                class="mx-1 btn btn-sm align-items-center btn-outline-success">
+                                <span class="btn-inner--icon"><i class="ti ti-receipt"></i></span>
+                            </a>
                         </div>
-                        {!! Form::close() !!}
                     </td>
                 </tr>
             @endforeach
         </tbody>
     </table>
+    <div id="pagination-container" class="mt-3"></div>
     <script>
         $(document).on('change', '#class_select', function() {
             var class_id = $(this).val();
-
             $.ajax({
                 url: '{{ route('class.section') }}',
                 type: 'POST',
@@ -196,13 +185,11 @@
                     "_token": "{{ csrf_token() }}",
                 },
                 success: function(data) {
-
                     $('#section_select').empty();
-                     $('#section_select').append($('<option>', {
-                            value: 'all',
-                            text: 'All Session'
-                        }));
-                    // $('#section_to').append('<option value="">{{ __('Select Section') }}</option>');
+                    $('#section_select').append($('<option>', {
+                        value: 'all',
+                        text: 'All Sections'
+                    }));
                     for (let index = 0; index < data.length; index++) {
                         $('#section_select').append('<option value="' + data[index]['id'] + '">' + data[
                             index]['name'] + '</option>');
@@ -212,7 +199,6 @@
         });
 
         function branchcustomer(id) {
-            var customer = $('#customerselect').val();
             $.ajax({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -224,10 +210,8 @@
                 },
                 dataType: 'json',
                 success: function(result) {
-                    
                     if (result.status == 'success') {
                         var $classSelect = $('#class_select');
-                        // Remove previous custom select wrapper and instance
                         if ($classSelect[0] && $classSelect[0].customSelectInstance) {
                             $classSelect[0].customSelectInstance.destroy();
                             delete $classSelect[0].customSelectInstance;
@@ -236,8 +220,6 @@
                             $classSelect.next('.custom-select-wrapper').remove();
                         }
                         $classSelect.removeClass('custom-select');
-
-                        // Clear and append new options
                         $classSelect.empty();
                         $classSelect.append($('<option>', {
                             value: 'all',
@@ -250,16 +232,11 @@
                                 text: cls.name
                             }));
                         }
-
-                        // Re-add class and re-init
                         $classSelect.addClass('custom-select');
                         $classSelect.show();
-                        // Directly create new CustomSelect instance for this select only
                         if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
                             window.CustomSelect.create($classSelect[0]);
                         }
-
-                        // Session select update (unchanged)
                         $('#sessionselect').empty();
                         $('#sessionselect').append($('<option>', {
                             value: 'all',
@@ -273,48 +250,8 @@
                             }));
                         }
                     }
-                    if (result.status == 'error') {}
-
                 }
             });
         }
-
-        // function classStudents(id) {
-        //     $.ajax({
-        //         headers: {
-        //             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        //         },
-        //         url: "{{ route('class.students') }}",
-        //         type: "POST",
-        //         data: {
-        //             class_id: id
-        //         },
-        //         dataType: 'json',
-        //         success: function(result) {
-        //             if (result.status == 'success') {
-        //                 $('#student_select').empty();
-        //                 $('#student_select').append($('<option>', {
-        //                     value: '',
-        //                     text: 'Select Student'
-        //                 }));
-        //                 for (var id in result.students) {
-        //                     if (result.students.hasOwnProperty(id)) {
-        //                         $('#student_select').append($('<option>', {
-        //                             value: id,
-        //                             text: result.students[id]
-        //                         }));
-        //                     }
-        //                 }
-        //                 $('#student_select').val('');
-        //             }
-        //         }
-        //     });
-        // }
-        // $(document).on('change', '#class_select', function() {
-        //     var classId = $(this).val();
-        //     if (classId) {
-        //         classStudents(classId);
-        //     }
-        // });
     </script>
 @endsection

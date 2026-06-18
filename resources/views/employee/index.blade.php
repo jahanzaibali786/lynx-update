@@ -125,8 +125,8 @@
     </div>
 
     <div class="table-responsive">
-        <table class="">
-            <thead>table datatable
+        <table class="table datatable">
+            <thead>
                 <tr class="table_heads">
                     <th>Sr.</th>
                     <th>{{ __('Emp.No') }}</th>

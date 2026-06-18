@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Challans;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -19,7 +20,7 @@ class FixJournalData extends Command
             ->min('id');
 
         $maxId = DB::table('student_receipts')
-            ->whereDate('recipt_date', '<=', '2025-09-10')
+            ->whereDate('recipt_date', '<=', '2025-09-30')
             ->max('id');
 
         if (!$minId || !$maxId) {
@@ -48,14 +49,22 @@ class FixJournalData extends Command
             $voucherIds = $receipts->pluck('voucher_id')->toArray();
 
             // Step 2: Update journal_entries in bulk
+            // foreach ($receipts as $receipt) {
+            //     DB::table('journal_entries')
+            //         ->where('id', $receipt->voucher_id)
+            //         ->update([
+            //             'date' => $receipt->recipt_date,
+            //             'created_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(created_at))"),
+            //             'updated_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(updated_at))"),
+            //         ]);
+            // }
             foreach ($receipts as $receipt) {
-                DB::table('journal_entries')
-                    ->where('id', $receipt->voucher_id)
-                    ->update([
-                        'date' => $receipt->recipt_date,
-                        'created_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(created_at))"),
-                        'updated_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(updated_at))"),
-                    ]);
+                $challan = Challans::find($receipt->challan_id);
+
+                if ($challan) {
+                    $challan->fee_month = $challan->challan_date;
+                    $challan->save();
+                }
             }
 
             // Step 3: Update journal_items in bulk
@@ -65,20 +74,22 @@ class FixJournalData extends Command
 
             foreach ($journalItems as $item) {
                 $receipt = $receipts->firstWhere('voucher_id', $item->journal);
-                $bankAccount = DB::table('bank_accounts')->where('id', $receipt->bank_id)->first();
-                $fee_head = DB::table('fee_heads')->where('id', $item->head)->first();
-                $chartAccountId = $bankAccount->chart_account_id ?? null;
+                // $bankAccount = DB::table('bank_accounts')->where('id', $receipt->bank_id)->first();
+                // $fee_head = DB::table('fee_heads')->where('id', $item->head)->first();
+                // $chartAccountId = $bankAccount->chart_account_id ?? null;
 
-                $newAccount = ($item->head == 0 && $item->credit == 0 && $chartAccountId)
-                    ? $chartAccountId
-                    : $fee_head->receivable_account_id;
+                // $newAccount = ($item->head == 0 && $item->credit == 0 && $chartAccountId)
+                //     ? $chartAccountId
+                //     : $fee_head->receivable_account_id;
 
                 DB::table('journal_items')
                     ->where('id', $item->id)
                     ->update([
-                        'created_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(created_at))"),
-                        'updated_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(updated_at))"),
-                        'account' => $newAccount,
+                        'user_id' => $receipt->student_id, // Assuming student_id is already correct
+                        'user_type' => 'Student',
+                        // 'created_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(created_at))"),
+                        // 'updated_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(updated_at))"),
+                        // 'account' => $newAccount,
                     ]);
             }
 

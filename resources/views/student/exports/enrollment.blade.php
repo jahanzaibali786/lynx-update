@@ -77,7 +77,7 @@
                 style="width: 150px;background-color: gray; font-weight: bold; text-align: center; border: 2px solid black; border-collapse: collapse;
 ">
                 {{ __('Admission Date') }}</th>
-            <th
+       <th
                 style="width: 150px;background-color: gray; font-weight: bold; text-align: center; border: 2px solid black; border-collapse: collapse;
 ">
                 {{ __('Gender') }}</th>
@@ -114,7 +114,7 @@
                 <td style="text-align: left; font-size: 8px; font-family: Arial, Helvetica, sans-serif;">{{ @$enrollment->class->name }}</td>
                 <td style="text-align: left; font-size: 8px; font-family: Arial, Helvetica, sans-serif;">{{ @$enrollment->section->name }}</td>
                 <td style="text-align: left; font-size: 8px; font-family: Arial, Helvetica, sans-serif;">{{ @$enrollment->session->year }}</td>
-                <td style="text-align: left; font-size: 8px; font-family: Arial, Helvetica, sans-serif;">{{ $enrollment->adm_date ? date('d-M-Y', strtotime($enrollment->adm_date)) : '' }}</td>
+                <td style="text-align: left; font-size: 8px; font-family: Arial, Helvetica, sans-serif;">{{ $enrollment->adm_date ? date('M-d-Y', strtotime($enrollment->adm_date)) : '' }}</td>
                 <td style="text-align: left; font-size: 8px; font-family: Arial, Helvetica, sans-serif;">{{ @$enrollment->StudentRegistration->gender }}</td>
                 <td style="text-align: left; font-size: 8px; font-family: Arial, Helvetica, sans-serif;">{{ @$enrollment->StudentRegistration->address }}</td>
             </tr>

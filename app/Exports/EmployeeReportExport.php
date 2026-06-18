@@ -44,7 +44,7 @@ class EmployeeReportExport implements FromView,WithColumnFormatting ,WithEvents
         ]);
     }
 
-    public function columnFormats(): array
+        public function columnFormats(): array
     {
         return [
             'K' => 'dd-mmm-yyyy',
@@ -78,7 +78,6 @@ class EmployeeReportExport implements FromView,WithColumnFormatting ,WithEvents
 
                 // Logo insertion
                 $highestColumn = $sheet->getHighestColumn();
-                
                 $originalPath = public_path('assets/images/lynx2.jpg');
 
                 if (file_exists($originalPath) && function_exists('imagecreatefromjpeg')) {
@@ -137,15 +136,17 @@ class EmployeeReportExport implements FromView,WithColumnFormatting ,WithEvents
                 $sheet->getColumnDimension('K')->setWidth(12);
                 $sheet->getColumnDimension('L')->setWidth(12);
                 $sheet->getColumnDimension('M')->setWidth(12);
-                $sheet->getColumnDimension('N')->setWidth(15);
-                $sheet->getColumnDimension('O')->setWidth(15);
-                $sheet->getColumnDimension('P')->setWidth(30);
+                $sheet->getColumnDimension('N')->setWidth(12);
+                $sheet->getColumnDimension('O')->setWidth(12);
+                $sheet->getColumnDimension('P')->setWidth(15);
+                $sheet->getColumnDimension('Q')->setWidth(15);
+                $sheet->getColumnDimension('R')->setWidth(30);
                 $sheet->getStyle("A7:A{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("C7:C{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("M7:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("D7:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
                 $sheet->getStyle("G7:H{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("P7:P{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
+                $sheet->getStyle("R7:R{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
                 $sheet->getStyle("A7:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
                     // for heading row
                 $highestColumnLetter = $sheet->getHighestColumn();

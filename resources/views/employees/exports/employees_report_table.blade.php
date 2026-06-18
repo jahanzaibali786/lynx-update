@@ -30,6 +30,10 @@
             <th>
                 {{ __('Service Period') }}</th>
             <th>
+                {{ __('Gender') }}</th>
+            <th>
+                {{ __('Religion') }}</th>
+            <th>
                 {{ __('Email') }}</th>
             <th>
                 {{ __('Mobile') }}</th>
@@ -71,7 +75,7 @@
                 @endif
                 <td >
 
-                    {{ \Auth::user()->employeeIdFormat($employee->employee_id) }}
+                    {{ $employee->employee_id }}
 
                 </td>
                 <td >{{ $employee->name }}</td>
@@ -94,9 +98,6 @@
                 <td >{{ $employee->cnic }}</td>
                 <td >{{ $employee->eobi_id ?? '-' }}</td>
                  <td >{{ $employee->ssc_id ?? '-' }}</td>
-                </td>
-                {{-- <td >{{ $employee->pessi ?? '-' }}
-                </td> --}}
                 <td >
                     @if ($employee->dob)
                         {{ \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(new \DateTime($employee->dob)) }}
@@ -131,6 +132,8 @@
                     @endif
                 </td>
 
+                <td >{{ ucFirst($employee->gender) }}</td>
+                <td >{{ $employee->religion }}</td>
                 <td >{{ $employee->email }}</td>
                 <td>
                     {{ $employee->phone }}</td>

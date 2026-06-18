@@ -190,6 +190,7 @@ class EmployeeScaleController extends Controller
                     'scale_no' => 'required|unique:employee_scales',
                     'department_id' => 'required|numeric',
                     'account_id' => 'required',
+                    // 'type' => 'required',
                     'account_value' => 'required',
                     'effect_from' => 'required|date',
                     'adhoc' => 'required|numeric',

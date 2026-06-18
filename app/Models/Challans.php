@@ -38,17 +38,26 @@ class Challans extends Model
     {
         return $this->belongsTo(Classes::class, 'class_id', 'id');
     }
+    // public function section()
+    // {
+    //     return $this->belongsTo(Section::class, 'section_id', 'id');
+    // }
+    public function branch()
+    {
+        return $this->belongsTo(User::class, 'owned_by', 'id');
+    }
     public function heads()
     {
-        return $this->hasMany(ChallanHead::class, 'challan_id' ,'id');
+        return $this->hasMany(ChallanHead::class, 'challan_id', 'id');
     }
-       public function unpaidHeads()
+    public function unpaidHeads()
     {
         return $this->hasMany(ChallanHead::class, 'challan_id', 'id')
             ->whereRaw('price != (concession + paid)');
     }
 
-    public function student(){
+    public function student()
+    {
         return $this->belongsTo(StudentRegistration::class, 'student_id', 'id');
     }
     public function getStudentAttribute()
@@ -65,18 +74,20 @@ class Challans extends Model
         }
         return $student;
     }
-    public function enrollstudent(){
+    public function enrollstudent()
+    {
         return $this->belongsTo(StudentEnrollments::class, 'student_id', 'regId');
     }
-    public function concession(){
-        return $this->belongsTo(ConcessionPolicy::class, 'concession_id', 'id');
+    public function concession()
+    {
+        return $this->belongsTo(Concession::class, 'concession_id', 'id');
     }
-
     public function receipts()
     {
         return $this->hasMany(StudentReceipt::class, 'challan_id');
     }
-    public function vouchers(){
+    public function vouchers()
+    {
         return $this->hasMany(JournalEntry::class, 'reference_id');
     }
 

@@ -521,8 +521,11 @@
                         </tr>
                     </thead>
                     <tbody>
-@php $globalSr = 1; @endphp
+@php
+                        $globalSr = 1;
+                        $grandTotal = 0;
 
+                    @endphp
 @foreach ($groupedVouchers as $branchId => $branchVouchers)
     @php $branchSr = 1; 
         $branchTotal = 0;
@@ -575,7 +578,17 @@
         <td>{{ $branchTotal }}</td>
         <td>0.0</td>
     </tr>
+						@php
+                            $grandTotal += $branchTotal;
+                        @endphp
 @endforeach
+						<tr style="background-color: #c9c5c5;">
+                        <td colspan="14" style="font-weight: bold;">
+                            Grand Total
+                        </td>
+                        <td>{{ $grandTotal }}</td>
+                        <td>0.0</td>
+                    </tr>
 </tbody>
 
                 </table>

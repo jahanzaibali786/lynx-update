@@ -6,7 +6,18 @@
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item"><a href="{{ route('journal-entry.index') }}">{{ __('Journal Entry') }}</a></li>
-    <li class="breadcrumb-item">{{ Auth::user()->journalNumberFormat($journalEntry->journal_id) }}</li>
+    <li class="breadcrumb-item">
+        @php
+            $breadcrumbType = strtoupper($journalEntry->voucher_type ?? 'JV');
+            $breadcrumbMethod = [
+                'BRV' => 'BRVNumberFormat',
+                'BPV' => 'BPVNumberFormat',
+                'CRV' => 'CRVNumberFormat',
+                'CPV' => 'CPVNumberFormat',
+            ][$breadcrumbType] ?? 'journalNumberFormat';
+        @endphp
+        {{ Auth::user()->$breadcrumbMethod($journalEntry->journal_id) }}
+    </li>
 @endsection
 @push('script-page')
     <script type="text/javascript" src="{{ asset('js/html2pdf.bundle.min.js') }}"></script>
@@ -97,6 +108,16 @@
     </div>
 @endsection
 @section('content')
+    @php
+        $voucherType = strtoupper($journalEntry->voucher_type ?? 'JV');
+        $numberMethod = [
+            'BRV' => 'BRVNumberFormat',
+            'BPV' => 'BPVNumberFormat',
+            'CRV' => 'CRVNumberFormat',
+            'CPV' => 'CPVNumberFormat',
+        ][$voucherType] ?? 'journalNumberFormat';
+        $voucherNumber = \Auth::user()->$numberMethod($journalEntry->journal_id);
+    @endphp
     <div class="row" id="printableArea">
         <div class="col-12">
             <div class="card">
@@ -105,11 +126,11 @@
                         <div class="invoice-print">
                             <div class="row invoice-title mt-2">
                                 <div class="col-xs-12 col-sm-12 col-nd-6 col-lg-6 col-12">
-                                    <h2>{{ __('Journal Voucher') }}</h2>
+                                    <h2>{{ __($voucherType . ' Voucher') }}</h2>
                                 </div>
                                 <div class="col-xs-12 col-sm-12 col-nd-6 col-lg-6 col-12 text-end">
                                     <h3 class="invoice-number">
-                                        {{ \AUth::user()->journalNumberFormat($journalEntry->journal_id) }}</h3>
+                                        {{ $voucherNumber }}</h3>
                                 </div>
                                 <div class="col-12">
                                     <hr>
@@ -128,7 +149,7 @@
                                 <div class="col-md-6 text-end">
                                     <small>
                                         <strong>{{ __('Voucher No') }} :</strong>
-                                        {{ \Auth::user()->journalNumberFormat($journalEntry->journal_id) }}
+                                        {{ $voucherNumber }}
                                     </small><br>
                                     <small>
                                         <strong>{{ __('Voucher Ref') }} :</strong>
@@ -149,10 +170,10 @@
                                             <tr>
                                                 <th data-width="40" class="text-dark">#</th>
                                                 <th class="text-dark">{{ __('Account') }}</th>
+                                                <th class="text-dark wrap-td">{{ __('Memo') }}</th>
                                                 <th class="text-dark wrap-td">{{ __('Description') }}</th>
                                                 <th class="text-dark">{{ __('Debit') }}</th>
                                                 <th class="text-dark">{{ __('Credit') }}</th>
-                                                <th class="text-dark">{{ __('Amount') }}</th>
                                                 {{-- <th></th> --}}
                                             </tr>
 
@@ -162,17 +183,13 @@
                                                     <td>{{ !empty($account->accounts) ? $account->accounts->code . ' - ' . $account->accounts->name : '' }}
                                                     </td>
                                                     <td class="wrap-td">
+                                                        {{ !empty($account->memo) ? $account->memo : '-' }}
+                                                    </td>
+                                                    <td class="wrap-td">
                                                         {{ !empty($account->description) ? $account->description : '-' }}
                                                     </td>
                                                     <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>
                                                     <td>{{ \Auth::user()->priceFormat($account->credit) }}</td>
-                                                    <td>
-                                                        @if ($account->debit != 0)
-                                                            {{ \Auth::user()->priceFormat($account->debit) }}
-                                                        @else
-                                                            {{ \Auth::user()->priceFormat($account->credit) }}
-                                                        @endif
-                                                    </td>
                                                     {{-- <td>
                                                         <div class="action-btn bg-danger ms-2">
                                                             {!! Form::open(['method' => 'DELETE', 'route' => array('journal.destroy', $account->id),'id'=>'delete-form-'.$account->id]) !!}
@@ -190,14 +207,10 @@
                                             <tfoot>
 
                                                 <tr>
-                                                    <td colspan="4"></td>
-                                                    <td><b>{{ __('Total Credit') }}</b></td>
-                                                    <td>{{ \Auth::user()->priceFormat($journalEntry->totalCredit()) }}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td colspan="4"></td>
-                                                    <td><b>{{ __('Total Debit') }}</b></td>
-                                                    <td>{{ \Auth::user()->priceFormat($journalEntry->totalDebit()) }}</td>
+                                                    <td colspan="3"></td>
+                                                    <td><b>{{ __('Total') }}</b></td>
+                                                    <td><b>{{ \Auth::user()->priceFormat($journalEntry->totalDebit()) }}</b></td>
+                                                    <td><b>{{ \Auth::user()->priceFormat($journalEntry->totalCredit()) }}</b></td>
                                                 </tr>
                                             </tfoot>
                                         </table>

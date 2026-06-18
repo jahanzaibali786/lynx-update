@@ -474,13 +474,19 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
+									@if (!empty($showJunJulExemptionLabel))
+                                        <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
+                                    @endif
                                 </td>
                             </tr>
                             <tr>
-                                <td class="detail-label"><b>Name:</b></td>
-                                <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ @$challan->student->stdname }}</td>
-                            </tr>
+    <td class="detail-label"><b>Name:</b></td>
+    <td class="detail-value"
+        colspan="3"
+        style="text-transform: uppercase; word-break: break-word;">
+        {{ @$challan->student->stdname }}
+    </td>
+</tr>
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
@@ -729,13 +735,19 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
+									@if (!empty($showJunJulExemptionLabel))
+                                        <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
+                                    @endif
                                 </td>
                             </tr>
                             <tr>
-                                <td class="detail-label"><b>Name:</b></td>
-                                <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ @$challan->student->stdname }}</td>
-                            </tr>
+    <td class="detail-label"><b>Name:</b></td>
+    <td class="detail-value"
+        colspan="3"
+        style="text-transform: uppercase; word-break: break-word;">
+        {{ @$challan->student->stdname }}
+    </td>
+</tr>
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
@@ -975,13 +987,19 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
+									@if (!empty($showJunJulExemptionLabel))
+                                        <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
+                                    @endif
                                 </td>
                             </tr>
                             <tr>
-                                <td class="detail-label"><b>Name:</b></td>
-                                <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ @$challan->student->stdname }}</td>
-                            </tr>
+    <td class="detail-label"><b>Name:</b></td>
+    <td class="detail-value"
+        colspan="3"
+        style="text-transform: uppercase; word-break: break-word;">
+        {{ @$challan->student->stdname }}
+    </td>
+</tr>
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">

@@ -5,7 +5,7 @@
             <div class="form-group">
                 {{ Form::label('document_no', __('Document No'), ['class' => 'form-label']) }}<span style="color: red">
                     *</span>
-                {{ Form::text('document_no', null, ['class' => 'form-control', 'placeholder' => __('Enter Document No'), 'required' => 'required','readonly'=>'readonly']) }}
+                {{ Form::text('document_no', null, ['class' => 'form-control', 'placeholder' => __('Enter Document No'), 'required' => 'required', 'readonly' => 'readonly']) }}
             </div>
         </div>
         <div class="col-6">
@@ -22,7 +22,8 @@
         </div>
         <div class="col-6">
             <div class="form-group">
-                {{ Form::label('student_id', __('Student'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
+                {{ Form::label('student_id', __('Student'), ['class' => 'form-label']) }}<span style="color: red">
+                    *</span>
                 {{ Form::select('student_id', $std, null, ['class' => 'form-control select', 'id' => 'class_students', 'required' => 'required', 'readonly' => 'readonly']) }}
             </div>
         </div>
@@ -43,7 +44,27 @@
         <div class="col-6">
             <div class="form-group">
                 {{ Form::label('reason', __('Reason'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
-                {{ Form::select('reason', ['School Change' => 'School Change', 'Dissatisfaction Academics, Teachers, Management' => 'Dissatisfaction Academics, Teachers, Management', 'Transport Issue' => 'Transport Issue', 'Fee defaulter' => 'Fee defaulter', 'Fee Affordability Issue' => 'Fee Affordability Issue', 'Passing Out' => 'Passing Out', 'Other' => 'Other'], null, ['class' => 'form-control select', 'required' => 'required']) }}
+                {{ Form::select(
+                    'reason',
+                    [
+                        'School Change' => 'School Change',
+                        'Dissatisfaction Academics, Teachers, Management' => 'Dissatisfaction Academics, Teachers, Management',
+                        'Transport Issue' => 'Transport Issue',
+                        'Fee defaulter' => 'Fee defaulter',
+                        'Fee Affordability Issue' => 'Fee Affordability Issue',
+                        'Passing Out' => 'Passing Out',
+                        'Other' => 'Other',
+                    ],
+                    @$studentwithdrawal->reason,
+                    ['class' => 'form-control select', 'required' => 'required', 'id' => 'reason_select_edit'],
+                ) }}
+            </div>
+
+            <div class="form-group" id="other_reason_box_edit"
+                style="display: {{ @$studentwithdrawal->reason == 'Other' ? 'block' : 'none' }};">
+                {{ Form::label('other_reason', __('Other Reason'), ['class' => 'form-label']) }}<span
+                    style="color:red"> *</span>
+                {{ Form::text('other_reason', @$studentwithdrawal->other_reason, ['class' => 'form-control', 'placeholder' => __('Enter Other Reason'), 'maxlength' => '70', 'id' => 'other_reason_field_edit']) }}
             </div>
         </div>
 
@@ -146,7 +167,7 @@
 
                 for (let index = 0; index < data.student.length; index++) {
                     s +=
-                    `<option value="${ data.student[index]['roll_no']}">${ data.student[index]['roll_no']} - ${data.student[index]['stdname']} s/d/o ${data.student[index]['fathername']} </option>`;
+                        `<option value="${ data.student[index]['roll_no']}">${ data.student[index]['roll_no']} - ${data.student[index]['stdname']} s/d/o ${data.student[index]['fathername']} </option>`;
                 }
                 s += `</select>`;
                 $('.std_data').empty().html(s);
@@ -159,4 +180,13 @@
             }
         });
     });
+    $(document).on('change', '#reason_select_edit', function () {
+    if ($(this).val() === 'Other') {
+        $('#other_reason_box_edit').show();
+        $('#other_reason_field_edit').attr('required', 'required');
+    } else {
+        $('#other_reason_box_edit').hide();
+        $('#other_reason_field_edit').removeAttr('required');
+    }
+});
 </script>

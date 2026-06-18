@@ -10,39 +10,63 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
-
-class StudentAccountStatementExport implements FromView, WithEvents
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
+class StudentAccountStatementExport implements FromView, WithEvents, WithColumnFormatting
 {
     // StudentAccountStatementExport($branches,$students,$class,$receipts,$from_date,$to_date,$selected_branch,$selected_class,$selected_student)
     protected $branches;
     protected $students;
     protected $class;
-    protected $receipts;
+    protected $accountStatement;
     protected $from_date;
     protected $to_date;
     protected $selected_branch;
     protected $selected_class;
     protected $selected_student;
+    protected $std;
 
-    public function __construct($branches, $students, $class, $receipts, $from_date, $to_date, $selected_branch, $selected_class, $selected_student)
-    {
+    public function __construct(
+        $branches,
+        $students,
+        $class,
+        $accountStatement,
+        $from_date,
+        $to_date,
+        $selected_branch,
+        $selected_class,
+        $selected_student,
+        $std,
+    ) {
         $this->branches = $branches;
         $this->students = $students;
         $this->class = $class;
-        $this->receipts = $receipts;
+        $this->accountStatement = $accountStatement;
         $this->from_date = $from_date;
         $this->to_date = $to_date;
         $this->selected_branch = $selected_branch;
         $this->selected_class = $selected_class;
         $this->selected_student = $selected_student;
+        $this->std = $std;
     }
     /**
      * Export the employees data to an Excel view.
      */
+    public function columnFormats(): array
+    {
+        return [
+            'B' => 'dd-mmm-yyyy', // Date as text to preserve formatting
+            'E' => '@', // Challan No as text
+            'F' => '@', // Billing Month as text
+            'G' => '@', // Debit as text to preserve formatting
+            'L' => '#,##0.00', // Credit as text to preserve formatting
+            'K' => '#,##0.00', // Balance as text to preserve formatting
+        ];
+    }
     public function view(): View
     {
         $is_signature = false;
         $is_period = false;
+        $is_branch = false;
         // Determine branch name
         $branch = '';
         $report_name = 'Student Account Statement';
@@ -56,30 +80,30 @@ class StudentAccountStatementExport implements FromView, WithEvents
             list($studentOnly, $fatherPart) = explode('s/d/o', $rest, 2);
             $studentOnly = trim($studentOnly);
             $accountTitle = trim(preg_replace('/^\d+\s*-\s*/', '', $studentName));
-
         }
+        // dd($this->std->branches);
+        $branchName = $this->std->branches ? $this->std->branches->name : '';
+        // dd($branchName);
         // Pass only the table-related data to the export view
         return view('studentReports.exports.studentaccountstatementexport', [
             'branches' => $this->branches,
             'students' => $this->students,
             'class' => $this->class,
-            'receipts' => $this->receipts,
+            'accountStatement' => $this->accountStatement,
             'from_date' => $this->from_date,
             'to_date' => $this->to_date,
-            'selected_branch' => $this->selected_branch,
+            'branchName' => $branchName,
             'selected_class' => $this->selected_class,
             'selected_student' => $this->selected_student,
+            'std' => $this->std,
             'is_signature' => $is_signature,
-            'is_period' => $is_period,
-            'branch' => $branch,
-            'rollNo' => $rollNo,
-            'studentOnly' => $studentOnly,
-            'accountTitle' => $accountTitle,
+            'is_period' => true,
+            'is_branch' => true,
             'report_name' => $report_name,
         ]);
     }
 
-    public function registerEvents(): array
+     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
@@ -130,6 +154,7 @@ class StudentAccountStatementExport implements FromView, WithEvents
                 $drawing->setCoordinates($highestColumn . '1');
                 $drawing->setWorksheet($sheet);
 
+
                 $lastDataRow = $sheet->getHighestRow();
                 $sigLineRow = $lastDataRow + 2; // underscores
                 $sigTextRow = $lastDataRow + 3; // labels
@@ -137,12 +162,41 @@ class StudentAccountStatementExport implements FromView, WithEvents
                 $insetIndex = max(1, $highestIndex - 1);                       // at least 1
                 $insetColumn = Coordinate::stringFromColumnIndex($insetIndex);
                 $pageCountRow = $lastDataRow + 4;
-                $generatedDate = date('d-M-Y');
+                $generatedDate = date('d-M-Y H:i:s');
                 // Merge the entire row (e.g., row 25)
+
+				$sheet->getHeaderFooter()->setOddFooter("&LGenerated by: " . auth()->user()->name . " &RGenerated on: {$generatedDate} &P of &N");
                 $highestColumnLetter = $sheet->getHighestColumn();
                 $mergedRange = "A{$sigLineRow}:{$highestColumnLetter}{$sigLineRow}";
                 $sheet->mergeCells($mergedRange);
+                // Detect branch name rows: A has value, B is empty
+                for ($row = 10; $row <= $lastDataRow; $row++) {
 
+                    $cellValue = $sheet->getCell('C' . $row)->getValue();
+
+                    if (stripos($cellValue, 'Closing Balance') !== false) {
+
+                        $sheet->getStyle("A{$row}:{$highestColumnLetter}{$row}")
+                            ->applyFromArray([
+                                'font' => [
+                                    'bold' => true,
+                                    'size' => 10,
+                                    'name' => 'Calibri',
+                                ],
+                                'alignment' => [
+                                    'horizontal' => Alignment::HORIZONTAL_LEFT,
+                                    'vertical' => Alignment::VERTICAL_CENTER,
+                                ],
+                                'fill' => [
+                                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                                    'startColor' => ['argb' => 'FFE0E0E0'], // grey
+                                ],
+                            ]);
+                    }
+                }
+                for ($row = 12; $row <= $lastDataRow; $row++) {
+                    $sheet->getRowDimension($row)->setRowHeight(22);
+                }
                 // Build signature line text with left and right alignment
                 $signatureLine = new RichText();
                 $signatureLine->createText('________________________');
@@ -170,7 +224,7 @@ class StudentAccountStatementExport implements FromView, WithEvents
                     ],
                 ]);
                 // Apply style to entire row 9 Heading Row
-                $sheet->getStyle("A15:{$highestColumnLetter}15")->applyFromArray([
+                $sheet->getStyle("A11:{$highestColumnLetter}11")->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'size' => 8,
@@ -240,15 +294,22 @@ class StudentAccountStatementExport implements FromView, WithEvents
                 $sheet->getColumnDimension('J')->setWidth(12);
 
                 // style col font size 8px and align center
-                $sheet->getStyle("A16:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("B16:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
-                $sheet->getStyle("C16:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
-                $sheet->getStyle("F16:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
-                $sheet->getStyle("G16:N{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-                $sheet->getStyle("E16:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setWrapText(true);
-                $sheet->getStyle("H16:H{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("N16:N{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-                $sheet->getStyle("A16:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
+                $sheet->getRowDimension(9)->setRowHeight(33);
+                $sheet->getStyle("A9")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
+                $sheet->getStyle("A12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("B12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
+                $sheet->getStyle("C12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
+                $sheet->getStyle("D12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setWrapText(true);
+                $sheet->getStyle("E12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
+                $sheet->getStyle("F12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
+                $sheet->getStyle("G12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("H12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("k12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("L12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("M12:M{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("A12:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
+                // add a line for generated date and page number at the bottom of the page in end column or in center column.
+                
             },
         ];
     }

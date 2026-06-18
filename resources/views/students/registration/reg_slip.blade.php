@@ -5,37 +5,10 @@
 @push('script-page')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf2htmlEX/0.18.7/pdf2htmlEX.min.js"></script>
 <script>
-function generatePDF() {
-    console.log('generating');
-    const element = document.getElementById('card');
-    const opt = {
-        filename: 'registration-receipt.pdf',
-        html2canvas: {
-            scale: 1
-        },
-        jsPDF: {
-            format: 'a4',
-        }
-    };
-    html2pdf().from(element).set(opt).save();
-}
-
-function printPDF() {
-    console.log('printing');
-    const element = document.getElementById('card');
-    const opt = {
-        filename: 'registration-receipt.pdf',
-        html2canvas: {
-            scale: 1
-        },
-        jsPDF: {
-            format: 'a4',
-        }
-    };
-    html2pdf().from(element).set(opt).output('bloburl').then(function(pdf) {
-        window.open(pdf);
-    });
-}
+    function printPDF() {
+        let url = "{{ route('reg.receipt', $reg_recipt->id) }}?print=pdf";
+        window.open(url, '_blank');
+    }
 </script>
 @endpush
 @section('breadcrumb')

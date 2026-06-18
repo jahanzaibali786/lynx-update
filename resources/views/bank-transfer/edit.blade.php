@@ -119,79 +119,119 @@
 
 
 <script>
+(function () {
 
-let fromAccount = document.getElementById('from_account');
-let toAccount = document.getElementById('to_account');
-let amountInput = document.getElementById('amount');
-let balanceField = document.getElementById('available_balance');
-let balanceFieldHidden = document.getElementById('available_balance_hidden');
+    let fromAccount = document.getElementById('from_account');
+    let toAccount   = document.getElementById('to_account');
+    let amountInput = document.getElementById('amount');
+    let balanceField = document.getElementById('available_balance');
+    let balanceHidden = document.getElementById('available_balance_hidden');
 
+    if (!fromAccount || !toAccount) return;
 
-// Load balance on page load
-window.addEventListener('load', function(){
+    // ─────────────────────────────
+    // HELPERS
+    // ─────────────────────────────
+    function getInst(el) {
+        return el?.customSelectInstance || null;
+    }
 
-    let selectedOption = fromAccount.options[fromAccount.selectedIndex];
+    function getDisplay(el) {
+        return getInst(el)?.display || null;
+    }
 
-    if(selectedOption){
+    function forceOpen(el) {
+        const inst = getInst(el);
+        if (!inst) return;
+
+        const display = getDisplay(el);
+
+        if (display) {
+            if (!display.hasAttribute('tabindex')) {
+                display.setAttribute('tabindex', '0');
+            }
+            display.focus();
+        }
+
+        if (typeof inst.open === 'function') {
+            inst.open();
+        }
+    }
+
+    function forceClose(el) {
+        const inst = getInst(el);
+        if (inst && typeof inst.close === 'function') {
+            inst.close();
+        }
+    }
+
+    // ─────────────────────────────
+    // UPDATE BALANCE (ON LOAD + CHANGE)
+    // ─────────────────────────────
+    function updateBalance() {
+
+        let selectedOption = fromAccount.options[fromAccount.selectedIndex];
+
+        if (!selectedOption) return;
 
         let balance = selectedOption.getAttribute('data-balance') || 0;
 
         balanceField.value = balance;
-        balanceFieldHidden.value = balance;
+        balanceHidden.value = balance;
 
         amountInput.setAttribute('max', balance);
 
+        if (toAccount.value === fromAccount.value && fromAccount.value) {
+            alert('From and To account cannot be same.');
+            toAccount.value = '';
+        }
     }
 
-});
+    // ─────────────────────────────
+    // PAGE LOAD (EDIT MODE)
+    // ─────────────────────────────
+    window.addEventListener('load', function () {
+        updateBalance();
+    });
 
+    // ─────────────────────────────
+    // 🔥 MAIN LOGIC: FROM → OPEN TO
+    // ─────────────────────────────
+    fromAccount.addEventListener('change', function () {
 
-// When From Account changes
-fromAccount.addEventListener('change', function(){
+        updateBalance();
 
-    let selectedOption = this.options[this.selectedIndex];
-    let balance = selectedOption.getAttribute('data-balance') || 0;
+        // close from dropdown
+        forceClose(fromAccount);
 
-    balanceField.value = balance;
-    balanceFieldHidden.value = balance;
+        // open to dropdown
+        setTimeout(() => {
+            forceOpen(toAccount);
+        }, 100);
+    });
 
-    amountInput.setAttribute('max', balance);
-    amountInput.value = '';
+    // ─────────────────────────────
+    // VALIDATIONS
+    // ─────────────────────────────
+    toAccount.addEventListener('change', function () {
 
-    if (toAccount.value === this.value) {
-        alert('From and To account cannot be same.');
-        toAccount.value = '';
-    }
+        if (this.value === fromAccount.value && this.value) {
+            alert('From and To account cannot be same.');
+            this.value = '';
+        }
 
-});
+    });
 
+    amountInput.addEventListener('input', function () {
 
-// Prevent same account
-toAccount.addEventListener('change', function(){
+        let max = parseFloat(this.getAttribute('max')) || 0;
+        let value = parseFloat(this.value) || 0;
 
-    if (this.value === fromAccount.value) {
+        if (value > max) {
+            alert('Amount cannot exceed available balance.');
+            this.value = max;
+        }
 
-        alert('From and To account cannot be same.');
-        this.value = '';
-
-    }
-
-});
-
-
-// Prevent exceeding balance
-amountInput.addEventListener('input', function(){
-
-    let max = parseFloat(this.getAttribute('max')) || 0;
-    let value = parseFloat(this.value) || 0;
-
-    if (value > max) {
-
-        alert('Amount cannot exceed available balance.');
-        this.value = max;
-
-    }
-
-});
-
+    });
+})();
 </script>

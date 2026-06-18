@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Concession extends Model
 {
     use HasFactory;
-    
+
     public function student()
     {
         return $this->belongsTo(StudentRegistration::class, 'student_id', 'id');
@@ -18,6 +18,10 @@ class Concession extends Model
         return $this->belongsTo(Classes::class, 'class_id', 'id');
     }
     public function concession()
+    {
+        return $this->belongsTo(ConcessionPolicy::class, 'concession_id', 'id');
+    }
+    public function policy()
     {
         return $this->belongsTo(ConcessionPolicy::class, 'concession_id', 'id');
     }

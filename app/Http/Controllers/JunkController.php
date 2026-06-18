@@ -669,4 +669,108 @@ public function deleteReceipts()
     //     }
     //     return redirect()->back()->with('success', 'Student Receipts Deleted Successfully');
     // }
+	public function fixDuplicateChallans()
+    {
+        try {
+            return DB::transaction(function () {
+
+                // Step 1: Get duplicate challans
+                $duplicates = DB::table('challans')
+                    ->where('fee_month', 'LIKE', '%2026-05%')
+                    ->where('owned_by', 17)
+                    ->whereIn('challanNo', function ($q) {
+                        $q->select('challanNo')
+                            ->from('challans')
+                            ->where('fee_month', 'LIKE', '%2026-05%')
+                            ->groupBy('challanNo')
+                            ->havingRaw('COUNT(*) > 1');
+                    })
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+				// dd($duplicates);
+                if ($duplicates->isEmpty()) {
+                    return response('<h3>No duplicate challans found.</h3>', 200)
+                        ->header('Content-Type', 'text/html');
+                }
+
+                // Step 2: Get max challanNo once (LOCKED)
+                $latest = DB::table('challans')
+                    ->lockForUpdate()
+                    ->orderByRaw('CAST(challanNo AS UNSIGNED) DESC')
+                    ->first();
+
+                $currentMax = $latest ? (int) $latest->challanNo : 0;
+
+                $updatedData = [];
+
+                // Step 3: Update records
+                foreach ($duplicates as $challan) {
+
+                    $oldChallanNo = $challan->challanNo;
+
+                    $currentMax++;
+                    $newChallanNo = $currentMax;
+
+                    DB::table('challans')
+                        ->where('id', $challan->id)
+                        ->update(['challanNo' => $newChallanNo]);
+
+                    $updatedData[] = [
+                        'id' => $challan->id,
+                        'rollno' => $challan->rollno,
+                        'old' => $oldChallanNo,
+                        'new' => $newChallanNo,
+                    ];
+                }
+
+                // Step 4: Build HTML table
+                $html = '
+            <html>
+            <head>
+                <title>Challan Fix Report</title>
+                <style>
+                    body { font-family: Arial, sans-serif; }
+                    table { border-collapse: collapse; width: 100%; }
+                    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+                    th { background-color: #f4f4f4; }
+                </style>
+            </head>
+            <body>
+                <h2>Duplicate Challan Fix Report (2026-05 | Branch 17)</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Roll No</th>
+                            <th>Old Challan No</th>
+                            <th>New Challan No</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+
+                foreach ($updatedData as $row) {
+                    $html .= '
+                    <tr>
+                        <td>' . $row['id'] . '</td>
+                        <td>' . $row['rollno'] . '</td>
+                        <td>' . $row['old'] . '</td>
+                        <td>' . $row['new'] . '</td>
+                    </tr>';
+                }
+
+                $html .= '
+                    </tbody>
+                </table>
+            </body>
+            </html>';
+
+                return response($html)->header('Content-Type', 'text/html');
+            });
+
+        } catch (\Exception $e) {
+            return response('<h3>Error: ' . $e->getMessage() . '</h3>', 500)
+                ->header('Content-Type', 'text/html');
+        }
+    }
 }

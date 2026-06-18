@@ -66,8 +66,7 @@
 @endsection
 @section('action-btn')
 <div class="float-end">
-    <a href="#" data-size="lg" data-url="{{ route('productservice.create') }}" data-ajax-popup="true"
-         data-bs-title="{{ __('Create New Product') }}" class="btn mx-1 btn-sm btn-outline-primary">
+    <a href="{{ route('productservice.create') }}" class="btn mx-1 btn-sm btn-outline-primary">
         <span class="btn-inner--icon">Create</span>
     </a>
 </div>
@@ -91,6 +90,12 @@
                             <div class="btn-box">
                                 {{ Form::label('subcategory', __('Subcategory'), ['class' => 'form-label']) }}
                                 {{ Form::select('subcategory',$subcategory, request()->subcategory, ['class' => 'js-searchBox form-control select', 'id' => 'subcategory-select', 'required' => 'required']) }}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
+                            <div class="btn-box">
+                                {{ Form::label('item_type', __('Type'), ['class' => 'form-label']) }}
+                                {{ Form::select('item_type', $itemTypes, request()->item_type, ['class' => 'js-searchBox form-control select', 'id' => 'item_type-select']) }}
                             </div>
                         </div>
                         <div class="col-auto float-end ms-2 mt-4">
@@ -183,22 +188,18 @@
                     @endif
 
 
-                    @if (Gate::check('edit product & service') || Gate::check('delete product & service'))
+                    @if (Gate::check('manage product & service') || Gate::check('edit product & service') || Gate::check('delete product & service'))
                     <td class="Action">
                         <div class="action-btn ms-2">
 
-                            <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
-                                data-url="{{ route('productservice.detail', $productService->id) }}"
-                                data-ajax-popup="true"  data-bs-title="{{ __('Store Details') }}"
-                                data-bs-toggle="{{ __('Store Details') }}">
+                            <a href="{{ route('productservice.show', $productService->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
+                                data-bs-title="{{ __('View') }}">
                                 <span class="btn-inner--icon"><i class="fas fa-eye"></i></span>
                             </a>
 
                             @can('edit product & service')
-                            <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
-                                data-url="{{ route('productservice.edit', $productService->id) }}"
-                                data-ajax-popup="true" data-size="lg "  data-bs-title="{{ __('Edit') }}"
-                                data-bs-toggle="{{ __('Edit Product') }}">
+                            <a href="{{ route('productservice.edit', $productService->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
+                                data-bs-title="{{ __('Edit') }}">
                                 <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                             </a>
                             @endcan

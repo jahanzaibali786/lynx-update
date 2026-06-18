@@ -113,7 +113,7 @@
         
     </style>
 
-    <title> @yield('page-title')</title>
+    <title>@yield('page-title')</title>
 
     <meta name="title" content="{{ $metatitle }}">
     <meta name="description" content="{{ $metsdesc }}">

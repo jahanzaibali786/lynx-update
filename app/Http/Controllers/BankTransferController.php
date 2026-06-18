@@ -7,6 +7,7 @@ use App\Models\BankTransfer;
 use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\Utility;
+use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
 
@@ -86,7 +87,7 @@ class BankTransferController extends Controller
                 ->orderBy('id', 'desc')
                 ->get();
 
-            if ($request->has('export') && $request->export == '1') {
+			if ($request->has('export') && $request->export == '1') {
                 $dateFrom = '';
                 $dateTo = '';
                 if (!empty($request->date)) {
@@ -179,8 +180,8 @@ class BankTransferController extends Controller
                     $messages = $validator->getMessageBag();
                     return redirect()->back()->with('error', $messages->first());
                 }
-                $bankAccounts = BankAccount::select('chart_account_id', 'bank_name', 'owned_by')->where('id', $request->from_account)->first();
-                $to_account = BankAccount::select('chart_account_id', 'bank_name', 'owned_by')->where('id', $request->to_account)->first();
+                $bankAccounts = BankAccount::select('id','chart_account_id', 'bank_name', 'owned_by')->where('id', $request->from_account)->first();
+                $to_account = BankAccount::select('id','chart_account_id', 'bank_name', 'owned_by')->where('id', $request->to_account)->first();
                 // dd($bankAccounts, $to_account);
                 $transfer = new BankTransfer();
                 $transfer->from_account = $request->from_account;
@@ -193,6 +194,8 @@ class BankTransferController extends Controller
                 $transfer->description = $request->description;
                 $transfer->owned_by = $bankAccounts->owned_by;
                 $transfer->created_by = \Auth::user()->creatorId();
+                $transfer->created_at = $request->date . ' ' . Carbon::now()->format('H:i:s');
+                $transfer->updated_at = $request->date . ' ' . Carbon::now()->format('H:i:s');
                 $transfer->save();
 
 
@@ -216,6 +219,8 @@ class BankTransferController extends Controller
                     'created_by' => \Auth::user()->creatorId(),
                     'user_id' => \Auth::user()->id, //Branch,User,Supplier,Customer,Employee,Vendor
                     'user_type' => 'Branch', //Branch,User,Supplier,Customer,Employee,Vendor
+                    'created_at' => $request->date . ' ' . Carbon::now()->format('H:i:s'),
+                    'updated_at' => $request->date . ' ' . Carbon::now()->format('H:i:s'),
                 ];
                 // dd($data,$bankAccounts,$to_account);
                 //voucher_id
@@ -356,6 +361,10 @@ class BankTransferController extends Controller
                 $transfer->payment_method = 0;
                 $transfer->reference = $request->reference;
                 $transfer->description = $request->description;
+                $transfer->owned_by = $from_account->owned_by;
+                $transfer->created_by = \Auth::user()->creatorId();
+                $transfer->created_at = $request->date . ' ' . Carbon::now()->format('H:i:s');
+                $transfer->updated_at = $request->date . ' ' . Carbon::now()->format('H:i:s');
                 $transfer->save();
 
                 Utility::bankAccountBalance($request->from_account, $request->amount, 'debit');
@@ -389,6 +398,8 @@ class BankTransferController extends Controller
                     'created_by' => \Auth::user()->creatorId(),
                     'user_id' => \Auth::user()->id,
                     'user_type' => 'Branch',
+                    'created_at' => $request->date . ' ' . Carbon::now()->format('H:i:s'),
+                    'updated_at' => $request->date . ' ' . Carbon::now()->format('H:i:s'),
                 ];
 
                 $voucherId = Utility::bankTransferJvEntry($data);

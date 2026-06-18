@@ -229,7 +229,8 @@ class Employee extends Model
         return $scale;
 
     }
-    public function latestPayscale()
+
+	    public function latestPayscale()
     {
         return $this->hasOne(EmployeePayscaleDetail::class)->latestOfMany();
     }
@@ -312,11 +313,15 @@ class Employee extends Model
 
     public function branch()
     {
-        return $this->hasOne('App\Models\Branch', 'id', 'branch_id');
+        return $this->hasOne('App\Models\Branch', 'id', 'owned_by');
     }
     public function userbranch()
     {
         return $this->hasOne('App\Models\User', 'id', 'owned_by');
+    }
+    public function branchdetail()
+    {
+        return $this->belongsTo('App\Models\User', 'id', 'owned_by');
     }
     public function ownedBranch()
     {
@@ -366,7 +371,7 @@ class Employee extends Model
     {
         return AttendanceEmployee::where('employee_id', $employee_id)->where('date', $data)->first();
     }
-    
+
     public function eobi($employee_id, $branches_id)
     {
         $branches_school = \App\Models\SchoolDetails::where('branch_id', $branches_id)->first();
@@ -378,6 +383,7 @@ class Employee extends Model
             'employer_eobi' => $eobiEmployerValue,
         ];
     }
+
 
     public static function employee_salary($salary)
     {

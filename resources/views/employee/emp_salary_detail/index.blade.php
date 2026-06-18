@@ -66,12 +66,6 @@
                                         {{ Form::select('designation_id', $designations, request('designation_id'), ['class' => 'form-control select']) }}
                                     </div>
                                 </div>
-                                <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 mr-2">
-                                    <div class="btn-box">
-                                        {{ Form::label('status', __('Status'), ['class' => 'form-label']) }}
-                                        {{ Form::select('status', ['0' => 'Active', '1' => 'Resigned'], request('status'), ['class' => 'form-control select']) }}
-                                    </div>
-                                </div>
                                 <div class="col-auto float-end ms-2 mt-4">
                                     <a href="#" class="btn mx-1 btn-sm btn-outline-primary" onclick="document.getElementById('employee_submit').submit(); return false;">
                                         <span class="btn-inner--icon">Search</span>

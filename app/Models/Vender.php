@@ -38,6 +38,24 @@ class Vender extends Authenticatable
         'shipping_zip',
         'shipping_address',
         'account_id',
+        // New vendor fields
+        'company_name',
+        'name_prefix',
+        'first_name',
+        'middle_initial',
+        'last_name',
+        'job_title',
+        'main_phone_type',
+        'main_phone',
+        'work_phone_type',
+        'work_phone',
+        'main_email_type',
+        'cc_email_type',
+        'cc_email',
+        'website_type',
+        'website',
+        'other1_type',
+        'other1',
     ];
 
     protected $hidden = [
@@ -261,5 +279,54 @@ class Vender extends Authenticatable
     public function ChartAccount()
     {
         return $this->hasOne('App\Models\ChartOfAccount', 'id', 'account_id');
+    }
+
+    // Accessor to ensure first_name is populated for older records
+    public function getFirstNameAttribute($value)
+    {
+        // If first_name is already set, return it
+        if (!empty($value)) {
+            return $value;
+        }
+
+        // If first_name is empty but name exists, try to extract it
+        if (!empty($this->attributes['name']) && empty($this->attributes['first_name'])) {
+            $nameParts = explode(' ', trim($this->attributes['name']));
+            // Return the first part as first name (skipping prefix if it looks like one)
+            if (count($nameParts) > 0) {
+                $firstPart = $nameParts[0];
+                // Check if first part is a prefix
+                if (in_array(rtrim($firstPart, '.'), ['Mr', 'Ms', 'Mrs', 'Dr']) && count($nameParts) > 1) {
+                    return $nameParts[1];
+                }
+                return $firstPart;
+            }
+        }
+
+        return $value;
+    }
+
+    // Accessor to ensure last_name is populated for older records
+    public function getLastNameAttribute($value)
+    {
+        // If last_name is already set, return it
+        if (!empty($value)) {
+            return $value;
+        }
+
+        // If last_name is empty but name exists, try to extract it
+        if (!empty($this->attributes['name']) && empty($this->attributes['last_name'])) {
+            $nameParts = explode(' ', trim($this->attributes['name']));
+            if (count($nameParts) > 1) {
+                // Check if first part is a prefix
+                $firstPart = $nameParts[0];
+                if (in_array(rtrim($firstPart, '.'), ['Mr', 'Ms', 'Mrs', 'Dr']) && count($nameParts) > 2) {
+                    return end($nameParts);
+                }
+                return end($nameParts);
+            }
+        }
+
+        return $value;
     }
 }

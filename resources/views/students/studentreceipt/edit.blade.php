@@ -1,30 +1,31 @@
 {{ Form::model($recipt, ['route' => ['student_receipt.update', $recipt->id], 'method' => 'PUT']) }}
 <script>
-$(function () {
-    function refreshReceiptTotal() {
-        let sum = 0;
-        $('.receipt-credit').each(function () {
-            const $input = $(this);
-            const max = parseInt($input.data('max')) || 0;
-            const paid = parseInt($input.data('paid')) || 0;
-            let val = parseInt($input.val()) || 0;
+    $(function() {
+        function refreshReceiptTotal() {
+            let sum = 0;
+            $('.receipt-credit').each(function() {
+                const $input = $(this);
+                const max = parseInt($input.data('max')) || 0;
+                const paid = parseInt($input.data('paid')) || 0;
+                let val = parseInt($input.val()) || 0;
 
-            if (val < 0) val = 0;
-            if (val > max) val = max;
-            $input.val(val);
-            
-            sum += val;
-            const id = $input.attr('name').match(/\d+/)[0]; // extract id from name like items[12][credit]
-            const remaining = max - val;
-            $(`.remaining-balance[data-id="${id}"]`).text(remaining.toFixed(2));
-        });
+                if (val < 0) val = 0;
+                if (val > max) val = max;
+                $input.val(val);
 
-        $('#recipt_amount').val(sum);
-    }
+                sum += val;
+                const id = $input.attr('name').match(/\d+/)[
+                0]; // extract id from name like items[12][credit]
+                const remaining = max - val;
+                $(`.remaining-balance[data-id="${id}"]`).text(remaining.toFixed(2));
+            });
 
-    $(document).on('input', '.receipt-credit', refreshReceiptTotal);
-    // refreshReceiptTotal();
-});
+            $('#recipt_amount').val(sum);
+        }
+
+        $(document).on('input', '.receipt-credit', refreshReceiptTotal);
+        // refreshReceiptTotal();
+    });
 </script>
 
 <div class="p-4">
@@ -78,34 +79,43 @@ $(function () {
         <tbody>
             @foreach ($voucher as $vo)
                 @php
-                    // find the matching challan head
                     $challanHead = \App\Models\ChallanHead::where('challan_id', $recipt->challan_id)
                         ->where('head_id', $vo->head)
                         ->first();
+
+                    $thisReceiptAmount = (float) $vo->credit;
+                    $challanAmount = $challanHead ? ($challanHead->price ?? 0) - ($challanHead->concession ?? 0) : 0;
+                    $alreadyPaidExceptThis = $challanHead ? max(0, ($challanHead->paid ?? 0) - $thisReceiptAmount) : 0;
+                    $maxCredit = max(0, $challanAmount - $alreadyPaidExceptThis);
                 @endphp
+
                 @if ($challanHead)
                     <tr>
-                        <td>{{ $challanHead->feeHead->fee_head }}</td>
-                        <td>{{ number_format(($challanHead->price - $challanHead->concession), 2) }}</td>
-                        <td>{{ number_format($challanHead->paid, 2) }}</td>
+                        <td>{{ $challanHead->feeHead->fee_head ?? '-' }}</td>
+
+                        <td>{{ number_format($challanAmount, 2) }}</td>
+
+                        <td>{{ number_format($alreadyPaidExceptThis, 2) }}</td>
+
                         {{ Form::hidden("items[{$vo->id}][journal_item_id]", $vo->id) }}
                         {{ Form::hidden("items[{$vo->id}][challan_head_id]", $challanHead->id) }}
-                        {{ Form::hidden("items[{$vo->id}][voucher_old]", $vo->credit) }}
+                        {{ Form::hidden("items[{$vo->id}][head_id]", $vo->head) }}
+                        {{ Form::hidden("items[{$vo->id}][voucher_old]", $thisReceiptAmount) }}
+
                         <td>
-                           {{ Form::number("items[{$vo->id}][credit]", old("items.{$vo->id}.credit", $vo->credit), [
-                                    'class' => 'form-control receipt-credit',
-                                    'min' => 0,
-                                    'max' => ($challanHead->price - $challanHead->paid - $challanHead->concession) +$vo->credit,
-                                    'step' => 1,
-                                    'data-max' => ($challanHead->price - $challanHead->paid - $challanHead->concession) + $vo->credit,
-                                    'data-paid' => $vo->credit,
-                                ]) }}
-
+                            {{ Form::number("items[{$vo->id}][credit]", old("items.{$vo->id}.credit", $thisReceiptAmount), [
+                                'class' => 'form-control receipt-credit',
+                                'min' => 0,
+                                'max' => $maxCredit,
+                                'step' => 1,
+                                'data-max' => $maxCredit,
+                                'data-paid' => $thisReceiptAmount,
+                            ]) }}
                         </td>
+
                         <td class="remaining-balance" data-id="{{ $vo->id }}">
-                            {{ number_format(($challanHead->price - $challanHead->paid) , 2) }}
+                            {{ number_format($maxCredit - $thisReceiptAmount, 2) }}
                         </td>
-
                     </tr>
                 @endif
             @endforeach

@@ -26,25 +26,28 @@ class StudentEnrollment extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-      public function index(Request $request)
+   public function index(Request $request)
     {
+
         $user = \Auth::user();
 
         if ($user->type === 'company') {
             $branches = User::where('type', 'branch')
+                ->where('is_active', 1)
                 ->where('created_by', $user->creatorId())
                 ->pluck('name', 'id');
             $branches->prepend($user->name, $user->id);
             $branches->prepend('All Branches', '');
+            // dd($branches);
 
             $classes = collect();
             $classes->prepend('All Class', 'all');
             $sections = collect();
-            $sections->prepend('All Section', '');
+            $sections->prepend('All Section', '0');
             $query = StudentEnrollments::with('StudentRegistration')->where('student_enrollments.active_status', 1)
-             
+
                 ->where('student_enrollments.created_by', $user->creatorId());
-                // dd($query->get());
+            // dd($query->toSql());
         } else {
             $branches = User::where('id', $user->ownedId())->pluck('name', 'id');
             $classes = Classes::where('owned_by', $user->ownedId())
@@ -59,7 +62,7 @@ class StudentEnrollment extends Controller
                 ->distinct()->pluck('sections.name', 'sections.id');
             $sections->prepend('All Section', '');
             $query = StudentEnrollments::with('StudentRegistration')
-             ->whereHas('StudentRegistration', function ($q) {
+                ->whereHas('StudentRegistration', function ($q) {
                     $q->where('student_status', '!=', 'withdrawl');
                 })->where('student_enrollments.owned_by', $user->ownedId());
         }
@@ -76,15 +79,25 @@ class StudentEnrollment extends Controller
         }
         if (!empty($request->classes) && $request->classes != 'all') {
             $query->where('student_enrollments.class_id', $request->classes);
+            // dd($query->get());
             $sections = DB::table('class_sections')
                 ->join('sections', 'class_sections.section_id', '=', 'sections.id')
                 ->where('class_sections.class_id', $request->classes)
                 ->select('sections.id', 'sections.name')
                 ->distinct()->pluck('sections.name', 'sections.id');
-                // dd($sections);
+
+            $sections->prepend('All Section', '');
+            // dd($sections);
         }
-        if (!empty($request->sections)  && $request->classes != 'all') {
+        if (!empty($request->sections) && $request->sections != 'all') {
             $query->where('student_enrollments.section_id', $request->sections);
+            $sections = DB::table('class_sections')
+                ->join('sections', 'class_sections.section_id', '=', 'sections.id')
+                ->where('class_sections.class_id', $request->classes)
+                ->select('sections.id', 'sections.name')
+                ->distinct()->pluck('sections.name', 'sections.id');
+            $sections->prepend('All Section', '');
+            // dd($sections);
         }
         if (!empty($request->sessions)) {
             $query->where('student_enrollments.session_id', $request->sessions);
@@ -134,15 +147,64 @@ class StudentEnrollment extends Controller
             }
         }
         // 8) Always filter only active enrollments
-        if ($request->has('export') && $request->export == 'excel') {
-            $branch = $request->branches ? $branches[$request->branches] : 'All Branches';
+        // dd($query->toSql());
+        if (
+            $request->get('export') == 'excel' ||
+            $request->get('class_list_export') == 'excel'
+        ) {
+            $report_name = 'Student_Enrollment_Report';
+            $branch = (!empty($request->branches) && isset($branches[$request->branches]))
+                ? $branches[$request->branches]
+                : 'All_Branches';
+            // sanitize branch
+            $branch = preg_replace('/[^A-Za-z0-9\-]/', '_', $branch);
+            if ($branch !== 'All_Branches') {
+                $report_name = $branch . '_Student_Enrollment_Report';
+                if ($request->get('class_list_export') === 'excel') {
+
+                    if ($request->classes !== 'all') {
+                        $class = preg_replace('/[^A-Za-z0-9\-]/', '_', $classes[$request->classes]);
+                        $report_name = $branch . '_' . $class . '_CLASS_LIST_REPORT';
+                    } elseif ($request->sections !== 'all' && $request->sections !== '') {
+                        $section = preg_replace('/[^A-Za-z0-9\-]/', '_', $sections[$request->sections]);
+                        $report_name = $branch . '_' . $section . '_CLASS_LIST_REPORT';
+                    } else {
+                        $report_name = $branch . '_All_ClassesList_Report';
+                    }
+                }
+            }
             $enrollments = $query->where('student_enrollments.active_status', 1)->get();
-            return Excel::download(new StudentEnrollmentExport($enrollments,$branch,$branches), 'student_enrollment.xlsx');
+            return Excel::download(
+                new StudentEnrollmentExport($enrollments, $branch, $branches, $request),
+                $report_name . '.xlsx'
+            );
         }
+        // dd($request->all());   
         if ($request->has('export') && $request->export == 'pdf') {
-            $branch = $request->branches ? $branches[$request->branches] : 'All Branches';
             $enrollments = $query->where('student_enrollments.active_status', 1)->get();
-            return Excel::download(new StudentEnrollmentExport($enrollments,$branch,$branches), 'student_enrollment.pdf',\Maatwebsite\Excel\Excel::MPDF);
+            $report_name = 'Student_Enrollment_Report';
+            $branch = (!empty($request->branches) && isset($branches[$request->branches]))
+                ? $branches[$request->branches]
+                : 'All_Branches';
+            $branch = preg_replace('/[^A-Za-z0-9\-]/', '_', $branch);
+            if ($branch !== 'All_Branches') {
+                $report_name = $branch . '_enrollment_report';
+                if ($request->get('class_list_export') === 'excel') {
+
+                    if ($request->classes !== 'all') {
+                        $class = preg_replace('/[^A-Za-z0-9\-]/', '_', $classes[$request->classes]);
+                        $report_name = $branch . '_' . $class . '_CLASS_LIST_REPORT';
+                    }
+                    // i want to use the same check for the section as well, if section is not all then add section name to the report name
+                    elseif ($request->sections !== 'all' && $request->sections !== '') {
+                        $section = preg_replace('/[^A-Za-z0-9\-]/', '_', $sections[$request->sections]);
+                        $report_name = $branch . '_' . $section . '_CLASS_LIST_REPORT';
+                    } else {
+                        $report_name = $branch . '_all_classeslist_report';
+                    }
+                }
+            }
+            return Excel::download(new StudentEnrollmentExport($enrollments, $branch, $branches, $request), $report_name . '.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
         if ($request->has('print')) {
             ini_set('max_execution_time', 0);
@@ -156,7 +218,7 @@ class StudentEnrollment extends Controller
                 $enrollments = $enrollments->join('student_registrations', 'student_enrollments.regId', '=', 'student_registrations.id')->get();
                 $groupedEnrollments = $enrollments->groupBy(['branch_name', 'class_name']);
                 $bodyHtml = view('students.enrollment.print', compact('branches', 'groupedEnrollments'))->render();
-                 $report_name = 'Student Profile';
+                $report_name = 'Student Profile';
             } else if ($request->print == 'class_print') {
                 $enrollments = $enrollments->join('student_registrations', 'student_enrollments.regId', '=', 'student_registrations.id')
                     ->orderBy('users.name', 'asc') // First by branch
@@ -165,14 +227,14 @@ class StudentEnrollment extends Controller
                     ->orderBy('student_registrations.stdname', 'asc') // Then by student name
                     // ->take(50)
                     ->get();
-                    // dd($enrollments);
+                // dd($enrollments);
                 $groupedEnrollments = $enrollments->groupBy(['branch_name', 'class_name']);
                 $bodyHtml = view('students.enrollment.class_print', compact('groupedEnrollments', 'branches'))->render();
-                 $report_name = 'Class List';
+                $report_name = 'Class List';
             }
-            
+
             $periods = false;
-            $headerHtml = view('studentReports.pdf_header', compact('request', 'report_name', 'periods','branch'));
+            $headerHtml = view('studentReports.pdf_header', compact('request', 'report_name', 'periods', 'branch'));
             $footerHtml = view('students.concession.report.pdf.footer')->render();
             $html = '<html><head>
             <style>
@@ -196,7 +258,6 @@ class StudentEnrollment extends Controller
             $dompdf->setPaper('A3', 'landscape');
             $dompdf->render();
             return $dompdf->stream('StudentProfile.pdf', ['Attachment' => false]);
-
         }
         // if ($request->has('print')) {
         //     ini_set('max_execution_time', 0);
@@ -266,16 +327,24 @@ class StudentEnrollment extends Controller
         //         ->header('Content-Type', 'application/pdf')
         //         ->header('Content-Disposition', 'inline; filename="StudentDefaulter.pdf"');
         // }
-        $enrollments = $query->where('student_enrollments.active_status', 1)->get();
+
+        $enrollments = $query->with([
+            'branch',
+            'class',
+            'section',
+            'StudentRegistration.registeroption',
+            'StudentRegistration.session',
+        ])->where('student_enrollments.active_status', 1)->get();
+        // dd($enrollments);
         return view(
             'students.enrollment.list',
             compact('enrollments', 'branches', 'classes', 'sections', 'sessions')
         );
     }
-    public function exportToExcel($enrollments,$branch,$branches)
+    public function exportToExcel($enrollments, $branch, $branches)
     {
-                // return Excel::download(new StudentEnrollmentExport($enrollments,$branch,$branches), 'student_enrollment.pdf',\Maatwebsite\Excel\Excel::MPDF);
-        return Excel::download(new StudentEnrollmentExport($enrollments,$branch,$branches), 'student_enrollment.xlsx');
+        // return Excel::download(new StudentEnrollmentExport($enrollments,$branch,$branches), 'student_enrollment.pdf',\Maatwebsite\Excel\Excel::MPDF);
+        return Excel::download(new StudentEnrollmentExport($enrollments, $branch, $branches), 'student_enrollment.xlsx');
     }
 
     /**
@@ -304,8 +373,8 @@ class StudentEnrollment extends Controller
             if ($registration->student_status == 'Registered' || $registration->student_status == '') {
                 $section = ClassSection::where('class_id', $registration->class_id)->first();
                 $prevEnrollId = StudentEnrollments::selectRaw(
-                        'MAX(CAST(enrollId AS UNSIGNED)) as max_enroll_id'
-                    )->value('max_enroll_id');
+                    'MAX(CAST(enrollId AS UNSIGNED)) as max_enroll_id'
+                )->value('max_enroll_id');
 
                 $newEnrollId = $prevEnrollId ? $prevEnrollId + 1 : 1;
                 $enrollment = new StudentEnrollments();

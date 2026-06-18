@@ -12,6 +12,7 @@ use App\Models\StudentFeeStructure;
 use App\Models\FeeHead;
 use App\Models\Concession;
 use App\Models\StudentEnrollments;
+use App\Models\StudentHistory;
 use App\Models\StudentRegistration;
 use App\Models\StudentTransfer;
 use App\Models\ChartOfAccount;
@@ -224,10 +225,27 @@ class StudentReadmissionController extends Controller
                 $transfer->owned_by = $std_enroll->owned_by;
                 $transfer->created_by = \Auth::user()->creatorId();
                 $transfer->save();
+                //student history
+                $stdhistory = new StudentHistory();
+                $stdhistory->reg_id = $std_enroll->regId;
+                $stdhistory->student_id = $std_enroll->enrollId;
+                $stdhistory->event_type = 'Readmission';
+                $stdhistory->from_session_id = $withdrawal->session_id;
+                $stdhistory->from_class_id = $withdrawal->class_id;
+                $stdhistory->from_branch_id = $withdrawal->branch_id;
+                $stdhistory->to_session_id = $request->session_id; 
+                $stdhistory->to_class_id = $request->class_id;
+                $stdhistory->to_branch_id = $request->branch_id;
+                $stdhistory->effective_date = $request->readmission_date;
+                $stdhistory->remarks = $request->reason;
+                $stdhistory->owned_by = $std_enroll->owned_by;
+                $stdhistory->created_by = \Auth::user()->creatorId();
+                $stdhistory->save();
 
                 if(@$challan){
                     $data['id'] =$challan->id;
                     $data['date'] =$challan->challan_date;
+                    $data['no'] =$challan->challanNo;
                     $data['reference'] =$std_enroll->regId;
                     $data['category'] = 'Readmission';
                     $data['user_id'] =$std_enroll->regId;
@@ -239,6 +257,15 @@ class StudentReadmissionController extends Controller
                     $dataret  = Utility::jrentry($data);
                     $challan->voucher_id = $dataret;
                     $challan->save();
+                    //update status of enrollment and registration table
+                    // $std_enroll->active_status = 1;
+                    $std_enroll->save();
+
+                    $std_registration = StudentRegistration::find($std_enroll->regId);
+                    $std_registration->student_status = 'Enrolled';
+                    // $std_registration->active_status = 1;
+                    $std_registration->save();
+                    
                 }
                 DB::commit();
                 return redirect()->route('readmissionstudent.index')->with('success', 'Student Re-Admission has been created successfully.');
@@ -546,10 +573,12 @@ class StudentReadmissionController extends Controller
             $students = StudentRegistration::where('roll_no',$readmission->student_id)
                 ->update(['class_id'=>$readmission->class_id,
                           'student_status'=>'Enrolled',
+                          'active_status'=>1,
                           'session_id'=>$readmission->session_id,
                           'owned_by'=>$readmission->branch_id,]);
             $std_enroll = StudentEnrollments::where('enrollId', $readmission->student_id)
                 ->update(['owned_by'=>$readmission->branch_id,
+                        'active_status'=>1,
                           'class_id'=>$readmission->class_id,
                           'session_id'=>$readmission->session_id,]);
         return redirect()->route('readmissionstudent.index')->with('success', 'Student Re-Admission has been approved successfully.');
@@ -562,7 +591,7 @@ class StudentReadmissionController extends Controller
     {
         // $student = DB::table('student_enrollments')->join('student_registrations', 'student_enrollments.regId', '=', 'student_registrations.id')
         // ->where('student_enrollments.class_id',$request->class_id)->get();
-        $student = StudentRegistration::where('class_id',$request->class_id)->where('student_status','Withdrawl')->get();
+        $student = StudentRegistration::where('class_id',$request->class_id)->whereNotIn('student_status',['Enrolled','Registered'])->get();
 
         return response()->json(['student' => $student]);
     }

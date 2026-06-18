@@ -15,8 +15,13 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('fix:journal-data-fast')
+        ->dailyAt('18:30')  // 4 PM
+        ->withoutOverlapping() // Prevents running multiple times if previous run not finished
+        ->onOneServer();  
+
     }
+
 
     /**
      * Register the commands for the application.

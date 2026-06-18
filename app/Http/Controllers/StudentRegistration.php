@@ -14,10 +14,12 @@ use App\Models\StudentReceipt;
 use App\Models\Session;
 use App\Models\StudentFeeStructure;
 use App\Models\User;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\StudentFeeRevisionBatch;
+use App\Models\StudentFeeRevisionItem;
 use App\Models\StudentRegistration as ModelsStudentRegistration;
 use App\Models\Utility;
 use Aws\AppRegistry\AppRegistryClient;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -30,6 +32,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
+use Storage;
 
 class StudentRegistration extends Controller
 {
@@ -62,11 +65,11 @@ class StudentRegistration extends Controller
         }
         if (!empty($request->type) && $request->type != 'Registered' && $request->type != 'Enrolled') {
             $query->where('student_status', '!=', null)->orWhere('student_status', '!=', 'Registered');
-        }else if(!empty($request->type) && $request->type == 'Registered'){
+        } else if (!empty($request->type) && $request->type == 'Registered') {
             $query->where('student_status', '=', 'Registered');
-        }else if(!empty($request->type) && $request->type == 'Enrolled'){
+        } else if (!empty($request->type) && $request->type == 'Enrolled') {
             $query->where('student_status', '=', 'Enrolled');
-        }else{
+        } else {
             $query->where('student_status', '=', 'Registered');
         }
         // dd($query->get());
@@ -93,14 +96,14 @@ class StudentRegistration extends Controller
                     $query->orderBy('gender', 'asc');
                     break;
             }
-        }else{
-             $query->orderBy('reg_no', 'desc');
+        } else {
+            $query->orderBy('reg_no', 'desc');
         }
         if ($request->has('search') && !empty($request->search)) {
             $searchTerm = $request->search;
 
             $query->where(function ($q) use ($searchTerm) {
-                $columns = ['reg_no','stdname', 'fathername', 'fatherprofession', 'mothername', 'motherprofession', 'city', 'mothercnic','fathercnic','session_id'];
+                $columns = ['reg_no', 'stdname', 'fathername', 'fatherprofession', 'mothername', 'motherprofession', 'city', 'mothercnic', 'fathercnic', 'session_id'];
                 foreach ($columns as $column) {
                     $q->orWhere($column, 'like', "%{$searchTerm}%");
                 }
@@ -110,17 +113,17 @@ class StudentRegistration extends Controller
 
         $branchTotals = [];
         $grandTotal = 0;
-        
+
         foreach ($registrations->groupBy('owned_by') as $branchId => $branchRegs) {
             // If you want count of registrations per branch
             $branchTotals[$branchId] = $branchRegs->count();
-        
+
             // If you want sum of a numeric column (e.g. fees or amount)
             // $branchTotals[$branchId] = $branchRegs->sum('amount_column');
-        
+
             $grandTotal += $branchTotals[$branchId];
         }
-        
+
         if ($request->has('export') && $request->export == 'excel') {
             $branchName = $branches[$request->branches] ?? 'All Branches';
             $report_name = 'Student Registration Report';
@@ -163,7 +166,7 @@ class StudentRegistration extends Controller
         } else {
             $branch = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
         }
-        $session = Session::orderBy('id','Desc')->where('active_status','1')->where('created_by', '=', \Auth::user()->creatorId())->pluck('year', 'id');
+        $session = Session::orderBy('id', 'Desc')->where('active_status', '1')->where('created_by', '=', \Auth::user()->creatorId())->pluck('year', 'id');
         $registerOption = Registring_option::where('created_by', '=', \Auth::user()->creatorId())->pluck('name', 'id');
         return view('students.registration.create', compact('branch', 'session', 'registerOption'));
     }
@@ -381,7 +384,7 @@ class StudentRegistration extends Controller
     }
     public function regNo()
     {
-        $latest = ModelsStudentRegistration::where('created_by', \Auth::user()->creatorId())->orderBY('id','desc')->first();
+        $latest = ModelsStudentRegistration::where('created_by', \Auth::user()->creatorId())->orderBY('id', 'desc')->first();
         if (!$latest) {
             return 1;
         }
@@ -404,8 +407,8 @@ class StudentRegistration extends Controller
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $query = ModelsStudentRegistration::with('session', 'class')->where('owned_by', '=', \Auth::user()->ownedId());
         }
-        $student = ModelsStudentRegistration::where('id', $id)->with('class', 'session', 'branches')->first();
-        $classes = Classes::where('owned_by',$student->owned_by)->get()->pluck('name', 'id');
+        $student = ModelsStudentRegistration::where('id', $id)->with('class', 'session', 'branches', 'enrollment')->first();
+        $classes = Classes::where('owned_by', $student->owned_by)->get()->pluck('name', 'id');
         $classfee = StudentFeeStructure::with('feehead')->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
 
         if ($classfee->isEmpty()) {
@@ -438,19 +441,21 @@ class StudentRegistration extends Controller
         $concession = Concession::with('concession')->where('student_id', $id)
             ->where('end_date', '>=', date('Y-m-d'))
             ->orderBy('id', 'desc')
-            ->where('active_status' ,'!=',0)
+            ->where('active_status', '!=', 0)
             ->where('status', 'Approved')
             ->first();
-            if(!$concession){
-                $concession = Concession::with('concession')->where('student_id', $id)
+        if (!$concession) {
+            $concession = Concession::with('concession')->where('student_id', $id)
                 ->orderBy('id', 'desc')
-                ->whereNull( 'end_date')
-                ->where('active_status' ,'!=',0)
+                ->whereNull('end_date')
+                ->where('active_status', '!=', 0)
                 ->where('status', 'Approved')
                 ->first();
-            }
+        }
 
-        return view('students.registration.show', ['branches' => $branches, 'concession' => $concession, 'student' => $student, 'classfee' => $classfee, 'studentchallanexist' => $studentchallanexist, 'registerOption' => $registerOptions, 'selectedOptionId' => $selectedRegisterOptionId,'classes' => $classes]);
+        $showJunJulFeeExempt = $this->canShowJunJulFeeExempt($student);
+
+        return view('students.registration.show', ['branches' => $branches, 'concession' => $concession, 'student' => $student, 'classfee' => $classfee, 'studentchallanexist' => $studentchallanexist, 'registerOption' => $registerOptions, 'selectedOptionId' => $selectedRegisterOptionId, 'classes' => $classes, 'showJunJulFeeExempt' => $showJunJulFeeExempt]);
     }
 
     /**
@@ -478,8 +483,11 @@ class StudentRegistration extends Controller
     {
         // dd($request->all());
         $student = ModelsStudentRegistration::findOrFail($id);
+        $student->load('enrollment');
         $sectionData = $this->transformSectionData($request->input('sectionData'));
         if ($request->sectionName == 'section1') {
+            $profileImage = $sectionData['profile_image'] ?? null;
+            unset($sectionData['profile_image']);
             \DB::beginTransaction();
             try {
                 $validator = Validator::make($sectionData, [
@@ -493,6 +501,7 @@ class StudentRegistration extends Controller
                     'adm_session' => 'nullable|string',
                     'present_address' => 'nullable|string',
                     'permanent_address' => 'nullable|string',
+
                 ]);
                 if ($validator->fails()) {
                     return response()->json([
@@ -516,13 +525,13 @@ class StudentRegistration extends Controller
                 $student->address = strtoupper($sectionData['present_address']);
                 $student->permanent_address = strtoupper($sectionData['permanent_address']);
                 $student->save();
-                if(isset($sectionData['branch']) && $sectionData['branch']){
-                    if($sectionData['branch'] != $student->owned_by){
+                if (isset($sectionData['branch']) && $sectionData['branch']) {
+                    if ($sectionData['branch'] != $student->owned_by) {
                         $pattern = '%Registration%';
                         $challan = challans::whereRaw('LOWER(challan_type) LIKE ?', [strtolower($pattern)])->first();
-                        if($challan){
-                            $journal = JournalEntry::where('category', 'Registration')->where('id',$challan->voucher_id)->first();
-                            if($journal){
+                        if ($challan) {
+                            $journal = JournalEntry::where('category', 'Registration')->where('id', $challan->voucher_id)->first();
+                            if ($journal) {
                                 $journal->owned_by = $sectionData['branch'];
                                 $journal->save();
                             }
@@ -531,14 +540,14 @@ class StudentRegistration extends Controller
                         }
                         $patternadm = '%Admission%';
                         $challanadm = challans::whereRaw('LOWER(challan_type) LIKE ?', [strtolower($patternadm)])->first();
-                        if($challanadm){
-                            $journaladm = JournalEntry::where('category', 'Admission')->where('id',$challanadm)->first();
-                            if($journaladm){
-                                $journalItem = JournalItem::where('journal',$journaladm->id)->delete();
+                        if ($challanadm) {
+                            $journaladm = JournalEntry::where('category', 'Admission')->where('id', $challanadm)->first();
+                            if ($journaladm) {
+                                $journalItem = JournalItem::where('journal', $journaladm->id)->delete();
                                 $journaladm->delete();
                             }
                             $challanadm->delete();
-                            StudentFeeStructure::where('reg_id',$student->id)->delete();
+                            StudentFeeStructure::where('reg_id', $student->id)->delete();
                         }
                         $student->owned_by = $sectionData['branch'];
                         $student->branch = $sectionData['branch'];
@@ -547,7 +556,40 @@ class StudentRegistration extends Controller
                     }
 
                 }
+                if ($profileImage) {
 
+                    if (strpos($profileImage, 'base64,') !== false) {
+
+                        $imageParts = explode('base64,', $profileImage);
+                        $imageBase64 = $imageParts[1];
+
+                        $image = base64_decode($imageBase64);
+
+                        // 🟢 clean student name
+                        $safeName = preg_replace('/[^A-Za-z0-9_-]/', '_', $sectionData['name'] ?? 'student');
+
+                        // 🟢 folder inside storage
+                        $folder = 'studentPictures';
+
+                        // 🟢 unique file name
+                        $fileName = $safeName . '_' . $student->id . '_' . time() . '.png';
+
+                        $filePath = $folder . '/' . $fileName;
+
+                        // 🟢 store in storage/app/public/studentPictures
+                        Storage::disk('public')->put($filePath, $image);
+
+                        // 🟢 delete old image if exists
+                        if ($student->profile_image && Storage::disk('public')->exists($student->profile_image)) {
+                            Storage::disk('public')->delete($student->profile_image);
+                        }
+
+                        // 🟢 save relative path in DB
+                        $student->profile_image = $filePath;
+                    }
+
+                    $student->save();
+                }
                 DB::commit();
                 return response(['success' => 'Student Updated Successfully']);
             } catch (\Exception $e) {
@@ -607,26 +649,38 @@ class StudentRegistration extends Controller
         } else if ($request->sectionName == 'section3') {
             \DB::beginTransaction();
             try {
-                if($sectionData['adm_class']){
+				$feeStructureBefore = $this->feeStructureAmountSnapshot($student);
+                if ($this->canShowJunJulFeeExempt($student)) {
+                    $requestedExempt = !empty($sectionData['fee_exempt_jun_jul'])
+                        && (string) $sectionData['fee_exempt_jun_jul'] === '1';
+
+                    if (\Auth::user()->type === 'company') {
+                        $student->fee_exempt_jun_jul = $requestedExempt;
+                    } elseif (!$student->fee_exempt_jun_jul && $requestedExempt) {
+                        $student->fee_exempt_jun_jul = true;
+                    }
+                }
+
+                if ($sectionData['adm_class']) {
                     // dd($sectionData['adm_class'],$student->reg_class);
-                    if($sectionData['adm_class'] != $student->reg_class && $student->student_status == 'Registered'){
+                    if ($sectionData['adm_class'] != $student->reg_class && $student->student_status == 'Registered') {
                         $pattern = '%Registration%';
                         $challan = challans::whereRaw('LOWER(challan_type) LIKE ?', [strtolower($pattern)])
-                        ->where('student_id', $student->id)->first();
-                        if($challan){
+                            ->where('student_id', $student->id)->first();
+                        if ($challan) {
                             $challan->class_id = $sectionData['adm_class'];
                             $challan->save();
                         }
-                        
+
                         $patternadm = '%Admission%';
                         $challanadm = challans::whereRaw('LOWER(challan_type) LIKE ?', [strtolower($patternadm)])
-                        ->where('student_id', $student->id)->first();
-                        if($challanadm){
+                            ->where('student_id', $student->id)->first();
+                        if ($challanadm) {
                             $challan->class_id = $sectionData['adm_class'];
-                            StudentFeeStructure::where('reg_id',$student->id)->delete();
+                            StudentFeeStructure::where('reg_id', $student->id)->delete();
                         }
-                        
-                        if($student->student_status == 'Registered'){
+
+                        if ($student->student_status == 'Registered') {
                             $student->reg_class = $sectionData['reg_class'];
                             $student->class_id = $sectionData['adm_class'];
                             $student->save();
@@ -635,24 +689,24 @@ class StudentRegistration extends Controller
 
                 }
                 $concession = Concession::with('concession')->where('student_id', $id)
-                ->where('end_date', '>=', date('Y-m-d'))
-                ->orderBy('id', 'desc')
-                ->where('status', 'Approved')
-                ->first();
-                
-                if(!$concession){
-                    $concession = Concession::with('concession')->where('student_id', $id)
+                    ->where('end_date', '>=', date('Y-m-d'))
                     ->orderBy('id', 'desc')
-                    ->whereNull( 'end_date')
                     ->where('status', 'Approved')
                     ->first();
+
+                if (!$concession) {
+                    $concession = Concession::with('concession')->where('student_id', $id)
+                        ->orderBy('id', 'desc')
+                        ->whereNull('end_date')
+                        ->where('status', 'Approved')
+                        ->first();
                 }
-                
+
                 if (@$request->checkedRows) {
                     foreach ($request->checkedRows as $row) {
                         // dd($row);
                         $stdfeestructure = StudentFeeStructure::with('feehead')
-                        ->where('head_id', $row[5])->where('reg_id', $id)->where('owned_by', $student->owned_by)->first();
+                            ->where('head_id', $row[5])->where('reg_id', $id)->where('owned_by', $student->owned_by)->first();
                         // dd($stdfeestructure,$row[5]);
                         if ($stdfeestructure) {
                             $stdfeestructure->amount = $row[1] ?? 0;
@@ -661,11 +715,11 @@ class StudentRegistration extends Controller
                                     'concession_id',
                                     $concession->concession_id,
                                 )
-                                ->where('head_id', $row[5])->first();
+                                    ->where('head_id', $row[5])->first();
                             }
-                            if( @$concession && @$concessionPolicyHeads){
+                            if (@$concession && @$concessionPolicyHeads) {
                                 $stdfeestructure->discount = 0;
-                            }else{
+                            } else {
                                 $stdfeestructure->discount = round($row[2] ?? 0);
 
                             }
@@ -705,6 +759,7 @@ class StudentRegistration extends Controller
                 // dd($request->all());
 
                 $student->save();
+				$this->recordFeeStructureAmountHistory($student, $feeStructureBefore, 'manual_fee_structure', 'Manual fee structure update');
                 \DB::commit();
                 return response(['success' => 'Student Updated Successfully']);
             } catch (\Exception $e) {
@@ -714,6 +769,121 @@ class StudentRegistration extends Controller
             }
         }
     }
+	private function feeStructureAmountSnapshot(ModelsStudentRegistration $student)
+    {
+        $concessionPolicyHeads = $this->activeConcessionPolicyHeads($student->id);
+
+        return StudentFeeStructure::where('reg_id', $student->id)
+            ->where('owned_by', $student->owned_by)
+            ->get()
+            ->mapWithKeys(function ($structure) use ($concessionPolicyHeads) {
+                $baseAmount = (float) ($structure->amount ?? 0);
+
+                return [
+                    (int) $structure->head_id => [
+                        'structure_id' => $structure->id,
+                        'base_amount' => $baseAmount,
+                        'payable_amount' => $this->feeStructurePayableAmount(
+                            $baseAmount,
+                            (int) $structure->head_id,
+                            (float) ($structure->discount ?? 0),
+                            $concessionPolicyHeads
+                        ),
+                    ],
+                ];
+            });
+    }
+
+    private function activeConcessionPolicyHeads(int $studentId)
+    {
+        $concession = Concession::where('student_id', $studentId)
+            ->where('status', 'Approved')
+            ->where('active_status', 1)
+            ->where(function ($query) {
+                $query->where('end_date', '>=', date('Y-m-d'))
+                    ->orWhereNull('end_date');
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$concession) {
+            return collect();
+        }
+
+        return ConcessionPolicyHead::where('concession_id', $concession->concession_id)
+            ->pluck('percentage', 'head_id');
+    }
+
+    private function feeStructurePayableAmount(float $baseAmount, int $headId, float $structureDiscount, $concessionPolicyHeads): float
+    {
+        $discountPercentage = $concessionPolicyHeads->has($headId)
+            ? (float) $concessionPolicyHeads->get($headId)
+            : $structureDiscount;
+
+        return round($baseAmount - (($baseAmount * $discountPercentage) / 100));
+    }
+
+    private function recordFeeStructureAmountHistory(ModelsStudentRegistration $student, $before, string $revisionType, string $remarks): void
+    {
+        $after = $this->feeStructureAmountSnapshot($student);
+        $items = collect();
+
+        foreach ($after as $headId => $current) {
+            if (!$before->has($headId)) {
+                continue;
+            }
+
+            $previous = $before->get($headId);
+            $prevBase = (float) $previous['base_amount'];
+            $newBase = (float) $current['base_amount'];
+            $prevPayable = (float) $previous['payable_amount'];
+            $newPayable = (float) $current['payable_amount'];
+
+            if (round($prevBase, 2) === round($newBase, 2) && round($prevPayable, 2) === round($newPayable, 2)) {
+                continue;
+            }
+
+            $items->push([
+                'student_fee_structure_id' => $current['structure_id'],
+                'student_id' => optional($student->enrollment)->enrollId,
+                'reg_id' => $student->id,
+                'head_id' => $headId,
+                'percentage' => $prevBase > 0 ? round((($newBase - $prevBase) / $prevBase) * 100, 2) : 0,
+                'prev_base_amount' => $prevBase,
+                'new_base_amount' => $newBase,
+                'prev_payable_amount' => $prevPayable,
+                'new_payable_amount' => $newPayable,
+            ]);
+        }
+
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        $batch = StudentFeeRevisionBatch::create([
+            'revision_type' => $revisionType,
+            'student_id' => optional($student->enrollment)->enrollId,
+            'reg_id' => $student->id,
+            'session_from_id' => $student->session_id,
+            'session_to_id' => $student->session_id,
+            'branch_from_id' => $student->owned_by,
+            'branch_to_id' => $student->owned_by,
+            'class_from_id' => $student->class_id,
+            'class_to_id' => $student->class_id,
+            'section_from_id' => $student->section_id,
+            'section_to_id' => $student->section_id,
+            'effective_from' => date('Y-m-d'),
+            'status' => 'applied',
+            'remarks' => $remarks,
+            'owned_by' => $student->owned_by,
+            'created_by' => \Auth::user()->creatorId(),
+        ]);
+
+        foreach ($items as $item) {
+            StudentFeeRevisionItem::create(array_merge(['batch_id' => $batch->id], $item));
+        }
+    }
+
     private function transformSectionData($sectionData)
     {
         $transformedData = [];
@@ -723,9 +893,28 @@ class StudentRegistration extends Controller
         return $transformedData;
     }
 
+    private function canShowJunJulFeeExempt(ModelsStudentRegistration $student): bool
+    {
+        if (!in_array(\Auth::user()->type, ['company', 'branch'], true)) {
+            return false;
+        }
+
+        $admDate = optional($student->enrollment)->adm_date;
+        if (empty($admDate)) {
+            return false;
+        }
+
+        $today = Carbon::today();
+        $admissionDate = Carbon::parse($admDate);
+
+        return (int) $today->year === (int) $admissionDate->year
+            && (int) $today->month >= 1
+            && (int) $today->month <= 5;
+    }
+
     function challanNo()
     {
-        $latest = Challans::where('created_by', '=', \Auth::user()->creatorId())->orderBY('id','desc')->first();
+        $latest = Challans::where('created_by', '=', \Auth::user()->creatorId())->orderBY('id', 'desc')->first();
         if (!$latest) {
             return 1;
         }
@@ -745,10 +934,10 @@ class StudentRegistration extends Controller
 
     public function receipt($id)
     {
-        $reg_recipt = ModelsStudentRegistration::with('session', 'class', 'branches','branch_name' ,'branch_name.headmaster_name')->find($id);
+        $reg_recipt = ModelsStudentRegistration::with('session', 'class', 'branches', 'branch_name', 'branch_name.headmaster_name')->find($id);
         return view('students.registration.reg_slip', compact('reg_recipt'));
     }
-    public function admission_order(Request $request, $id)
+   public function admission_order(Request $request, $id)
     {
         $adm_order = ModelsStudentRegistration::with(
             'session',
@@ -780,19 +969,21 @@ class StudentRegistration extends Controller
         return view('students.registration.adm_order', compact('adm_order'));
     }
 
+
     public function SiblingonFathercnic(Request $request)
     {
-        $registrations = ModelsStudentRegistration::with('session', 'class', 'branches','fee_structure')->where('student_status','Enrolled')->where('fathercnic', $request->fatherCnic)->get();
+        $registrations = ModelsStudentRegistration::with('session', 'class', 'branches', 'fee_structure')->where('student_status', 'Enrolled')->where('fathercnic', $request->fatherCnic)->get();
         $pattern = '%TUITION%';
         $head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($pattern)])->first();
-        return response()->json(['siblings' => $registrations,'head' => $head ]);
+        return response()->json(['siblings' => $registrations, 'head' => $head]);
     }
 
-    public function getconcession(Request $request){
+    public function getconcession(Request $request)
+    {
         $pre = 0;
         $pattern = '%TUITION%';
         $head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($pattern)])->first();
-        $concession = Concession::with('concession','concession.policy_head')
+        $concession = Concession::with('concession', 'concession.policy_head')
             ->where('student_id', $request->studentId)
             ->where('end_date', '>=', date('Y-m-d'))
             ->where('status', 'Approved')
@@ -800,15 +991,15 @@ class StudentRegistration extends Controller
             ->first();
 
         if (!$concession) {
-            $concession = Concession::with('concession','concession.policy_head')
+            $concession = Concession::with('concession', 'concession.policy_head')
                 ->where('student_id', $request->studentId)
                 ->where('status', 'Approved')
                 ->orderBy('id', 'desc')
                 ->first();
         }
-        if($concession){
-            $concession = ConcessionPolicyHead::where('concession_id',$concession->concession_id)->where('head_id',$head->id)->first();
-            $pre=$concession->percentage;
+        if ($concession) {
+            $concession = ConcessionPolicyHead::where('concession_id', $concession->concession_id)->where('head_id', $head->id)->first();
+            $pre = $concession->percentage;
         }
 
         return response()->json($pre);
