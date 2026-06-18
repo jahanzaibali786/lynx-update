@@ -897,6 +897,188 @@ class ChallanController extends Controller
     }
 
 
+    public function calculateLateFeeAjax($id, Request $request)
+    {
+        $challan = Challans::findOrFail($id);
+
+        if (Auth::user()->type !== 'company') {
+            return response()->json(['error' => 'Only company users can calculate late fee.'], 403);
+        }
+
+        if (strtolower((string) $challan->status) !== 'issued') {
+            return response()->json(['error' => 'Late fee can only be calculated on issued challans.'], 400);
+        }
+
+        $request->validate([
+            'late_until' => 'required|date',
+        ]);
+
+        $dueDate = Carbon::parse($challan->due_date);
+        $lateUntil = Carbon::parse($request->late_until);
+
+        if ($lateUntil->lte($dueDate)) {
+            return response()->json(['error' => 'Late until date must be after the due date (' . $dueDate->format('Y-m-d') . ').'], 400);
+        }
+
+        if ($lateUntil->gt($dueDate->copy()->addDays(10))) {
+            return response()->json(['error' => 'Late until date cannot exceed 10 days after the due date (' . $dueDate->format('Y-m-d') . ').'], 400);
+        }
+
+        $lateFeeHead = FeeHead::where('fee_head', 'LIKE', '%LATE FEE%')->first();
+        if (!$lateFeeHead) {
+            return response()->json(['error' => 'No LATE FEE head found. Please create a fee head named "LATE FEE".'], 400);
+        }
+
+        $daysOverdue = $dueDate->diffInDays($lateUntil);
+        $lateFeePerDay = 120;
+        $lateFeeAmount = $daysOverdue * $lateFeePerDay;
+        $lateFeeAmount = min($lateFeeAmount, 1200);
+
+        $existingLateFee = ChallanHead::where('challan_id', $challan->id)
+            ->where('head_id', $lateFeeHead->id)
+            ->first();
+
+        return response()->json([
+            'days_overdue' => $daysOverdue,
+            'late_fee_per_day' => $lateFeePerDay,
+            'late_fee_amount' => $lateFeeAmount,
+            'max_cap' => 1200,
+            'existing' => $existingLateFee ? (float) $existingLateFee->price : null,
+            'head_id' => $lateFeeHead->id,
+            'head_name' => $lateFeeHead->fee_head,
+        ]);
+    }
+
+    public function applyLateFee($id, Request $request)
+    {
+        $challan = Challans::with('heads.feeHead')->findOrFail($id);
+
+        if (Auth::user()->type !== 'company') {
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'Only company users can apply late fee.');
+        }
+
+        if (strtolower((string) $challan->status) !== 'issued') {
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'Late fee can only be applied on issued challans.');
+        }
+
+        $request->validate([
+            'late_until' => 'required|date',
+        ]);
+
+        $dueDate = Carbon::parse($challan->due_date);
+        $lateUntil = Carbon::parse($request->late_until);
+
+        if ($lateUntil->lte($dueDate)) {
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'Late until date must be after the due date.');
+        }
+
+        if ($lateUntil->gt($dueDate->copy()->addDays(10))) {
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'Late until date cannot exceed 10 days after the due date.');
+        }
+
+        if (!str_contains(strtolower($challan->challan_type), 'regular') && !str_contains(strtolower($challan->challan_type), 'advance')) {
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'Late fee only applies to Regular and Advance challans.');
+        }
+
+        $lateFeeHead = FeeHead::where('fee_head', 'LIKE', '%LATE FEE%')->first();
+        if (!$lateFeeHead) {
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'No LATE FEE head found. Please create a fee head named "LATE FEE".');
+        }
+
+        DB::beginTransaction();
+        try {
+            $daysOverdue = $dueDate->diffInDays($lateUntil);
+            $lateFeeAmount = min($daysOverdue * 120, 1200);
+
+            $existingLateFee = ChallanHead::where('challan_id', $challan->id)
+                ->where('head_id', $lateFeeHead->id)
+                ->first();
+
+            if ($existingLateFee) {
+                $oldPrice = $existingLateFee->price;
+                $difference = $lateFeeAmount - $oldPrice;
+
+                $existingLateFee->update([
+                    'price' => $lateFeeAmount,
+                    'updated_at' => now(),
+                ]);
+
+                $journalItems = JournalItem::where('entry_id', $existingLateFee->id)
+                    ->where('types', 'Challan')
+                    ->get();
+
+                foreach ($journalItems as $item) {
+                    $item->journal = $challan->voucher_id;
+                    if ((float) $item->credit !== 0.0) {
+                        $item->credit = $lateFeeAmount;
+                    } else {
+                        $item->debit = $lateFeeAmount;
+                    }
+                    $item->save();
+                }
+
+                $challan->total_amount += $difference;
+                $challan->save();
+            } else {
+                $latehead = ChallanHead::create([
+                    'challan_id' => $challan->id,
+                    'head_id' => $lateFeeHead->id,
+                    'price' => $lateFeeAmount,
+                    'concession' => 0,
+                    'paid' => 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $student = $challan->student;
+                $rollNo = optional($student)->roll_no ?: ($challan->rollno ?? '');
+                $description = 'Roll no ' . $rollNo . ' Challan no ' . $challan->challanNo;
+
+                if ($lateFeeHead->account_id) {
+                    $income = new JournalItem;
+                    $income->entry_id = $latehead->id;
+                    $income->types = 'Challan';
+                    $income->journal = $challan->voucher_id;
+                    $income->head = $lateFeeHead->id;
+                    $income->account = $lateFeeHead->account_id;
+                    $income->description = 'Income Account: ' . $description;
+                    $income->credit = $lateFeeAmount;
+                    $income->debit = 0;
+                    $income->user_type = 'Student';
+                    $income->user_id = $challan->student_id;
+                    $income->is_discount = 0;
+                    $income->save();
+                }
+
+                if ($lateFeeHead->receivable_account_id) {
+                    $receivable = new JournalItem;
+                    $receivable->entry_id = $latehead->id;
+                    $receivable->types = 'Challan';
+                    $receivable->journal = $challan->voucher_id;
+                    $receivable->head = $lateFeeHead->id;
+                    $receivable->account = $lateFeeHead->receivable_account_id;
+                    $receivable->description = 'Account Receivable: ' . $description;
+                    $receivable->credit = 0;
+                    $receivable->debit = $lateFeeAmount;
+                    $receivable->user_type = 'Student';
+                    $receivable->user_id = $challan->student_id;
+                    $receivable->is_discount = 0;
+                    $receivable->save();
+                }
+
+                $challan->total_amount += $lateFeeAmount;
+                $challan->save();
+            }
+
+            DB::commit();
+
+            return redirect()->route('challan.legacy_show', $challan->id)->with('success', 'Late fee of ' . number_format($lateFeeAmount, 2) . ' has been applied (Days overdue: ' . $daysOverdue . ').');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('challan.legacy_show', $challan->id)->with('error', 'Failed to apply late fee: ' . $e->getMessage());
+        }
+    }
+
     private function calculateAndUpdateLateFee($challan, $paymentDate, $receiveType = null)
     {
         // Skip if challan already paid

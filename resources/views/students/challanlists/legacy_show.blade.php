@@ -123,6 +123,28 @@
                     <div class="card-header d-flex align-items-center justify-content-between gap-2">
                         <h5 class="mb-0">{{ $challan->challan_type ?: 'Regular' }} Challan</h5>
                         <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                            @can('view spacetype')
+                                @if (Auth::user()->type == 'company' && strtolower($challan->status) == 'issued' && (str_contains(strtolower($challan->challan_type), 'regular') || str_contains(strtolower($challan->challan_type), 'advance')))
+                                    <input type="date" id="late_until" class="form-control form-control-sm"
+                                        style="max-width:150px;"
+                                        min="{{ $challan->due_date ? \Carbon\Carbon::parse($challan->due_date)->addDay()->format('Y-m-d') : '' }}"
+                                        max="{{ $challan->due_date ? \Carbon\Carbon::parse($challan->due_date)->addDays(10)->format('Y-m-d') : '' }}"
+                                        value="{{ date('Y-m-d') }}"
+                                        placeholder="{{ __('Late Until') }}">
+                                    <button type="button" id="calc-late-fee-btn"
+                                        class="btn btn-sm btn-outline-warning">
+                                        {{ __('Late Fee') }}
+                                    </button>
+                                    <span id="late-fee-result" style="display:none;" class="d-inline-flex align-items-center gap-1">
+                                        <span class="badge bg-info" id="lf-days"></span>
+                                        <span class="badge bg-warning" id="lf-amount"></span>
+                                        <button type="button" id="apply-late-fee-btn"
+                                            class="btn btn-sm btn-primary">
+                                            {{ __('Apply') }}
+                                        </button>
+                                    </span>
+                                @endif
+                            @endcan
                             <a href="{{ route('challan.show', ['id' => $challan->id, 'type' => 'print']) }}" target="_blank"
                                 class="btn btn-sm btn-outline-primary">
                                 {{ __('Print') }}
@@ -583,6 +605,12 @@
         </div>
     </form>
 
+    <form id="apply-late-fee-form" action="{{ route('challan.apply_late_fee', $challan->id) }}"
+        method="POST" class="d-none">
+        @csrf
+        <input type="hidden" name="late_until" id="apply-late-until">
+    </form>
+
     @if ($canRollback)
         <form id="legacy-rollback-form" action="{{ route('challan.legacy_rollback', $challan->id) }}" method="POST"
             class="d-none">
@@ -809,6 +837,81 @@
                     url.searchParams.set('mode', 'edit');
                     url.searchParams.set('session_id', this.value);
                     window.location.href = url.toString();
+                });
+            }
+
+            const calcBtn = document.getElementById('calc-late-fee-btn');
+            const lateUntilInput = document.getElementById('late_until');
+            const lateFeeResult = document.getElementById('late-fee-result');
+            const lfDays = document.getElementById('lf-days');
+            const lfAmount = document.getElementById('lf-amount');
+            const applyBtn = document.getElementById('apply-late-fee-btn');
+            const applyLateForm = document.getElementById('apply-late-fee-form');
+            const applyLateUntil = document.getElementById('apply-late-until');
+
+            if (calcBtn && lateUntilInput) {
+                calcBtn.addEventListener('click', function() {
+                    const lateUntil = lateUntilInput.value;
+                    if (!lateUntil) {
+                        show_toastr('error', 'Please select a late until date.');
+                        return;
+                    }
+
+                    const lateMin = lateUntilInput.min;
+                    const lateMax = lateUntilInput.max;
+                    if (lateMin && lateUntil < lateMin) {
+                        show_toastr('error', 'Late until date must be after the due date.');
+                        return;
+                    }
+                    if (lateMax && lateUntil > lateMax) {
+                        show_toastr('error', 'Late until date cannot exceed 10 days after the due date.');
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('late_until', lateUntil);
+
+                    fetch('{{ route('challan.calculate_late_fee', $challan->id) }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: formData
+                    })
+                    .then(function(response) {
+                        if (!response.ok) {
+                            return response.json().then(function(err) {
+                                throw new Error(err.error || 'Server error ' + response.status);
+                            }).catch(function() {
+                                throw new Error('Server error ' + response.status);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.error) {
+                            show_toastr('error', data.error);
+                            return;
+                        }
+                        lfDays.textContent = data.days_overdue + ' day(s) overdue';
+                        lfAmount.textContent = 'Late Fee: ' + money.format(data.late_fee_amount);
+                        lateFeeResult.style.display = 'block';
+                    })
+                    .catch(function(err) {
+                        show_toastr('error', err.message || 'Failed to calculate late fee.');
+                    });
+                });
+            }
+
+            if (applyBtn && applyLateForm && applyLateUntil) {
+                applyBtn.addEventListener('click', function() {
+                    const lateUntil = lateUntilInput.value;
+                    if (!lateUntil) {
+                        show_toastr('error', 'Please select a late until date first.');
+                        return;
+                    }
+                    applyLateUntil.value = lateUntil;
+                    applyLateForm.submit();
                 });
             }
         });

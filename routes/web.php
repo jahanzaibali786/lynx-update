@@ -21,6 +21,8 @@ use App\Http\Controllers\RegisterOptionController;
 use App\Http\Controllers\SopController;
 use App\Http\Controllers\StudentEnrollment;
 use App\Http\Controllers\StudentPromotions;
+use App\Http\Controllers\StudentImportController;
+use App\Http\Controllers\EmployeeImportController;
 use App\Http\Controllers\StudentRegistration;
 use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentReportController2;
@@ -2120,6 +2122,13 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('/student-promotion/heads', [StudentPromotions::class, 'feeheads'])->name('student-promotion.headsupdate');
             Route::resource('/student-promotion', StudentPromotions::class);
             Route::resource('/registration', StudentRegistration::class);
+            Route::get('/student-import-sample', [StudentImportController::class, 'downloadSample'])->name('student.import.sample');
+            Route::get('/student-import', [StudentImportController::class, 'showImportForm'])->name('student.import');
+            Route::post('/student-import', [StudentImportController::class, 'import'])->name('student.import.store');
+
+            Route::get('/employee-import-sample', [EmployeeImportController::class, 'downloadSample'])->name('employee.bulk.sample');
+            Route::get('/employee-bulk-update', [EmployeeImportController::class, 'showImportForm'])->name('employee.bulk.update');
+            Route::post('/employee-bulk-update', [EmployeeImportController::class, 'import'])->name('employee.bulk.store');
             Route::get('/SiblingonFathercnic', [StudentRegistration::class, 'SiblingonFathercnic'])->name('SiblingonFathercnic');
             Route::get('/get-concession', [StudentRegistration::class, 'getconcession'])->name('get.concession');
             Route::get('/registration-receipt/{id}', [StudentRegistration::class, 'receipt'])->name('reg.receipt');
@@ -2156,6 +2165,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/challan/legacy-show/{id}', [ChallanController::class, 'legacyShow'])->name('challan.legacy_show');
             Route::post('/challan/legacy-show/{id}', [ChallanController::class, 'legacyUpdate'])->name('challan.legacy_update');
             Route::post('/challan/legacy-show/{id}/rollback', [ChallanController::class, 'legacyRollback'])->name('challan.legacy_rollback');
+            Route::post('/challan/calculate-late-fee/{id}', [ChallanController::class, 'calculateLateFeeAjax'])->name('challan.calculate_late_fee');
+            Route::post('/challan/apply-late-fee/{id}', [ChallanController::class, 'applyLateFee'])->name('challan.apply_late_fee');
             Route::get('/challan/show/{id}', [ChallanController::class, 'show'])->name('challan.show');
             Route::post('/challan', [ChallanController::class, 'store'])->name('challan.store');
             Route::get('/challan-fine', [ChallanController::class, 'challanLateFine'])->name('challan.challanLateFine');
@@ -2275,6 +2286,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/studypack-student', [StudentReportController2::class, 'studypackStudent'])->name('studypackStudent');
             Route::get('/profession-wise-listing', [StudentReportController2::class, 'profession_wise_listing'])->name('profession_wise_listing');
             Route::get('/registrationdetailreport', [StudentReportController::class, 'registrationdetailreport'])->name('registrationdetailreport');
+            Route::get('/student-profile-report', [StudentReportController::class, 'studentProfileReport'])->name('student_profile_report');
             Route::get('/studentSecurityReport', [StudentReportController::class, 'student_security_report'])->name('student_security_report');
             Route::get('/studentSecurityReport/pdf', [StudentReportController::class, 'student_security_reportPdf'])->name('student_security_report.report');
             Route::get('/fee-receipt-summary', [StudentReportController::class, 'fee_receipt_summary'])->name('fee_receipt_summary');
@@ -2377,6 +2389,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('employee-qualification-report', [EmployeeReportsController::class, 'empEduRpt'])->name('empEduRpt');
             Route::get('employee-withoutpayleave-report', [EmployeeReportsController::class, 'empwithoutPayleave'])->name('empwithoutPayleave');
             Route::get('employee-leave-report', [EmployeeReportsController::class, 'empleaveReport'])->name('empleaveReport');
+            Route::get('employee-profile-report', [EmployeeReportsController::class, 'employeeProfileReport'])->name('employee_profile_report');
             //employee Transfer
             Route::get('employee-transfer-approval/{id}', [EmployeeTransferController::class, 'approve'])->name('employee-transfer.approve');
             Route::resource('employee-transfer', EmployeeTransferController::class);

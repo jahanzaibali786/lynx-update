@@ -18,6 +18,7 @@ use App\Exports\EmployeeSecReportExport;
 use App\Exports\EmployeeEmploymentHistoryExport;
 use App\Exports\EmployeeMonthlyReconsilationExport;
 use App\Exports\EmployeeEmploymentHistoryReportExport;
+use App\Models\Department;
 use App\Models\Designation;
 use App\Models\EmpChildrens;
 use App\Models\EmployeePayscaleDetail;
@@ -43,6 +44,7 @@ use Illuminate\Support\Facades\DB;
 use App\Exports\EmployeePessiReportExport;
 use App\Exports\EmployeeTransferReportExport;
 use App\Exports\EmployeeLeaveReportExport;
+use App\Exports\EmployeeProfileReportExport;
 use App\Exports\EmployeeStaffChildReport;
 
 
@@ -2783,5 +2785,68 @@ class EmployeeReportsController extends Controller
             return Excel::download(new EmployeeRetirementReportExport($employeesdata), 'employee_retirement_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
         return view('employee.reports.emp_retirement_report', compact('employees', 'branches', 'employeesdata'));
+    }
+
+    public function employeeProfileReport(Request $request)
+    {
+        $userType = \Auth::user()->type;
+        $userCreatorId = \Auth::user()->creatorId();
+        $userOwnedId = \Auth::user()->ownedId();
+
+        if ($userType == 'company') {
+            $branches = User::where('type', 'branch')->where('created_by', $userCreatorId)->pluck('name', 'id');
+            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+            $branches->prepend('All Branches', 'all');
+            $query = Employee::with('userbranch', 'department', 'designation')->where('created_by', $userCreatorId);
+        } else {
+            $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
+            $branches->prepend('All Branches', 'all');
+            $query = Employee::with('userbranch', 'department', 'designation')->where('owned_by', $userOwnedId);
+        }
+
+        if ($request->filled('branch') && $request->branch != 'all') {
+            $query->where('branch_id', $request->branch);
+        }
+
+        if ($request->filled('department_id') && $request->department_id != 'all') {
+            $query->where('department_id', $request->department_id);
+        }
+
+        if ($request->filled('designation_id') && $request->designation_id != 'all') {
+            $query->where('designation_id', $request->designation_id);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('is_res_ter', $request->status);
+        }
+
+        $employees = $query->orderBy('name')->get();
+
+        $departments = Department::where('created_by', $userCreatorId)->pluck('name', 'id');
+        $departments->prepend('All Departments', 'all');
+
+        $designations = Designation::where('created_by', $userCreatorId)->pluck('name', 'id');
+        $designations->prepend('All Designations', 'all');
+
+        $statuses = [
+            '' => 'All Statuses',
+            '0' => 'Active',
+            '1' => 'Resigned',
+            '2' => 'Terminated',
+        ];
+
+        if ($request->has('export') && $request->export == 'excel') {
+            $report_name = 'Employee Profile Report';
+            $branchName = isset($branches[$request->branch]) ? $branches[$request->branch] : 'All Branches';
+            return Excel::download(new EmployeeProfileReportExport($employees, $branchName, $report_name), 'employee_profile_report.xlsx');
+        }
+
+        if ($request->has('export') && $request->export == 'pdf') {
+            $report_name = 'Employee Profile Report';
+            $branchName = isset($branches[$request->branch]) ? $branches[$request->branch] : 'All Branches';
+            return Excel::download(new EmployeeProfileReportExport($employees, $branchName, $report_name), 'employee_profile_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
+        }
+
+        return view('employee.reports.employee_profile_report', compact('employees', 'branches', 'departments', 'designations', 'statuses', 'request'));
     }
 }

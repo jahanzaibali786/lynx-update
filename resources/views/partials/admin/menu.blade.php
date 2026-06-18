@@ -683,6 +683,12 @@
                                                 </a>
                                             @endif
                                         </li>
+                                        <li class="dash-item">
+                                            <a href="{{ route('employee.bulk.update') }}"
+                                                class="dash-link {{ Request::segment(1) == 'employee-bulk-update' ? 'active' : '' }} ">
+                                                {{ __('Employee Bulk Update') }}
+                                            </a>
+                                        </li>
                                         <li class="dash-item    ">
                                             @if (\Auth::user()->type == 'company')
                                                 <a href="{{ route('employee-scale-heads.index') }}"
@@ -1193,7 +1199,8 @@
                                 Request::segment(1) == 'employee-apprforms' ||
                                 Request::segment(1) == 'emp-sec-report' ||
                                 Request::segment(1) == 'empsecreport' ||
-                                Request::segment(1) == 'reports-monthly-attendance'
+                                Request::segment(1) == 'reports-monthly-attendance' ||
+                                Request::segment(1) == 'employee-profile-report'
                                     ? 'active dash-trigger'
                                     : '' }}"><span
                                     class="dash-micon">
@@ -1226,6 +1233,12 @@
                                     <li class="dash-item ">
                                         <a class="dash-link {{ Request::segment(1) == 'employee-birthday' ? 'active' : '' }}"
                                             href="{{ route('empBirthdayRpt') }}">{{ __('Employee Birthday Report') }}</a>
+                                    </li>
+                                @endcan
+                                @can('view spacetype')
+                                    <li class="dash-item ">
+                                        <a class="dash-link {{ Request::segment(1) == 'employee-profile-report' ? 'active' : '' }}"
+                                            href="{{ route('employee_profile_report') }}">{{ __('Employee Profile Report') }}</a>
                                     </li>
                                 @endcan
                                 @can('view spacetype')
@@ -1782,11 +1795,11 @@
                     {{-- Student Formation and Settelement --}}
                     @if (Gate::check('view space') ||
                             Gate::check('view spacetype') ||
-                            Gate::check('manage ismail') ||
+                            Gate::check('manage ismail') ||         
                             Gate::check('manage vistor'))
                         <li class="dash-item dash-hasmenu">
                             <a href="#Student_formation"
-                                class="dash-link {{ Request::segment(1) == 'withdrawlstudent' || Request::segment(1) == 'clearanceCertificate' || Request::segment(1) == 'readmissionstudent' || Request::segment(1) == 'transferstudent' || Request::segment(1) == 'concession' || Request::segment(1) == 'student-promotion' ? ' active dash-trigger' : '' }}"><span
+                                class="dash-link {{ Request::segment(1) == 'withdrawlstudent' || Request::segment(1) == 'student-import' || Request::segment(1) == 'clearanceCertificate' || Request::segment(1) == 'readmissionstudent' || Request::segment(1) == 'transferstudent' || Request::segment(1) == 'concession' || Request::segment(1) == 'student-promotion' ? ' active dash-trigger' : '' }}"><span
                                     class="dash-micon">
                                     <svg width="21" height="22" viewBox="0 0 21 22" fill="none"
                                         xmlns="http://www.w3.org/2000/svg">
@@ -1811,6 +1824,12 @@
                                 <span class="dash-mtext">{{ __('Student Formation') }}</span>
                             </a>
                             <ul id="Student_formation" class="dash-submenu">
+                                @can('view spacetype')
+                                    <li class="dash-item ">
+                                        <a class="dash-link {{ Request::segment(1) == 'student-import' ? 'active' : '' }}"
+                                            href="{{ route('student.import') }}">{{ __('Student Import') }}</a>
+                                    </li>
+                                @endcan
                                 @can('manage promotion')
                                     <li class="dash-item">
                                         <a class="dash-link  {{ request()->is('student-promotion*') ? 'active' : '' }}"
@@ -1925,7 +1944,6 @@
                                             href="{{ route('registration.index') }}">{{ __('Registration') }}</a>
                                     </li>
                                 @endcan
-
                                 @can('view spacetype')
                                     <li class="dash-item ">
                                         <a class="dash-link {{ Request::segment(1) == 'enrollment' ? 'active' : '' }}"
@@ -2047,7 +2065,7 @@
                             Gate::check('manage vistor'))
                         <li class="dash-item dash-hasmenu">
                             <a href="#student_reports"
-                                class="dash-link {{ Request::segment(1) == 'registrationdetailreport' ||Request::segment(1) == 'studenttransferin' ||Request::segment(1) == 'student-single-account' ||Request::segment(1) == 'studenttransferout' ||Request::segment(1) == 'classwisefeereport' ||Request::segment(1) == 'fee-revision-report' ||Request::segment(1) == 'student-promotion-report' ||Request::segment(1) == 'admissionwithdrawalreport' ||Request::segment(1) == 'studentstrengthreport' ||Request::segment(1) == 'studentSecurityReport' ||Request::segment(1) == 'student-withdarawl-listing' ||Request::segment(1) == 'sibling-students' ||Request::segment(1) == 'studypackStudent' ||Request::segment(1) == 'student-strength' ||Request::segment(1) == 'sessionBranchWise' ||Request::segment(1) == 'sessionMonthWise' ||Request::segment(1) == 'profession-wise-listing' ||Request::segment(1) == 'student-wise-statistic-report' ||Request::segment(1) == 'profession-wise-listing' ||Request::segment(1) == 'student-data-analysis' ||Request::segment(1) == 'studypack-student' ||Request::segment(1) == 'sibling-students' ||Request::segment(1) == 'staff-child' ||Request::segment(1) == 'student-data-analysis' ||Request::segment(1) == 'studypack-student' ||Request::segment(1) == 'monthlystatistics' ||Request::segment(1) == 'tuition_fee' ||Request::segment(1) == 'spacetype' ||Request::segment(1) == 'sessionMonthBranchWise' ||Request::segment(1) == 'sessionWise' ||Request::segment(1) == 'feestructurelisting' ||Request::segment(1) == 'advancechallanreport' ||Request::segment(1) == 'withdrawl_notice' ||Request::segment(1) == 'student-wise-statistic-report' ||Request::segment(1) == 'period-wise-statistic-report' ||Request::segment(1) == 'student-fee-receipt-detail' ||Request::segment(1) == 'fee-receipt-summary' ||Request::segment(1) == 'studenttransferin' ||Request::segment(1) == 'studenttransferout' ||Request::segment(1) == 'classwisefeereport' ||Request::segment(1) == 'fee-revision-report' ||Request::segment(1) == 'student-promotion-report' ||Request::segment(1) == 'admissionwithdrawalreport' ||Request::segment(1) == 'studentstrengthreport' ||Request::segment(1) == 'studentSecurityReport' ||Request::segment(1) == 'student-withdarawl-listing' ||Request::segment(1) == 'student-defaulter' ||Request::segment(1) == 'admissionlisting' ||Request::segment(1) == 'student-defaulter-sm' ||Request::segment(1) == 'space' ||Request::segment(1) == 'account-assets' ||Request::segment(1) == 'monthlyperchallanreport' ||Request::segment(1) == 'monthlychallanreport'? ' active dash-trigger': '' }}"><span
+                                class="dash-link {{ Request::segment(1) == 'registrationdetailreport' ||Request::segment(1) == 'student-profile-report' ||Request::segment(1) == 'studenttransferin' ||Request::segment(1) == 'student-single-account' ||Request::segment(1) == 'studenttransferout' ||Request::segment(1) == 'classwisefeereport' ||Request::segment(1) == 'fee-revision-report' ||Request::segment(1) == 'student-promotion-report' ||Request::segment(1) == 'admissionwithdrawalreport' ||Request::segment(1) == 'studentstrengthreport' ||Request::segment(1) == 'studentSecurityReport' ||Request::segment(1) == 'student-withdarawl-listing' ||Request::segment(1) == 'sibling-students' ||Request::segment(1) == 'studypackStudent' ||Request::segment(1) == 'student-strength' ||Request::segment(1) == 'sessionBranchWise' ||Request::segment(1) == 'sessionMonthWise' ||Request::segment(1) == 'profession-wise-listing' ||Request::segment(1) == 'student-wise-statistic-report' ||Request::segment(1) == 'profession-wise-listing' ||Request::segment(1) == 'student-data-analysis' ||Request::segment(1) == 'studypack-student' ||Request::segment(1) == 'sibling-students' ||Request::segment(1) == 'staff-child' ||Request::segment(1) == 'student-data-analysis' ||Request::segment(1) == 'studypack-student' ||Request::segment(1) == 'monthlystatistics' ||Request::segment(1) == 'tuition_fee' ||Request::segment(1) == 'spacetype' ||Request::segment(1) == 'sessionMonthBranchWise' ||Request::segment(1) == 'sessionWise' ||Request::segment(1) == 'feestructurelisting' ||Request::segment(1) == 'advancechallanreport' ||Request::segment(1) == 'withdrawl_notice' ||Request::segment(1) == 'student-wise-statistic-report' ||Request::segment(1) == 'period-wise-statistic-report' ||Request::segment(1) == 'student-fee-receipt-detail' ||Request::segment(1) == 'fee-receipt-summary' ||Request::segment(1) == 'studenttransferin' ||Request::segment(1) == 'studenttransferout' ||Request::segment(1) == 'classwisefeereport' ||Request::segment(1) == 'fee-revision-report' ||Request::segment(1) == 'student-promotion-report' ||Request::segment(1) == 'admissionwithdrawalreport' ||Request::segment(1) == 'studentstrengthreport' ||Request::segment(1) == 'studentSecurityReport' ||Request::segment(1) == 'student-withdarawl-listing' ||Request::segment(1) == 'student-defaulter' ||Request::segment(1) == 'admissionlisting' ||Request::segment(1) == 'student-defaulter-sm' ||Request::segment(1) == 'space' ||Request::segment(1) == 'account-assets' ||Request::segment(1) == 'monthlyperchallanreport' ||Request::segment(1) == 'monthlychallanreport'? ' active dash-trigger': '' }}"><span
                                     class="dash-micon">
                                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
                                         xmlns="http://www.w3.org/2000/svg">
@@ -2067,6 +2085,12 @@
                                     <li class="dash-item ">
                                         <a class="dash-link {{ Request::segment(1) == 'registrationdetailreport' ? 'active' : '' }}"
                                             href="{{ route('registrationdetailreport') }}">{{ __('Registration Report') }}</a>
+                                    </li>
+                                @endcan
+                                @can('view spacetype')
+                                    <li class="dash-item ">
+                                        <a class="dash-link {{ Request::segment(1) == 'student-profile-report' ? 'active' : '' }}"
+                                            href="{{ route('student_profile_report') }}">{{ __('Student Profile Report') }}</a>
                                     </li>
                                 @endcan
                                 @can('view spacetype')

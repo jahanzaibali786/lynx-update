@@ -49,6 +49,7 @@ use App\Models\StudentTransfer;
 use App\Models\StudentWithdrawal;
 use App\Models\StudentAccountPreviousDataFile;
 use App\Models\User;
+use App\Exports\StudentProfileReportExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Auth;
@@ -3960,7 +3961,7 @@ class StudentReportController extends Controller
             $class = Classes::where('owned_by', '=', $request->branches)->get()->pluck('name', 'id');
             $filterApplied = true;
         }
-        if (!empty($request->class)) {
+        if (!empty($request->class) && $request->class != 'all') {
             $query->where('class_id', '=', $request->class);
             $student = StudentRegistration::where('class_id', '=', $request->class)->get()->pluck('stdname', 'id');
             $filterApplied = true;
@@ -7564,6 +7565,98 @@ class StudentReportController extends Controller
             'branches',
             'grandTotals',
             'displayBranch'
+        ));
+    }
+
+    public function studentProfileReport(Request $request)
+    {
+        $userType = \Auth::user()->type;
+        $userCreatorId = \Auth::user()->creatorId();
+        $userOwnedId = \Auth::user()->ownedId();
+
+        if ($userType == 'company') {
+            $branches = User::where('type', 'branch')
+                ->where('created_by', $userCreatorId)
+                ->pluck('name', 'id');
+            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+            $branches->prepend('All Branches', 'all');
+        } else {
+            $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
+            $branches->prepend('All Branches', 'all');
+        }
+
+        $query = StudentRegistration::with([
+            'class:id,name',
+            'branches:id,name',
+            'session:id,year',
+            'registeroption:id,name'
+        ]);
+
+        $query = $userType == 'company'
+            ? $query->where('created_by', $userCreatorId)
+            : $query->where('owned_by', $userOwnedId);
+
+        if ($request->has('branch') && $request->branch != '' && $request->branch != 'all') {
+            $query->where('owned_by', $request->branch);
+        }
+
+        $classes = Classes::where('created_by', $userCreatorId)->where('active_status', 1)->get()->pluck('name', 'id');
+        $classes->prepend('All Classes', '');
+
+        if ($request->has('class') && $request->class != '' && $request->class != 'all') {
+            $query->where('class_id', $request->class);
+        }
+
+        if ($request->has('session_id') && $request->session_id != '' && $request->session_id != 'all') {
+            $query->where('session_id', $request->session_id);
+        }
+
+        $status = [
+            'Enrolled' => 'Enrolled (Active)',
+            'Registered' => 'Registered',
+        ];
+
+        $filterStatus = $request->input('status', 'Enrolled');
+        if ($filterStatus == 'Enrolled') {
+            $query->where('student_status', 'Enrolled')
+                ->whereHas('enrollment', function ($q) {
+                    $q->where('active_status', 1);
+                });
+        } elseif ($filterStatus == 'Registered') {
+            $query->where('student_status', 'Registered');
+        }
+
+        $students = $query->orderBy('stdname')->get();
+
+        if ($request->has('export') && $request->export == 'excel') {
+            $report_name = 'Student Profile Report';
+            $branchName = $branches[$request->branch] ?? 'All Branches';
+            return Excel::download(
+                new StudentProfileReportExport($students, $branches, $branchName, $report_name, $request->all()),
+                'student_profile_report.xlsx'
+            );
+        }
+
+        if ($request->has('export') && $request->export == 'pdf') {
+            $report_name = 'Student Profile Report';
+            $branchName = $branches[$request->branch] ?? 'All Branches';
+            return Excel::download(
+                new StudentProfileReportExport($students, $branches, $branchName, $report_name, $request->all()),
+                'student_profile_report.pdf',
+                \Maatwebsite\Excel\Excel::MPDF
+            );
+        }
+
+        $sessions = Session::where('created_by', $userCreatorId)->get()->pluck('year', 'id');
+        $sessions->prepend('All Sessions', '');
+
+        return view('studentReports.studentprofilereport', compact(
+            'students',
+            'branches',
+            'classes',
+            'sessions',
+            'status',
+            'request'
         ));
     }
 }
