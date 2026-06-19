@@ -157,6 +157,7 @@ class StudentWithdrawalController extends Controller
             $withdrawal->withdraw_date = $request->withdraw_date;
             $withdrawal->apply_date = $request->application_date;
             $withdrawal->reason = $request->reason;
+            $withdrawal->is_po = $request->is_po ? 1 : 0;
             $withdrawal->remark = $request->remark;
             $withdrawal->owned_by = $std->owned_by;
             $withdrawal->session_id = $std->session_id;
@@ -316,6 +317,7 @@ class StudentWithdrawalController extends Controller
             $withdrawal->withdraw_date = $request->withdraw_date;
             $withdrawal->apply_date = $request->application_date;
             $withdrawal->reason = $request->reason;
+            $withdrawal->is_po = $request->is_po ? 1 : 0;
             $withdrawal->remark = $request->remark;
             $withdrawal->save();
             $reg = StudentRegistration::where('id', $withdrawal->student_id)->first();

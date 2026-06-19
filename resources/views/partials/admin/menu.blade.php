@@ -2307,7 +2307,7 @@
                                             </div>
                                         </a>
                                     </li>
-                                @endcan
+                                                @endcan
                                 @can('view spacetype')
                                     <li class="dash-item ">
                                         <a class="dash-link {{ Request::segment(1) == 'studypack-student' ? 'active' : '' }}"
@@ -2317,7 +2317,12 @@
                                         </a>
                                     </li>
                                 @endcan
-
+                                @can('view spacetype')
+                                    <li class="dash-item ">
+                                        <a class="dash-link {{ Request::segment(1) == 'student-sts-report' ? 'active' : '' }}"
+                                            href="{{ route('student_sts_report') }}">{{ __('STS Report (Adm/WD/PO)') }}</a>
+                                    </li>
+                                @endcan
 
 
                             </ul>

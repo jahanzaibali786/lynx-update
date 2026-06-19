@@ -19,6 +19,7 @@ class StudentWithdrawal extends Model
         'reason',
         'approved_by',
         'status',
+        'is_po',
         'created_by',
         'owned_by',
     ];

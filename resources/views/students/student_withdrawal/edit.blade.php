@@ -47,6 +47,15 @@
             </div>
         </div>
 
+        <div class="col-6">
+            <div class="form-group d-flex align-items-center pt-4">
+                <div class="form-check form-switch">
+                    {{ Form::checkbox('is_po', 1, $studentWithdrawal->is_po, ['class' => 'form-check-input', 'id' => 'is_po']) }}
+                    {{ Form::label('is_po', __('Promoted Out (PO)'), ['class' => 'form-check-label']) }}
+                </div>
+            </div>
+        </div>
+
         <div class="col-12">
             <div class="form-group">
                 {{ Form::label('remark', __('Remarks'), ['class' => 'form-label']) }}<span style="color: red"> *</span>

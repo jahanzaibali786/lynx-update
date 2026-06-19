@@ -2287,6 +2287,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/profession-wise-listing', [StudentReportController2::class, 'profession_wise_listing'])->name('profession_wise_listing');
             Route::get('/registrationdetailreport', [StudentReportController::class, 'registrationdetailreport'])->name('registrationdetailreport');
             Route::get('/student-profile-report', [StudentReportController::class, 'studentProfileReport'])->name('student_profile_report');
+            Route::get('/student-sts-report', [StudentReportController::class, 'studentSTSReport'])->name('student_sts_report');
             Route::get('/studentSecurityReport', [StudentReportController::class, 'student_security_report'])->name('student_security_report');
             Route::get('/studentSecurityReport/pdf', [StudentReportController::class, 'student_security_reportPdf'])->name('student_security_report.report');
             Route::get('/fee-receipt-summary', [StudentReportController::class, 'fee_receipt_summary'])->name('fee_receipt_summary');

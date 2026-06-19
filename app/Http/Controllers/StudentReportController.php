@@ -50,6 +50,7 @@ use App\Models\StudentWithdrawal;
 use App\Models\StudentAccountPreviousDataFile;
 use App\Models\User;
 use App\Exports\StudentProfileReportExport;
+use App\Exports\StudentSTSReportExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Auth;
@@ -7657,6 +7658,109 @@ class StudentReportController extends Controller
             'sessions',
             'status',
             'request'
+        ));
+    }
+
+    public function studentSTSReport(Request $request)
+    {
+        $userType = \Auth::user()->type;
+        $userCreatorId = \Auth::user()->creatorId();
+        $userOwnedId = \Auth::user()->ownedId();
+
+        if ($userType == 'company') {
+            $branches = User::where('type', 'branch')->where('created_by', $userCreatorId)->where('is_active', 1)->pluck('name', 'id');
+            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+            $branches->prepend('All Branches', 'all');
+        } else {
+            $branches = User::where('id', $userOwnedId)->where('is_active', 1)->pluck('name', 'id');
+            $branches->prepend('All Branches', 'all');
+        }
+
+        $startDate = $request->input('start_date') ? Carbon::parse($request->input('start_date')) : Carbon::now()->startOfYear();
+        $endDate = $request->input('end_date') ? Carbon::parse($request->input('end_date')) : Carbon::now()->endOfMonth();
+
+        $months = [];
+        $current = $startDate->copy()->startOfMonth();
+        while ($current->lte($endDate)) {
+            $months[] = $current->format('Y-m');
+            $current->addMonth();
+        }
+
+        $branchIds = ($request->filled('branch') && $request->branch != 'all')
+            ? [$request->branch]
+            : User::where('type', 'branch')->where('is_active', 1)->pluck('id')->toArray();
+
+        $reportData = [];
+        $grandTotals = array_fill_keys($months, ['adm' => 0, 'wd' => 0, 'po' => 0]);
+        $grandTotals['total_adm'] = 0;
+        $grandTotals['total_wd'] = 0;
+        $grandTotals['total_po'] = 0;
+
+        foreach ($branchIds as $branchId) {
+            $branch = User::find($branchId);
+            if (!$branch) continue;
+
+            $row = ['branch_name' => $branch->name, 'months' => []];
+            $totalAdm = 0;
+            $totalWd = 0;
+            $totalPo = 0;
+
+            foreach ($months as $month) {
+                $monthStart = Carbon::parse($month . '-01')->startOfMonth();
+                $monthEnd = Carbon::parse($month . '-01')->endOfMonth();
+
+                $adm = StudentEnrollments::where('adm_branch', $branchId)
+                    ->whereBetween('adm_date', [$monthStart, $monthEnd])
+                    ->count();
+
+                $wd = StudentWithdrawal::where('branch_id', $branchId)
+                    ->where(function ($q) {
+                        $q->where('is_po', 0)->orWhereNull('is_po');
+                    })
+                    ->whereBetween('withdraw_date', [$monthStart, $monthEnd])
+                    ->count();
+
+                $po = StudentWithdrawal::where('branch_id', $branchId)
+                    ->where('is_po', 1)
+                    ->whereBetween('withdraw_date', [$monthStart, $monthEnd])
+                    ->count();
+
+                $row['months'][$month] = ['adm' => $adm, 'wd' => $wd, 'po' => $po];
+                $totalAdm += $adm;
+                $totalWd += $wd;
+                $totalPo += $po;
+
+                $grandTotals[$month]['adm'] += $adm;
+                $grandTotals[$month]['wd'] += $wd;
+                $grandTotals[$month]['po'] += $po;
+            }
+
+            $row['total_adm'] = $totalAdm;
+            $row['total_wd'] = $totalWd;
+            $row['total_po'] = $totalPo;
+            $row['gains'] = $totalAdm - $totalWd - $totalPo;
+
+            $grandTotals['total_adm'] += $totalAdm;
+            $grandTotals['total_wd'] += $totalWd;
+            $grandTotals['total_po'] += $totalPo;
+
+            $reportData[] = $row;
+        }
+
+        $grandTotals['gains'] = $grandTotals['total_adm'] - $grandTotals['total_wd'] - $grandTotals['total_po'];
+
+        if ($request->has('export') && $request->export == 'excel') {
+            $branchName = ($request->filled('branch') && $request->branch != 'all')
+                ? ($branches[$request->branch] ?? 'All Branches')
+                : 'All Branches';
+            return Excel::download(
+                new StudentSTSReportExport($reportData, $grandTotals, $months, $branchName, $startDate, $endDate),
+                'student_sts_report.xlsx'
+            );
+        }
+
+        return view('studentReports.student_sts_report', compact(
+            'branches', 'months', 'reportData', 'grandTotals', 'startDate', 'endDate', 'request'
         ));
     }
 }
