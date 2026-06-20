@@ -58,14 +58,7 @@
             </div>
         </div>
 
-        <div class="col-6">
-            <div class="form-group d-flex align-items-center pt-4">
-                <div class="form-check form-switch">
-                    {{ Form::checkbox('is_po', 1, false, ['class' => 'form-check-input', 'id' => 'is_po']) }}
-                    {{ Form::label('is_po', __('Promoted Out (PO)'), ['class' => 'form-check-label']) }}
-                </div>
-            </div>
-        </div>
+        <input type="hidden" name="is_po" id="is_po" value="0">
 
         <div class="col-12">
             <div class="form-group">
@@ -118,6 +111,10 @@ $(document).ready(function () {
 
     reInitCustomSelect($('#class_from'));
     reInitCustomSelect($('#class_students'));
+});
+
+$(document).on('change', '#reason', function () {
+    $('#is_po').val($(this).val() === 'Passing Out' ? '1' : '0');
 });
 
 /* --------------------------------------------------------------------------

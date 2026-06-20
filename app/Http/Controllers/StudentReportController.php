@@ -7691,10 +7691,12 @@ class StudentReportController extends Controller
             : User::where('type', 'branch')->where('is_active', 1)->pluck('id')->toArray();
 
         $reportData = [];
-        $grandTotals = array_fill_keys($months, ['adm' => 0, 'wd' => 0, 'po' => 0]);
+        $grandTotals = array_fill_keys($months, ['adm' => 0, 'wd' => 0, 'po' => 0, 'ti' => 0, 'to' => 0]);
         $grandTotals['total_adm'] = 0;
         $grandTotals['total_wd'] = 0;
         $grandTotals['total_po'] = 0;
+        $grandTotals['total_ti'] = 0;
+        $grandTotals['total_to'] = 0;
 
         foreach ($branchIds as $branchId) {
             $branch = User::find($branchId);
@@ -7704,20 +7706,25 @@ class StudentReportController extends Controller
             $totalAdm = 0;
             $totalWd = 0;
             $totalPo = 0;
+            $totalTi = 0;
+            $totalTo = 0;
 
             foreach ($months as $month) {
                 $monthStart = Carbon::parse($month . '-01')->startOfMonth();
                 $monthEnd = Carbon::parse($month . '-01')->endOfMonth();
 
-                $adm = StudentEnrollments::where('adm_branch', $branchId)
-                    ->whereBetween('adm_date', [$monthStart, $monthEnd])
-                    ->count();
-
-                $wd = StudentWithdrawal::where('branch_id', $branchId)
+               $adm = StudentEnrollments::where('owned_by', $branchId)
+			    ->whereBetween('adm_date', [
+			        $monthStart->toDateString(),
+			        $monthEnd->toDateString(),
+			    ])
+			    ->count();
+                $wd = StudentWithdrawal::where('owned_by', $branchId)
                     ->where(function ($q) {
                         $q->where('is_po', 0)->orWhereNull('is_po');
                     })
                     ->whereBetween('withdraw_date', [$monthStart, $monthEnd])
+                    // ->get()->dd();
                     ->count();
 
                 $po = StudentWithdrawal::where('branch_id', $branchId)
@@ -7725,31 +7732,51 @@ class StudentReportController extends Controller
                     ->whereBetween('withdraw_date', [$monthStart, $monthEnd])
                     ->count();
 
-                $row['months'][$month] = ['adm' => $adm, 'wd' => $wd, 'po' => $po];
+                $ti = StudentTransfer::where('branch_to', $branchId)
+                    ->where('status', 'approved')
+                    ->whereBetween('transfer_date', [$monthStart, $monthEnd])
+                    ->where('created_by', $userCreatorId)
+                    ->count();
+
+                $to = StudentTransfer::where('branch_from', $branchId)
+                    ->where('status', 'approved')
+                    ->whereBetween('transfer_date', [$monthStart, $monthEnd])
+                    ->where('created_by', $userCreatorId)
+                    ->count();
+
+                $row['months'][$month] = ['adm' => $adm, 'wd' => $wd, 'po' => $po, 'ti' => $ti, 'to' => $to];
                 $totalAdm += $adm;
                 $totalWd += $wd;
                 $totalPo += $po;
+                $totalTi += $ti;
+                $totalTo += $to;
 
                 $grandTotals[$month]['adm'] += $adm;
                 $grandTotals[$month]['wd'] += $wd;
                 $grandTotals[$month]['po'] += $po;
+                $grandTotals[$month]['ti'] += $ti;
+                $grandTotals[$month]['to'] += $to;
             }
 
             $row['total_adm'] = $totalAdm;
             $row['total_wd'] = $totalWd;
             $row['total_po'] = $totalPo;
-            $row['gains'] = $totalAdm - $totalWd - $totalPo;
+            $row['total_ti'] = $totalTi;
+            $row['total_to'] = $totalTo;
+            $row['gains'] = $totalAdm + $totalTi - $totalWd - $totalPo - $totalTo;
 
             $grandTotals['total_adm'] += $totalAdm;
             $grandTotals['total_wd'] += $totalWd;
             $grandTotals['total_po'] += $totalPo;
+            $grandTotals['total_ti'] += $totalTi;
+            $grandTotals['total_to'] += $totalTo;
 
             $reportData[] = $row;
         }
 
-        $grandTotals['gains'] = $grandTotals['total_adm'] - $grandTotals['total_wd'] - $grandTotals['total_po'];
+        $grandTotals['gains'] = $grandTotals['total_adm'] + $grandTotals['total_ti'] - $grandTotals['total_wd'] - $grandTotals['total_po'] - $grandTotals['total_to'];
 
-        if ($request->has('export') && $request->export == 'excel') {
+         if ($request->has('export') && $request->export == 'excel') {
             $branchName = ($request->filled('branch') && $request->branch != 'all')
                 ? ($branches[$request->branch] ?? 'All Branches')
                 : 'All Branches';

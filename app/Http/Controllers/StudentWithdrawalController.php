@@ -400,12 +400,16 @@ class StudentWithdrawalController extends Controller
                 $securityDepositDate = $securityChallan->challan_date;
             }
         }
-        $arrearsTotal = \App\Models\Challans::where('student_id', $student->id)
+        $arrearsTotal = \App\Models\Challans::where('rollno', $enrollment->enrollId)
             ->where('status', '!=', 'Paid')
-            ->where('challan_type', '!=', 'Transfer')
-            ->wheredate('fee_month', '<=', date('Y-m-01'))
+            ->whereNotIn('challan_type', ['Transfer', 'Withdrawal'])
+            ->whereRaw(
+                "STR_TO_DATE(fee_month, '%Y-%m-%d') <= ?",
+                [date('Y-m-d', strtotime($withdrawal->withdraw_date))]
+            )
             ->select(\DB::raw('SUM(total_amount - (paid_amount + concession_amount)) AS arrears_total'))
             ->value('arrears_total');
+            
         $adj = \App\Models\ChallanSecAdjustment::where('roll_no', $student->roll_no)->sum('amount');
         $securityPayable = $securityDeposit - $adj;
         $totalPayables = $securityPayable;
@@ -552,7 +556,7 @@ class StudentWithdrawalController extends Controller
         //     ->select(\DB::raw('SUM(total_amount - (paid_amount + concession_amount)) AS arrears_total'))->value('arrears_total');
         // dd($student);
         $arrearsTotal = Challans::where('rollno', $student->roll_no)
-            ->where('status', '!=', 'Paid')->where('challan_type', '!=', 'Transfer')
+            ->whereNotIn('challan_type', ['Transfer', 'Withdrawal'])
             ->wheredate('fee_month', '<=', date('Y-m-d', strtotime($studentwithdrawal->withdraw_date)))
             ->select(\DB::raw('SUM(total_amount - (paid_amount + concession_amount)) AS arrears_total'))->value('arrears_total');
 
@@ -816,6 +820,23 @@ class StudentWithdrawalController extends Controller
             return redirect()->back()->with('error', $e);
         }
     }
+    public function saveBasics(Request $request, $id)
+    {
+        try {
+            $studentwithdrawal = StudentWithdrawal::where('id', $id)->first();
+            if (!$studentwithdrawal) {
+                return response()->json(['error' => 'Withdrawal record not found.'], 404);
+            }
+            $studentwithdrawal->remark = $request->remarks;
+            $studentwithdrawal->ho_remarks = $request->ho_remarks;
+            $studentwithdrawal->save();
+
+            return response()->json(['success' => 'Basic data saved successfully.']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     public function withdrawlapplicationstore(Request $request, $id)
     {
         DB::beginTransaction();
@@ -831,6 +852,8 @@ class StudentWithdrawalController extends Controller
             // $studentwithdrawal->save();
             //history
             $studentwithdrawal->expected_readmission_date = $request->expected_readmission_date;
+            $studentwithdrawal->remark = $request->remarks;
+            $studentwithdrawal->ho_remarks = $request->ho_remarks;
             $studentwithdrawal->status = 'approved';
             $studentwithdrawal->save();
             $reg = StudentRegistration::where('id', $studentwithdrawal->student_id)->first();
@@ -862,18 +885,18 @@ class StudentWithdrawalController extends Controller
                 $chaallan->created_by = $studentwithdrawal->created_by;
                 $chaallan->save();
             }
-            $his = new StudentHistory();
-            $his->reg_id = $studentwithdrawal->student_id;
-            $his->student_id = $studentwithdrawal->student_id;
-            $his->event_type = 'withdraw';
-            $his->from_session_id = $studentwithdrawal->session_id;
-            $his->from_class_id = $studentwithdrawal->class_id;
-            $his->from_branch_id = $studentwithdrawal->branch_id;
-            $his->effective_date = $studentwithdrawal->withdraw_date;
-            $his->remarks = 'Student Withdrawn';
-            $his->owned_by = $studentwithdrawal->owned_by;
-            $his->created_by = $studentwithdrawal->created_by;
-            $his->save();
+            // $his = new StudentHistory();
+            // $his->reg_id = $studentwithdrawal->student_id;
+            // $his->student_id = $studentwithdrawal->student_id;
+            // $his->event_type = 'withdraw';
+            // $his->from_session_id = $studentwithdrawal->session_id;
+            // $his->from_class_id = $studentwithdrawal->class_id;
+            // $his->from_branch_id = $studentwithdrawal->branch_id;
+            // $his->effective_date = $studentwithdrawal->withdraw_date;
+            // $his->remarks = 'Student Withdrawn';
+            // $his->owned_by = $studentwithdrawal->owned_by;
+            // $his->created_by = $studentwithdrawal->created_by;
+            // $his->save();
             DB::commit();
             return redirect()->route('withdrawlstudent.index')->with('success', 'Student Withdrawal has been created successfully.');
 

@@ -46,35 +46,25 @@
                 {{ Form::select('reason', ['School Change' => 'School Change', 'Dissatisfaction Academics, Teachers, Management' => 'Dissatisfaction Academics, Teachers, Management', 'Transport Issue' => 'Transport Issue', 'Fee defaulter' => 'Fee defaulter', 'Fee Affordability Issue' => 'Fee Affordability Issue', 'Passing Out' => 'Passing Out', 'Other' => 'Other'], null, ['class' => 'form-control select', 'required' => 'required']) }}
             </div>
         </div>
-
-        <div class="col-6">
-            <div class="form-group d-flex align-items-center pt-4">
-                <div class="form-check form-switch">
-                    {{ Form::checkbox('is_po', 1, $studentWithdrawal->is_po, ['class' => 'form-check-input', 'id' => 'is_po']) }}
-                    {{ Form::label('is_po', __('Promoted Out (PO)'), ['class' => 'form-check-label']) }}
-                </div>
-            </div>
-        </div>
-
+        <input type="hidden" name="is_po" id="is_po" value="{{ $studentWithdrawal->is_po ?? 0 }}">
         <div class="col-12">
             <div class="form-group">
                 {{ Form::label('remark', __('Remarks'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
                 {{ Form::textarea('remark', null, ['class' => 'form-control', 'placeholder' => __('Enter Remarks'), 'required' => 'required', 'rows' => 2]) }}
             </div>
         </div>
-
     </div>
 </div>
-<div class="modal-footer">
+<div class="modal-footer"> 
     <input type="button" value="{{ __('Cancel') }}" class="btn  btn-outline-light" data-bs-dismiss="modal">
     <input type="submit" value="{{ __('Update') }}" class="btn  btn-outline-primary">
 </div>
 {{ Form::close() }}
 <script>
-    // $(document).ready(function() {
-    //         $('#branch_to').trigger('change');
-    //         $('#branch_from').trigger('change');
-    //     });
+    $(document).on('change', '#reason', function () {
+        $('#is_po').val($(this).val() === 'Passing Out' ? '1' : '0');
+    });
+
     JsSearchBox();
 
     function updateWidths() {

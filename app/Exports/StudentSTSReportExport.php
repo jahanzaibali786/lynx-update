@@ -34,7 +34,7 @@ class StudentSTSReportExport implements FromView, WithEvents
 
     public function view(): View
     {
-        $colspan = 1 + count($this->months) * 3 + 4;
+        $colspan = 2 + count($this->months) * 5 + 6;
         return view('studentReports.exports.student_sts_report', [
             'reportData' => $this->reportData,
             'grandTotals' => $this->grandTotals,

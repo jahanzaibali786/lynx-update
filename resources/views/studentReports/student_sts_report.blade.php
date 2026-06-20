@@ -100,37 +100,47 @@
                     <table class="table table-bordered table-striped">
                         <thead class="table_heads">
                             <tr>
+                                <th rowspan="2" class="text-center align-middle" style="width:50px">{{ __('Sr.') }}</th>
                                 <th rowspan="2" class="text-center align-middle">{{ __('Branch') }}</th>
                                 @foreach ($months as $month)
-                                    <th colspan="3" class="text-center">
+                                    <th colspan="5" class="text-center">
                                         {{ \Carbon\Carbon::parse($month . '-01')->format('M Y') }}
                                     </th>
                                 @endforeach
-                                <th colspan="4" class="text-center">{{ __('Total') }}</th>
+                                <th colspan="6" class="text-center">{{ __('Total') }}</th>
                             </tr>
                             <tr>
                                 @foreach ($months as $month)
                                     <th class="text-center">{{ __('Adm') }}</th>
+                                    <th class="text-center">{{ __('TI') }}</th>
                                     <th class="text-center">{{ __('WD') }}</th>
+                                    <th class="text-center">{{ __('TO') }}</th>
                                     <th class="text-center">{{ __('PO') }}</th>
                                 @endforeach
                                 <th class="text-center">{{ __('Adm') }}</th>
+                                <th class="text-center">{{ __('TI') }}</th>
                                 <th class="text-center">{{ __('WD') }}</th>
+                                <th class="text-center">{{ __('TO') }}</th>
                                 <th class="text-center">{{ __('PO') }}</th>
-                                <th class="text-center">{{ __('Gains(+/-)') }}</th>
+                                <th class="text-center">{{ __('Net Gain') }}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($reportData as $row)
+                            @foreach ($reportData as $i => $row)
                                 <tr>
+                                    <td class="text-center">{{ $i + 1 }}</td>
                                     <td>{{ $row['branch_name'] }}</td>
                                     @foreach ($months as $month)
                                         <td class="text-center">{{ $row['months'][$month]['adm'] }}</td>
+                                        <td class="text-center">{{ $row['months'][$month]['ti'] }}</td>
                                         <td class="text-center">{{ $row['months'][$month]['wd'] }}</td>
+                                        <td class="text-center">{{ $row['months'][$month]['to'] }}</td>
                                         <td class="text-center">{{ $row['months'][$month]['po'] }}</td>
                                     @endforeach
                                     <td class="text-center fw-bold">{{ $row['total_adm'] }}</td>
+                                    <td class="text-center fw-bold">{{ $row['total_ti'] }}</td>
                                     <td class="text-center fw-bold">{{ $row['total_wd'] }}</td>
+                                    <td class="text-center fw-bold">{{ $row['total_to'] }}</td>
                                     <td class="text-center fw-bold">{{ $row['total_po'] }}</td>
                                     <td class="text-center fw-bold {{ $row['gains'] >= 0 ? 'text-success' : 'text-danger' }}">
                                         {{ $row['gains'] >= 0 ? '+' : '' }}{{ $row['gains'] }}
@@ -140,14 +150,19 @@
                         </tbody>
                         <tfoot>
                             <tr class="fw-bold bg-light">
+                                <td></td>
                                 <td>{{ __('Total') }}</td>
                                 @foreach ($months as $month)
                                     <td class="text-center">{{ $grandTotals[$month]['adm'] }}</td>
+                                    <td class="text-center">{{ $grandTotals[$month]['ti'] }}</td>
                                     <td class="text-center">{{ $grandTotals[$month]['wd'] }}</td>
+                                    <td class="text-center">{{ $grandTotals[$month]['to'] }}</td>
                                     <td class="text-center">{{ $grandTotals[$month]['po'] }}</td>
                                 @endforeach
                                 <td class="text-center">{{ $grandTotals['total_adm'] }}</td>
+                                <td class="text-center">{{ $grandTotals['total_ti'] }}</td>
                                 <td class="text-center">{{ $grandTotals['total_wd'] }}</td>
+                                <td class="text-center">{{ $grandTotals['total_to'] }}</td>
                                 <td class="text-center">{{ $grandTotals['total_po'] }}</td>
                                 <td class="text-center {{ $grandTotals['gains'] >= 0 ? 'text-success' : 'text-danger' }}">
                                     {{ $grandTotals['gains'] >= 0 ? '+' : '' }}{{ $grandTotals['gains'] }}

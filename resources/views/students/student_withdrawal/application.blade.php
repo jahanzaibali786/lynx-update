@@ -358,11 +358,74 @@
                 </div>
             </div>
             <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
-                {{ Form::label('remarks', __('Remarks'), ['class' => 'form-label']) }}
+                {{ Form::label('remarks', __('Branch Remarks'), ['class' => 'form-label']) }}
                 {{ Form::text('remarks', @$studentwithdrawal->remark, ['class' => 'form-control']) }}
             </div>
 
         </div>
+        <div class="row d-flex justify-content-start mt-1 ">
+            <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12 mr-2">
+                {{ Form::label('ho_remarks', __('HO Remarks'), ['class' => 'form-label']) }}
+                {{ Form::textarea('ho_remarks', @$studentwithdrawal->ho_remarks, ['class' => 'form-control editor', 'rows' => 3]) }}
+            </div>
+            <style>
+                .ck-editor__editable_inline { min-height: 200px; border: 1px solid #ddd !important; }
+            </style>
+            <div class="mt-2">
+                <button type="button" id="saveBasicsBtn" class="btn btn-success">{{ __('Save Basics') }}</button>
+            </div>
+            <script src="{{ asset('js/ckeditor.js') }}"></script>
+            <script src="https://cdn.ckeditor.com/ckeditor5/45.2.1/translations/en.umd.js"></script>
+            <script src="https://cdn.ckeditor.com/ckeditor5-premium-features/45.2.1/translations/en.umd.js"></script>
+            <script>
+                ClassicEditor
+                    .create(document.querySelector('.editor'), {
+                        language: 'en',
+                        toolbar: {
+                            items: [
+                                '|', 'bold', 'underline', 'italic', 'link',
+                                'bulletedList', 'numberedList', '|',
+                                'alignment', 'indent', 'outdent', '|',
+                                'fontColor', 'fontBackgroundColor', 'fontSize',
+                                'fontFamily', 'highlight', '|',
+                                'insertTable', 'blockQuote', 'removeFormat', '|',
+                                'heading'
+                            ]
+                        },
+                        licenseKey: '',
+                    })
+                    .then(editor => {
+                        window.hoEditor = editor;
+                    })
+                    .catch(error => {
+                        console.error(error);
+                    });
+            </script>
+            <script>
+                $(document).on('click', '#saveBasicsBtn', function() {
+                    if (window.hoEditor) {
+                        window.hoEditor.updateSourceElement();
+                    }
+                    var formData = new FormData();
+                    formData.append('_token', '{{ csrf_token() }}');
+                    formData.append('remarks', $('#remarks').val());
+                    formData.append('ho_remarks', $('#ho_remarks').val());
+
+                    $.ajax({
+                        url: '{{ route("withdrawlapplication.savebasics", $studentwithdrawal->id) }}',
+                        method: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function(response) {
+                            show_toastr('success', response.success);
+                        },
+                        error: function(xhr) {
+                            show_toastr('error', xhr.responseJSON ? xhr.responseJSON.error : 'Error saving basics');
+                        }
+                    });
+                });
+            </script>
         <hr>
         <div class="row d-flex justify-content-start mt-1 ">
             @if ($PrevChallan->isNotEmpty())

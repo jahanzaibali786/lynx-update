@@ -17,6 +17,8 @@ class StudentWithdrawal extends Model
         'branch_id',
         'withdraw_date',
         'reason',
+        'remark',
+        'ho_remarks',
         'approved_by',
         'status',
         'is_po',

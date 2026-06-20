@@ -2222,6 +2222,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/withdrawlapplication/{id}', [StudentWithdrawalController::class, 'withdrawlapplication'])->name('withdrawlapplication');
             Route::get('/fwd-to-ho/{id}', [StudentWithdrawalController::class, 'fwdtoho'])->name('fwdtoho');
             Route::post('/withdrawlapplication/{id}/store', [StudentWithdrawalController::class, 'withdrawlapplicationstore'])->name('withdrawlapplicationstore');
+            Route::post('/withdrawlapplication/{id}/save-basics', [StudentWithdrawalController::class, 'saveBasics'])->name('withdrawlapplication.savebasics');
             Route::post('/calculate-balance', [StudentWithdrawalController::class, 'calculateBalance'])->name('calculate.balance');
             Route::get('/clearance-certificate/{id}', [StudentWithdrawalController::class, 'clearance_certificate'])->name('clearance_certificate');
             Route::get('/clearanceCertificate', [ClearanceCertificate::class, 'index'])->name('clearance.index');

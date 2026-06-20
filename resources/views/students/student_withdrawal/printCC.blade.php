@@ -192,7 +192,11 @@
             </tr>
             <tr>
                 <th>Remarks:</th>
-                <td>{{ $withdrawal ? $withdrawal->remark : '' }}</td>
+                <td>{{ $withdrawal ? $withdrawal->remark : '-' }}</td>
+            </tr>
+            <tr>
+                <th>HO Remarks:</th>
+                <td>{!! $withdrawal && $withdrawal->ho_remarks ? $withdrawal->ho_remarks : '-' !!}</td>
             </tr>
         </table>
         <table width="100%" style="margin-top: 15px;">
