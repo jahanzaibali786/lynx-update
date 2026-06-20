@@ -22,6 +22,8 @@ use App\Http\Controllers\SopController;
 use App\Http\Controllers\StudentEnrollment;
 use App\Http\Controllers\StudentPromotions;
 use App\Http\Controllers\StudentRegistration;
+use App\Http\Controllers\StudentImportController;
+use App\Http\Controllers\EmployeeImportController;
 use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentReportController2;
 use App\Http\Controllers\StudyPackChallanController;
@@ -2140,6 +2142,14 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::resource('/student-promotion', StudentPromotions::class);
             Route::resource('/registration', StudentRegistration::class);
             Route::get('/SiblingonFathercnic', [StudentRegistration::class, 'SiblingonFathercnic'])->name('SiblingonFathercnic');
+			Route::get('/student-import-sample', [StudentImportController::class, 'downloadSample'])->name('student.import.sample');
+            Route::get('/student-import', [StudentImportController::class, 'showImportForm'])->name('student.import');
+            Route::post('/student-import', [StudentImportController::class, 'import'])->name('student.import.store');
+
+            Route::get('/employee-import-sample', [EmployeeImportController::class, 'downloadSample'])->name('employee.bulk.sample');
+            Route::get('/employee-bulk-update', [EmployeeImportController::class, 'showImportForm'])->name('employee.bulk.update');
+            Route::post('/employee-bulk-update', [EmployeeImportController::class, 'import'])->name('employee.bulk.store');
+            
             Route::get('/get-concession', [StudentRegistration::class, 'getconcession'])->name('get.concession');
             Route::get('/registration-receipt/{id}', [StudentRegistration::class, 'receipt'])->name('reg.receipt');
             Route::post('update-student-fee-str', [AccountWiseFeeStructure::class, 'update_student_fee_str'])->name('account-wise-fee.save')->middleware(['auth', 'XSS']);
@@ -2230,6 +2240,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::resource('/withdrawlstudent', StudentWithdrawalController::class);
             Route::get('/withdrawlapplication/{id}', [StudentWithdrawalController::class, 'withdrawlapplication'])->name('withdrawlapplication');
             Route::get('/fwd-to-ho/{id}', [StudentWithdrawalController::class, 'fwdtoho'])->name('fwdtoho');
+			Route::post('/withdrawlapplication/{id}/save-basics', [StudentWithdrawalController::class, 'saveBasics'])->name('withdrawlapplication.savebasics');
             Route::post('/withdrawlapplication/{id}/store', [StudentWithdrawalController::class, 'withdrawlapplicationstore'])->name('withdrawlapplicationstore');
             Route::post('/calculate-balance', [StudentWithdrawalController::class, 'calculateBalance'])->name('calculate.balance');
             Route::get('/clearance-certificate/{id}', [StudentWithdrawalController::class, 'clearance_certificate'])->name('clearance_certificate');
@@ -2290,6 +2301,8 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('/monthlyperchallanreport', [StudentReportController::class, 'monthlyprechallanreport'])->name('monthlyprechallanreport');
             //
             Route::get('/sibling-students', [StudentReportController2::class, 'sibling_students'])->name('sibling_students');
+			Route::get('/student-profile-report', [StudentReportController::class, 'studentProfileReport'])->name('student_profile_report');
+			Route::get('/student-sts-report', [StudentReportController::class, 'studentSTSReport'])->name('student_sts_report');
             Route::get('/staff-child', [StudentReportController2::class, 'staff_child'])->name('staff_child');
             Route::get('/student-data-analysis', [StudentReportController2::class, 'student_data_analysis'])->name('student_data_analysis');
             Route::get('/studypack-student', [StudentReportController2::class, 'studypackStudent'])->name('studypackStudent');
@@ -2406,6 +2419,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('employee-qualification-report', [EmployeeReportsController::class, 'empEduRpt'])->name('empEduRpt');
             Route::get('employee-withoutpayleave-report', [EmployeeReportsController::class, 'empwithoutPayleave'])->name('empwithoutPayleave');
             Route::get('employee-leave-report', [EmployeeReportsController::class, 'empleaveReport'])->name('empleaveReport');
+			Route::get('employee-profile-report', [EmployeeReportsController::class, 'employeeProfileReport'])->name('employee_profile_report');
             //employee Transfer
             Route::get('employee-transfer-approval/{id}', [EmployeeTransferController::class, 'approve'])->name('employee-transfer.approve');
             Route::resource('employee-transfer', EmployeeTransferController::class);

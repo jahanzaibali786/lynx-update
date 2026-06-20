@@ -68,7 +68,7 @@
             <div class="form-group">
                 {{ Form::label('other_reason', __('Other Reason'), ['class' => 'form-label']) }}<span
                     style="color:red"> *</span>
-                {{ Form::text('other_reason', null, ['class' => 'form-control', 'placeholder' => __('Enter Other Reason'), 'maxlength' => '50', 'id' => 'other_reason_field']) }}
+                {{ Form::text('other_reason', null, ['class' => 'form-control', 'placeholder' => __('Enter Other Reason'), 'maxlength' => '55', 'id' => 'other_reason_field']) }}
             </div>
         </div>
 
@@ -78,7 +78,7 @@
         <div class="col-12">
             <div class="form-group">
                 {{ Form::label('remark', __('Remarks'), ['class' => 'form-label']) }}<span style="color:red"> *</span>
-                {{ Form::textarea('remark', null, ['class' => 'form-control','placeholder'=>__('Enter Remarks'),'required'=>'required','rows'=>2]) }}
+                {{ Form::textarea('remark', null, ['class' => 'form-control','placeholder'=>__('Enter detailed remarks'),'required'=>'required','rows'=>2,'maxlength'=>'1000']) }}
             </div>
         </div>
     </div>
@@ -232,4 +232,3 @@ $(document).on('change', '#class_from', function () {
     });
 });
 </script>
-

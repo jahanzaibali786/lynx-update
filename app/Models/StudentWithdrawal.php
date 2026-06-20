@@ -17,8 +17,13 @@ class StudentWithdrawal extends Model
         'branch_id',
         'withdraw_date',
         'reason',
+        'is_po',
         'remark',
         'other_reason',
+        'beneficiary_name',
+        'bank_name',
+        'cheque_no',
+        'cheque_date',
         'approved_by',
         'status',
         'created_by',
@@ -67,7 +72,10 @@ class StudentWithdrawal extends Model
         return $this->hasOne('App\Models\Classes', 'id', 'class_id');
     }
     protected $casts = [
-    'withdraw_date' => 'date',
-];
+        'withdraw_date' => 'date',
+        'expected_readmission_date' => 'date',
+        'cheque_date' => 'date',
+        'is_po' => 'boolean',
+    ];
 
 }

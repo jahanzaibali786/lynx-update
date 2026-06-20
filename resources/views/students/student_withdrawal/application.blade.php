@@ -273,8 +273,15 @@
 @endsection
 @section('action-btn')
     <div class="float-end">
-        {{-- //fwd to ho --}}
-        @if (@$studentwithdrawal->fwd_to_ho == 0 || @$studentwithdrawal->status == 'pending')
+        <a href="{{ route('student_withdrawal.certificate_pdf', $studentwithdrawal->id) }}" target="_blank"
+            class="btn btn-sm btn-outline-primary" data-bs-title="{{ __('Clearance Certificate Print') }}">
+            <i class="ti ti-printer"></i> {{ __('Clearance Print') }}
+        </a>
+        <a href="{{ route('student_withdrawal.certificate_print', $studentwithdrawal->id) }}" target="_blank"
+            class="btn btn-sm btn-outline-success" data-bs-title="{{ __('Withdrawal Application Print') }}">
+            <i class="ti ti-printer"></i> {{ __('Withdrawal Print') }}
+        </a>
+        @if (\Auth::user()->type != 'company' && (int) @$studentwithdrawal->fwd_to_ho === 0 && strtolower((string) @$studentwithdrawal->status) === 'draft')
             <a href="{{ route('fwdtoho', @$studentwithdrawal->id) }}" title="Send to Head Office"
                 class="btn btn-sm btn-outline-warning">Send to HO</a>
         @endif
@@ -312,7 +319,7 @@
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('expected_readmission_date', __('Expected Re-admission Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('expected_readmission_date', date('Y-m-d', strtotime('+3 months')), ['class' => 'form-control', 'readonly' => 'readonly']) }}
+                    {{ Form::date('expected_readmission_date', old('expected_readmission_date', optional($studentwithdrawal->expected_readmission_date)->format('Y-m-d') ?? date('Y-m-d', strtotime('+3 months'))), ['class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
 
@@ -372,7 +379,7 @@
                 .ck-editor__editable_inline { min-height: 200px; border: 1px solid #ddd !important; }
             </style>
             <div class="mt-2">
-                <button type="button" id="saveBasicsBtn" class="btn btn-success">{{ __('Save Basics') }}</button>
+                <button type="button" id="saveBasicsBtn" class="btn btn-success">{{ __('Save') }}</button>
             </div>
             <script src="{{ asset('js/ckeditor.js') }}"></script>
             <script src="https://cdn.ckeditor.com/ckeditor5/45.2.1/translations/en.umd.js"></script>
@@ -665,25 +672,25 @@
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('challan_date', __('Challan Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('challan_date', '', ['class' => 'form-control', 'required' => 'required']) }}
+                    {{ Form::date('challan_date', '', ['class' => 'form-control', 'disabled' => 'disabled']) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('due_date', __('Due Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('due_date', '', ['class' => 'form-control', 'required' => 'required']) }}
+                    {{ Form::date('due_date', '', ['class' => 'form-control', 'disabled' => 'disabled']) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('invoice_no', __('Invoice No'), ['class' => 'form-label']) }}
-                    {{ Form::text('invoice_no', '', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+                    {{ Form::text('invoice_no', '', ['class' => 'form-control', 'disabled' => 'disabled']) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('invoice_date', __('Invoice Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('invoice_date', '', ['class' => 'form-control']) }}
+                    {{ Form::date('invoice_date', '', ['class' => 'form-control', 'disabled' => 'disabled']) }}
                 </div>
             </div>
         </div>
@@ -691,25 +698,25 @@
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('beneficiary_name', __('Beneficiary Name'), ['class' => 'form-label']) }}
-                    {{ Form::text('beneficiary_name', '', ['class' => 'form-control']) }}
+                    {{ Form::text('beneficiary_name', old('beneficiary_name', $studentwithdrawal->beneficiary_name), ['class' => 'form-control']) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('bank_name', __('Bank Name'), ['class' => 'form-label']) }}
-                    {{ Form::text('bank_name', '', ['class' => 'form-control']) }}
+                    {{ Form::text('bank_name', old('bank_name', $studentwithdrawal->bank_name), ['class' => 'form-control']) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('cheque_no', __('Cheque No'), ['class' => 'form-label']) }}
-                    {{ Form::text('cheque_no', '', ['class' => 'form-control']) }}
+                    {{ Form::text('cheque_no', old('cheque_no', $studentwithdrawal->cheque_no), ['class' => 'form-control']) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('cheque_date', __('Cheque Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('cheque_date', '', ['class' => 'form-control']) }}
+                    {{ Form::date('cheque_date', old('cheque_date', optional($studentwithdrawal->cheque_date)->format('Y-m-d')), ['class' => 'form-control', 'placeholder' => 'mm/dd/yyyy']) }}
                 </div>
             </div>
             <div class="row mt-4">

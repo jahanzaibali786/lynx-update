@@ -55,23 +55,25 @@
                         'Passing Out' => 'Passing Out',
                         'Other' => 'Other',
                     ],
-                    @$studentwithdrawal->reason,
+                    $studentWithdrawal->reason,
                     ['class' => 'form-control select', 'required' => 'required', 'id' => 'reason_select_edit'],
                 ) }}
             </div>
 
             <div class="form-group" id="other_reason_box_edit"
-                style="display: {{ @$studentwithdrawal->reason == 'Other' ? 'block' : 'none' }};">
+                style="display: {{ $studentWithdrawal->reason == 'Other' ? 'block' : 'none' }};">
                 {{ Form::label('other_reason', __('Other Reason'), ['class' => 'form-label']) }}<span
                     style="color:red"> *</span>
-                {{ Form::text('other_reason', @$studentwithdrawal->other_reason, ['class' => 'form-control', 'placeholder' => __('Enter Other Reason'), 'maxlength' => '70', 'id' => 'other_reason_field_edit']) }}
+                {{ Form::text('other_reason', $studentWithdrawal->other_reason, ['class' => 'form-control', 'placeholder' => __('Enter Other Reason'), 'maxlength' => '55', 'id' => 'other_reason_field_edit']) }}
             </div>
         </div>
+
+        <input type="hidden" name="is_po" id="is_po_edit" value="{{ $studentWithdrawal->reason === 'Passing Out' ? 1 : 0 }}">
 
         <div class="col-12">
             <div class="form-group">
                 {{ Form::label('remark', __('Remarks'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
-                {{ Form::textarea('remark', null, ['class' => 'form-control', 'placeholder' => __('Enter Remarks'), 'required' => 'required', 'rows' => 2]) }}
+                {{ Form::textarea('remark', $studentWithdrawal->remark, ['class' => 'form-control', 'placeholder' => __('Enter detailed remarks'), 'required' => 'required', 'rows' => 2, 'maxlength' => '1000']) }}
             </div>
         </div>
 
@@ -181,12 +183,17 @@
         });
     });
     $(document).on('change', '#reason_select_edit', function () {
-    if ($(this).val() === 'Other') {
-        $('#other_reason_box_edit').show();
-        $('#other_reason_field_edit').attr('required', 'required');
-    } else {
-        $('#other_reason_box_edit').hide();
-        $('#other_reason_field_edit').removeAttr('required');
-    }
-});
+        const reason = $(this).val();
+        $('#is_po_edit').val(reason === 'Passing Out' ? '1' : '0');
+
+        if (reason === 'Other') {
+            $('#other_reason_box_edit').show();
+            $('#other_reason_field_edit').attr('required', 'required');
+        } else {
+            $('#other_reason_box_edit').hide();
+            $('#other_reason_field_edit').removeAttr('required').val('');
+        }
+    });
+
+    $('#reason_select_edit').trigger('change');
 </script>
