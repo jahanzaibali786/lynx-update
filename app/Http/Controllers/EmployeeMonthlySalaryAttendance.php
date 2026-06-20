@@ -15,6 +15,8 @@ use App\Models\EmployeeMonthlySalary;
 use App\Models\EmployeeMonthlySalaryAttendance as ModelsEmployeeMonthlySalaryAttendance;
 use App\Models\EmployeeMonthlySalaryHeads;
 use App\Models\EmployeePayscaleDetail;
+use App\Models\JournalEntry;
+use App\Models\JournalItem;
 use App\Models\Loan;
 use App\Models\SalaryHeads;
 use App\Models\SalaryDeductionDetail;
@@ -1450,35 +1452,90 @@ class EmployeeMonthlySalaryAttendance extends Controller
      */
     public function update(Request $request, $id)
     {
-        $emp_sal = EmployeeMonthlySalary::findOrFail($id);
-        $salaryDate = Carbon::parse($emp_sal->salary_date);
-        $salaryAttendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $emp_sal->employee_id)
-            ->whereMonth('for_month_of', $salaryDate->month)
-            ->whereYear('for_month_of', $salaryDate->year)
-            ->first();
+        \DB::beginTransaction();
+        try {
+            $emp_sal = EmployeeMonthlySalary::with('employee')->findOrFail($id);
+            $salaryDate = Carbon::parse($emp_sal->salary_date);
+            $salaryAttendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $emp_sal->employee_id)
+                ->whereMonth('for_month_of', $salaryDate->month)
+                ->whereYear('for_month_of', $salaryDate->year)
+                ->first();
 
-        if (trim(strtolower($emp_sal->status ?? 'unpaid')) !== 'unpaid') {
-            return redirect()->back()->with('error', 'Paid salary can not be edited.');
+            if (trim(strtolower($emp_sal->status ?? 'unpaid')) !== 'unpaid') {
+                \DB::rollBack();
+                return redirect()->back()->with('error', 'Paid salary can not be edited.');
+            }
+
+            if ((int) optional($salaryAttendance)->gm_final === 1) {
+                \DB::rollBack();
+                return redirect()->back()->with('error', 'GM finalized salary can not be edited. Please unfinalize salary first.');
+            }
+
+            $oldEarnings = (float) $emp_sal->conv
+                + (float) $emp_sal->other_add
+                + (float) $emp_sal->chaild_con
+                + (float) $emp_sal->drns
+                + (float) $emp_sal->misc;
+            $oldEditableDeductions = (float) $emp_sal->it
+                + (float) $emp_sal->dedu
+                + (float) $emp_sal->sal_advance;
+            $oldNetPay = (float) $emp_sal->net_pay;
+
+            $emp_sal->conv = (float) ($request->conv ?? 0);
+            $emp_sal->other_add = (float) ($request->other_add ?? 0);
+            $emp_sal->chaild_con = (float) ($request->chaild_concession ?? 0);
+            $emp_sal->drns = (float) ($request->drns ?? 0);
+            $emp_sal->misc = (float) ($request->misc ?? 0);
+            $emp_sal->stop_sal = 0;
+            $emp_sal->it = (float) ($request->itax ?? 0);
+            $emp_sal->dedu = (float) ($request->other_deduction ?? 0);
+            $emp_sal->tra_course = 0;
+            $emp_sal->sal_advance = (float) ($request->advance ?? 0);
+            $emp_sal->prc_final = 0;
+
+            $newEarnings = (float) $emp_sal->conv
+                + (float) $emp_sal->other_add
+                + (float) $emp_sal->chaild_con
+                + (float) $emp_sal->drns
+                + (float) $emp_sal->misc;
+            $newEditableDeductions = (float) $emp_sal->it
+                + (float) $emp_sal->dedu
+                + (float) $emp_sal->sal_advance;
+            $earningDifference = $newEarnings - $oldEarnings;
+            $deductionDifference = $newEditableDeductions - $oldEditableDeductions;
+
+            $emp_sal->gross = round((float) $emp_sal->gross + $earningDifference);
+            $emp_sal->net_pay = round(max(0, $oldNetPay + $earningDifference - $deductionDifference));
+            $emp_sal->save();
+
+            $lastPayscaleDetail = EmployeePayscaleDetail::where('employee_id', $emp_sal->employee_id)
+                ->whereDate('effect_from', '<=', $salaryDate->copy()->endOfMonth()->format('Y-m-d'))
+                ->orderByDesc('effect_from')
+                ->orderByDesc('id')
+                ->first();
+
+            if (!$lastPayscaleDetail) {
+                throw new \RuntimeException('Employee payscale detail not found for salary month.');
+            }
+
+            $accounts = $this->salaryJournalAccounts($emp_sal, $lastPayscaleDetail);
+            $totalDebit = collect($accounts)->sum('debit');
+            $totalCredit = collect($accounts)->sum('credit');
+            if (round($totalDebit, 2) !== round($totalCredit, 2)) {
+                throw new \RuntimeException(
+                    'Salary voucher is not balanced. Debit: ' . round($totalDebit, 2)
+                    . ', Credit: ' . round($totalCredit, 2)
+                );
+            }
+
+            $this->updateSalaryJournalVoucher($emp_sal, $accounts);
+
+            \DB::commit();
+            return redirect()->back()->with('success', 'Employee Salary and Voucher Updated Successfully!');
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return redirect()->back()->with('error', $e->getMessage());
         }
-
-        if ((int) optional($salaryAttendance)->gm_final === 1) {
-            return redirect()->back()->with('error', 'GM finalized salary can not be edited. Please unfinalize salary first.');
-        }
-
-        $emp_sal->conv = $request->conv ? $request->conv : '0';
-        $emp_sal->other_add = $request->other_add ? $request->other_add : '0';
-        $emp_sal->chaild_con = $request->chaild_concession ? $request->chaild_concession : '0';
-        $emp_sal->drns = $request->drns ? $request->drns : '0';
-        $emp_sal->misc = $request->misc ? $request->misc : '0';
-        $emp_sal->stop_sal = 0;
-        $emp_sal->it = $request->itax ? $request->itax : '0';
-        $emp_sal->dedu = $request->other_deduction ? $request->other_deduction : '0';
-        $emp_sal->tra_course = 0;
-        $emp_sal->sal_advance = $request->advance ? $request->advance : '0';
-        $emp_sal->prc_final = 0;
-        $emp_sal->net_pay = $request->net ? $request->net : '0';
-        $emp_sal->save();
-        return redirect()->back()->with('success', 'Employee Salary Updated Successfully !');
     }
 
     /**
@@ -1716,6 +1773,167 @@ class EmployeeMonthlySalaryAttendance extends Controller
         }
 
         return array_values($accounts);
+    }
+
+    private function salaryJournalAccounts(EmployeeMonthlySalary $salary, EmployeePayscaleDetail $payscale): array
+    {
+        $accounts = [
+            [
+                'account_id' => 216,
+                'name' => 'Salary Expense (Basic + Med + Rent + Sec)',
+                'debit' => round((float) $salary->gross),
+                'credit' => 0,
+            ],
+            [
+                'account_id' => 258,
+                'name' => 'Salary Expense - Employer PASSI',
+                'debit' => round((float) $salary->pessi_employer),
+                'credit' => 0,
+            ],
+            [
+                'account_id' => 217,
+                'name' => 'Salary Expense - Employer EOBI',
+                'debit' => round((float) $salary->eobi_employer),
+                'credit' => 0,
+            ],
+            [
+                'account_id' => $payscale->security_receive_account,
+                'name' => 'Employee Security Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->emp_sec),
+            ],
+            [
+                'account_id' => $payscale->tax_payable_account,
+                'name' => 'Tax Payable (Income Tax)',
+                'debit' => 0,
+                'credit' => round((float) $salary->it),
+            ],
+            [
+                'account_id' => $payscale->eobi_payable_account,
+                'name' => 'EOBI Payable (Employee)',
+                'debit' => 0,
+                'credit' => round((float) $salary->eobi),
+            ],
+            [
+                'account_id' => $payscale->pessi_payable_account,
+                'name' => 'PASSI Payable (Employee)',
+                'debit' => 0,
+                'credit' => round((float) $salary->pessi),
+            ],
+            [
+                'account_id' => $payscale->other_dedu_payable_account,
+                'name' => 'Other Deduction Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->dedu),
+            ],
+            [
+                'account_id' => $payscale->net_payable_account,
+                'name' => 'Net Salary Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->net_pay),
+            ],
+            [
+                'account_id' => 225,
+                'name' => 'Employer PASSI Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->pessi_employer),
+            ],
+            [
+                'account_id' => 221,
+                'name' => 'Employer EOBI Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->eobi_employer),
+            ],
+        ];
+
+        $deductionAccounts = $this->salaryDeductionVoucherAccounts($salary, $payscale);
+        $recordedAdvance = SalaryDeductionDetail::where('salary_id', $salary->id)
+            ->where('type', 'advance')
+            ->sum('amount');
+        $advanceDifference = round((float) $salary->sal_advance - (float) $recordedAdvance);
+
+        if ($advanceDifference != 0) {
+            $deductionAccounts[] = [
+                'account_id' => $payscale->advance_payable_account ?: 216,
+                'name' => 'Advance Salary Adjustment',
+                'debit' => $advanceDifference < 0 ? abs($advanceDifference) : 0,
+                'credit' => $advanceDifference > 0 ? $advanceDifference : 0,
+            ];
+        }
+
+        return array_values(array_filter(
+            array_merge($accounts, $deductionAccounts),
+            fn($account) => !empty($account['account_id'])
+                && ((float) ($account['debit'] ?? 0) != 0 || (float) ($account['credit'] ?? 0) != 0)
+        ));
+    }
+
+    private function updateSalaryJournalVoucher(EmployeeMonthlySalary $salary, array $accounts): void
+    {
+        $employee = $salary->employee;
+        if (!$employee) {
+            throw new \RuntimeException('Employee not found for salary voucher.');
+        }
+
+        $journal = $salary->voucher_id
+            ? JournalEntry::where('id', $salary->voucher_id)
+                ->where('voucher_type', 'JV')
+                ->first()
+            : null;
+
+        if (!$journal) {
+            $journalId = Utility::Salaryjrentryvoucher([
+                'date' => $salary->salary_date,
+                'reference' => 'SAL-' . $salary->id,
+                'employee_name' => $employee->name,
+                'no' => $salary->id,
+                'salary_month' => date('F Y', strtotime($salary->salary_date)),
+                'id' => $salary->id,
+                'category' => 'salary',
+                'user_id' => $employee->user_id,
+                'user_type' => 'employee',
+                'owned_by' => $employee->owned_by,
+                'created_by' => $employee->created_by,
+                'accounts' => $accounts,
+                'created_at' => $salary->created_at,
+                'updated_at' => now(),
+            ]);
+
+            if (!is_numeric($journalId)) {
+                throw new \RuntimeException('Unable to create salary voucher.');
+            }
+
+            $salary->voucher_id = $journalId;
+            $salary->save();
+            return;
+        }
+
+        $journal->date = $salary->salary_date;
+        $journal->reference = 'SAL-' . $salary->id;
+        $journal->description = 'Salary for ' . $employee->name
+            . ' (Salary ID: ' . $salary->id . ') for the month of '
+            . date('F Y', strtotime($salary->salary_date));
+        $journal->reference_id = $salary->id;
+        $journal->category = 'salary';
+        $journal->user_id = $employee->user_id;
+        $journal->user_type = 'employee';
+        $journal->owned_by = $employee->owned_by;
+        $journal->created_by = $employee->created_by;
+        $journal->save();
+
+        JournalItem::where('journal', $journal->id)->delete();
+
+        foreach ($accounts as $account) {
+            JournalItem::create([
+                'journal' => $journal->id,
+                'account' => $account['account_id'],
+                'description' => $account['name'] . ' against the salary no '
+                    . $salary->id . ' for the month of '
+                    . date('F Y', strtotime($salary->salary_date)),
+                'debit' => $account['debit'],
+                'credit' => $account['credit'],
+            ]);
+        }
     }
 
     public function createPayment(Request $request, $purchase_id)

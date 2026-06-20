@@ -149,7 +149,7 @@
     <div class="row net_row">
         <div class="form-group col-md-6">
             {!! Form::label('net', __('Net'), ['class' => 'form-label']) !!}
-            {{ Form::number('net',  !empty($employeesalary) ? $employeesalary->net_pay : '0',  ['class' => 'form-control']) }}
+            {{ Form::number('net',  !empty($employeesalary) ? $employeesalary->net_pay : '0',  ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net_payable_account', __('Net Payable Account'), ['class' => 'form-label']) !!}
