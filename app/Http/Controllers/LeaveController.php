@@ -30,19 +30,19 @@ class LeaveController extends Controller
                 $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $query = Leave::with(['employees', 'leaveType'])->where('created_by', '=', \Auth::user()->creatorId());
+                $query = Leave::with(['employees', 'leaveType', 'addedBy'])->where('created_by', '=', \Auth::user()->creatorId());
                 $employeeQuery = Employee::where('created_by', '=', \Auth::user()->creatorId())->where('is_res_ter', 0);
             } else if (\Auth::user()->type == 'Employee') {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
                 $user = \Auth::user();
                 $employee = Employee::where('user_id', '=', $user->id)->first();
-                $query = Leave::with(['employees', 'leaveType'])->where('employee_id', '=', $employee->id);
+                $query = Leave::with(['employees', 'leaveType', 'addedBy'])->where('employee_id', '=', $employee->id);
                 $employeeQuery = Employee::where('id', '=', optional($employee)->id);
             } else {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = Leave::with(['employees', 'leaveType'])->where('owned_by', '=', \Auth::user()->ownedId());
+                $query = Leave::with(['employees', 'leaveType', 'addedBy'])->where('owned_by', '=', \Auth::user()->ownedId());
                 $employeeQuery = Employee::where('owned_by', '=', \Auth::user()->ownedId())->where('is_res_ter', 0);
             }
             if (!empty($selectedBranch)) {
@@ -136,15 +136,21 @@ class LeaveController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
             }
-// dd($request->all());
-            $employee = Employee::where('id', '=', $request->employee_id)->first();
+            $employee = \Auth::user()->type == 'Employee'
+                ? Employee::where('user_id', \Auth::id())->first()
+                : Employee::find($request->employee_id);
+
+            if (!$employee) {
+                return redirect()->back()->with('error', __('Employee not found.'));
+            }
+
             $leave_type = LeaveType::find($request->leave_type_id);
             $startDate = new \DateTime($request->start_date);
             $endDate = new \DateTime($request->end_date);
             $endDate->add(new \DateInterval('P1D'));
             $total_leave_days = !empty($startDate->diff($endDate)) ? $startDate->diff($endDate)->days : 0;
 
-            $employeeLeaves = EmployeeLeaves::where('employee_id', $request->employee_id ?? $employee->id)->first();
+            $employeeLeaves = EmployeeLeaves::where('employee_id', $employee->id)->first();
             $available_days = 0;
             if (str_contains(strtolower($leave_type->title) , 'annual' )&& $employeeLeaves) {
                 $available_days = $employeeLeaves->annual_total - $employeeLeaves->annual_consumed;
@@ -155,7 +161,7 @@ class LeaveController extends Controller
                 return redirect()->back()->with('error', __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.'));
             } else {
                 $leave = new Leave();
-                $leave->employee_id = \Auth::user()->type == "Employee" ? $employee->id : $request->employee_id;
+                $leave->employee_id = $employee->id;
                 $leave->leave_type_id = $request->leave_type_id;
                 $leave->applied_on = $request->applied_on;
                 $leave->start_date = $request->start_date;
@@ -164,6 +170,7 @@ class LeaveController extends Controller
                 $leave->leave_reason = $request->leave_reason;
                 $leave->remark = $request->remark;
                 $leave->status = 'Pending';
+                $leave->added_by = \Auth::id();
                 $leave->owned_by = $employee->owned_by;
                 $leave->created_by = \Auth::user()->creatorId();
                 $leave->save();
@@ -251,6 +258,11 @@ class LeaveController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
+                $employee = Employee::find($request->employee_id);
+                if (!$employee) {
+                    return redirect()->back()->with('error', __('Employee not found.'));
+                }
+
                 $leave_type = LeaveType::find($request->leave_type_id);
 
                 $startDate = new \DateTime($request->start_date);
@@ -292,7 +304,8 @@ class LeaveController extends Controller
                     $leave->total_leave_days = $total_leave_days;
                     $leave->leave_reason = $request->leave_reason;
                     $leave->remark = $request->remark;
-                    $leave->owned_by = $leave->employees->branch_id ?? \Auth::user()->ownedId();
+                    $leave->added_by = $leave->added_by ?: \Auth::user()->id;
+                    $leave->owned_by = $employee->owned_by;
                     $leave->save();
 
                     $employeeLeaves->save();

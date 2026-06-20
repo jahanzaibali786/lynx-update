@@ -124,6 +124,7 @@
                 <th>{{ __('End Date') }}</th>
                 <th>{{ __('Total Days') }}</th>
                 <th>{{ __('Leave Reason') }}</th>
+                <th>{{ __('Added By') }}</th>
                 <th>{{ __('status') }}</th>
                 @can('edit leave')
                     <th width="200px">{{ __('Action') }}</th>
@@ -152,6 +153,7 @@
                         ];
                     @endphp
                     <td>{{ $leavesreasons[$leave->leave_reason] ?? $leave->leave_reason }}</td>
+                    <td>{{ optional($leave->addedBy)->name ?? '-' }}</td>
                     <td>
                         @if ($leave->status == 'Pending')
                             <div class="status_badge badge bg-warning p-2 px-3 rounded">
