@@ -414,8 +414,10 @@ class StudentWithdrawalController extends Controller
         $securityPayable = $securityDeposit - $adj;
         $totalPayables = $securityPayable;
         $totalReceivables = $arrearsTotal - $securityPayable;
-        $netBalance = $arrearsTotal - $securityPayable;
-
+		if($totalReceivables < 0) {
+            $totalReceivables = 0;
+        }
+		$netBalance = abs($arrearsTotal - $securityPayable);
         return view('students.student_withdrawal.certificate', [
             'withdrawal' => $withdrawal,
             'student' => $student,
@@ -573,7 +575,7 @@ class StudentWithdrawalController extends Controller
             'other_deduction' => 0,
             'total_payables' => ($payable - $adj) ?? 0,
             'total_receivables' => $arrearsTotal ?? 0,
-            'net_balance' => ($arrearsTotal ?? 0) - (($payable - $adj) ?? 0),
+            'net_balance' => abs(($arrearsTotal ?? 0) - (($payable - $adj) ?? 0)),
         ]);
     }
 
@@ -831,7 +833,7 @@ class StudentWithdrawalController extends Controller
             $studentwithdrawal->ho_remarks = $request->ho_remarks;
             $studentwithdrawal->save();
 
-            return response()->json(['success' => 'Basic data saved successfully.']);
+            return response()->json(['success' => 'Data saved successfully.']);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

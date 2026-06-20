@@ -3632,6 +3632,7 @@ class StudentReportController extends Controller
             ->where('user_type', 'student')
             ->where('credit', '!=', 0)
             ->where('types', '!=', 'challan') // Exclude challan entries
+            ->where('types', '!=', 'challan adjustment') // Exclude adjustment entries (fetched separately)
             ->where(function ($query) {
                 $query->whereHas('journalEntery.challan', function ($q) {
                     $q->where('challan_type', '!=', 'Registration');
@@ -3806,6 +3807,61 @@ class StudentReportController extends Controller
                     'late_amount' => $receipt->late_amount ?? 0,
                     'arrears' => $receipt->arrears ?? 0,
                     'bank_name' => $bankName,
+                    'raw_data' => $transaction
+                ]
+            ]);
+        }
+
+        // Get adjustment entries (from security adjustment)
+        $adjustments = JournalItem::where('user_id', $studentId)
+            ->where('user_type', 'student')
+            ->where('types', 'challan adjustment')
+            ->where('credit', '!=', 0)
+            ->whereDate('created_at', '>=', $fromDate)
+            ->whereDate('created_at', '<=', $toDate)
+            ->with([
+                'user',
+                'accounts',
+                'heads',
+                'journalEntery',
+                'journalEntery.securityAdjustment',
+                'journalEntery.securityAdjustment.challan',
+                'journalEntery.securityAdjustment.challan.class'
+            ])
+            ->orderBy('created_at', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        foreach ($adjustments as $transaction) {
+            $debit = (float) $transaction->credit;
+            $adjustment = $transaction->journalEntery->securityAdjustment ?? null;
+            $challan = $adjustment ? $adjustment->challan : null;
+            $headname = \App\Models\FeeHead::where('id', $transaction->head)->first();
+            $chlnBillingMonth = $challan ? Carbon::parse($challan->fee_month)->format('M-Y') : '-';
+            $headNameDisplay = $headname->fee_head ?? '-';
+
+            $paymentTransactions->push([
+                'date' => $transaction->created_at,
+                'journal_id' => $transaction->journal_id,
+                'fee_month' => $challan->fee_month ?? 'zzz',
+                'type' => 'payment',
+                'data' => [
+                    'type' => 'payment',
+                    'date' => $transaction->created_at->format('Y-m-d'),
+                    'description' => $transaction->description ?? 'Adjustment of Challan no: ' . ($challan->challanNo ?? '-'),
+                    'challan_no' => $challan->challanNo ?? '-',
+                    'billing_month' => $chlnBillingMonth,
+                    'challan_type' => 'Security Adjustment',
+                    'head_name' => $headNameDisplay,
+                    'receipt_mode' => 'Adjustment',
+                    'receipt_ref' => $adjustment ? 'Adj #' . $adjustment->id : '-',
+                    'class' => $challan->class->name ?? '-',
+                    'credit' => 0,
+                    'debit' => $debit,
+                    'balance' => 0,
+                    'late_amount' => 0,
+                    'arrears' => 0,
+                    'bank_name' => '',
                     'raw_data' => $transaction
                 ]
             ]);
@@ -7700,7 +7756,8 @@ class StudentReportController extends Controller
 
         foreach ($branchIds as $branchId) {
             $branch = User::find($branchId);
-            if (!$branch) continue;
+            if (!$branch)
+                continue;
 
             $row = ['branch_name' => $branch->name, 'months' => []];
             $totalAdm = 0;
@@ -7713,12 +7770,12 @@ class StudentReportController extends Controller
                 $monthStart = Carbon::parse($month . '-01')->startOfMonth();
                 $monthEnd = Carbon::parse($month . '-01')->endOfMonth();
 
-               $adm = StudentEnrollments::where('owned_by', $branchId)
-			    ->whereBetween('adm_date', [
-			        $monthStart->toDateString(),
-			        $monthEnd->toDateString(),
-			    ])
-			    ->count();
+                $adm = StudentEnrollments::where('owned_by', $branchId)
+                    ->whereBetween('adm_date', [
+                        $monthStart->toDateString(),
+                        $monthEnd->toDateString(),
+                    ])
+                    ->count();
                 $wd = StudentWithdrawal::where('owned_by', $branchId)
                     ->where(function ($q) {
                         $q->where('is_po', 0)->orWhereNull('is_po');
@@ -7776,7 +7833,7 @@ class StudentReportController extends Controller
 
         $grandTotals['gains'] = $grandTotals['total_adm'] + $grandTotals['total_ti'] - $grandTotals['total_wd'] - $grandTotals['total_po'] - $grandTotals['total_to'];
 
-         if ($request->has('export') && $request->export == 'excel') {
+        if ($request->has('export') && $request->export == 'excel') {
             $branchName = ($request->filled('branch') && $request->branch != 'all')
                 ? ($branches[$request->branch] ?? 'All Branches')
                 : 'All Branches';
@@ -7787,7 +7844,13 @@ class StudentReportController extends Controller
         }
 
         return view('studentReports.student_sts_report', compact(
-            'branches', 'months', 'reportData', 'grandTotals', 'startDate', 'endDate', 'request'
+            'branches',
+            'months',
+            'reportData',
+            'grandTotals',
+            'startDate',
+            'endDate',
+            'request'
         ));
     }
 }

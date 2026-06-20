@@ -5918,6 +5918,9 @@ class Utility extends Model
                 $journalItem->description = 'Adjust of Challan no : ' . @$data['no'];
                 $journalItem->credit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['concession'];
                 $journalItem->debit = 0;
+                $journalItem->user_id = @$data['user_id'];
+                $journalItem->user_type = 'student';
+                $journalItem->types = 'challan adjustment';
                 $journalItem->save();
             }
 
@@ -5930,6 +5933,9 @@ class Utility extends Model
             $journalItem->description = 'Adjust on Challan no : ' . @$data['no'];
             $journalItem->credit = 0;
             $journalItem->debit = $data['total'];
+            $journalItem->user_id = @$data['user_id'];
+            $journalItem->user_type = 'student';
+            $journalItem->types = 'challan adjustment';
             $journalItem->save();
 
             DB::commit();
