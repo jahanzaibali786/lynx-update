@@ -1476,11 +1476,6 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 + (float) $emp_sal->chaild_con
                 + (float) $emp_sal->drns
                 + (float) $emp_sal->misc;
-            $oldEditableDeductions = (float) $emp_sal->it
-                + (float) $emp_sal->dedu
-                + (float) $emp_sal->sal_advance;
-            $oldNetPay = (float) $emp_sal->net_pay;
-
             $emp_sal->conv = (float) ($request->conv ?? 0);
             $emp_sal->other_add = (float) ($request->other_add ?? 0);
             $emp_sal->chaild_con = (float) ($request->chaild_concession ?? 0);
@@ -1502,10 +1497,17 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 + (float) $emp_sal->dedu
                 + (float) $emp_sal->sal_advance;
             $earningDifference = $newEarnings - $oldEarnings;
-            $deductionDifference = $newEditableDeductions - $oldEditableDeductions;
 
             $emp_sal->gross = round((float) $emp_sal->gross + $earningDifference);
-            $emp_sal->net_pay = round(max(0, $oldNetPay + $earningDifference - $deductionDifference));
+            $totalDeductions = (float) $emp_sal->loan
+                + (float) $emp_sal->emp_sec_loan
+                + (float) $emp_sal->emp_sec
+                + (float) $emp_sal->pessi
+                + (float) $emp_sal->eobi
+                + $newEditableDeductions
+                + (float) $emp_sal->tra_course
+                + (float) $emp_sal->stop_sal;
+            $emp_sal->net_pay = round(max(0, (float) $emp_sal->gross - $totalDeductions));
             $emp_sal->save();
 
             $lastPayscaleDetail = EmployeePayscaleDetail::where('employee_id', $emp_sal->employee_id)

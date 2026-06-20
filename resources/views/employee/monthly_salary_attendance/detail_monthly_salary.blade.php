@@ -1,6 +1,18 @@
 {{ Form::model($employeesalary, ['route' => ['emp-month-sal-attendance.update', $employeesalary->id], 'method' => 'PUT']) }}
 @php
     $salaryEditable = $salaryEditable ?? false;
+    $salaryTotalDeductions =
+        (float) ($employeesalary->loan ?? 0) +
+        (float) ($employeesalary->emp_sec_loan ?? 0) +
+        (float) ($employeesalary->emp_sec ?? 0) +
+        (float) ($employeesalary->pessi ?? 0) +
+        (float) ($employeesalary->eobi ?? 0) +
+        (float) ($employeesalary->it ?? 0) +
+        (float) ($employeesalary->dedu ?? 0) +
+        (float) ($employeesalary->tra_course ?? 0) +
+        (float) ($employeesalary->sal_advance ?? 0) +
+        (float) ($employeesalary->stop_sal ?? 0);
+    $calculatedNetPay = max(0, (float) ($employeesalary->gross ?? 0) - $salaryTotalDeductions);
 @endphp
 <div class="modal-body">
     @if (!$salaryEditable)
@@ -149,7 +161,7 @@
     <div class="row net_row">
         <div class="form-group col-md-6">
             {!! Form::label('net', __('Net'), ['class' => 'form-label']) !!}
-            {{ Form::number('net',  !empty($employeesalary) ? $employeesalary->net_pay : '0',  ['class' => 'form-control', 'readonly' => 'readonly']) }}
+            {{ Form::number('net', $calculatedNetPay, ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net_payable_account', __('Net Payable Account'), ['class' => 'form-label']) !!}
@@ -199,25 +211,54 @@
         }
     }
 
-    const earningFields = [ 'chaild_concession', 'drns', 'misc', 'conv', 'other_add' ];
-    const deductionFields = [ 'itax', 'other_deduction', 'advance' ];
-
-    earningFields.concat(deductionFields).forEach(fieldName => {
-        const field = document.querySelector(`input[name="${fieldName}"]`);
-        if (field) {
-            const netElement = document.querySelector('input[name="net"]');
-            let previousValue = parseFloat(field.value) || 0;
-            field.addEventListener('input', function() {
-                const newValue = parseFloat(this.value) || 0; 
-                const difference = newValue - previousValue;
-                const currentNet = parseFloat(netElement.value) || 0;
-                netElement.value = (earningFields.includes(fieldName)
-                    ? currentNet + difference
-                    : currentNet - difference
-                ).toFixed(2);
-                previousValue = newValue;
-            });
+    (() => {
+        const form = document.currentScript ? document.currentScript.closest('form') : null;
+        if (!form) {
+            return;
         }
-    });
+
+        const earningFields = ['chaild_concession', 'drns', 'misc', 'conv', 'other_add'];
+        const deductionFields = ['itax', 'other_deduction', 'advance'];
+        const grossElement = form.querySelector('input[name="gross"]');
+        const netElement = form.querySelector('input[name="net"]');
+        const initialGross = @json((float) ($employeesalary->gross ?? 0));
+        const fixedDeductions = @json(
+            (float) ($employeesalary->loan ?? 0) +
+            (float) ($employeesalary->emp_sec_loan ?? 0) +
+            (float) ($employeesalary->emp_sec ?? 0) +
+            (float) ($employeesalary->pessi ?? 0) +
+            (float) ($employeesalary->eobi ?? 0) +
+            (float) ($employeesalary->tra_course ?? 0) +
+            (float) ($employeesalary->stop_sal ?? 0)
+        );
+        const initialEditableEarnings = earningFields.reduce((total, fieldName) => {
+            return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
+        }, 0);
+        const baseGross = initialGross - initialEditableEarnings;
+
+        function recalculateSalary() {
+            const editableEarnings = earningFields.reduce((total, fieldName) => {
+                return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
+            }, 0);
+            const editableDeductions = deductionFields.reduce((total, fieldName) => {
+                return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
+            }, 0);
+            const gross = baseGross + editableEarnings;
+            const net = Math.max(0, gross - fixedDeductions - editableDeductions);
+
+            if (grossElement) {
+                grossElement.value = gross.toFixed(2);
+            }
+            if (netElement) {
+                netElement.value = net.toFixed(2);
+            }
+        }
+
+        earningFields.concat(deductionFields).forEach(fieldName => {
+            form.querySelector(`input[name="${fieldName}"]`)?.addEventListener('input', recalculateSalary);
+        });
+
+        recalculateSalary();
+    })();
 </script>
 {{ Form::close() }}
