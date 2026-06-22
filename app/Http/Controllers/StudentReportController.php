@@ -4007,70 +4007,46 @@ class StudentReportController extends Controller
         $userType = \Auth::user()->type;
         $userCreatorId = \Auth::user()->creatorId();
         $userOwnedId = \Auth::user()->ownedId();
-        $class = [];
-        $filterApplied = false;
+        $class = collect(['all' => 'All Classes']);
         if ($userType == 'company') {
             $branches = User::where('type', 'branch')->where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
             $branches->prepend('All Branches', 'All Branches');
-            $query = StudentEnrollments::with('StudentRegistration', 'StudentRegistration.class', 'withdrawal')->where('created_by', $userCreatorId);
+            $query = StudentWithdrawal::with('student', 'student.enrollment', 'student.class', 'student.branches', 'branch', 'class')
+                ->where('created_by', $userCreatorId);
         } else {
             $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
             $branches->prepend('All Branches', 'All Branches');
-            $query = StudentEnrollments::with('StudentRegistration', 'StudentRegistration.class', 'withdrawal', 'withdrawal.class')->where('owned_by', $userOwnedId);
+            $query = StudentWithdrawal::with('student', 'student.enrollment', 'student.class', 'student.branches', 'branch', 'class')
+                ->where('owned_by', $userOwnedId);
         }
-        $query->whereHas('withdrawal');
-        if (!empty($request->branches)) {
-            $query->where('owned_by', '=', $request->branches);
+        // Only withdrawals where the student's enrollment actually shows withdrawn status
+        $query->whereHas('student.enrollment', function ($q) {
+            $q->where('active_status', 0);
+        });
+        if (!empty($request->branches) && $request->branches !== 'All Branches') {
+            $query->where('branch_id', '=', $request->branches);
             $class = Classes::where('owned_by', '=', $request->branches)->get()->pluck('name', 'id');
-            $filterApplied = true;
+            $class->prepend('All Classes', 'all');
         }
         if (!empty($request->class) && $request->class != 'all') {
             $query->where('class_id', '=', $request->class);
-            $student = StudentRegistration::where('class_id', '=', $request->class)->get()->pluck('stdname', 'id');
-            $filterApplied = true;
         }
         if (!empty($request->date_from)) {
-            $query->whereHas('withdrawal', function ($q) use ($request) {
-                $q->whereDate('withdraw_date', '>=', $request->date_from);
-            });
-            $filterApplied = true;
+            $query->whereDate('withdraw_date', '>=', $request->date_from);
         }
-
         if (!empty($request->date_to)) {
-            $query->whereHas('withdrawal', function ($q) use ($request) {
-                $q->whereDate('withdraw_date', '<=', $request->date_to);
-            });
-            $filtersApplied = true;
+            $query->whereDate('withdraw_date', '<=', $request->date_to);
         }
         if (empty($request->date_from) || empty($request->date_to)) {
             $currentYear = date('Y');
             $currentMonth = date('m');
             $dateFrom = ($currentMonth >= 7) ? "$currentYear-07-01" : date('Y-07-01', strtotime('-1 year'));
             $dateTo = ($currentMonth >= 7) ? date('Y-06-30', strtotime('+1 year')) : "$currentYear-06-30";
-
-            $request->merge(['date_from' => $dateFrom]);
-            $request->merge(['date_to' => $dateTo]);
-
-            $query->whereHas('withdrawal', function ($q) use ($dateFrom, $dateTo) {
-                $q->whereBetween('withdraw_date', [$dateFrom, $dateTo]);
-            });
+            $request->merge(['date_from' => $dateFrom, 'date_to' => $dateTo]);
+            $query->whereBetween('withdraw_date', [$dateFrom, $dateTo]);
         }
-        // if (!empty($request->from_date) || !empty($request->to_date)) {
-        //     $query->whereHas('withdrawal', function ($query) use ($request) {
-        //         if (!empty($request->from_date)) {
-        //             $query->whereDate('withdraw_date', '>=', $request->from_date);
-        //         }
-        //         if (!empty($request->to_date)) {
-        //             $query->whereDate('withdraw_date', '<=', $request->to_date);
-        //         }
-        //     });
-        // }
-        if ($filterApplied) {
-            $all_data = $query->get();
-        } else {
-            $all_data = collect();
-        }
+        $all_data = $query->get();
         return view('studentReports.student_withdrawl_listing', compact('all_data', 'branches', 'class', 'request'));
     }
     public function student_withdarawl_listingReport(Request $request)
@@ -4078,60 +4054,46 @@ class StudentReportController extends Controller
         $userType = \Auth::user()->type;
         $userCreatorId = \Auth::user()->creatorId();
         $userOwnedId = \Auth::user()->ownedId();
-        $class = [];
-        $filterApplied = false;
+        $class = collect(['all' => 'All Classes']);
         if ($userType == 'company') {
             $branches = User::where('type', 'branch')->where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-            $branches->prepend('Select Branch', '');
-            $query = StudentEnrollments::with('StudentRegistration', 'StudentRegistration.class', 'withdrawal')->where('created_by', $userCreatorId);
+            $branches->prepend('All Branches', 'All Branches');
+            $query = StudentWithdrawal::with('student', 'student.enrollment', 'student.class', 'student.branches', 'branch', 'class')
+                ->where('created_by', $userCreatorId);
         } else {
             $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
-            $branches->prepend('Select Branch', '');
-            $query = StudentEnrollments::with('StudentRegistration', 'StudentRegistration.class', 'withdrawal', 'withdrawal.class')->where('owned_by', $userOwnedId);
+            $branches->prepend('All Branches', 'All Branches');
+            $query = StudentWithdrawal::with('student', 'student.enrollment', 'student.class', 'student.branches', 'branch', 'class')
+                ->where('owned_by', $userOwnedId);
         }
-        $query->whereHas('withdrawal');
-        if (!empty($request->branches)) {
-            $query->where('owned_by', '=', $request->branches);
+        // Only withdrawals where the student's enrollment actually shows withdrawn status
+        $query->whereHas('student.enrollment', function ($q) {
+            $q->where('active_status', 0);
+        });
+        if (!empty($request->branches) && $request->branches !== 'All Branches') {
+            $query->where('branch_id', '=', $request->branches);
             $class = Classes::where('owned_by', '=', $request->branches)->get()->pluck('name', 'id');
-            $filterApplied = true;
+            $class->prepend('All Classes', 'all');
         }
-        if (!empty($request->class)) {
+        if (!empty($request->class) && $request->class != 'all') {
             $query->where('class_id', '=', $request->class);
-            $student = StudentRegistration::where('class_id', '=', $request->class)->get()->pluck('stdname', 'id');
-            $filterApplied = true;
         }
         if (!empty($request->date_from)) {
-            $query->whereHas('withdrawal', function ($q) use ($request) {
-                $q->whereDate('withdraw_date', '>=', $request->date_from);
-            });
-            $filterApplied = true;
+            $query->whereDate('withdraw_date', '>=', $request->date_from);
         }
         if (!empty($request->date_to)) {
-            $query->whereHas('withdrawal', function ($q) use ($request) {
-                $q->whereDate('withdraw_date', '<=', $request->date_to);
-            });
-            $filterApplied = true;
+            $query->whereDate('withdraw_date', '<=', $request->date_to);
         }
         if (empty($request->date_from) || empty($request->date_to)) {
             $currentYear = date('Y');
             $currentMonth = date('m');
             $dateFrom = ($currentMonth >= 7) ? "$currentYear-07-01" : date('Y-07-01', strtotime('-1 year'));
             $dateTo = ($currentMonth >= 7) ? date('Y-06-30', strtotime('+1 year')) : "$currentYear-06-30";
-
-            $request->merge(['date_from' => $dateFrom]);
-            $request->merge(['date_to' => $dateTo]);
-
-            $query->whereHas('withdrawal', function ($q) use ($dateFrom, $dateTo) {
-                $q->whereBetween('withdraw_date', [$dateFrom, $dateTo]);
-            });
-            $filterApplied = true;
+            $request->merge(['date_from' => $dateFrom, 'date_to' => $dateTo]);
+            $query->whereBetween('withdraw_date', [$dateFrom, $dateTo]);
         }
-        if ($filterApplied) {
-            $all_data = $query->get()->groupBy('owned_by'); // Group by branch
-        } else {
-            $all_data = collect();
-        }
+        $all_data = $query->get()->groupBy('owned_by'); // Group by branch
 
         $report_name = 'Student Withdrawal Listing';
 
