@@ -2736,6 +2736,13 @@ class StudentReportController extends Controller
                 ->get()
                 ->groupBy('student_id');
 
+            // Remove student groups where no challan has an outstanding balance
+            $challans = $challans->filter(function ($studentChallans) {
+                return $studentChallans->contains(function ($challan) {
+                    return ($challan->total_amount - ($challan->paid_amount + $challan->concession_amount)) > 0;
+                });
+            });
+
             if ($challans->count() > 0) {
                 $reportData[] = [
                     'branch' => $branchName,
