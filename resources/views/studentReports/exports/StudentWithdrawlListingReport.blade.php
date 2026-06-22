@@ -48,7 +48,7 @@
                         {{ !empty($data->student->class) ? $data->student->class->name : '-' }}
                     </td>
                     <td>
-                        {{ !empty($data->student->enrollment) ? \Carbon\Carbon::parse($data->student->enrollment->adm_date)->format('d-M-Y') : '-' }}
+                        {{ !empty($data->student->enrollment) && $data->student->enrollment->adm_date ? \Carbon\Carbon::parse($data->student->enrollment->adm_date)->format('d-M-Y') : '-' }}
                     </td>
                     <td>
                         {!! nl2br(
@@ -74,7 +74,7 @@
                         @endphp
                     </td>
                     <td>
-                        {{ !empty($data) ? $data->withdraw_date : '-' }}
+                        {{ !empty($data) && $data->withdraw_date ? \Carbon\Carbon::parse($data->withdraw_date)->format('d-M-Y') : '-' }}
                     </td>
                     <td>
                         {!! nl2br(wordwrap(!empty($data) ? $data->reason : '-', 20, "\n", true)) !!}
