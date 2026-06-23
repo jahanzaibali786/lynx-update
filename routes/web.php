@@ -24,6 +24,7 @@ use App\Http\Controllers\StudentPromotions;
 use App\Http\Controllers\StudentRegistration;
 use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\EmployeeImportController;
+use App\Http\Controllers\StudentFinanceCleanupController;
 use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentReportController2;
 use App\Http\Controllers\StudyPackChallanController;
@@ -2249,6 +2250,8 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('/student-adjust-detail', [StudentWithdrawalController::class, 'studentadjustdetail'])->name('student-adjust-detail');
             Route::get('/student-challan-detail', [StudentWithdrawalController::class, 'studentchallandetail'])->name('student-challan-detail');
             Route::get('/student-adjust-detail', [StudentWithdrawalController::class, 'studentadjustdetail'])->name('student-adjust-detail');
+            Route::get('/admin/student-finance-cleanup', [StudentFinanceCleanupController::class, 'index'])->name('student-finance-cleanup.index');
+            Route::get('/admin/student-finance-cleanup/{id}/status', [StudentFinanceCleanupController::class, 'status'])->name('student-finance-cleanup.status');
             Route::get('studypack/items', [StudyPackController::class, 'items'])->name('studypack.items');
             Route::resource('/studypack', StudyPackController::class);
             Route::get('studypack/items', [StudyPackController::class, 'items'])->name('studypack.items');

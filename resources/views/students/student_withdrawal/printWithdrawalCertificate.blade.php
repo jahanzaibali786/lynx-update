@@ -72,7 +72,7 @@
                     {{ $class->name ?? '-' }}</td>
                 <td style="width:80px !important; padding-left: 20px;">Section:</td>
                 <td style="border-bottom: 1px solid black; text-align: center;">
-                    {{ $sectionName }}
+                    {{ $sectionName ?? optional(optional($enrollment)->section)->name ?? '-' }}
                 </td>
             </tr>
         </tbody>

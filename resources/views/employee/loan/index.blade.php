@@ -17,7 +17,9 @@
     <script type="text/javascript" src="{{ asset('js/html2pdf.bundle.min.js') }}"></script>
      <script src="{{ asset('public/acron/searchselect.js') }}"></script>
     <script>
-        function branchemployees(id) {
+        function loanFilterBranchEmployees(id) {
+            var $employeeSelect = $('#loan_filter_employee_id');
+
             $.ajax({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -31,23 +33,23 @@
                 success: function(result) {
                     console.log(result);
                     if (result.status == 'success') {
-                        $('#employee_id').empty();
-                        $('#employee_id').append($('<option>', {
+                        $employeeSelect.empty();
+                        $employeeSelect.append($('<option>', {
                             value: '',
                             text: 'Select Employee'
                         }));
 
                         for (var j = 0; j < result.employee.length; j++) {
                             var cls = result.employee[j];
-                            $('#employee_id').append($('<option>', {
+                            $employeeSelect.append($('<option>', {
                                 value: cls.id,
                                 text: cls.name
                             }));
                         }
-                        if ($('#employee_id').data('selected')) {
-                            $('#employee_id').val($('#employee_id').data('selected'));
+                        if ($employeeSelect.data('selected')) {
+                            $employeeSelect.val($employeeSelect.data('selected'));
                         }
-                        $('#employee_id').trigger('change');
+                        $employeeSelect.trigger('change');
                     }
                     if (result.status == 'error') {}
                 }
@@ -55,7 +57,7 @@
         }
 
         $(document).ready(function() {
-            $('#employee_id').data('selected', "{{ request('employee_id') }}");
+            $('#loan_filter_employee_id').data('selected', "{{ request('employee_id') }}");
         });
     </script>
 @endpush
@@ -83,7 +85,7 @@
                                         <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                             <div class="btn-box">
                                                 {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                                {{ Form::select('branches', $branches, request('branches'), ['class' => 'form-control select', 'onchange' => 'branchemployees(this.value)']) }}
+                                                {{ Form::select('branches', $branches, request('branches'), ['class' => 'form-control select', 'onchange' => 'loanFilterBranchEmployees(this.value)']) }}
                                             </div>
                                         </div>
                                         <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
@@ -101,7 +103,7 @@
                                         <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-2">
                                             <div class="btn-box">
                                                 {{ Form::label('employee_id', __('Employee'), ['class' => 'form-label']) }}
-                                                {{ Form::select('employee_id', $employees, request('employee_id'), ['class' => 'form-control select custom-select', 'id' => 'employee_id']) }}
+                                                {{ Form::select('employee_id', $employees, request('employee_id'), ['class' => 'form-control select custom-select', 'id' => 'loan_filter_employee_id']) }}
                                             </div>
                                         </div>
 

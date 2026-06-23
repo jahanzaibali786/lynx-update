@@ -73,7 +73,7 @@
         window.validateLoanCreateFromPayMonth = validateFromPayMonth;
         window.getLoanCreateMinimumFromPayMonth = getMinimumFromPayMonth;
 
-        $('#employee_id').change(function() {
+        $('#loan_create_employee_id').change(function() {
             var employeeId = $(this).val();
             if (employeeId) {
                 $.ajax({
@@ -284,9 +284,10 @@
     }
 </script>
 <script>
-    function branchemployees(id) {
+    function loanCreateBranchEmployees(id) {
         // remember previous selection so we can restore if still available
-        var prevVal = $('#employee_id').val();
+        var $empSelect = $('#loan_create_employee_id');
+        var prevVal = $empSelect.val();
 
         function isResigned(emp) {
             if (!emp) return false;
@@ -322,8 +323,6 @@
             dataType: 'json',
             success: function(result) {
                 if (result.status === 'success') {
-                    var $empSelect = $('#employee_id');
-
                     // destroy previous custom-select instance if present
                     if ($empSelect[0] && $empSelect[0].customSelectInstance) {
                         try {
@@ -394,13 +393,13 @@
     <div class="row">
         <div class="form-group col-md-6">
             {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-            {{ Form::select('branches', $branches, null, ['class' => 'form-control select', 'onchange' => 'branchemployees(this.value)']) }}
+            {{ Form::select('branches', $branches, null, ['class' => 'form-control select', 'onchange' => 'loanCreateBranchEmployees(this.value)', 'id' => 'loan_create_branch_id']) }}
         </div>
         @if (\Auth::user()->type != 'Employee')
             <div class="form-group col-md-6">
                 {{ Form::label('employee_id', __('Employee'), ['class' => 'form-label']) }}<span style="color: red">
                     *</span>
-                {{ Form::select('employee_id', $employee, null, ['class' => 'form-control select custom-select', 'required' => 'required', 'id' => 'employee_id']) }}
+                {{ Form::select('employee_id', $employee, null, ['class' => 'form-control select custom-select', 'required' => 'required', 'id' => 'loan_create_employee_id']) }}
             </div>
         @endif
         <div class="form-group col-md-4">

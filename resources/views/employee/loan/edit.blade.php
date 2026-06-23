@@ -124,7 +124,7 @@
             return true;
         }
 
-        $('#employee_id').change(function() {
+        $('#loan_edit_employee_id').change(function() {
             var employeeId = $(this).val();
 
             if (employeeId) {
@@ -187,16 +187,55 @@
         validateApprovedSchedule(false);
     });
 </script>
-{{ Form::model($loan, array('route' => array('loan.update', $loan->id), 'method' => 'PUT')) }}
+<script>
+    function loanEditBranchEmployees(id) {
+        var $employeeSelect = $('#loan_edit_employee_id');
+        var selectedEmployee = String($employeeSelect.val() || '');
+
+        $.ajax({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            url: "{{ route('branch.employees') }}",
+            type: 'POST',
+            data: { id: id },
+            dataType: 'json',
+            success: function(result) {
+                if (result.status !== 'success') {
+                    return;
+                }
+
+                $employeeSelect.empty().append($('<option>', {
+                    value: '',
+                    text: 'Select Employee'
+                }));
+
+                $.each(result.employee, function(_, employee) {
+                    $employeeSelect.append($('<option>', {
+                        value: employee.id,
+                        text: employee.name
+                    }));
+                });
+
+                if (selectedEmployee && $employeeSelect.find('option[value="' + selectedEmployee + '"]').length) {
+                    $employeeSelect.val(selectedEmployee);
+                }
+
+                $employeeSelect.trigger('change');
+            }
+        });
+    }
+</script>
+{{ Form::model($loan, array('route' => array('loan.update', $loan->id), 'method' => 'PUT', 'id' => 'loan_edit_form')) }}
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-md-6">
             {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-            {{ Form::select('branches', $branches, null, ['class' => 'form-control select', 'readonly' => 'readonly', 'onchange' => 'branchemployees(this.value)']) }}
+            {{ Form::select('branches', $branches, null, ['class' => 'form-control select', 'readonly' => 'readonly', 'onchange' => 'loanEditBranchEmployees(this.value)', 'id' => 'loan_edit_branch_id']) }}
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('employee_id', __('Select Employee'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
-            {{ Form::select('employee_id', $employee, null, ['class' => 'form-control select', 'readonly' => 'readonly', 'required' => 'required', 'id' => 'employee_id', 'placeholder' => __('Select Employee')]) }}
+            {{ Form::select('employee_id', $employee, null, ['class' => 'form-control select', 'readonly' => 'readonly', 'required' => 'required', 'id' => 'loan_edit_employee_id', 'placeholder' => __('Select Employee')]) }}
         </div>
         <div class="form-group col-md-4">
             {{ Form::label('department', __('Department'), ['class' => 'form-label']) }}
