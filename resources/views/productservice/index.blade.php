@@ -3,10 +3,47 @@
 {{ __('Manage Products') }}
 @endsection
 @push('script-page')
-<script src="{{ asset('js/jquery-searchbox.js') }}"></script>
 <script>
     $(document).ready(function() {
+        function refreshSubcategorySelect() {
+            var subcategorySelect = $('#subcategory-select');
+            var parent = subcategorySelect.closest('.btn-box');
+
+            if (subcategorySelect[0].customSelectInstance) {
+                subcategorySelect[0].customSelectInstance.destroy();
+                subcategorySelect[0].customSelectInstance = null;
+            }
+            parent.find('.custom-select-wrapper').remove();
+            subcategorySelect.removeClass('custom-select').show();
+
+            setTimeout(function() {
+                subcategorySelect.addClass('custom-select').show();
+                if (window.CustomSelect) {
+                    window.CustomSelect.initContainer(parent[0]);
+                }
+            }, 0);
+        }
+
+        function refreshCategorySelect() {
+            var categorySelect = $('#category-select');
+            if (categorySelect[0].customSelectInstance) {
+                categorySelect[0].customSelectInstance.updateOptions();
+            }
+        }
+
+        function setSubcategoryOptions(subcategories) {
+            var subcategorySelect = $('#subcategory-select');
+            subcategorySelect.empty();
+            subcategorySelect.append('<option value="">Select Subcategory</option>');
+            $.each(subcategories || [], function(index, subcategory) {
+                subcategorySelect.append('<option value="' + subcategory.id + '">' + subcategory.name + '</option>');
+            });
+            subcategorySelect.val('');
+            refreshSubcategorySelect();
+        }
+
         $('#category-select').on('change', function() {
+            refreshCategorySelect();
             var categoryId = $(this).val();
             if (categoryId) {
                 $.ajax({
@@ -14,19 +51,14 @@
                     type: 'GET',
                     dataType: 'json',
                     success: function(data) {
-                        var subcategorySelect = $('#subcategory-select');
-                        subcategorySelect.empty();
-                        subcategorySelect.append('<option value="">Select Subcategory</option>');
-                        $.each(data.subcategories, function(index, subcategory) {
-                            subcategorySelect.append('<option value="' + subcategory.id + '">' + subcategory.name + '</option>');
-                        });
+                        setSubcategoryOptions(data.subcategories);
                     },
                     error: function(xhr, status, error) {
                         console.error('Error fetching subcategories:', error);
                     }
                 });
             } else {
-                $('#subcategory-select').empty().append('<option value="">Select Subcategory</option>');
+                setSubcategoryOptions([]);
             }
         });
     });
@@ -83,19 +115,19 @@
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                             <div class="btn-box">
                                 {{ Form::label('category', __('Category'), ['class' => 'form-label']) }}
-                                {{ Form::select('category', $category, request()->category, ['class' => 'js-searchBox form-control select', 'id' => 'category-select']) }}
+                                {{ Form::select('category', $category, request()->category, ['class' => 'form-control select custom-select', 'id' => 'category-select']) }}
                             </div>
                         </div>
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                             <div class="btn-box">
                                 {{ Form::label('subcategory', __('Subcategory'), ['class' => 'form-label']) }}
-                                {{ Form::select('subcategory',$subcategory, request()->subcategory, ['class' => 'js-searchBox form-control select', 'id' => 'subcategory-select']) }}
+                                {{ Form::select('subcategory',$subcategory, request()->subcategory, ['class' => 'form-control select custom-select', 'id' => 'subcategory-select']) }}
                             </div>
                         </div>
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                             <div class="btn-box">
                                 {{ Form::label('item_type', __('Type'), ['class' => 'form-label']) }}
-                                {{ Form::select('item_type', $itemTypes, request()->item_type, ['class' => 'js-searchBox form-control select', 'id' => 'item_type-select']) }}
+                                {{ Form::select('item_type', $itemTypes, request()->item_type, ['class' => 'form-control select custom-select', 'id' => 'item_type-select']) }}
                             </div>
                         </div>
                         <div class="col-auto float-end ms-2 mt-4">
@@ -141,83 +173,89 @@
 </div>
 <div class="row">
     <div class="col-xl-12">
-        <table class="datatable" style="width: 99.5% !important;">
-            <thead class="table_heads">
-                <tr>
-                    <th>{{ __('Sr.') }}</th>
-                    <th>{{ __('Product Name') }}</th>
-                    <th>{{ __('Product code') }}</th>
-                    <th>{{ __('Sale Price') }}</th>
-                    <th>{{ __('Purchase Price') }}</th>
-                    <th>{{ __('Category') }}</th>
-                    <th>{{ __('SubCategory') }}</th>
-                    <th>{{ __('Unit') }}</th>
-                    <th>{{ __('New Qty') }}</th>
-                    <th>{{ __('Used Qty') }}</th>
-                    <th>{{ __('Damaged Qty') }}</th>
-                    <th>{{ __('Total Qty') }}</th>
-                    <th>{{ __('Action') }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($productServices as $productService)
-                <tr class="font-style">
-                    <td>{{ $loop->iteration }}</td>
-                    <td>{{ $productService->name }}</td>
-                    <td>{{ $productService->sku }}</td>
-                    <td>{{ \Auth::user()->priceFormat($productService->sale_price) }}</td>
-                    <td>{{ \Auth::user()->priceFormat($productService->purchase_price) }}</td>
-                    <td>{{ !empty($productService->category) ? $productService->category->name : '' }}</td>
-                    <td>{{ !empty($productService->subcategory) ? $productService->subcategory->name : '' }}</td>
-                    <td>{{ !empty($productService->unit()) ? $productService->unit()->name : '' }}</td>
-                    @if ($productService->type == 'product')
-                        <td>{{ $productService->quantity ?? 0 }}</td>
-                        <td>{{ $productService->used_quantity ?? 0 }}</td>
-                        <td>{{ $productService->damaged_quantity ?? 0 }}</td>
-                        <td>{{ ($productService->quantity ?? 0) + ($productService->used_quantity ?? 0) + ($productService->damaged_quantity ?? 0) }}</td>
-                    @else
-                        <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
-                    @endif
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="datatable" style="width: 99.5% !important;">
+                        <thead class="table_heads">
+                            <tr>
+                                <th>{{ __('Sr.') }}</th>
+                                <th>{{ __('Product Name') }}</th>
+                                <th>{{ __('Product code') }}</th>
+                                <th>{{ __('Sale Price') }}</th>
+                                <th>{{ __('Purchase Price') }}</th>
+                                <th>{{ __('Category') }}</th>
+                                <th>{{ __('SubCategory') }}</th>
+                                <th>{{ __('Unit') }}</th>
+                                <th>{{ __('New Qty') }}</th>
+                                <th>{{ __('Used Qty') }}</th>
+                                <th>{{ __('Damaged Qty') }}</th>
+                                <th>{{ __('Total Qty') }}</th>
+                                <th>{{ __('Action') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($productServices as $productService)
+                            <tr class="font-style">
+                                <td>{{ $loop->iteration }}</td>
+                                <td>{{ $productService->name }}</td>
+                                <td>{{ $productService->sku }}</td>
+                                <td>{{ \Auth::user()->priceFormat($productService->sale_price) }}</td>
+                                <td>{{ \Auth::user()->priceFormat($productService->purchase_price) }}</td>
+                                <td>{{ !empty($productService->category) ? $productService->category->name : '' }}</td>
+                                <td>{{ !empty($productService->subcategory) ? $productService->subcategory->name : '' }}</td>
+                                <td>{{ !empty($productService->unit()) ? $productService->unit()->name : '' }}</td>
+                                @if ($productService->type == 'product')
+                                    <td>{{ $productService->quantity ?? 0 }}</td>
+                                    <td>{{ $productService->used_quantity ?? 0 }}</td>
+                                    <td>{{ $productService->damaged_quantity ?? 0 }}</td>
+                                    <td>{{ ($productService->quantity ?? 0) + ($productService->used_quantity ?? 0) + ($productService->damaged_quantity ?? 0) }}</td>
+                                @else
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                @endif
 
 
-                    @if (Gate::check('manage product & service') || Gate::check('edit product & service') || Gate::check('delete product & service'))
-                    <td class="Action">
-                        <div class="action-btn ms-2">
+                                @if (Gate::check('manage product & service') || Gate::check('edit product & service') || Gate::check('delete product & service'))
+                                <td class="Action">
+                                    <div class="action-btn ms-2">
 
-                            <a href="{{ route('productservice.show', $productService->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
-                                data-bs-title="{{ __('View') }}">
-                                <span class="btn-inner--icon"><i class="fas fa-eye"></i></span>
-                            </a>
+                                        <a href="{{ route('productservice.show', $productService->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
+                                            data-bs-title="{{ __('View') }}">
+                                            <span class="btn-inner--icon"><i class="fas fa-eye"></i></span>
+                                        </a>
 
-                            @can('edit product & service')
-                            <a href="{{ route('productservice.edit', $productService->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
-                                data-bs-title="{{ __('Edit') }}">
-                                <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                            </a>
-                            @endcan
-                            @can('delete product & service')
-                            {!! Form::open([
-                            'method' => 'DELETE',
-                            'route' => ['productservice.destroy', $productService->id],
-                            'id' => 'delete-form-' . $productService->id,
-                            ]) !!}
-                            <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"
-                                 data-bs-title="{{ __('Delete') }}">
-                                <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
-                            </a>
-                            {!! Form::close() !!}
-                            @endcan
-                        </div>
-                    </td>
-                    @endif
-                </tr>
-                @endforeach
+                                        @can('edit product & service')
+                                        <a href="{{ route('productservice.edit', $productService->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
+                                            data-bs-title="{{ __('Edit') }}">
+                                            <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
+                                        </a>
+                                        @endcan
+                                        @can('delete product & service')
+                                        {!! Form::open([
+                                        'method' => 'DELETE',
+                                        'route' => ['productservice.destroy', $productService->id],
+                                        'id' => 'delete-form-' . $productService->id,
+                                        ]) !!}
+                                        <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"
+                                             data-bs-title="{{ __('Delete') }}">
+                                            <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
+                                        </a>
+                                        {!! Form::close() !!}
+                                        @endcan
+                                    </div>
+                                </td>
+                                @endif
+                            </tr>
+                            @endforeach
 
-            </tbody>
-        </table>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

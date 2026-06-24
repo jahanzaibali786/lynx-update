@@ -110,7 +110,7 @@
                     </div>
                     <div class="form-group">
                         {{ Form::label('expense_chartaccount_id', __('COGS Account'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
-                        {{ Form::select('expense_chartaccount_id', $expenseChartAccounts, old('expense_chartaccount_id', $productService->expense_chartaccount_id), ['class' => 'form-control select', 'id' => 'expense_chartaccount_id', 'required' => 'required']) }}
+                        {{ Form::select('expense_chartaccount_id', $expenseChartAccounts, old('expense_chartaccount_id', $productService->expense_chartaccount_id), ['class' => 'form-control select custom-select', 'id' => 'expense_chartaccount_id', 'required' => 'required']) }}
                     </div>
                 </div>
             </div>
@@ -132,7 +132,7 @@
                     </div>
                     <div class="form-group">
                         {{ Form::label('sale_chartaccount_id', __('Income Account'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
-                        {{ Form::select('sale_chartaccount_id', $incomeChartAccounts, old('sale_chartaccount_id', $productService->sale_chartaccount_id), ['class' => 'form-control select', 'required' => 'required']) }}
+                        {{ Form::select('sale_chartaccount_id', $incomeChartAccounts, old('sale_chartaccount_id', $productService->sale_chartaccount_id), ['class' => 'form-control select custom-select', 'id' => 'sale_chartaccount_id', 'required' => 'required']) }}
                     </div>
                 </div>
             </div>
@@ -147,7 +147,7 @@
                     <div class="row">
                         <div class="form-group col-md-6">
                             {{ Form::label('inventory_asset_account_id', __('Inventory Asset Account'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
-                            {{ Form::select('inventory_asset_account_id', $inventoryAssetAccounts, old('inventory_asset_account_id', $productService->inventory_asset_account_id), ['class' => 'form-control select', 'id' => 'inventory_asset_account_id', 'required' => 'required']) }}
+                            {{ Form::select('inventory_asset_account_id', $inventoryAssetAccounts, old('inventory_asset_account_id', $productService->inventory_asset_account_id), ['class' => 'form-control select custom-select', 'id' => 'inventory_asset_account_id', 'required' => 'required']) }}
                         </div>
                         @if (!$customFields->isEmpty())
                             <div class="form-group col-md-6">

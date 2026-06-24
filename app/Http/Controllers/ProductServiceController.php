@@ -147,76 +147,77 @@ class ProductServiceController extends Controller
                 return redirect()->back()->with('error', $messages->first())->withInput();
             }
 
-            $productService = new ProductService();
-            $productService->name = $request->name;
-            $productService->description = $request->sales_description ?: $request->description;
-            $productService->sku = $request->sku;
-            $productService->item_type = $request->item_type;
-            if ($request->item_type === 'service') {
-                $productService->manufacturer_part_number = null;
-                $productService->purchase_description = null;
-                $productService->purchase_price = 0;
-                $productService->expense_chartaccount_id = 0;
-                $productService->inventory_asset_account_id = 0;
-            } elseif ($request->item_type === 'non_inventory_part') {
-                $productService->manufacturer_part_number = $request->manufacturer_part_number;
-                $productService->purchase_description = null;
-                $productService->purchase_price = 0;
-                $productService->expense_chartaccount_id = 0;
-                $productService->inventory_asset_account_id = 0;
-            } else {
-                $productService->manufacturer_part_number = $request->manufacturer_part_number;
-                $productService->purchase_description = $request->purchase_description;
-                $productService->purchase_price = $request->purchase_price;
-                $productService->expense_chartaccount_id = $request->expense_chartaccount_id;
-                $productService->inventory_asset_account_id = $request->inventory_asset_account_id;
-            }
-            $productService->is_subitem = $request->has('is_subitem') ? 1 : 0;
-            $productService->parent_id = $productService->is_subitem ? $request->parent_id : null;
-            $productService->sales_description = $request->sales_description;
-            $productService->sale_price = $request->sale_price;
-            $productService->tax_id = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
-            $productService->unit_id = $request->unit_id;
-            $productService->quantity = $request->quantity ?? 0;
-            $productService->used_quantity = $request->used_quantity ?? 0;
-            $productService->damaged_quantity = $request->damaged_quantity ?? 0;
-            $productService->type = $request->item_type === 'service' ? 'service' : 'product';
-            $productService->sale_chartaccount_id = $request->sale_chartaccount_id;
-            $productService->category_id = $request->category_id;
-            $productService->sub_category_id = $request->sub_category_id;
-
-            if (!empty($request->pro_image)) {
-                //storage limit
-                $image_size = $request->file('pro_image')->getSize();
-                $result = Utility::updateStorageLimit(\Auth::user()->creatorId(), $image_size);
-                if ($result == 1) {
-                    if ($productService->pro_image) {
-                        $path = storage_path('uploads/pro_image' . $productService->pro_image);
-                    }
-                    $fileName = $request->pro_image->getClientOriginalName();
-                    $productService->pro_image = $fileName;
-                    $dir = 'uploads/pro_image';
-                    $path = Utility::upload_file($request, 'pro_image', $fileName, $dir, []);
+            DB::transaction(function () use ($request) {
+                $productService = new ProductService();
+                $productService->name = $request->name;
+                $productService->description = $request->sales_description ?: $request->description;
+                $productService->sku = $request->sku;
+                $productService->item_type = $request->item_type;
+                if ($request->item_type === 'service') {
+                    $productService->manufacturer_part_number = null;
+                    $productService->purchase_description = null;
+                    $productService->purchase_price = 0;
+                    $productService->expense_chartaccount_id = 0;
+                    $productService->inventory_asset_account_id = 0;
+                } elseif ($request->item_type === 'non_inventory_part') {
+                    $productService->manufacturer_part_number = $request->manufacturer_part_number;
+                    $productService->purchase_description = null;
+                    $productService->purchase_price = 0;
+                    $productService->expense_chartaccount_id = 0;
+                    $productService->inventory_asset_account_id = 0;
+                } else {
+                    $productService->manufacturer_part_number = $request->manufacturer_part_number;
+                    $productService->purchase_description = $request->purchase_description;
+                    $productService->purchase_price = $request->purchase_price;
+                    $productService->expense_chartaccount_id = $request->expense_chartaccount_id;
+                    $productService->inventory_asset_account_id = $request->inventory_asset_account_id;
                 }
-            }
+                $productService->is_subitem = $request->has('is_subitem') ? 1 : 0;
+                $productService->parent_id = $productService->is_subitem ? $request->parent_id : null;
+                $productService->sales_description = $request->sales_description;
+                $productService->sale_price = $request->sale_price;
+                $productService->tax_id = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
+                $productService->unit_id = $request->unit_id;
+                $productService->quantity = $request->quantity ?? 0;
+                $productService->used_quantity = $request->used_quantity ?? 0;
+                $productService->damaged_quantity = $request->damaged_quantity ?? 0;
+                $productService->type = $request->item_type === 'service' ? 'service' : 'product';
+                $productService->sale_chartaccount_id = $request->sale_chartaccount_id;
+                $productService->category_id = $request->category_id;
+                $productService->sub_category_id = $request->sub_category_id;
 
-            $productService->owned_by = \Auth::user()->ownedId();
-            $productService->created_by = \Auth::user()->creatorId();
-            $productService->save();
-            CustomField::saveData($productService, $request->customField);
+                if (!empty($request->pro_image)) {
+                    $image_size = $request->file('pro_image')->getSize();
+                    $result = Utility::updateStorageLimit(\Auth::user()->creatorId(), $image_size);
+                    if ($result == 1) {
+                        if ($productService->pro_image) {
+                            $path = storage_path('uploads/pro_image' . $productService->pro_image);
+                        }
+                        $fileName = $request->pro_image->getClientOriginalName();
+                        $productService->pro_image = $fileName;
+                        $dir = 'uploads/pro_image';
+                        $path = Utility::upload_file($request, 'pro_image', $fileName, $dir, []);
+                    }
+                }
 
-            if ($productService->quantity > 0) {
-                $desc = $productService->quantity . ' New opening balance added against product code ' . $productService->sku;
-                Utility::addProductStock($productService->id, $productService->quantity, 'opening_balance', $desc, 0);
-            }
-            if ($productService->used_quantity > 0) {
-                $desc = $productService->used_quantity . ' Used opening balance added against product code ' . $productService->sku;
-                Utility::addProductStock($productService->id, $productService->used_quantity, 'opening_balance', $desc, 0);
-            }
-            if ($productService->damaged_quantity > 0) {
-                $desc = $productService->damaged_quantity . ' Damaged opening balance added against product code ' . $productService->sku;
-                Utility::addProductStock($productService->id, $productService->damaged_quantity, 'opening_balance', $desc, 0);
-            }
+                $productService->owned_by = \Auth::user()->ownedId();
+                $productService->created_by = \Auth::user()->creatorId();
+                $productService->save();
+                CustomField::saveData($productService, $request->customField);
+
+                if ($productService->quantity > 0) {
+                    $desc = $productService->quantity . ' New opening balance added against product code ' . $productService->sku;
+                    Utility::addProductStock($productService->id, $productService->quantity, 'opening_balance', $desc, 0);
+                }
+                if ($productService->used_quantity > 0) {
+                    $desc = $productService->used_quantity . ' Used opening balance added against product code ' . $productService->sku;
+                    Utility::addProductStock($productService->id, $productService->used_quantity, 'opening_balance', $desc, 0);
+                }
+                if ($productService->damaged_quantity > 0) {
+                    $desc = $productService->damaged_quantity . ' Damaged opening balance added against product code ' . $productService->sku;
+                    Utility::addProductStock($productService->id, $productService->damaged_quantity, 'opening_balance', $desc, 0);
+                }
+            });
 
             return redirect()->route('productservice.index')->with('success', __('Product successfully created.'));
         } else {
