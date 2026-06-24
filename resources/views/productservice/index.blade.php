@@ -83,13 +83,13 @@
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                             <div class="btn-box">
                                 {{ Form::label('category', __('Category'), ['class' => 'form-label']) }}
-                                {{ Form::select('category', $category, request()->category, ['class' => 'js-searchBox form-control select', 'id' => 'category-select', 'required' => 'required']) }}
+                                {{ Form::select('category', $category, request()->category, ['class' => 'js-searchBox form-control select', 'id' => 'category-select']) }}
                             </div>
                         </div>
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                             <div class="btn-box">
                                 {{ Form::label('subcategory', __('Subcategory'), ['class' => 'form-label']) }}
-                                {{ Form::select('subcategory',$subcategory, request()->subcategory, ['class' => 'js-searchBox form-control select', 'id' => 'subcategory-select', 'required' => 'required']) }}
+                                {{ Form::select('subcategory',$subcategory, request()->subcategory, ['class' => 'js-searchBox form-control select', 'id' => 'subcategory-select']) }}
                             </div>
                         </div>
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
@@ -141,7 +141,7 @@
 </div>
 <div class="row">
     <div class="col-xl-12">
-        <table style="width: 99.5% !important;">
+        <table class="datatable" style="width: 99.5% !important;">
             <thead class="table_heads">
                 <tr>
                     <th>{{ __('Sr.') }}</th>
@@ -149,11 +149,13 @@
                     <th>{{ __('Product code') }}</th>
                     <th>{{ __('Sale Price') }}</th>
                     <th>{{ __('Purchase Price') }}</th>
-                    <th>{{ __('Tax') }}</th>
                     <th>{{ __('Category') }}</th>
                     <th>{{ __('SubCategory') }}</th>
                     <th>{{ __('Unit') }}</th>
-                    <th>{{ __('Quantity') }}</th>
+                    <th>{{ __('New Qty') }}</th>
+                    <th>{{ __('Used Qty') }}</th>
+                    <th>{{ __('Damaged Qty') }}</th>
+                    <th>{{ __('Total Qty') }}</th>
                     <th>{{ __('Action') }}</th>
                 </tr>
             </thead>
@@ -165,26 +167,19 @@
                     <td>{{ $productService->sku }}</td>
                     <td>{{ \Auth::user()->priceFormat($productService->sale_price) }}</td>
                     <td>{{ \Auth::user()->priceFormat($productService->purchase_price) }}</td>
-                    <td>
-                        @if (!empty($productService->tax_id))
-                        @php
-                        $taxes = \App\Models\Utility::tax($productService->tax_id);
-                        @endphp
-
-                        @foreach ($taxes as $tax)
-                        <span class="">{{ !empty($tax) ? $tax->name : '' . ' (' . $tax->rate . '%)' }}</span><br>
-                        @endforeach
-                        @else
-                        -
-                        @endif
-                    </td>
                     <td>{{ !empty($productService->category) ? $productService->category->name : '' }}</td>
                     <td>{{ !empty($productService->subcategory) ? $productService->subcategory->name : '' }}</td>
                     <td>{{ !empty($productService->unit()) ? $productService->unit()->name : '' }}</td>
                     @if ($productService->type == 'product')
-                    <td>{{ $productService->quantity }}</td>
+                        <td>{{ $productService->quantity ?? 0 }}</td>
+                        <td>{{ $productService->used_quantity ?? 0 }}</td>
+                        <td>{{ $productService->damaged_quantity ?? 0 }}</td>
+                        <td>{{ ($productService->quantity ?? 0) + ($productService->used_quantity ?? 0) + ($productService->damaged_quantity ?? 0) }}</td>
                     @else
-                    <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
                     @endif
 
 
@@ -223,50 +218,6 @@
 
             </tbody>
         </table>
-@if ($productServices->hasPages())
-<div class="pagination">
-    <ul>
-        @if ($productServices->onFirstPage())
-            <li class="disabled">&laquo; Previous</li>
-        @else
-            <li><a href="{{ $productServices->appends(request()->query())->previousPageUrl() }}"
-                    rel="prev">&laquo; Previous</a></li>
-        @endif
-        @if ($productServices->currentPage() > 1)
-            <li><a href="{{ $productServices->appends(request()->query())->url(1) }}">First</a></li>
-        @endif
-        @php
-            $currentPage = $productServices->currentPage();
-            $lastPage = $productServices->lastPage();
-            $startPage = max(1, $currentPage - 4);
-            $endPage = min($lastPage, $currentPage + 5);
-            if ($endPage - $startPage < 9) {
-                if ($currentPage < $lastPage - 9) {
-                    $endPage = $startPage + 9;
-                } else {
-                    $startPage = max(1, $lastPage - 9);
-                }
-            }
-        @endphp
-        @for ($page = $startPage; $page <= $endPage; $page++)
-            <li class="{{ $page == $productServices->currentPage() ? 'active' : '' }}">
-                <a href="{{ $productServices->appends(request()->query())->url($page) }}">{{ $page }}</a>
-            </li>
-        @endfor
-        @if ($productServices->hasMorePages())
-            <li><a href="{{ $productServices->appends(request()->query())->nextPageUrl() }}" rel="next">Next
-                    &raquo;</a></li>
-        @else
-            <li class="disabled">Next &raquo;</li>
-        @endif
-        @if ($productServices->currentPage() < $productServices->lastPage())
-            <li><a
-                    href="{{ $productServices->appends(request()->query())->url($productServices->lastPage()) }}">Last</a>
-            </li>
-        @endif
-    </ul>
-</div>
-@endif
     </div>
 </div>
 

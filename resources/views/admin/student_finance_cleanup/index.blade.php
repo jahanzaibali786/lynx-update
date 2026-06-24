@@ -53,13 +53,129 @@
 @endpush
 
 @section('content')
+    @if(session('success'))
+        <div class="alert alert-success mt-3">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger mt-3">{{ session('error') }}</div>
+    @endif
+
+    <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-1">{{ __('Start Student Finance Cleanup') }}</h5>
+                <small class="text-muted">
+                    {{ __('Use this when server terminal/artisan access is not available.') }}
+                </small>
+            </div>
+            <span class="badge bg-info">{{ __('Admission Protected') }}</span>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ route('student-finance-cleanup.index') }}" class="row g-3 align-items-end mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">{{ __('From Date') }}</label>
+                    <input type="date" name="from" class="form-control" value="{{ $preview['from'] }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{{ __('To Date') }}</label>
+                    <input type="date" name="to" class="form-control" value="{{ $preview['to'] }}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-outline-primary w-100">{{ __('Preview') }}</button>
+                </div>
+            </form>
+
+            <div class="cleanup-summary mb-3">
+                <div class="cleanup-stat">
+                    <div class="cleanup-stat-label">{{ __('Preview Receipts') }}</div>
+                    <div class="cleanup-stat-value">{{ number_format($preview['total_receipts']) }}</div>
+                </div>
+                <div class="cleanup-stat">
+                    <div class="cleanup-stat-label">{{ __('Receipt Vouchers') }}</div>
+                    <div class="cleanup-stat-value">{{ number_format($preview['total_vouchers']) }}</div>
+                </div>
+                <div class="cleanup-stat">
+                    <div class="cleanup-stat-label">{{ __('Linked Challans') }}</div>
+                    <div class="cleanup-stat-value">{{ number_format($preview['total_challans']) }}</div>
+                </div>
+                <div class="cleanup-stat">
+                    <div class="cleanup-stat-label">{{ __('Default Chunk') }}</div>
+                    <div class="cleanup-stat-value">500</div>
+                </div>
+            </div>
+
+            <div class="table-responsive mb-3">
+                <table class="table table-bordered align-middle">
+                    <thead>
+                        <tr>
+                            <th>{{ __('Year') }}</th>
+                            <th class="text-end">{{ __('Receipts') }}</th>
+                            <th class="text-end">{{ __('Receipt Vouchers') }}</th>
+                            <th class="text-end">{{ __('Linked Challans') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($preview['rows'] as $row)
+                            <tr>
+                                <td>{{ $row->year }}</td>
+                                <td class="text-end">{{ number_format($row->receipts) }}</td>
+                                <td class="text-end">{{ number_format($row->receipt_vouchers) }}</td>
+                                <td class="text-end">{{ number_format($row->challans) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">{{ __('No records found for this range.') }}</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <form method="POST" action="{{ route('student-finance-cleanup.start') }}" class="border rounded p-3">
+                @csrf
+                <input type="hidden" name="from" value="{{ $preview['from'] }}">
+                <input type="hidden" name="to" value="{{ $preview['to'] }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label">{{ __('Chunk Size') }}</label>
+                        <input type="number" name="chunk" class="form-control" value="500" min="100" max="2000">
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" name="confirm_backup" value="1" id="confirmBackup">
+                            <label class="form-check-label" for="confirmBackup">
+                                {{ __('I have taken a full database backup and understand this will delete old finance data.') }}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-danger w-100"
+                            onclick="return confirm('Start destructive finance cleanup for selected range?')">
+                            {{ __('Schedule Cleanup') }}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if($runId)
     <div class="card mt-3">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
                 <h5 class="mb-1">{{ __('Student Finance Cleanup') }} #{{ $runId }}</h5>
                 <small class="text-muted" id="dateRange"></small>
             </div>
-            <span id="runStatus" class="badge cleanup-status-badge bg-secondary"></span>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" id="processChunkBtn" class="btn btn-sm btn-outline-primary">
+                    {{ __('Process Next Chunk') }}
+                </button>
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" id="autoProcess">
+                    <label class="form-check-label" for="autoProcess">{{ __('Auto process in browser') }}</label>
+                </div>
+                <span id="runStatus" class="badge cleanup-status-badge bg-secondary"></span>
+            </div>
         </div>
 
         <div class="card-body">
@@ -149,13 +265,18 @@
             </div>
         </div>
     </div>
+    @endif
 @endsection
 
 @push('script-page')
+    @if($runId)
     <script>
         (function () {
             const statusUrl = @json(route('student-finance-cleanup.status', $runId));
+            const processUrl = @json(route('student-finance-cleanup.process', $runId));
+            const csrfToken = @json(csrf_token());
             let statusData = @json($initialStatus);
+            let processRunning = false;
 
             const number = value => Number(value || 0).toLocaleString();
             const text = (id, value) => document.getElementById(id).textContent = value ?? '-';
@@ -236,8 +357,50 @@
                 }
             }
 
+            async function processNextChunk() {
+                if (processRunning || ['completed', 'failed'].includes(String(statusData.status || ''))) {
+                    return;
+                }
+
+                processRunning = true;
+                const btn = document.getElementById('processChunkBtn');
+                btn.disabled = true;
+                btn.textContent = 'Processing...';
+
+                try {
+                    const response = await fetch(processUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        cache: 'no-store'
+                    });
+                    if (!response.ok) {
+                        throw new Error('Unable to process cleanup chunk.');
+                    }
+                    statusData = await response.json();
+                    render(statusData);
+                } catch (error) {
+                    const alert = document.getElementById('errorAlert');
+                    alert.textContent = error.message;
+                    alert.classList.remove('d-none');
+                } finally {
+                    processRunning = false;
+                    btn.disabled = false;
+                    btn.textContent = 'Process Next Chunk';
+                }
+            }
+
             render(statusData);
             setInterval(refreshStatus, 5000);
+            document.getElementById('processChunkBtn').addEventListener('click', processNextChunk);
+            setInterval(function () {
+                if (document.getElementById('autoProcess').checked) {
+                    processNextChunk();
+                }
+            }, 8000);
         })();
     </script>
+    @endif
 @endpush

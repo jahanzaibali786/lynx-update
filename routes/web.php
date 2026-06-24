@@ -2251,7 +2251,9 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('/student-challan-detail', [StudentWithdrawalController::class, 'studentchallandetail'])->name('student-challan-detail');
             Route::get('/student-adjust-detail', [StudentWithdrawalController::class, 'studentadjustdetail'])->name('student-adjust-detail');
             Route::get('/admin/student-finance-cleanup', [StudentFinanceCleanupController::class, 'index'])->name('student-finance-cleanup.index');
+            Route::post('/admin/student-finance-cleanup/start', [StudentFinanceCleanupController::class, 'start'])->name('student-finance-cleanup.start');
             Route::get('/admin/student-finance-cleanup/{id}/status', [StudentFinanceCleanupController::class, 'status'])->name('student-finance-cleanup.status');
+            Route::post('/admin/student-finance-cleanup/{id}/process', [StudentFinanceCleanupController::class, 'process'])->name('student-finance-cleanup.process');
             Route::get('studypack/items', [StudyPackController::class, 'items'])->name('studypack.items');
             Route::resource('/studypack', StudyPackController::class);
             Route::get('studypack/items', [StudyPackController::class, 'items'])->name('studypack.items');

@@ -22,7 +22,10 @@
                     <th style="border: 1px solid #000;">{{ __('Category') }}</th>
                     <th style="border: 1px solid #000;">{{ __('SubCategory') }}</th>
                     <th style="border: 1px solid #000;">{{ __('Unit') }}</th>
-                    <th style="border: 1px solid #000;">{{ __('Quantity') }}</th>
+                    <th style="border: 1px solid #000;">{{ __('New Qty') }}</th>
+                    <th style="border: 1px solid #000;">{{ __('Used Qty') }}</th>
+                    <th style="border: 1px solid #000;">{{ __('Damaged Qty') }}</th>
+                    <th style="border: 1px solid #000;">{{ __('Total Qty') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -50,9 +53,15 @@
                     <td style="border: 1px solid #000;">{{ !empty($productService->subcategory) ? $productService->subcategory->name : '' }}</td>
                     <td style="border: 1px solid #000;">{{ !empty($productService->unit()) ? $productService->unit()->name : '' }}</td>
                     @if ($productService->type == 'product')
-                    <td style="border: 1px solid #000;">{{ $productService->quantity }}</td>
+                        <td style="border: 1px solid #000;">{{ $productService->quantity ?? 0 }}</td>
+                        <td style="border: 1px solid #000;">{{ $productService->used_quantity ?? 0 }}</td>
+                        <td style="border: 1px solid #000;">{{ $productService->damaged_quantity ?? 0 }}</td>
+                        <td style="border: 1px solid #000;">{{ ($productService->quantity ?? 0) + ($productService->used_quantity ?? 0) + ($productService->damaged_quantity ?? 0) }}</td>
                     @else
-                    <td style="border: 1px solid #000;">-</td>
+                        <td style="border: 1px solid #000;">-</td>
+                        <td style="border: 1px solid #000;">-</td>
+                        <td style="border: 1px solid #000;">-</td>
+                        <td style="border: 1px solid #000;">-</td>
                     @endif
                 </tr>
                 @endforeach

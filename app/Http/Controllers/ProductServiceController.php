@@ -41,11 +41,13 @@ class ProductServiceController extends Controller
                 ->get()
                 ->pluck('name', 'id');
             $category->prepend('Select Category', '');
-            $subcategory = ProductServiceSubCategory::where('created_by', \Auth::user()->creatorId())
-                ->get()
-                ->pluck('name', 'id');
+            $subcategoryQuery = ProductServiceSubCategory::where('created_by', \Auth::user()->creatorId());
+            if (!empty($request->category)) {
+                $subcategoryQuery->where('category_id', $request->category);
+            }
+            $subcategory = $subcategoryQuery->get()->pluck('name', 'id');
             $subcategory->prepend('Select Sub-Category', '');
-            $query = ProductService::with('subcategory')->where('created_by', \Auth::user()->creatorId());
+            $query = ProductService::with(['category', 'subcategory'])->where('created_by', \Auth::user()->creatorId());
             // dd($query->get());
             if (!empty($request->category)) {
                 $query->where('category_id', $request->category);
@@ -54,9 +56,7 @@ class ProductServiceController extends Controller
                 $query->where('item_type', $request->item_type);
             }
             if (!empty($request->subcategory)) {
-                $query->whereHas('subcategory', function ($q) use ($request) {
-                    $q->where('category_id', $request->category);
-                });
+                $query->where('sub_category_id', $request->subcategory);
             }
             if ($request->has('export') && $request->export == 'excel') {
                 $productServices = $query->get();
@@ -66,7 +66,7 @@ class ProductServiceController extends Controller
                 $productServices = $query->get();
                 return Excel::download(new ProductServiceReportExport($productServices), 'product_service_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
             }
-            $productServices = $query->paginate(25);
+            $productServices = $query->orderBy('name')->get();
 
             $itemTypes = [
                 '' => 'Select Type',
@@ -983,20 +983,23 @@ class ProductServiceController extends Controller
             ->pluck('name', 'id');
         $category->prepend('Select Category', '');
 
-        $subcategory = ProductServiceSubCategory::where('created_by', \Auth::user()->creatorId())
-            ->get()
-            ->pluck('name', 'id');
+        $subcategoryQuery = ProductServiceSubCategory::where('created_by', \Auth::user()->creatorId());
+        if (!empty($request->category)) {
+            $subcategoryQuery->where('category_id', $request->category);
+        }
+        $subcategory = $subcategoryQuery->get()->pluck('name', 'id');
         $subcategory->prepend('Select Sub-Category', '');
 
         // Query for products based on selected category and subcategory
-        $query = ProductService::with('subcategory')->where('created_by', \Auth::user()->creatorId());
+        $query = ProductService::with(['category', 'subcategory'])->where('created_by', \Auth::user()->creatorId());
         if (!empty($request->category)) {
             $query->where('category_id', $request->category);
         }
+        if (!empty($request->item_type)) {
+            $query->where('item_type', $request->item_type);
+        }
         if (!empty($request->subcategory)) {
-            $query->whereHas('subcategory', function ($q) use ($request) {
-                $q->where('category_id', $request->category);
-            });
+            $query->where('sub_category_id', $request->subcategory);
         }
 
         // Get product services
