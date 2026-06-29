@@ -163,10 +163,44 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script>
         document.getElementById('copyAddressBtn').addEventListener('click', function() {
-            var presentAddress = document.getElementById('presentAddress').value;
-            document.getElementById('permanentAddress').value = presentAddress;
+            var ids = ['House', 'Street', 'Area', 'Sector', 'CityAddr', 'DistrictAddr'];
+            ids.forEach(function(id) {
+                var src = document.getElementById('present' + id);
+                var dst = document.getElementById('permanent' + id);
+                if (src && dst) {
+                    dst.value = src.value;
+                }
+            });
         });
         $(document).ready(function() {
+            function validateSection(sectionId) {
+                var valid = true;
+                $(sectionId + ' [required]').each(function() {
+                    if (!$(this).val() || $(this).val().trim() === '') {
+                        $(this).css('border-color', 'red');
+                        valid = false;
+                    } else {
+                        $(this).css('border-color', '');
+                    }
+                });
+                if (!valid) {
+                    show_toastr('error', 'Please fill all required fields', 'error');
+                }
+                return valid;
+            }
+            $('[required]').each(function() {
+                var $this = $(this);
+                var label = $this.closest('div').find('label[for="' + $this.attr('id') + '"]');
+                if (!label.length) {
+                    label = $this.prevAll('label').first();
+                }
+                if (!label.length) {
+                    label = $this.closest('.form-group').find('label').first();
+                }
+                if (label.length && !label.find('.required-star').length && !label.next('span[style*="color:red"], span[style*="color: red"]').length && label.text().indexOf('*') === -1) {
+                    label.append('<span class="required-star" style="color:red"> *</span>');
+                }
+            });
             // Function to handle AJAX request
             function sendFormData(formData) {
                 var csrfToken = $('meta[name="csrf-token"]').attr('content');
@@ -198,6 +232,7 @@
             //     sendFormData(formData);
             // });
 $('#submitBtnSection1').click(function() {
+                if (!validateSection('#section1')) return;
 
                 let sectionData = $('#section1 :input').serializeArray();
 
@@ -238,6 +273,7 @@ $('#submitBtnSection1').click(function() {
                 }
             });
             $('#submitBtnSection2').click(function() {
+                if (!validateSection('#section2')) return;
                 var formData = {
                     sectionName: 'section2',
                     sectionData: $('#section2 :input').serializeArray()
@@ -246,6 +282,7 @@ $('#submitBtnSection1').click(function() {
             });
 
             $('#submitBtnSection3').click(function() {
+                if (!validateSection('#section3')) return;
                 var checkedRowsData = [];
                 var uncheckedRowsData = [];
                 var checkboxes = document.getElementsByName("checked[]");
@@ -502,8 +539,8 @@ $('#submitBtnSection1').click(function() {
                     <div class="general-details col-12 col-md-12 col-lg-12">
                         <div class="mt-2 px-2">
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap:10px;">
-                                    <div class="col-lg-6">
+                                <div class="d-flex" style="gap: 10px;">
+                                    <div style="flex: 1;">
                                         {{ Form::label('branchname', __('Branch'), ['class' => 'form-label']) }}<span
                                             style="color: red"> *</span>
                                         <select name="branch" id="branch" class="form-control select" @if($student->student_status == 'Registered') @else disabled @endif>
@@ -514,7 +551,7 @@ $('#submitBtnSection1').click(function() {
                                             @endforeach
                                         </select>
                                     </div>
-                                    <div class="col-lg-6">
+                                    <div style="flex: 1;">
                                         {{ Form::label('admission_date', __('Admission Date '), ['class' => 'form-label']) }}
                                         {{ Form::date('admission_date', isset($student->enrollment) ? date('Y-m-d', strtotime($student->enrollment->adm_date)) : null, ['class' => 'form-control', 'readonly' => 'readonly']) }}
 
@@ -522,24 +559,24 @@ $('#submitBtnSection1').click(function() {
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div class="col-lg-6">
+                                <div class="d-flex" style="gap: 10px;">
+                                    <div style="flex: 1;">
                                         {{ Form::label('reg_no', __('Registration No'), ['class' => 'form-label']) }}
                                         {{ Form::text('reg_no', $student->reg_no, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
                                     </div>
-                                    <div class="col-lg-6">
+                                    <div style="flex: 1;">
                                         {{ Form::label('roll_no', __('Roll No'), ['class' => 'form-label']) }}
                                         {{ Form::text('roll_no', @$student->roll_no, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div class="col-lg-6">
+                                <div class="d-flex" style="gap: 10px;">
+                                    <div style="flex: 1;">
                                         {{ Form::label('name', __('Name'), ['class' => 'form-label']) }}
                                         {{ Form::text('name', $student->stdname, ['class' => 'form-control', 'required' => 'required', 'style' => 'text-transform: uppercase;']) }}
                                     </div>
-                                    <div class="col-lg-6">
+                                    <div style="flex: 1;">
                                         {{ Form::label('dob', __('D.O.B'), ['class' => 'form-label']) }}<span
                                             style="color: red">*</s>
                                             {{ Form::date('dob', $student->dob, ['class' => 'form-control', 'id' => 'dob', 'required' => 'required']) }}
@@ -547,8 +584,8 @@ $('#submitBtnSection1').click(function() {
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div class="col-lg-6">
+                                <div class="d-flex" style="gap: 10px;">
+                                    <div style="flex: 1;">
                                         {!! Form::label('gender', __('Gender'), ['class' => 'form-label']) !!}
                                         <span style="color: red">*</span>
                                         {!! Form::select('gender', ['' => 'Select Gender', 'male' => 'Male', 'female' => 'Female'], $student->gender, [
@@ -556,7 +593,7 @@ $('#submitBtnSection1').click(function() {
                                             'required' => 'required',
                                         ]) !!}
                                     </div>
-                                    <div class="col-lg-6">
+                                    <div style="flex: 1;">
                                         {{ Form::label('birth_place', __('Birth Place'), ['class' => 'form-label']) }}
                                         {{ Form::text('birth_place', $student->birth_place, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
@@ -564,35 +601,35 @@ $('#submitBtnSection1').click(function() {
                             </div>
 
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div class="col-lg-6">
+                                <div class="d-flex" style="gap: 10px;">
+                                    <div style="flex: 1;">
                                         {{ Form::label('religion', __('Religion'), ['class' => 'form-label']) }}
                                         {{ Form::text('religion', $student->religion, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
-                                    <div class="col-lg-6">
+                                    <div style="flex: 1;">
                                         {{ Form::label('nationality', __('Nationality'), ['class' => 'form-label']) }}
                                         {{ Form::text('nationality', $student->nationality, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div class="col-md-6">
+                                <div class="d-flex" style="gap: 10px;">
+                                    <div style="flex: 1;">
                                         {!! Form::label('register_option', __('Register Option'), ['class' => 'form-label']) !!}<span style="color: red"> *</span>
                                         {!! Form::select('register_option', $registerOption, $selectedOptionId, [
                                             'class' => 'form-control',
                                             'required' => 'required',
                                         ]) !!}
                                     </div>
-                                    <div class="col-lg-6">
+                                    <div style="flex: 1;">
                                         {{ Form::label('mobile_phone', __('Phone Mobile'), ['class' => 'form-label']) }}
                                         {{ Form::text('mobile_phone', $student->fatherphone, ['class' => 'form-control', 'required' => 'required', 'id' => 'fatherphone']) }}
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div class="col-lg-6">
+                                <div class="d-flex" style="gap: 10px;">
+                                    <div style="flex: 1;">
                                         {{ Form::label('mobile_cell', __('Father Cell'), ['class' => 'form-label']) }}
 <!-- in your Blade -->
 <input type="text"
@@ -602,46 +639,95 @@ $('#submitBtnSection1').click(function() {
        class="form-control"
        required>
                                     </div>
-                                    <div class="col-lg-6">
+                                    <div style="flex: 1;">
                                         {{ Form::label('prevschool', __('Previous School'), ['class' => 'form-label']) }}
                                         {{ Form::text('prevschool', $student->prevschool, ['class' => 'form-control', 'placeholder' => __('Previous School'), 'required' => 'required']) }}
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div class="col-lg-6">
+                                <div class="d-flex" style="gap: 10px;">
+                                    <div style="flex: 1;">
+                                        {{ Form::label('email', __('Email'), ['class' => 'form-label']) }}
+                                        {{ Form::email('email', $student->email, ['class' => 'form-control', 'placeholder' => __('Email')]) }}
+                                    </div>
+                                    <div style="flex: 1;">
                                         {{ Form::label('city', __('City'), ['class' => 'form-label']) }}
                                         {{ Form::text('city', $student->city, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
-                                    <div class="col-lg-6">
+                                    <div style="flex: 1;">
                                         {{ Form::label('district', __('District'), ['class' => 'form-label']) }}
                                         {{ Form::text('district', @$student->district, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
                                 </div>
                             </div>
+                            @php
+                                $presentParts = !empty($student->address) ? explode(', ', $student->address) : [];
+                                $permanentParts = !empty($student->permanent_address) ? explode(', ', $student->permanent_address) : [];
+                            @endphp
                             <div class="form-group">
-                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div class="col-lg-6">
-                                        {!! Form::label('present_address', __('Present Address'), ['class' => 'form-label']) !!}
-                                        {!! Form::textarea('present_address', $student->address, [
-                                            'class' => 'form-control',
-                                            'id' => 'presentAddress',
-                                            'rows' => 5,
-                                            'required',
-                                            'style' => 'text-transform: uppercase;',
-                                        ]) !!}
+                                <div class="row mx-0">
+                                    <div style="flex: 1;">
+                                        <h6>{{ __('Present Address') }}</h6>
+                                        <div class="row mx-0">
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('present_house', __('House #'), ['class' => 'form-label']) }}
+                                                {{ Form::text('present_house', $presentParts[0] ?? '', ['class' => 'form-control', 'placeholder' => __('House No'), 'id' => 'presentHouse', 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('present_street', __('Street'), ['class' => 'form-label']) }}
+                                                {{ Form::text('present_street', $presentParts[1] ?? '', ['class' => 'form-control', 'id' => 'presentStreet', 'placeholder' => __('Street'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('present_area', __('Area'), ['class' => 'form-label']) }}
+                                                {{ Form::text('present_area', $presentParts[2] ?? '', ['class' => 'form-control', 'id' => 'presentArea', 'placeholder' => __('Area'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('present_sector', __('Sector'), ['class' => 'form-label']) }}
+                                                {{ Form::text('present_sector', $presentParts[3] ?? '', ['class' => 'form-control', 'id' => 'presentSector', 'placeholder' => __('Sector'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('present_city_addr', __('City'), ['class' => 'form-label']) }}
+                                                {{ Form::text('present_city_addr', $presentParts[4] ?? '', ['class' => 'form-control', 'id' => 'presentCityAddr', 'placeholder' => __('City'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('present_district_addr', __('District'), ['class' => 'form-label']) }}
+                                                {{ Form::text('present_district_addr', $presentParts[5] ?? '', ['class' => 'form-control', 'id' => 'presentDistrictAddr', 'placeholder' => __('District'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="col-lg-6">
-                                        <button id="copyAddressBtn" class="btn btn-sm btn-info">Same As Present
-                                            Address</button><br>
-                                        {!! Form::textarea('permanent_address', @$student->permanent_address, [
-                                            'class' => 'form-control',
-                                            'id' => 'permanentAddress',
-                                            'placeholder' => 'Permanent Address',
-                                            'rows' => 5,
-                                            'style' => 'text-transform: uppercase;',
-                                        ]) !!}
+                                    <div style="flex: 1;">
+                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                            <h6 class="mb-0">{{ __('Permanent Address') }}</h6>
+                                            <button type="button" id="copyAddressBtn" class="btn btn-sm btn-info">Same As Present
+                                                Address</button>
+                                        </div>
+                                        <div class="row mx-0">
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('permanent_house', __('House #'), ['class' => 'form-label']) }}
+                                                {{ Form::text('permanent_house', $permanentParts[0] ?? '', ['class' => 'form-control', 'id' => 'permanentHouse', 'placeholder' => __('House No'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('permanent_street', __('Street'), ['class' => 'form-label']) }}
+                                                {{ Form::text('permanent_street', $permanentParts[1] ?? '', ['class' => 'form-control', 'id' => 'permanentStreet', 'placeholder' => __('Street'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('permanent_area', __('Area'), ['class' => 'form-label']) }}
+                                                {{ Form::text('permanent_area', $permanentParts[2] ?? '', ['class' => 'form-control', 'id' => 'permanentArea', 'placeholder' => __('Area'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('permanent_sector', __('Sector'), ['class' => 'form-label']) }}
+                                                {{ Form::text('permanent_sector', $permanentParts[3] ?? '', ['class' => 'form-control', 'id' => 'permanentSector', 'placeholder' => __('Sector'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('permanent_city_addr', __('City'), ['class' => 'form-label']) }}
+                                                {{ Form::text('permanent_city_addr', $permanentParts[4] ?? '', ['class' => 'form-control', 'id' => 'permanentCityAddr', 'placeholder' => __('City'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                            <div class="col-lg-11 mb-2">
+                                                {{ Form::label('permanent_district_addr', __('District'), ['class' => 'form-label']) }}
+                                                {{ Form::text('permanent_district_addr', $permanentParts[5] ?? '', ['class' => 'form-control', 'id' => 'permanentDistrictAddr', 'placeholder' => __('District'), 'style' => 'text-transform: uppercase;']) }}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -653,12 +739,12 @@ $('#submitBtnSection1').click(function() {
                 </div>
                 <div class="tab-pane fade mt-3" id="section2" role="tabpanel" aria-labelledby="section2-tab">
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('father_name', __('Father Name'), ['class' => 'form-label']) }}
                                 {{ Form::text('father_name', $student->fathername, ['class' => 'form-control', 'id' => 'fathername', 'required' => 'required']) }}
                             </div>
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {!! Form::label('father_cnic', __('Father CNIC'), ['class' => 'form-label']) !!}
                                 {!! Form::text('father_cnic', $student->fathercnic, [
                                     'class' => 'form-control',
@@ -669,24 +755,39 @@ $('#submitBtnSection1').click(function() {
                         </div>
                     </div>
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('father_occupation', __('Father Occupation'), ['class' => 'form-label']) }}
                                 {{ Form::text('father_occupation', $student->fatherprofession, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
-                            <div class="col-lg-6">
-                                {{ Form::label('home_phone', __('Phone Home'), ['class' => 'form-label']) }}
-                                {{ Form::text('home_phone', $student->fathercell, ['class' => 'form-control', 'required' => 'required']) }}
+                            <div style="flex: 1;">
+                                {{ Form::label('father_email', __('Father Email'), ['class' => 'form-label']) }}
+                                {{ Form::email('father_email', $student->father_email, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
+                                {{ Form::label('home_phone', __('Phone Home'), ['class' => 'form-label']) }}
+                                {{ Form::text('home_phone', $student->fathercell, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                            <div style="flex: 1;">
+                                {{ Form::label('is_alive', __('Is Alive'), ['class' => 'form-label']) }}
+                                {!! Form::select('is_alive', ['alive' => 'Alive', 'died' => 'Died'], $student->is_alive, [
+                                    'class' => 'form-control',
+                                    'required' => 'required',
+                                ]) !!}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('mother_name', __('Mother Name'), ['class' => 'form-label']) }}
                                 {{ Form::text('mother_name', $student->mothername, ['class' => 'form-control', 'id' => 'mothername', 'required' => 'required']) }}
                             </div>
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {!! Form::label('mother_cnic', __('Mother CNIC'), ['class' => 'form-label']) !!}
                                 {!! Form::text('mother_cnic', $student->mothercnic, [
                                     'class' => 'form-control',
@@ -697,62 +798,58 @@ $('#submitBtnSection1').click(function() {
                         </div>
                     </div>
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('mother_occupation', __('Mother Occupation'), ['class' => 'form-label']) }}
                                 {{ Form::text('mother_occupation', $student->motherprofession, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
-                            <div class="col-lg-6">
-                                {{ Form::label('is_alive', __('Is Alive'), ['class' => 'form-label']) }}
-                                {!! Form::select('is_alive', ['alive' => 'Alive', 'died' => 'Died'], null, [
-                                    'class' => 'form-control',
-                                    'required' => 'required',
-                                ]) !!}
+                            <div style="flex: 1;">
+                                {{ Form::label('mother_email', __('Mother Email'), ['class' => 'form-label']) }}
+                                {{ Form::email('mother_email', $student->mother_email, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('guardian_name', __('Guardian Name'), ['class' => 'form-label']) }}
-                                {{ Form::text('guardian_name', $student->guardianname, ['class' => 'form-control', 'id' => 'guardianname', 'required' => 'required']) }}
+                                {{ Form::text('guardian_name', $student->guardianname, ['class' => 'form-control', 'id' => 'guardianname']) }}
                             </div>
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {{ Form::label('guardian_relation', __('Guardian Relation'), ['class' => 'form-label']) }}
-                                {{ Form::text('guardian_relation', $student->guardianrelation, ['class' => 'form-control', 'id' => 'guardianname', 'required' => 'required']) }}
+                                {{ Form::text('guardian_relation', $student->guardianrelation, ['class' => 'form-control', 'id' => 'guardianname']) }}
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('guardian_occupation', __('Guardian Occupation'), ['class' => 'form-label']) }}
-                                {{ Form::text('guardian_occupation', $student->guardianprofession, ['class' => 'form-control', 'required' => 'required']) }}
+                                {{ Form::text('guardian_occupation', $student->guardianprofession, ['class' => 'form-control']) }}
                             </div>
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {!! Form::label('guardian_cnic', __('Guardian CNIC'), ['class' => 'form-label']) !!}
                                 {!! Form::text('guardian_cnic', $student->guardiancnic, [
                                     'class' => 'form-control',
-                                    'required' => 'required',
                                     'id' => 'guardiancnic',
                                 ]) !!}
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('guardian_phone', __('Guardian Phone'), ['class' => 'form-label']) }}
-                                {{ Form::text('guardian_phone', $student->guardianphone, ['class' => 'form-control', 'required' => 'required']) }}
+                                {{ Form::text('guardian_phone', $student->guardianphone, ['class' => 'form-control']) }}
                             </div>
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {!! Form::label('guardian_address', __('Guardian Address'), ['class' => 'form-label']) !!}
                                 {!! Form::textarea('guardian_address', $student->guardianaddress, ['class' => 'form-control', 'rows' => 3]) !!}
                             </div>
                         </div>
                     </div>
                     {{-- <div class="form-group">
-                    <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                    <div class="d-flex" style="gap: 10px;">
                         <div class="col-md-6 col-lg-6">
                             {{ Form::label('no_of_brothers', __('No of Brothers'), ['class' => 'form-label']) }}
                             {!! Form::select('no_of_brothers', [ '1' => '1', '2' => '2', '3' => '3', '4' => '4', '5'
@@ -778,19 +875,19 @@ $('#submitBtnSection1').click(function() {
                 </div>
                 <div class="tab-pane fade mt-3" id="section3" role="tabpanel" aria-labelledby="section3-tab">
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            {{-- <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            {{-- <div style="flex: 1;">
                             {!! Form::label('school_address', __('School Address'), ['class' => 'form-label']) !!}
                             {!! Form::textarea('school_address', null, ['class' => 'form-control', 'rows' =>1]) !!}
                         </div> --}}
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {{ Form::label('adm_session', __('Adm Session'), ['class' => 'form-label']) }}
                                 {!! Form::text(
                                     'adm_session', @$student->session ? $student->session->year : '2023',
                                     ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
                                 ) !!}
                             </div>
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {{ Form::label('adm_class', __('Adm Class'), ['class' => 'form-label']) }}
                                  <select name="adm_class" class="form-control select " required @if($student->student_status == 'Registered') @else readonly @endif>
                                     @foreach ($classes as $key => $values)
@@ -803,15 +900,15 @@ $('#submitBtnSection1').click(function() {
                         </div>
                     </div>
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('current_session', __('Current Session'), ['class' => 'form-label']) }}
                                 {!! Form::text(
                                     'current_session', @$student->enrollment ? $student->enrollment->session->year : $student->session->year,
                                     ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
                                 ) !!}
                             </div>
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {{ Form::label('current_class', __('Current Class'), ['class' => 'form-label']) }}
                                 {!! Form::text(
                                     'current_class', @$student->class->name ? $student->class->name : '',
@@ -841,13 +938,13 @@ $('#submitBtnSection1').click(function() {
                         </div>
                     @endif
                     <div class="form-group">
-                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div class="col-lg-6">
+                        <div class="d-flex" style="gap: 10px;">
+                            <div style="flex: 1;">
                                 {{ Form::label('section', __('Section'), ['class' => 'form-label']) }}
                                 {!! Form::text('section',  @$student->enrollment->section ? @$student->enrollment->section->name : '',
                                    [ 'class' => 'form-control','required' => 'required','disabled' => 'disabled',]) !!}
                             </div>
-                            <div class="col-lg-6">
+                            <div style="flex: 1;">
                                 {{ Form::label('discount_policy', __('Discount Policy'), ['class' => 'form-label']) }}
                                 {{ Form::text('discount_policy', @$concession->concession->title, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
                                 {{ Form::text('discount_policy_id', @$concession->concession_id, ['hidden' => 'hidden', 'class' => 'form-control']) }}

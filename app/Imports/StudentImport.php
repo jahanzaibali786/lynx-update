@@ -77,6 +77,8 @@ class StudentImport implements ToModel, WithHeadingRow
             'father_cell' => 'fathercell',
             'mother_cnic' => 'mothercnic',
             'email' => 'email',
+            'father_email' => 'father_email',
+            'mother_email' => 'mother_email',
             'city' => 'city',
             'district' => 'district',
             'address' => 'address',
@@ -84,6 +86,14 @@ class StudentImport implements ToModel, WithHeadingRow
             'previous_school' => 'prevschool',
             'previous_class' => 'prevclass',
             'birth_place' => 'birth_place',
+            'father_occupation' => 'fatherprofession',
+            'mother_occupation' => 'motherprofession',
+            'guardian_name' => 'guardianname',
+            'guardian_relation' => 'guardianrelation',
+            'guardian_occupation' => 'guardianprofession',
+            'guardian_cnic' => 'guardiancnic',
+            'guardian_phone' => 'guardianphone',
+            'guardian_address' => 'guardianaddress',
             'remarks' => 'remarks',
         ];
 

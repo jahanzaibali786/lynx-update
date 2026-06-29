@@ -60,7 +60,6 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
         return [
             'Student (Name - Roll No)',
             'Reg Date',
-            'Reg No',
             'Father Name',
             'Mother Name',
             'DOB',
@@ -72,6 +71,8 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
             'Father Cell',
             'Mother CNIC',
             'Email',
+            'Father Email',
+            'Mother Email',
             'City',
             'District',
             'Address',
@@ -79,6 +80,14 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
             'Previous School',
             'Previous Class',
             'Birth Place',
+            'Father Occupation',
+            'Mother Occupation',
+            'Guardian Name',
+            'Guardian Relation',
+            'Guardian Occupation',
+            'Guardian CNIC',
+            'Guardian Phone',
+            'Guardian Address',
             'Remarks',
         ];
     }
@@ -90,7 +99,6 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
             $rows[] = [
                 $s->stdname . ' - ' . $s->roll_no,
                 $s->regdate ?? '',
-                $s->reg_no ?? '',
                 $s->fathername ?? '',
                 $s->mothername ?? '',
                 $s->dob ?? '',
@@ -102,6 +110,8 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
                 $s->fathercell ?? '',
                 $s->mothercnic ?? '',
                 $s->email ?? '',
+                $s->father_email ?? '',
+                $s->mother_email ?? '',
                 $s->city ?? '',
                 $s->district ?? '',
                 $s->address ?? '',
@@ -109,6 +119,14 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
                 $s->prevschool ?? '',
                 $s->prevclass ?? '',
                 $s->birth_place ?? '',
+                $s->fatherprofession ?? '',
+                $s->motherprofession ?? '',
+                $s->guardianname ?? '',
+                $s->guardianrelation ?? '',
+                $s->guardianprofession ?? '',
+                $s->guardiancnic ?? '',
+                $s->guardianphone ?? '',
+                $s->guardianaddress ?? '',
                 $s->remarks ?? '',
             ];
         }
@@ -121,11 +139,39 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
         $sheet->getStyle('1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
             ->getStartColor()->setARGB('FFBFBFBF');
         $sheet->getColumnDimension('A')->setWidth(35);
-        foreach (range('B', 'V') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
+        $sheet->getColumnDimension('B')->setWidth(14);
+        $sheet->getColumnDimension('C')->setWidth(20);
+        $sheet->getColumnDimension('D')->setWidth(20);
+        $sheet->getColumnDimension('E')->setWidth(14);
+        $sheet->getColumnDimension('F')->setWidth(10);
+        $sheet->getColumnDimension('G')->setWidth(12);
+        $sheet->getColumnDimension('H')->setWidth(16);
+        $sheet->getColumnDimension('I')->setWidth(18);
+        $sheet->getColumnDimension('J')->setWidth(18);
+        $sheet->getColumnDimension('K')->setWidth(18);
+        $sheet->getColumnDimension('L')->setWidth(18);
+        $sheet->getColumnDimension('M')->setWidth(28);
+        $sheet->getColumnDimension('N')->setWidth(28);
+        $sheet->getColumnDimension('O')->setWidth(28);
+        $sheet->getColumnDimension('P')->setWidth(14);
+        $sheet->getColumnDimension('Q')->setWidth(14);
+        $sheet->getColumnDimension('R')->setWidth(30);
+        $sheet->getColumnDimension('S')->setWidth(30);
+        $sheet->getColumnDimension('T')->setWidth(20);
+        $sheet->getColumnDimension('U')->setWidth(14);
+        $sheet->getColumnDimension('V')->setWidth(16);
+        $sheet->getColumnDimension('W')->setWidth(16);
+        $sheet->getColumnDimension('X')->setWidth(20);
+        $sheet->getColumnDimension('Y')->setWidth(20);
+        $sheet->getColumnDimension('Z')->setWidth(20);
+        $sheet->getColumnDimension('AA')->setWidth(14);
+        $sheet->getColumnDimension('AB')->setWidth(20);
+        $sheet->getColumnDimension('AC')->setWidth(18);
+        $sheet->getColumnDimension('AD')->setWidth(20);
+        $sheet->getColumnDimension('AE')->setWidth(20);
+        $sheet->getColumnDimension('AF')->setWidth(30);
         $sheet->getStyle('B:B')->getNumberFormat()->setFormatCode('YYYY-MM-DD');
-        $sheet->getStyle('F:F')->getNumberFormat()->setFormatCode('YYYY-MM-DD');
+        $sheet->getStyle('E:E')->getNumberFormat()->setFormatCode('YYYY-MM-DD');
     }
 
     public function registerEvents(): array
@@ -133,8 +179,11 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
-                $sheet->getStyle('A1:' . $sheet->getHighestColumn() . $sheet->getHighestRow())
+                $highest = $sheet->getHighestColumn() . $sheet->getHighestRow();
+                $sheet->getStyle('A1:' . $highest)
                     ->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
+                $sheet->getStyle('A1:' . $highest)
+                    ->getAlignment()->setWrapText(true);
             },
         ];
     }
