@@ -803,7 +803,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
             // return Excel::download(new UserDataExport($salaryHeads, $datas), 'payroll.xlsx');
             // return Excel::download(new SalarySheetExport($salaryHeads, $datas), 'payroll.xlsx');
         }
-        $datas = $query->get();
+        $datas = $query->get()
+            ->sortBy(fn($row) => strtolower(optional($row->employee)->name ?? ''))
+            ->values();
         // dd($datas->last());
         return view('employee.monthly_salary_attendance.month_salary', compact('branchesList', 'salaryheads', 'date', 'datas', 'designations', 'departments'));
 

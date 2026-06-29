@@ -55,6 +55,13 @@
             align-items: center;
             gap: 10px;
         }
+
+        table th,
+        table td {
+            padding: 8px !important;
+        }
+
+
     </style>
 @endpush
 
@@ -1050,29 +1057,34 @@
                 </div>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
+                <div class="table-responsive monthly-salary-table-wrap">
                     <table class="">
                 <thead>
-                    <tr class="table_heads">
-                        <th><input type="checkbox" id="check-all"></th>
-                        <th>#</th>
-                        <th>{{ __('Emp No') }}</th>
-                        <th>{{ __('Name') }}</th>
-                        <th>{{ __('Sal. Month') }}</th>
-                        <th>{{ __('Sal. Days') }}</th>
                         @php
                             $shortenedHeads = [
                                 'Initial Basics' => 'Ini.Basic',
                                 'House Rent' => 'House Rent',
                                 'Medical' => 'Med',
                             ];
+                            $allowanceColspan = $salaryheads->count() + 6;
                         @endphp
+                    <tr class="table_heads salary-group-header">
+                        <th rowspan="2"><input type="checkbox" id="check-all"></th>
+                        <th rowspan="2">#</th>
+                        <th rowspan="2">{{ __('Emp No') }}</th>
+                        <th rowspan="2">{{ __('Name') }}</th>
+                        <th rowspan="2">{{ __('Sal. Month') }}</th>
+                        <th rowspan="2">{{ __('Sal. Days') }}</th>
+                        <th colspan="{{ $allowanceColspan }}">{{ __('Allowances') }}</th>
+                        <th colspan="10">{{ __('Deduction') }}</th>
+                        <th colspan="6">{{ __('Status') }}</th>
+                    </tr>
+                    <tr class="table_heads salary-column-header">
                         @foreach ($salaryheads as $head)
                             <th>{{ $shortenedHeads[$head->head] ?? $head->head }}</th>
                         @endforeach
                         <th>{{ __('Basic') }}</th>
                         <th>{{ __('Other') }}</th>
-                        <th>{{ __('Stop sal') }}</th>
                         <th>{{ __('Other Allowance') }}</th>
                         <th>{{ __('Drns & Misc') }}</th>
                         <th>{{ __('Gross') }}</th>
@@ -1084,6 +1096,7 @@
                         <th>{{ __('Ded') }}</th>
                         <th>{{ __('Loan') }}</th>
                         <th>{{ __('Loan Sec') }}</th>
+                        <th>{{ __('Stop sal') }}</th>
                         <th>{{ __('Tra. Course') }}</th>
                         <th>{{ __('Salary Adv.') }}</th>
                         <th>{{ __('Net') }}</th>
@@ -1181,8 +1194,6 @@ foreach ($heads as $scale_head) {
                             <td>{{ !empty($data->employeemonthlysalary) ? $data->employeemonthlysalary->basics : '0' }}
                             </td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->conv : '0' }}</td>
-                            <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->stop_sal : '0' }}
-                            </td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->other : '0' }}
                             </td>
                             <td>
@@ -1200,6 +1211,8 @@ foreach ($heads as $scale_head) {
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->dedu : '0' }}</td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->loan : '0' }}</td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->emp_sec_loan : '0' }}</td>
+                            <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->stop_sal : '0' }}
+                            </td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->tra_course : '0' }}
                             </td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->sal_advance : '0' }}

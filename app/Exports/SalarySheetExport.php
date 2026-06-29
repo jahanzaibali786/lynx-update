@@ -171,7 +171,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                 $rows[] = $deptTotals;
             }
 
-            $branchTotals[0] = 'BRANCH TOTAL';
+            $branchTotals[0] = $branchName . ' BRANCH TOTAL';
             $rows[] = $branchTotals;
         }
 

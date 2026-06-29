@@ -20,10 +20,10 @@ class Kernel extends ConsoleKernel
         ->withoutOverlapping() // Prevents running multiple times if previous run not finished
         ->onOneServer();  
 
-        $schedule->command('student-finance:cleanup --process')
-            ->everyTwoMinutes()
-            ->withoutOverlapping(10)
-            ->onOneServer();
+        // $schedule->command('student-finance:cleanup --process')
+        //     ->everyTwoMinutes()
+        //     ->withoutOverlapping(10)
+        //     ->onOneServer();
 
     }
 
