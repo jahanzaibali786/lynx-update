@@ -45,6 +45,24 @@
         const grnProductOptions = @json($productOptions);
         const initialGrnItems = @json($initialItems);
 
+        function rebuildCustomSelect($select) {
+            const element = $select[0];
+            if (!element) {
+                return;
+            }
+            if (element.customSelectInstance) {
+                element.customSelectInstance.destroy();
+                element.customSelectInstance = null;
+            }
+            $select.next('.custom-select-wrapper').remove();
+            $select.show();
+            setTimeout(function() {
+                if (window.CustomSelect) {
+                    window.CustomSelect.initContainer($select.parent()[0]);
+                }
+            }, 0);
+        }
+
         function productOptionsHtml(selected) {
             return Object.entries(grnProductOptions).map(([id, name]) => {
                 const value = id === '' ? '' : id;
@@ -306,6 +324,63 @@
             }
         });
 
+        $(document).on('click', '#toggle-grn-vendor-form', function(e) {
+            e.preventDefault();
+            $('#grn-vendor-form-wrap').toggleClass('d-none');
+        });
+
+        $(document).on('click', '#grn-vendor-submit', function(e) {
+            e.preventDefault();
+            const $form = $('#grn-vendor-form');
+            const $button = $(this);
+
+            $button.prop('disabled', true).text('Saving...');
+
+            $.ajax({
+                url: $form.data('action'),
+                type: 'POST',
+                data: {
+                    first_name: $('#grn_vendor_first_name').val(),
+                    last_name: $('#grn_vendor_last_name').val(),
+                    main_phone: $('#grn_vendor_main_phone').val(),
+                    email: $('#grn_vendor_email').val(),
+                    account_id: $('#grn_vendor_account_id').val(),
+                    _token: $('meta[name="csrf-token"]').attr('content')
+                },
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                success: function(response) {
+                    if (!response.success || !response.vendor) {
+                        show_toastr('error', response.message || 'Vendor could not be created.', 'error');
+                        return;
+                    }
+
+                    const vendor = response.vendor;
+                    const $vendorSelect = $('#grn_vendor_id');
+                    $vendorSelect.append(new Option(vendor.name, vendor.id, true, true));
+                    $vendorSelect.val(vendor.id).trigger('change');
+                    rebuildCustomSelect($vendorSelect);
+                    $form.find('input').val('');
+                    $('#grn_vendor_account_id').val('').trigger('change');
+                    rebuildCustomSelect($('#grn_vendor_account_id'));
+                    $('#grn-vendor-form-wrap').addClass('d-none');
+                    show_toastr('success', response.message || 'Vendor created successfully.', 'success');
+                },
+                error: function(xhr) {
+                    const message = xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)
+                        ? (xhr.responseJSON.message || xhr.responseJSON.error)
+                        : 'Vendor could not be created.';
+                    show_toastr('error', message, 'error');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).text('Add Vendor');
+                }
+            });
+        });
+
         $('#grn-form').on('submit', function(e) {
             $('#grn-items-table tbody tr').each(function() {
                 if (!$(this).hasClass('grn-row-locked') && isGrnRowBlank($(this))) {
@@ -351,17 +426,64 @@
                     </div>
                     <div class="col-md-3">
                         {{ Form::label('vendor_id', __('Vendor'), ['class' => 'form-label']) }}
-                        {{ Form::select('vendor_id', $vendors, old('vendor_id', $isEdit ? $grn->vendor_id : ''), ['class' => 'form-control select', 'required' => 'required']) }}
+                        {{ Form::select('vendor_id', $vendors, old('vendor_id', $isEdit ? $grn->vendor_id : ''), ['class' => 'form-control select custom-select', 'id' => 'grn_vendor_id', 'required' => 'required']) }}
+                        <div class="text-xs mt-1">
+                            {{ __('Please add vendor.') }}
+                            <a href="#" id="toggle-grn-vendor-form">{{ __('Add Vendor') }}</a>
+                        </div>
                     </div>
                     <div class="col-md-3">
-                        {{ Form::label('reference_no', __('Reference No'), ['class' => 'form-label']) }}
-                        {{ Form::text('reference_no', old('reference_no', $isEdit ? $grn->reference_no : ''), ['class' => 'form-control']) }}
+                        {{ Form::label('reference_no', __('Reference No'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
+                        {{ Form::text('reference_no', old('reference_no', $isEdit ? $grn->reference_no : ''), ['class' => 'form-control', 'required' => 'required']) }}
+                    </div>
+                </div>
+                <div class="row mt-3 d-none" id="grn-vendor-form-wrap">
+                    <div class="col-12">
+                        <div class="border rounded p-3 bg-light">
+                            <div id="grn-vendor-form" data-action="{{ route('vender.store') }}">
+                                <div class="row">
+                                    <div class="col-md-2">
+                                        {{ Form::label('vendor_first_name', __('First Name'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
+                                        <input type="text" id="grn_vendor_first_name" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-2">
+                                        {{ Form::label('vendor_last_name', __('Last Name'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
+                                        <input type="text" id="grn_vendor_last_name" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-2">
+                                        {{ Form::label('vendor_main_phone', __('Phone'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
+                                        <input type="text" id="grn_vendor_main_phone" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        {{ Form::label('vendor_email', __('Email'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
+                                        <input type="email" id="grn_vendor_email" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        {{ Form::label('vendor_account_id', __('Account'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
+                                        <select id="grn_vendor_account_id" class="form-control select custom-select" required>
+                                            <option value="">{{ __('Select Account') }}</option>
+                                            @foreach ($vendorAccounts as $chartAccount)
+                                                <option value="{{ $chartAccount->id }}">{{ $chartAccount->code . ' - ' . $chartAccount->name }}</option>
+                                                @foreach ($vendorSubAccounts as $subAccount)
+                                                    @if ($chartAccount->id == $subAccount->account)
+                                                        <option value="{{ $subAccount->id }}">&nbsp;&nbsp;&nbsp;{{ $subAccount->code . ' - ' . $subAccount->name }}</option>
+                                                    @endif
+                                                @endforeach
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-md-12 text-end mt-3">
+                                        <button type="button" id="grn-vendor-submit" class="btn btn-sm btn-outline-primary">{{ __('Add Vendor') }}</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="row mt-3">
                     <div class="col-md-3">
-                        {{ Form::label('purchase_order_id', __('Purchase Order'), ['class' => 'form-label']) }}
-                        {{ Form::text('purchase_order_id', old('purchase_order_id', $isEdit ? $grn->purchase_order_id : ''), ['class' => 'form-control']) }}
+                        {{ Form::label('purchase_order_id', __('Purchase Order'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
+                        {{ Form::text('purchase_order_id', old('purchase_order_id', $isEdit ? $grn->purchase_order_id : ''), ['class' => 'form-control', 'required' => 'required']) }}
                     </div>
                     <div class="col-md-3">
                         {{ Form::label('warehouse_id', __('Store'), ['class' => 'form-label']) }}

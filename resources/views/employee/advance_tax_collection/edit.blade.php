@@ -1,4 +1,4 @@
-{{ Form::model($collection, ['route' => ['advance-tax-collection.update', $collection->id], 'method' => 'PUT']) }}
+{{ Form::model($collection, ['route' => ['advance-tax-collection.update', $collection->id], 'method' => 'PUT', 'enctype' => 'multipart/form-data']) }}
 <div class="modal-body">
     @if($collection->status == 1)
         <div class="alert alert-info">
@@ -33,6 +33,18 @@
         <div class="form-group col-md-6">
             {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
             {{ Form::text('reference', $collection->reference, ['class' => 'form-control', 'maxlength' => 191]) }}
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('proof_picture', __('Proof Picture'), ['class' => 'form-label']) }}
+            {{ Form::file('proof_picture', ['class' => 'form-control', 'accept' => 'image/*']) }}
+            <small class="text-muted">{{ __('Maximum size: 600 KB') }}</small>
+            @if(!empty($collection->proof_picture))
+                <div class="mt-2">
+                    <a href="{{ asset(Storage::url($collection->proof_picture)) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        {{ __('View Current Proof') }}
+                    </a>
+                </div>
+            @endif
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('remarks', __('Remarks'), ['class' => 'form-label']) }}

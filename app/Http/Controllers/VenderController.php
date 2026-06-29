@@ -126,6 +126,10 @@ class VenderController extends Controller
             {
                 $messages = $validator->getMessageBag();
 
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $messages->first()], 422);
+                }
+
                 return redirect()->route('vender.index')->with('error', $messages->first());
             }
                 $objVendor    = \Auth::user();
@@ -184,6 +188,9 @@ class VenderController extends Controller
                 }
                 else
                 {
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => __('Your user limit is over, Please upgrade plan.')], 422);
+                    }
                     return redirect()->back()->with('error', __('Your user limit is over, Please upgrade plan.'));
                 }
                 $role_r = Role::where('name', '=', 'vender')->firstOrFail();
@@ -205,10 +212,24 @@ class VenderController extends Controller
                 Utility::send_twilio_msg($request->contact,'new_vendor', $vendorNotificationArr);
             }
 
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Vendor successfully created.'),
+                    'vendor' => [
+                        'id' => $vender->id,
+                        'name' => $vender->name,
+                    ],
+                ]);
+            }
+
             return redirect()->route('vender.index')->with('success', __('Vendor successfully created.'));
         }
         else
         {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }

@@ -15,6 +15,7 @@ class AdvanceTaxCollection extends Model
         'payment_method',
         'reference',
         'remarks',
+        'proof_picture',
         'status',
         'approval_date',
         'approved_by',

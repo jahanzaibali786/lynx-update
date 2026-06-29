@@ -29,6 +29,18 @@
             {{ Form::text('reference', $collection->reference, ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-6">
+            {{ Form::label('proof_picture', __('Proof Picture'), ['class' => 'form-label']) }}
+            <div>
+                @if(!empty($collection->proof_picture))
+                    <a href="{{ asset(Storage::url($collection->proof_picture)) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        {{ __('View Proof') }}
+                    </a>
+                @else
+                    {{ Form::text('proof_picture', '-', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+                @endif
+            </div>
+        </div>
+        <div class="form-group col-md-6">
             {{ Form::label('status', __('Status'), ['class' => 'form-label']) }}
             {{ Form::text('status', \App\Models\AdvanceTaxCollection::$statuses[$collection->status] ?? '', ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>

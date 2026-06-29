@@ -8,6 +8,7 @@ use App\Models\Designation;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class AdvanceTaxCollectionController extends Controller
 {
@@ -49,6 +50,22 @@ class AdvanceTaxCollectionController extends Controller
         $employees->prepend('Select Employee', '');
 
         return $employees;
+    }
+
+    private function storeProofPicture(Request $request, $oldPath = null)
+    {
+        if (!$request->hasFile('proof_picture')) {
+            return $oldPath;
+        }
+
+        if ($oldPath && Storage::disk('public')->exists($oldPath)) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $file = $request->file('proof_picture');
+        $fileName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+
+        return $file->storeAs('uploads/advance_tax_collection_proofs', $fileName, 'public');
     }
 
     public function index(Request $request)
@@ -129,7 +146,10 @@ class AdvanceTaxCollectionController extends Controller
             'payment_method' => 'nullable|in:cash,online,check',
             'reference' => 'nullable|string|max:191',
             'remarks' => 'nullable|string',
+            'proof_picture' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:600',
         ]);
+
+        $proofPicture = $this->storeProofPicture($request);
 
         AdvanceTaxCollection::create([
             'employee_id' => $request->employee_id,
@@ -139,6 +159,7 @@ class AdvanceTaxCollectionController extends Controller
             'payment_method' => $request->payment_method,
             'reference' => $request->reference,
             'remarks' => $request->remarks,
+            'proof_picture' => $proofPicture,
             'status' => 0,
             'owned_by' => $request->branches,
             'created_by' => \Auth::user()->creatorId(),
@@ -186,7 +207,10 @@ class AdvanceTaxCollectionController extends Controller
             'payment_method' => 'nullable|in:cash,online,check',
             'reference' => 'nullable|string|max:191',
             'remarks' => 'nullable|string',
+            'proof_picture' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:600',
         ]);
+
+        $proofPicture = $this->storeProofPicture($request, $collection->proof_picture);
 
         $collection->update([
             'tax_month' => $request->tax_month,
@@ -195,6 +219,7 @@ class AdvanceTaxCollectionController extends Controller
             'payment_method' => $request->payment_method,
             'reference' => $request->reference,
             'remarks' => $request->remarks,
+            'proof_picture' => $proofPicture,
         ]);
 
         return redirect()->route('advance-tax-collection.index')->with('success', __('Advance tax collection successfully updated.'));
@@ -206,6 +231,10 @@ class AdvanceTaxCollectionController extends Controller
 
         if ($collection->status == 1) {
             return redirect()->back()->with('error', __('Approved advance tax collection cannot be deleted.'));
+        }
+
+        if ($collection->proof_picture && Storage::disk('public')->exists($collection->proof_picture)) {
+            Storage::disk('public')->delete($collection->proof_picture);
         }
 
         $collection->delete();
