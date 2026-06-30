@@ -68,6 +68,21 @@ class AdvanceTaxCollectionController extends Controller
         return $file->storeAs('uploads/advance_tax_collection_proofs', $fileName, 'public');
     }
 
+    private function ajaxRowResponse(AdvanceTaxCollection $collection, string $message)
+    {
+        $collection->load(['employee', 'approvedBy']);
+
+        return response()->json([
+            'success' => true,
+            'id' => $collection->id,
+            'message' => $message,
+            'row_html' => view('employee.advance_tax_collection.partials.row', [
+                'collection' => $collection,
+                'index' => 1,
+            ])->render(),
+        ]);
+    }
+
     public function index(Request $request)
     {
         if (\Auth::user()->type == 'company') {
@@ -146,12 +161,32 @@ class AdvanceTaxCollectionController extends Controller
             'payment_method' => 'nullable|in:cash,online,check',
             'reference' => 'nullable|string|max:191',
             'remarks' => 'nullable|string',
-            'proof_picture' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:600',
+            'proof_picture' => 'nullable|file|max:600',
         ]);
+
+        $existing = AdvanceTaxCollection::where('employee_id', $request->employee_id)
+            ->where('tax_month', $request->tax_month)
+            ->where('collection_date', $request->collection_date)
+            ->where('amount', $request->amount)
+            ->where('payment_method', $request->payment_method)
+            ->where('reference', $request->reference)
+            ->where('owned_by', $request->branches)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('created_at', '>=', now()->subMinute())
+            ->latest()
+            ->first();
+
+        if ($existing) {
+            if ($request->expectsJson()) {
+                return $this->ajaxRowResponse($existing, __('Advance tax collection already saved.'));
+            }
+
+            return redirect()->route('advance-tax-collection.index')->with('success', __('Advance tax collection already saved.'));
+        }
 
         $proofPicture = $this->storeProofPicture($request);
 
-        AdvanceTaxCollection::create([
+        $collection = AdvanceTaxCollection::create([
             'employee_id' => $request->employee_id,
             'tax_month' => $request->tax_month,
             'collection_date' => $request->collection_date,
@@ -165,6 +200,10 @@ class AdvanceTaxCollectionController extends Controller
             'created_by' => \Auth::user()->creatorId(),
         ]);
 
+        if ($request->expectsJson()) {
+            return $this->ajaxRowResponse($collection, __('Advance tax collection successfully created.'));
+        }
+
         return redirect()->route('advance-tax-collection.index')->with('success', __('Advance tax collection successfully created.'));
     }
 
@@ -173,6 +212,30 @@ class AdvanceTaxCollectionController extends Controller
         $collection = AdvanceTaxCollection::with(['employee', 'approvedBy'])->findOrFail($id);
 
         return view('employee.advance_tax_collection.show', compact('collection'));
+    }
+
+    public function proof($id)
+    {
+        $collection = AdvanceTaxCollection::findOrFail($id);
+
+        if (\Auth::user()->type == 'company') {
+            abort_if($collection->created_by != \Auth::user()->creatorId(), 403);
+        } else {
+            abort_if($collection->owned_by != \Auth::user()->ownedId(), 403);
+        }
+
+        abort_if(empty($collection->proof_picture), 404);
+        abort_if(!Storage::disk('public')->exists($collection->proof_picture), 404);
+
+        $path = Storage::disk('public')->path($collection->proof_picture);
+        $filename = basename($collection->proof_picture);
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'])) {
+            return response()->file($path);
+        }
+
+        return response()->download($path, $filename);
     }
 
     public function edit($id)
@@ -193,6 +256,10 @@ class AdvanceTaxCollectionController extends Controller
         $collection = AdvanceTaxCollection::findOrFail($id);
 
         if ($collection->status == 1 && \Auth::user()->type != 'company') {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => __('Only admin can edit approved advance tax collection.')], 403);
+            }
+
             return redirect()->back()->with('error', __('Only admin can edit approved advance tax collection.'));
         }
 
@@ -207,7 +274,7 @@ class AdvanceTaxCollectionController extends Controller
             'payment_method' => 'nullable|in:cash,online,check',
             'reference' => 'nullable|string|max:191',
             'remarks' => 'nullable|string',
-            'proof_picture' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:600',
+            'proof_picture' => 'nullable|file|max:600',
         ]);
 
         $proofPicture = $this->storeProofPicture($request, $collection->proof_picture);
@@ -221,6 +288,10 @@ class AdvanceTaxCollectionController extends Controller
             'remarks' => $request->remarks,
             'proof_picture' => $proofPicture,
         ]);
+
+        if ($request->expectsJson()) {
+            return $this->ajaxRowResponse($collection, __('Advance tax collection successfully updated.'));
+        }
 
         return redirect()->route('advance-tax-collection.index')->with('success', __('Advance tax collection successfully updated.'));
     }

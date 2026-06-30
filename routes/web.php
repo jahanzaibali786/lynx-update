@@ -2441,6 +2441,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::resource('employee-advance', EmployeeAdvanceController::class);
             Route::get('advance-tax-collection-status/{id}', [AdvanceTaxCollectionController::class, 'status'])->name('advance-tax-collection.status');
             Route::put('advance-tax-collection-status-change/{id}', [AdvanceTaxCollectionController::class, 'statusChange'])->name('advance-tax-collection.statusChange');
+            Route::get('advance-tax-collection/{id}/proof', [AdvanceTaxCollectionController::class, 'proof'])->name('advance-tax-collection.proof');
             Route::resource('advance-tax-collection', AdvanceTaxCollectionController::class);
 
             // Export salary sheet

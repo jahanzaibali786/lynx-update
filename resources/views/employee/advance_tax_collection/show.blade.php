@@ -29,12 +29,13 @@
             {{ Form::text('reference', $collection->reference, ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-6">
-            {{ Form::label('proof_picture', __('Proof Picture'), ['class' => 'form-label']) }}
+            {{ Form::label('proof_picture', __('Proof Attachment'), ['class' => 'form-label']) }}
             <div>
                 @if(!empty($collection->proof_picture))
-                    <a href="{{ asset(Storage::url($collection->proof_picture)) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                    <a href="{{ route('advance-tax-collection.proof', $collection->id) }}" target="_blank" class="btn btn-sm btn-outline-primary">
                         {{ __('View Proof') }}
                     </a>
+                    <small class="d-block text-muted mt-1">{{ basename($collection->proof_picture) }}</small>
                 @else
                     {{ Form::text('proof_picture', '-', ['class' => 'form-control', 'readonly' => 'readonly']) }}
                 @endif

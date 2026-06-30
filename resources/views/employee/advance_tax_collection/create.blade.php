@@ -61,7 +61,7 @@
         });
     }
 </script>
-{{ Form::open(['route' => 'advance-tax-collection.store', 'method' => 'post', 'enctype' => 'multipart/form-data']) }}
+{{ Form::open(['route' => 'advance-tax-collection.store', 'method' => 'post', 'enctype' => 'multipart/form-data', 'class' => 'advance-tax-collection-ajax-form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-md-6">
@@ -93,9 +93,9 @@
             {{ Form::text('reference', null, ['class' => 'form-control', 'maxlength' => 191]) }}
         </div>
         <div class="form-group col-md-6">
-            {{ Form::label('proof_picture', __('Proof Picture'), ['class' => 'form-label']) }}
-            {{ Form::file('proof_picture', ['class' => 'form-control', 'accept' => 'image/*']) }}
-            <small class="text-muted">{{ __('Maximum size: 600 KB') }}</small>
+            {{ Form::label('proof_picture', __('Proof Attachment'), ['class' => 'form-label']) }}
+            {{ Form::file('proof_picture', ['class' => 'form-control']) }}
+            <small class="text-muted">{{ __('Any file type allowed. Maximum size: 600 KB') }}</small>
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('remarks', __('Remarks'), ['class' => 'form-label']) }}

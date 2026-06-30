@@ -85,6 +85,149 @@ function show_toastr(type, message) {
     $('#liveToast .toast-body').html(message);
 }
 
+function closeActiveBootstrapModal() {
+    var $modal = $('.modal.show').last();
+    if ($modal.length && window.bootstrap) {
+        var instance = bootstrap.Modal.getInstance($modal[0]) || new bootstrap.Modal($modal[0]);
+        instance.hide();
+    } else {
+        $('.modal.show').modal('hide');
+    }
+}
+
+function ajaxModalForm(options) {
+    var settings = $.extend({
+        formSelector: '.ajax-modal-form',
+        submitText: 'Processing...',
+        onSuccess: null,
+        onError: null,
+        closeOnSuccess: true,
+        showToast: true
+    }, options || {});
+
+    $(document).off('submit.ajaxModalForm', settings.formSelector).on('submit.ajaxModalForm', settings.formSelector, function (e) {
+        e.preventDefault();
+
+        var $form = $(this);
+        var requestKey = ($form.attr('method') || 'POST') + ':' + ($form.attr('action') || '');
+        window.ajaxModalFormLocks = window.ajaxModalFormLocks || {};
+
+        if (window.ajaxModalFormLocks[requestKey]) {
+            if (typeof show_toastr === 'function') {
+                show_toastr('error', 'Request already processing. Please wait.', 'error');
+            }
+            return false;
+        }
+
+        if ($form.data('processing')) {
+            return false;
+        }
+
+        if (this.checkValidity && !this.checkValidity()) {
+            this.reportValidity();
+            return false;
+        }
+
+        var formData = new FormData(this);
+        var $submit = $form.find('[type="submit"]');
+        var originalText = $submit.val() || $submit.text();
+        var unlockTimer = null;
+
+        function unlockSubmit() {
+            $form.data('processing', false);
+            $form.find('[type="submit"]').prop('disabled', false);
+            if ($submit.is('input')) {
+                $submit.val(originalText);
+            } else {
+                $submit.text(originalText);
+            }
+        }
+
+        $form.data('processing', true);
+        window.ajaxModalFormLocks[requestKey] = true;
+        $form.find('[type="submit"]').prop('disabled', true);
+        if ($submit.is('input')) {
+            $submit.val(settings.submitText);
+        } else {
+            $submit.text(settings.submitText);
+        }
+
+        unlockTimer = setTimeout(function () {
+            if ($form.data('processing')) {
+                if ($submit.is('input')) {
+                    $submit.val('Still processing...');
+                } else {
+                    $submit.text('Still processing...');
+                }
+            }
+        }, 5000);
+
+        $.ajax({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                'Accept': 'application/json'
+            },
+            url: $form.attr('action'),
+            type: $form.attr('method') || 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                if (response && response.success === false) {
+                    handleAjaxModalFormError($form, { responseJSON: response }, settings);
+                    return;
+                }
+
+                if (typeof settings.onSuccess === 'function') {
+                    settings.onSuccess(response, $form);
+                }
+
+                if (settings.closeOnSuccess) {
+                    closeActiveBootstrapModal();
+                }
+
+                if (settings.showToast && response && response.message && typeof show_toastr === 'function') {
+                    show_toastr('success', response.message, 'success');
+                }
+            },
+            error: function (xhr) {
+                handleAjaxModalFormError($form, xhr, settings);
+            },
+            complete: function () {
+                clearTimeout(unlockTimer);
+                delete window.ajaxModalFormLocks[requestKey];
+                unlockSubmit();
+            }
+        });
+    });
+}
+
+function handleAjaxModalFormError($form, xhr, settings) {
+    var message = 'Something went wrong. Please check the form and try again.';
+
+    if (xhr.responseJSON) {
+        if (xhr.responseJSON.message) {
+            message = xhr.responseJSON.message;
+        }
+        if (xhr.responseJSON.errors) {
+            message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+        }
+    }
+
+    if (typeof settings.onError === 'function') {
+        settings.onError(message, xhr, $form);
+        return;
+    }
+
+    if (typeof show_toastr === 'function') {
+        show_toastr('error', $('<div>').html(message).text(), 'error');
+    } else if (window.Swal) {
+        Swal.fire({ icon: 'error', title: 'Error', html: message });
+    } else {
+        alert($('<div>').html(message).text());
+    }
+}
+
 $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true"], div[data-ajax-popup="true"]', function () {
 
     var data = {};
