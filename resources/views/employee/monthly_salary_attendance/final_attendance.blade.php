@@ -284,7 +284,7 @@
             <span class="badge bg-light text-dark">{{ __('Pending Admin') }} <span class="badge-count">{{ $finalAttendancePending }}</span></span>
             <span class="badge bg-warning text-dark">{{ __('Approved/Fwd') }} <span class="badge-count">{{ $finalAttendanceApproved }}</span></span>
             <span class="badge bg-primary">{{ __('Salary Final') }} <span class="badge-count">{{ $finalAttendanceSalaryFinal }}</span></span>
-            <span class="badge bg-success">{{ __('GM Final') }} <span class="badge-count">{{ $finalAttendanceGmFinal }}</span></span>
+            <span class="badge bg-success">{{ __('HR Final') }} <span class="badge-count">{{ $finalAttendanceGmFinal }}</span></span>
         </div>
     </div>
     <div class="card-body">
@@ -301,9 +301,9 @@
                         <th>{{__('Sal. Days')}}</th>
                         <th>{{__('Leave')}}</th>
                         <th >{{__('Absents')}}</th>
-                        <th>{{__('GmFinal')}}</th>
+                        <th>{{__('HR Final')}}</th>
                         <th>{{__('SalFinal')}}</th>
-                        <th>{{__('Fwd to Admin')}}</th>
+                        <th>{{__('Fwd to HR')}}</th>
                         <th>{{__('Status')}}</th>
                         <th><input type="checkbox" id="check-all"></th>
                     </tr>
@@ -336,7 +336,7 @@
                         <td><input type="checkbox" name="admfinal" value="{{ $data->id }}" class="adm-checkbox" {{ !empty($data) && $data->adm_final == 1 ? 'checked' : '' }} {{ !empty($data) && $data->adm_final== 1 || $data->adm_final== 0 ? 'disabled' : '' }} ></td>
                         <td>
                             @if (!empty($data) && $data->gm_final == 1)
-                                <span class="badge bg-success">{{ __('GM Final') }}</span>
+                                <span class="badge bg-success">{{ __('HR Final') }}</span>
                             @elseif (!empty($data) && $data->sal_final == 1)
                                 <span class="badge bg-primary">{{ __('Salary Final') }}</span>
                             @elseif (!empty($data) && $data->adm_final == 1)

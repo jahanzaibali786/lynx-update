@@ -275,7 +275,7 @@ class SalaryAttendanceExport implements FromArray, ShouldAutoSize, WithEvents
     private function statusText($data): string
     {
         if (!empty($data->gm_final)) {
-            return 'GM Final';
+            return 'HR Final';
         }
         if (!empty($data->sal_final)) {
             return 'Salary Final';
@@ -284,7 +284,7 @@ class SalaryAttendanceExport implements FromArray, ShouldAutoSize, WithEvents
             return 'Finalized';
         }
         if (!empty($data->accountant_finalize)) {
-            return 'Fwd to Admin';
+            return 'Fwd to HR';
         }
         return 'Generated';
     }

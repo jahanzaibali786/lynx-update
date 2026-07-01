@@ -1102,7 +1102,7 @@
                         <th>{{ __('Net') }}</th>
                         <th>{{ __('prCFinal') }}</th>
                         <th>{{ __('SalFinal') }}</th>
-                        <th>{{ __('GmFinal') }}</th>
+                        <th>{{ __('HR Final') }}</th>
                         <th>{{ __('On Hold') }}</th>
                         <th>{{ __('Status') }}</th>
                     </tr>

@@ -17,7 +17,7 @@
 <style>
     @page {
         size: A4 portrait;
-        margin: 12px 12px 18px 12px;
+        margin: 8px 8px 14px 8px;
     }
 
     @media print {
@@ -34,9 +34,9 @@
     }
 
     .slip {
-        height: 390pt;
+        height: 350pt;
         box-sizing: border-box;
-        padding: 4px 0 7px;
+        padding: 0 18px 5px;
         overflow: hidden;
     }
 
@@ -56,9 +56,9 @@
 
     .slip-table td,
     .slip-table th {
-        padding: 1px 2px;
+        padding: 1px 3px;
         vertical-align: middle;
-        line-height: 1.2;
+        line-height: 1.3;
         overflow-wrap: break-word;
         word-break: normal;
     }
@@ -66,14 +66,6 @@
     .slip-table td:empty {
         padding-left: 0;
         padding-right: 0;
-    }
-
-    .gap-cell {
-        width: 1px !important;
-        max-width:1px !important;
-        padding: 0 !important;
-        font-size: 0;
-        line-height: 0;
     }
 
     .school-title {
@@ -86,17 +78,22 @@
         font-size: 12px;
         font-weight: bold;
         text-transform: uppercase;
+        padding-top: 5px !important;
+        padding-bottom: 2px !important;
+        line-height: 1.35;
     }
 
     .report-title {
         font-size: 10px;
         font-weight: bold;
         text-transform: uppercase;
+        padding-bottom: 5px !important;
+        line-height: 1.35;
     }
 
     .logo {
-        width: 55px;
-        height: 55px;
+        width: 58px;
+        height: 58px;
     }
 
     .border {
@@ -109,6 +106,10 @@
 
     .right-border {
         border-right: 1px solid #000;
+    }
+
+    .top-border {
+        border-top: 1px solid #000;
     }
 
     .section-head {
@@ -161,8 +162,8 @@
         padding: 0 !important;
     }
     .report-title-image {
-            width: 225px;
-            max-width: 225px;
+            width: 280px;
+            max-width: 280px;
             height: auto;
             display: inline-block;
         }
@@ -256,83 +257,64 @@
     <div class="slip">
         <table class="slip-table">
             <colgroup>
-                <col style="width: 0.1%;">
-                <col style="width: 0.2%;">
-                <col style="width: 19.3%;">
-                <col style="width: 9.2%;">
-                <col style="width: 9.2%;">
-                <col style="width: 0.1%;">
-                <col style="width: 18.3%;">
-                <col style="width: 8.8%;">
-                <col style="width: 8.8%;">
-                <col style="width: 0.1%;">
-                <col style="width: 18.8%;">
-                <col style="width: 0.2%;">
-                <col style="width: 7.8%;">
-                <col style="width: 0.1%;">
+                <col style="width: 17.5%;">
+                <col style="width: 8.5%;">
+                <col style="width: 8.5%;">
+                <col style="width: 17.5%;">
+                <col style="width: 8.5%;">
+                <col style="width: 8.5%;">
+                <col style="width: 22%;">
+                <col style="width: 2%;">
+                <col style="width: 7%;">
             </colgroup>
             <tr>
-                <td class="gap-cell"></td>
-                <td colspan="11" class="school-title"> <img src="{{ asset('assets/images/lynxheadertext.jpg') }}" class="report-title-image" alt="The Lynx School" title="The Lynx School"></td>
+                <td colspan="7" class="school-title"> <img src="{{ asset('assets/images/lynxheadertext.jpg') }}" class="report-title-image" alt="The Lynx School" title="The Lynx School"></td>
                 <td colspan="2" class="num">
                     <img src="{{ $logoSrc }}" class="logo" alt="logo">
                 </td>
             </tr>
             <tr>
-                <td class="gap-cell"></td>
-                <td colspan="13" class="branch-title">{{ $branchName }}</td>
+                <td colspan="9" class="branch-title">{{ $branchName }}</td>
             </tr>
             <tr>
-                <td class="gap-cell"></td>
-                <td colspan="13" class="report-title">Employee Pay Slip Report for the month of {{ $monthLabel }}</td>
-            </tr>
-            <tr><td class="gap-cell"></td><td colspan="13" class="border" style="border-bottom: 0;"></td></tr>
-            <tr>
-                <td class="gap-cell"></td><td class="left-border gap-cell"></td>
-                <td class="label nowrap">Employee#</td><td>{{ optional($data->employee)->employee_id ?? optional($data->employee)->id }}</td>
-                <td colspan="2"></td><td class="label">Leaves Balances</td><td class="label center">C/L</td><td class="label center">A/L</td>
-                <td class="gap-cell"></td><td class="label">Payment Date</td><td class="gap-cell"></td>
-                <td>{{ $data->paid_date ? \Carbon\Carbon::parse($data->paid_date)->format('d-M-y') : '-' }}</td>
-                <td class="right-border"></td>
+                <td colspan="9" class="report-title">Employee Pay Slip Report for the month of {{ $monthLabel }}</td>
             </tr>
             <tr>
-                <td class="gap-cell"></td><td class="left-border gap-cell"></td>
-                <td class="label nowrap">Name</td><td colspan="2">{{ optional($data->employee)->name }}</td>
-                <td class="gap-cell"></td><td class="label">O.Balance</td><td class="center">{{ $clOpen }}</td><td class="center">{{ $alOpen }}</td>
-                <td class="gap-cell"></td><td class="label nowrap">Mode</td><td class="gap-cell"></td>
-                <td>{{ strtolower($scale->paymode ?? '') === 'cash' ? 'Cash' : 'Bank' }}</td>
-                <td class="right-border"></td>
+                <td class="label nowrap top-border left-border">Employee#</td><td class="top-border">{{ optional($data->employee)->employee_id ?? optional($data->employee)->id }}</td>
+                <td class="top-border"></td><td class="label top-border">Leaves Balances</td><td class="label center top-border">C/L</td><td class="label center top-border">A/L</td>
+                <td class="label top-border">Payment Date</td><td class="top-border"></td>
+                <td class="top-border right-border">{{ $data->paid_date ? \Carbon\Carbon::parse($data->paid_date)->format('d-M-y') : '-' }}</td>
             </tr>
             <tr>
-                <td class="gap-cell"></td><td class="left-border gap-cell"></td>
-                <td class="label">Corporate Title</td><td colspan="2">{{ optional(optional($data->employee)->designation)->name }}</td>
-                <td class="gap-cell"></td><td class="label">Leaves</td><td class="center">{{ $clTaken }}</td><td class="center">{{ $alTaken }}</td>
-                <td class="gap-cell"></td><td class="label">Bank/Branch</td><td class="gap-cell"></td>
-                <td>{{ $scale->paymode ?? '-' }}</td>
-                <td class="right-border"></td>
+                <td class="label nowrap left-border">Name</td><td colspan="2">{{ optional($data->employee)->name }}</td>
+                <td class="label">O.Balance</td><td class="center">{{ $clOpen }}</td><td class="center">{{ $alOpen }}</td>
+                <td class="label nowrap">Mode</td><td></td>
+                <td class="right-border">{{ strtolower($scale->paymode ?? '') === 'cash' ? 'Cash' : 'Bank' }}</td>
             </tr>
             <tr>
-                <td class="gap-cell"></td><td class="left-border gap-cell"></td>
-                <td class="label nowrap">Department</td><td colspan="2">{{ optional(optional($data->employee)->department)->name ?? '-' }}</td>
-                <td class="gap-cell"></td><td class="label">C.Balance</td><td class="center">{{ $clBal }}</td><td class="center">{{ $alBal }}</td>
-                <td class="gap-cell"></td><td class="label">N.T.N</td><td class="gap-cell"></td>
-                <td>{{ $scale->account_number ?? '-' }}</td>
-                <td class="right-border"></td>
+                <td class="label left-border">Corporate Title</td><td colspan="2">{{ optional(optional($data->employee)->designation)->name }}</td>
+                <td class="label">Leaves</td><td class="center">{{ $clTaken }}</td><td class="center">{{ $alTaken }}</td>
+                <td class="label">Bank/Branch</td><td></td>
+                <td class="right-border">{{ $scale->paymode ?? '-' }}</td>
             </tr>
             <tr>
-                <td class="gap-cell"></td><td class="left-border gap-cell"></td><td colspan="4"></td>
+                <td class="label nowrap left-border">Department</td><td colspan="2">{{ optional(optional($data->employee)->department)->name ?? '-' }}</td>
+                <td class="label">C.Balance</td><td class="center">{{ $clBal }}</td><td class="center">{{ $alBal }}</td>
+                <td class="label">N.T.N</td><td></td>
+                <td class="right-border">{{ $scale->account_number ?? '-' }}</td>
+            </tr>
+            <tr>
+                <td colspan="3" class="left-border"></td>
                 <td class="label">Working Days</td><td class="center">{{ $workingDays }}</td>
-                <td colspan="6" class="right-border"></td>
+                <td colspan="4" class="right-border"></td>
             </tr>
             <tr>
-                <td class="gap-cell"></td><td class="left-border gap-cell"></td>
-                <td colspan="3" class="section-head">EARNINGS</td><td class="gap-cell"></td>
-                <td colspan="3" class="section-head">DEDUCTIONS</td><td class="gap-cell"></td>
-                <td colspan="3" class="section-head"></td><td class="right-border"></td>
+                <td colspan="3" class="section-head">EARNINGS</td>
+                <td colspan="3" class="section-head">DEDUCTIONS</td>
+                <td colspan="3" class="section-head"></td>
             </tr>
             @for ($i = 0; $i < $rowCount; $i++)
                 <tr>
-                    <td class="gap-cell"></td><td class="left-border gap-cell"></td>
                     @if ($earnings[$i]['head'])
                         <td class="head-row">{{ $earnings[$i]['label'] }}</td>
                         <td class="head-row num">{{ is_numeric($earnings[$i]['pm']) ? $fmt($earnings[$i]['pm']) : $earnings[$i]['pm'] }}</td>
@@ -342,7 +324,7 @@
                         <td class="{{ $earnings[$i]['total'] ? 'total-cell' : 'left-border right-border' }} num">{{ is_numeric($earnings[$i]['pm']) ? $fmt($earnings[$i]['pm']) : $earnings[$i]['pm'] }}</td>
                         <td class="{{ $earnings[$i]['total'] ? 'total-cell' : 'left-border right-border' }} num">{{ is_numeric($earnings[$i]['ytd']) ? $fmt($earnings[$i]['ytd']) : $earnings[$i]['ytd'] }}</td>
                     @endif
-                    <td class="gap-cell"></td>
+                    
                     @if ($deductions[$i]['head'])
                         <td class="head-row">{{ $deductions[$i]['label'] }}</td>
                         <td class="head-row center">P.M</td>
@@ -352,7 +334,7 @@
                         <td class="left-border right-border num">{{ is_numeric($deductions[$i]['pm']) ? $fmt($deductions[$i]['pm']) : $deductions[$i]['pm'] }}</td>
                         <td class="left-border right-border num">{{ is_numeric($deductions[$i]['ytd']) ? $fmt($deductions[$i]['ytd']) : $deductions[$i]['ytd'] }}</td>
                     @endif
-                    <td class="gap-cell"></td>
+                    
                     @if ($contributions[$i]['head'])
                         <td class="head-row" colspan="2">{{ $contributions[$i]['label'] }}</td>
                         <td class="head-row num">{{ is_numeric($contributions[$i]['amount']) ? $fmt($contributions[$i]['amount']) : $contributions[$i]['amount'] }}</td>
@@ -361,26 +343,21 @@
                         <td class="{{ $contributions[$i]['total'] ? 'total-cell' : '' }}"></td>
                         <td class="{{ $contributions[$i]['total'] ? 'total-cell' : 'right-border' }} num">{{ is_numeric($contributions[$i]['amount']) ? $fmt($contributions[$i]['amount']) : $contributions[$i]['amount'] }}</td>
                     @endif
-                    <td class="right-border"></td>
                 </tr>
             @endfor
             <tr>
-                <td class="gap-cell"></td><td class="left-border gap-cell"></td>
                 <td class="total-cell">Total Rs.</td><td class="total-cell num">{{ $money($grossPm + $enticementPm + $stopSalary) }}</td><td class="total-cell num">{{ $money($enticementYtd) }}</td>
-                <td class="gap-cell"></td><td class="total-cell">Total Rs.</td><td class="total-cell num">{{ $money($deductionPm) }}</td><td class="total-cell num">{{ $money($deductionYtd) }}</td>
-                <td class="gap-cell"></td><td class="total-cell" colspan="2">Cost to Company</td><td class="total-cell num">{{ $money($ctc) }}</td><td class="right-border gap-cell"></td>
+                <td class="total-cell">Total Rs.</td><td class="total-cell num">{{ $money($deductionPm) }}</td><td class="total-cell num">{{ $money($deductionYtd) }}</td>
+                <td class="total-cell" colspan="2">Cost to Company</td><td class="total-cell num">{{ $money($ctc) }}</td>
             </tr>
-            <tr><td class="gap-cell"></td><td colspan="13" class="left-border right-border"></td></tr>
             <tr>
-                <td class="gap-cell"></td><td class="left-border gap-cell"></td>
-                <td colspan="6" class="label num">Total Amount Disbursed Rs.</td>
+                <td colspan="5" class="total-cell label">Total Amount Disbursed Rs.</td>
                 <td class="disbursed">{{ $money($disbursed) }}</td>
-                <td colspan="5" class="right-border"></td>
+                <td colspan="3" class="total-cell"></td>
             </tr>
-            <tr><td class="gap-cell"></td><td colspan="13" class="border" style="border-top: 0;"></td></tr>
-            <tr><td class="gap-cell"></td><td colspan="13" class="muted">This is a system generated document and does not require a signature</td></tr>
+            <tr><td colspan="9" class="muted">This is a system generated document and does not require a signature</td></tr>
             @if (!$loop->last)
-                <tr><td class="gap-cell"></td><td colspan="13" class="dotted-separator"></td></tr>
+                <tr><td colspan="9" class="dotted-separator"></td></tr>
             @endif
         </table>
     </div>

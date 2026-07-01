@@ -25,6 +25,22 @@
             font-weight: 800;
             font-size: 13px;
         }
+
+        .probation-capsule {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 6px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: #16a34a;
+            color: #fff;
+            border: 1px solid #15803d;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1;
+            text-transform: uppercase;
+            box-shadow: 0 1px 4px rgba(22, 163, 74, 0.35);
+        }
     </style>
 @endpush
 @push('script-page')
@@ -393,8 +409,8 @@
                                             <span class="btn-inner--icon">Search</span>
                                         </a>
                                         <a id="finalize-btn" href="#" class="btn btn-sm btn-outline-danger attendance-action-btn"
-                                            data-bs-title="Finalize / FWD to Admin">
-                                            <span class="btn-inner--icon">Finalize / FWD to Admin</span>
+                                            data-bs-title="Finalize / FWD to HR">
+                                            <span class="btn-inner--icon">Finalize / FWD to HR</span>
                                         </a>
                                         <a id="delete-btn" href="#" class="btn btn-sm btn-outline-danger attendance-action-btn"
                                             data-bs-title="Delete">
@@ -425,10 +441,10 @@
                 <div class="d-flex flex-wrap align-items-center gap-2 attendance-summary-badges">
                     <span class="badge bg-secondary">{{ __('Total Rows') }} <span class="badge-count">{{ $attendanceTotal }}</span></span>
                     <span class="badge bg-light text-dark">{{ __('Generated') }} <span class="badge-count">{{ $attendanceGenerated }}</span></span>
-                    <span class="badge bg-info">{{ __('Fwd to Admin') }} <span class="badge-count">{{ $attendanceFinalized }}</span></span>
+                    <span class="badge bg-info">{{ __('Fwd to HR') }} <span class="badge-count">{{ $attendanceFinalized }}</span></span>
                     <span class="badge bg-warning text-dark">{{ __('Finalized') }} <span class="badge-count">{{ $attendanceAdminForwarded }}</span></span>
                     <span class="badge bg-primary">{{ __('Salary Final') }} <span class="badge-count">{{ $attendanceSalaryFinal }}</span></span>
-                    <span class="badge bg-success">{{ __('GM Final') }} <span class="badge-count">{{ $attendanceGmFinal }}</span></span>
+                    <span class="badge bg-success">{{ __('HR Final') }} <span class="badge-count">{{ $attendanceGmFinal }}</span></span>
                 </div>
             </div>
             <div class="card-body">
@@ -442,7 +458,7 @@
                         @endif
                         <th>{{ __('Name') }}</th>
                         <th>{{ __('Sal. Month') }}</th>
-                        <th>{{ __('MonthDays') }}</th>
+                        <th>{{ __('Employee Working Days') }}</th>
                         <th>{{ __('Holidays') }}</th>
                         <th>{{ __('WorkingDays') }}</th>
                         <th style="width: 50px;">{{ __('Absents') }}</th>
@@ -451,12 +467,12 @@
                         <th>{{ __('Total Casual') }}</th>
                         <th>{{ __('Bal. Casual') }}</th>
                         <th>{{ __('Leave') }}</th>
-                        <th>{{ __('Employee Working Days') }}</th>
+                        <th>{{ __('MonthDays') }}</th>
                         <th>{{ __('Status') }}</th>
                         <th>{{ __('Finalize') }}</th>
                         <th>{{ __('AdmFinal') }}</th>
                         <th>{{ __('SalFinal') }}</th>
-                        <th>{{ __('GmFinal') }}</th>
+                        <th>{{ __('HR Final') }}</th>
                         {{-- <th>{{__('lock')}}</th> --}}
                         <th><input type="checkbox" id="check-all"></th>
                     </tr>
@@ -487,6 +503,18 @@
 
                             $attendanceWorkingDays = max(0, $attendanceMonthDays - $attendanceHolidays);
                             $attendanceEmployeeWorkingDays = $attendanceWorkingDays + $attendanceHolidays - $attendanceAbsentDays;
+                            $attendanceMonthNumber = !empty($data->for_month_of)
+                                ? \Carbon\Carbon::parse($data->for_month_of)->month
+                                : null;
+                            $employee = $data->employee;
+                            $departmentName = strtolower(optional(optional($employee)->department)->name ?? '');
+                            $probationEnd = !empty(optional($employee)->probation_end)
+                                ? \Carbon\Carbon::parse($employee->probation_end)
+                                : null;
+                            $showProbationBadge = in_array($attendanceMonthNumber, [6, 7])
+                                && str_contains($departmentName, 'academic')
+                                && $probationEnd
+                                && $probationEnd->gt(\Carbon\Carbon::parse($data->for_month_of)->endOfMonth());
                         @endphp
                         <tr
                             style="color:
@@ -503,9 +531,14 @@
                             @if ($showBranchColumn)
                                 <td class="font-style">{{ optional(optional($data->employee)->user)->name ?? '' }}</td>
                             @endif
-                            <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
+                            <td class="font-style">
+                                {{ !empty($data) ? $data->employee->name : '' }}
+                                @if ($showProbationBadge)
+                                    <span class="probation-capsule">{{ __('Probation') }}</span>
+                                @endif
+                            </td>
                             <td>{{ !empty($data) ? date('F-Y', strtotime($data->for_month_of)) : '' }}</td>
-                            <td>{{ number_format($attendanceMonthDays, 0) }}</td>
+                            <td>{{ number_format($attendanceEmployeeWorkingDays, 0) }}</td>
                             <td>{{ number_format($attendanceHolidays, 0) }}</td>
                             <td>{{ number_format($attendanceWorkingDays, 0) }}</td>
                             <td><input type="text" style="width: 50px;"
@@ -518,16 +551,16 @@
                             <td><input type="text" style="width: 50px;" value="{{ !empty($data) ? $data->leave : '' }}"
                                     readonly>
                             </td>
-                            <td>{{ number_format($attendanceEmployeeWorkingDays, 0) }}</td>
+                            <td>{{ number_format($attendanceMonthDays, 0) }}</td>
                             <td>
                                 @if (!empty($data) && $data->gm_final == 1)
-                                    <span class="badge bg-success">{{ __('GM Final') }}</span>
+                                    <span class="badge bg-success">{{ __('HR Final') }}</span>
                                 @elseif (!empty($data) && $data->sal_final == 1)
                                     <span class="badge bg-primary">{{ __('Salary Final') }}</span>
                                 @elseif (!empty($data) && $data->adm_final == 1)
                                     <span class="badge bg-warning text-dark">{{ __('Finalized') }}</span>
                                 @elseif (!empty($data) && $data->accountant_finalize == 1)
-                                    <span class="badge bg-info">{{ __('Fwd to Admin') }}</span>
+                                    <span class="badge bg-info">{{ __('Fwd to HR') }}</span>
                                 @else
                                     <span class="badge bg-light text-dark">{{ __('Generated') }}</span>
                                 @endif

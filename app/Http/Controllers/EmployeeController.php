@@ -172,7 +172,11 @@ class EmployeeController extends Controller
                 return $dompdf->stream('employee_directory.pdf', ['Attachment' => false]);
             }
 
-            $employees = $query->orderBy('id', 'Desc')->get();
+            if (empty($request->sort)) {
+                $query->orderBy('name', 'asc');
+            }
+
+            $employees = $query->get();
             return view('employee.index', compact('employees', 'branches', 'departments', 'designations'));
 
         } else {
