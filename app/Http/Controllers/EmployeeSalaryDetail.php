@@ -555,6 +555,7 @@ class EmployeeSalaryDetail extends Controller
                 $designations->prepend('All', 'all');
                 $query = Employee::with([
                     'employee_monthly_salaries' => function ($query) use ($dateFrom, $dateTo) {
+                        $query->where('on_hold', 0);
                         if ($dateFrom && $dateTo) {
                             $fromDate = Carbon::parse($dateFrom)->startOfDay();
                             $toDate = Carbon::parse($dateTo)->endOfDay();
@@ -586,6 +587,7 @@ class EmployeeSalaryDetail extends Controller
                 $designations->prepend('All', 'all');
                 $query = Employee::with([
                     'employee_monthly_salaries' => function ($query) use ($dateFrom, $dateTo) {
+                        $query->where('on_hold', 0);
                         if ($dateFrom && $dateTo) {
                             $fromDate = Carbon::parse($dateFrom)->startOfDay();
                             $toDate = Carbon::parse($dateTo)->endOfDay();
@@ -697,7 +699,7 @@ class EmployeeSalaryDetail extends Controller
                     'employee.designation',
                     'employee.user',
                     'salarydepartment'
-                )->where('created_by', '=', \Auth::user()->creatorId());
+                )->where('on_hold', 0)->where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $query = EmployeeMonthlySalary::with(
                     'employee',
@@ -728,7 +730,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -813,7 +815,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                    $query->where('paymode', $paymode);
+                    $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get();
         }
@@ -877,7 +879,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('created_by', '=', \Auth::user()->creatorId());
+                ])->where('on_hold', 0)->where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -895,7 +897,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('owned_by', '=', \Auth::user()->ownedId());
+                ])->where('on_hold', 0)->where('owned_by', '=', \Auth::user()->ownedId());
             }
 
             if ($date) {
@@ -918,7 +920,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -1038,7 +1040,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -1110,7 +1112,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('created_by', '=', \Auth::user()->creatorId());
+                ])->where('on_hold', 0)->where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -1128,7 +1130,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('owned_by', '=', \Auth::user()->ownedId());
+                ])->where('on_hold', 0)->where('owned_by', '=', \Auth::user()->ownedId());
             }
 
             if ($date) {
@@ -1151,7 +1153,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -1225,6 +1227,7 @@ class EmployeeSalaryDetail extends Controller
     
             if (!empty($rowIds)) {
                 $rowQ = \App\Models\EmployeeMonthlySalary::query();
+                $rowQ->where('on_hold', 0);
                 if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
                     $rowQ->where('created_by', \Auth::user()->creatorId());
                 } else {
@@ -1253,7 +1256,7 @@ class EmployeeSalaryDetail extends Controller
                               ->whereMonth('for_month_of', $toDate->month);
                         }
                     },
-                ])->where('created_by', \Auth::user()->creatorId());
+                ])->where('on_hold', 0)->where('created_by', \Auth::user()->creatorId());
             } else {
                 $salaryHeads = \App\Models\SalaryHeads::where('owned_by', \Auth::user()->ownedId())->get();
                 $query = \App\Models\EmployeeMonthlySalary::with([
@@ -1270,7 +1273,7 @@ class EmployeeSalaryDetail extends Controller
                               ->whereMonth('for_month_of', $toDate->month);
                         }
                     },
-                ])->where('owned_by', \Auth::user()->ownedId());
+                ])->where('on_hold', 0)->where('owned_by', \Auth::user()->ownedId());
             }
         
         if ($toDate) {
@@ -1294,7 +1297,7 @@ class EmployeeSalaryDetail extends Controller
                 $query->whereHas('employee', fn($q) => $q->where('designation_id', $designation_id));
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
     
             $datas = $query->get()
@@ -1317,6 +1320,7 @@ class EmployeeSalaryDetail extends Controller
             $reportEmployeeIds = $datas->pluck('employee_id')->filter()->unique()->values();
 
             $salarySlipYtdTotals = \App\Models\EmployeeMonthlySalary::whereIn('employee_id', $reportEmployeeIds)
+                ->where('on_hold', 0)
                 ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
                 ->selectRaw('
                     employee_id,
@@ -1357,6 +1361,7 @@ class EmployeeSalaryDetail extends Controller
 
             $salarySlipHeadYtdTotals = \App\Models\EmployeeMonthlySalaryHeads::whereIn('employee_id', $reportEmployeeIds)
                 ->whereBetween('salary_date', [$ytdStart, $ytdEnd])
+                ->whereNotIn('sal_id', \App\Models\EmployeeMonthlySalary::where('on_hold', 1)->select('id'))
                 ->selectRaw('employee_id, head_id, SUM(head_value) as total')
                 ->groupBy('employee_id', 'head_id')
                 ->get()
@@ -1649,6 +1654,10 @@ class EmployeeSalaryDetail extends Controller
                     ->first();
                 //    dd($salary);
                 if ($salary) {
+                    if (!empty($salary->carried_to_salary_id)) {
+                        $errors[] = __('Salary already carried to another month for employee ID: ' . $id);
+                        continue;
+                    }
                     $salary->on_hold == 1 ? $salary->on_hold = 0 : $salary->on_hold = 1;
                     $salary->save();
                 } else {
@@ -1656,7 +1665,12 @@ class EmployeeSalaryDetail extends Controller
                 }
             }
             \DB::commit();
-            return response()->json(['success' => true, 'message' => __('Hold/Unhold status updated successfully.')]);
+            return response()->json([
+                'success' => empty($errors),
+                'message' => empty($errors)
+                    ? __('Hold/Unhold status updated successfully.')
+                    : implode(' ', $errors),
+            ]);
         } catch (\Exception $e) {
             \DB::rollback();
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
@@ -1815,7 +1829,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('created_by', '=', \Auth::user()->creatorId());
+                ])->where('on_hold', 0)->where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -1832,7 +1846,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('owned_by', '=', \Auth::user()->ownedId());
+                ])->where('on_hold', 0)->where('owned_by', '=', \Auth::user()->ownedId());
             }
 
             if ($date) {
@@ -1855,7 +1869,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -1948,7 +1962,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('created_by', '=', \Auth::user()->creatorId());
+                ])->where('on_hold', 0)->where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -1966,7 +1980,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('owned_by', '=', \Auth::user()->ownedId());
+                ])->where('on_hold', 0)->where('owned_by', '=', \Auth::user()->ownedId());
             }
 
             if ($date) {
@@ -1989,7 +2003,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -2114,7 +2128,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {
@@ -2176,7 +2190,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get();
         }
@@ -2214,7 +2228,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('created_by', '=', \Auth::user()->creatorId());
+                ])->where('on_hold', 0)->where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $salaryHeads = SalaryHeads::where('owned_by', '=', \Auth::user()->ownedId())->get();
                 $query = EmployeeMonthlySalary::with([
@@ -2232,7 +2246,7 @@ class EmployeeSalaryDetail extends Controller
                                 ->whereMonth('for_month_of', $toDate->month);
                         });
                     },
-                ])->where('owned_by', '=', \Auth::user()->ownedId());
+                ])->where('on_hold', 0)->where('owned_by', '=', \Auth::user()->ownedId());
             }
 
             if ($date) {
@@ -2255,7 +2269,7 @@ class EmployeeSalaryDetail extends Controller
                 });
             }
             if (!empty($paymode)) {
-                $query->where('paymode', $paymode);
+                $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
             $datas = $query->get()
                 ->sortBy(function ($salary) {

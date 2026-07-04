@@ -162,8 +162,9 @@
                     $total_cost =
                         (!empty($data->pessi_employer) ? @$data->pessi_employer : '0') +
                         (!empty($data->eobi_employer) ? @$data->eobi_employer : '0');
+                    $display_gross = (!empty($data->gross) ? @$data->gross : 0) + (!empty($data->stop_sal) ? @$data->stop_sal : 0);
                     $cost_to_comp =
-                        (!empty($total_cost) ? @$total_cost : '0') + (!empty($data->gross) ? @$data->gross : '0');
+                        (!empty($total_cost) ? @$total_cost : '0') + $display_gross;
 
                     $net_deduction =
                         (!empty($data->emp_sec) ? @$data->emp_sec : '0') +
@@ -172,16 +173,15 @@
                         (!empty($data->dedu) ? @$data->dedu : '0') +
                         (!empty($payscale->advance) ? @$payscale->advance : '0') +
                         (!empty($data->eobi) ? @$data->eobi : '0') +
-                        (!empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0') +
-                        (!empty($data->stop_sal) ? @$data->stop_sal : '0');
+                        (!empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0');
 
-                    $net = (!empty($data->gross) ? @$data->gross : '0') - $net_deduction;
-                    $gross_tot += $data->gross;
+                    $net = $display_gross - $net_deduction;
+                    $gross_tot += $display_gross;
                     $cast_tot += $cost_to_comp;
                     $net_tot += $net;
                 @endphp
                 <td>
-                    {{ !empty($data->gross) ? @$data->gross : '0' }}</td>
+                    {{ $display_gross }}</td>
                 <td>{{ !empty($net) ? @$net : '0' }}</td>
                 <td>
                     {{ !empty($cost_to_comp) ? @$cost_to_comp : '0' }}</td>

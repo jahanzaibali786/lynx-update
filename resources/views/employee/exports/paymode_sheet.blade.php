@@ -34,11 +34,12 @@
         @php
             $gross = 0;
             $tot_pay = 0;
+            $referenceDate = now()->format('d-M');
         @endphp
         @foreach ($datas as $key => $data)
             @php
                 $tot_pay += !empty($data->net_pay) ? $data->net_pay : '';
-                $gross += $data->gross;
+                $gross += ($data->gross ?? 0) + ($data->stop_sal ?? 0);
                 $payscale = $data->employee->employee_payscale_details->last();
 
             @endphp
@@ -57,8 +58,7 @@
                     {{ !empty($data->net_pay) ? $data->net_pay : '' }}</td>
 
                 <td>
-                    {{ !empty($data->salary_date) ? date('d-M', strtotime($data->salary_date)) : '' }} -
-                    {{ !empty($data->id) ? $data->id : '' }}
+                    {{ $referenceDate }}-{{ !empty($data->id) ? $data->id : '' }}
                 </td>
                 <td>
                     {{ !empty($data->employee->email) ? @$data->employee->email : '' }}</td>

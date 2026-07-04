@@ -78,7 +78,7 @@ class DeductionSheetExport implements FromArray, WithColumnFormatting, WithEvent
                 $row[] = $data->employee->name ?? '';
                 $row[] = $data->employee->designation->name ?? '';
                 $row[] = Date::PHPToExcel(new \DateTime($data->employee->company_doj));
-                $row[] = $data->gross ?? 0;
+                $row[] = ($data->gross ?? 0) + ($data->stop_sal ?? 0);
 
                 $row[] = $data->emp_sec ?? 0;
                 $row[] = $data->it ?? 0;

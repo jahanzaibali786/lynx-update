@@ -1,6 +1,38 @@
 @php
     $fmt = fn ($value) => $value === '' || $value === null ? '' : number_format((float) $value);
     $money = fn ($value) => number_format((float) ($value ?? 0));
+    $amountWords = function ($value) {
+        $value = (int) round((float) $value);
+        if ($value === 0) {
+            return 'zero only';
+        }
+
+        $ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        $tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+        $underThousand = function ($number) use (&$underThousand, $ones, $tens) {
+            $number = (int) $number;
+            if ($number < 20) {
+                return $ones[$number];
+            }
+            if ($number < 100) {
+                return trim($tens[intdiv($number, 10)] . ' ' . $ones[$number % 10]);
+            }
+            return trim($ones[intdiv($number, 100)] . ' hundred' . ($number % 100 ? ' and ' . $underThousand($number % 100) : ''));
+        };
+
+        $parts = [];
+        foreach ([10000000 => 'crore', 100000 => 'lakh', 1000 => 'thousand'] as $divider => $label) {
+            if ($value >= $divider) {
+                $parts[] = $underThousand(intdiv($value, $divider)) . ' ' . $label;
+                $value %= $divider;
+            }
+        }
+        if ($value > 0) {
+            $parts[] = (!empty($parts) && $value < 100 ? 'and ' : '') . $underThousand($value);
+        }
+
+        return trim(implode(' ', $parts)) . ' only';
+    };
     $monthLabel = !empty($requestdata['date'] ?? null)
         ? \Carbon\Carbon::parse($requestdata['date'])->format('F Y')
         : '';
@@ -156,6 +188,17 @@
         text-align: right;
     }
 
+    .disbursed-inline {
+        font-weight: bold;
+        text-align: right;
+        text-decoration: underline;
+        white-space: nowrap;
+    }
+
+    .one-line {
+        white-space: nowrap;
+    }
+
     .dotted-separator {
         border-bottom: 1px dotted #000;
         height: 8px;
@@ -197,7 +240,9 @@
             ];
         }
 
-        $grossPm = (float) ($data->gross ?? 0);
+        $baseGrossPm = (float) ($data->gross ?? 0);
+        $stopSalary = (float) ($data->stop_sal ?? 0);
+        $grossPm = $baseGrossPm;
         $grossYtd = (float) ($employeeYtd['gross'] ?? 0);
         $otherPm = (float) ($data->conv ?? 0);
         $miscPm = (float) ($data->misc ?? 0);
@@ -207,8 +252,6 @@
         $otherAllowanceYtd = (float) ($employeeYtd['other'] ?? 0);
         $enticementPm = $otherPm + $miscPm + $otherAllowancePm;
         $enticementYtd = $otherYtd + $miscYtd + $otherAllowanceYtd;
-        $stopSalary = (float) ($data->stop_sal ?? 0);
-
         $earnings = [
             ['label' => 'Gross Salary', 'pm' => 'P.M', 'ytd' => 'Y.T.D', 'head' => true, 'total' => false],
             ...array_map(fn ($row) => $row + ['head' => false, 'total' => false], $grossRows),
@@ -218,7 +261,7 @@
             ['label' => 'Drns, Misc', 'pm' => $miscPm, 'ytd' => $miscYtd, 'head' => false, 'total' => false],
             ['label' => 'Other Allowance', 'pm' => $otherAllowancePm, 'ytd' => $otherAllowanceYtd, 'head' => false, 'total' => false],
             ['label' => 'Net Gross Rs.', 'pm' => $grossPm + $enticementPm, 'ytd' => '', 'head' => true, 'total' => false],
-            ['label' => 'Stop Salary (' . $salDate->format('M, y') . ')', 'pm' => $stopSalary, 'ytd' => '', 'head' => false, 'total' => false],
+            ['label' => 'Salary (' . $salDate->format('M, y') . ')', 'pm' => $stopSalary, 'ytd' => '', 'head' => false, 'total' => false],
         ];
 
         $ytd = fn ($field) => (float) ($employeeYtd[$field] ?? 0);
@@ -230,7 +273,6 @@
             ['label' => 'Income Tax', 'pm' => (float) ($data->it ?? 0), 'ytd' => $ytd('it'), 'head' => false, 'total' => false],
             ['label' => 'Other Deduction', 'pm' => (float) ($data->dedu ?? 0), 'ytd' => $ytd('dedu'), 'head' => false, 'total' => false],
             ['label' => 'Advance', 'pm' => (float) ($data->sal_advance ?? 0), 'ytd' => $ytd('sal_advance'), 'head' => false, 'total' => false],
-            ['label' => 'Stop Salary', 'pm' => 0, 'ytd' => '-', 'head' => false, 'total' => false],
             ['label' => 'Training Course', 'pm' => (float) ($data->tra_course ?? 0), 'ytd' => $ytd('tra_course'), 'head' => false, 'total' => false],
             ['label' => 'Loan Emp Security', 'pm' => (float) ($data->loan ?? 0), 'ytd' => $ytd('loan'), 'head' => false, 'total' => false],
         ];
@@ -238,19 +280,19 @@
         $deductionYtd = array_sum(array_map(fn ($row) => is_numeric($row['ytd']) ? (float) $row['ytd'] : 0, $deductions));
         $empSecYtd = $ytd('emp_sec');
         $contributions = [
-            ['label' => 'Employee Security Balance Y.T.D', 'amount' => '', 'head' => true, 'total' => false],
+            ['label' => 'Employee Security Balance', 'period' => '', 'amount' => 'Y.T.D', 'head' => true, 'total' => false],
             ['label' => 'Employee Security', 'amount' => $empSecYtd, 'head' => false, 'total' => false],
             ['label' => 'Net Balance Rs.', 'amount' => $empSecYtd, 'head' => false, 'total' => true],
-            ['label' => 'Employer Contribution P.M', 'amount' => '', 'head' => true, 'total' => false],
+            ['label' => 'Employer Contribution', 'period' => 'P.M', 'amount' => '', 'head' => true, 'total' => false],
             ['label' => 'Eobi Contribution', 'amount' => (float) ($data->eobi_employer ?? 0), 'head' => false, 'total' => false],
             ['label' => 'Pessi Contribution', 'amount' => (float) ($data->pessi_employer ?? 0), 'head' => false, 'total' => false],
             ['label' => 'Child Concession', 'amount' => (float) ($data->chaild_con ?? 0), 'head' => false, 'total' => false],
         ];
-        $ctc = $grossPm + (float) ($data->eobi_employer ?? 0) + (float) ($data->pessi_employer ?? 0) + (float) ($data->chaild_con ?? 0);
+        $ctc = $grossPm + $stopSalary + (float) ($data->eobi_employer ?? 0) + (float) ($data->pessi_employer ?? 0) + (float) ($data->chaild_con ?? 0);
         $rowCount = max(count($earnings), count($deductions), count($contributions));
         while (count($earnings) < $rowCount) $earnings[] = ['label' => '', 'pm' => '', 'ytd' => '', 'head' => false, 'total' => false];
         while (count($deductions) < $rowCount) $deductions[] = ['label' => '', 'pm' => '', 'ytd' => '', 'head' => false, 'total' => false];
-        while (count($contributions) < $rowCount) $contributions[] = ['label' => '', 'amount' => '', 'head' => false, 'total' => false];
+        while (count($contributions) < $rowCount) $contributions[] = ['label' => '', 'period' => '', 'amount' => '', 'head' => false, 'total' => false];
         $disbursed = $grossPm + $enticementPm + $stopSalary - $deductionPm;
     @endphp
 
@@ -263,9 +305,9 @@
                 <col style="width: 17.5%;">
                 <col style="width: 8.5%;">
                 <col style="width: 8.5%;">
-                <col style="width: 22%;">
-                <col style="width: 2%;">
-                <col style="width: 7%;">
+                <col style="width: 17.5%;">
+                <col style="width: 8.5%;">
+                <col style="width: 5%;">
             </colgroup>
             <tr>
                 <td colspan="7" class="school-title"> <img src="{{ asset('assets/images/lynxheadertext.jpg') }}" class="report-title-image" alt="The Lynx School" title="The Lynx School"></td>
@@ -317,7 +359,7 @@
                 <tr>
                     @if ($earnings[$i]['head'])
                         <td class="head-row">{{ $earnings[$i]['label'] }}</td>
-                        <td class="head-row num">{{ is_numeric($earnings[$i]['pm']) ? $fmt($earnings[$i]['pm']) : $earnings[$i]['pm'] }}</td>
+                        <td class="head-row center">{{ is_numeric($earnings[$i]['pm']) ? $fmt($earnings[$i]['pm']) : $earnings[$i]['pm'] }}</td>
                         <td class="head-row center">{{ is_numeric($earnings[$i]['ytd']) ? $fmt($earnings[$i]['ytd']) : $earnings[$i]['ytd'] }}</td>
                     @else
                         <td class="{{ $earnings[$i]['total'] ? 'total-cell' : 'left-border right-border label' }}">{{ $earnings[$i]['label'] }}</td>
@@ -351,9 +393,8 @@
                 <td class="total-cell" colspan="2">Cost to Company</td><td class="total-cell num">{{ $money($ctc) }}</td>
             </tr>
             <tr>
-                <td colspan="5" class="total-cell label">Total Amount Disbursed Rs.</td>
-                <td class="disbursed">{{ $money($disbursed) }}</td>
-                <td colspan="3" class="total-cell"></td>
+                <td colspan="9" class="total-cell label one-line">Total Amount Disbursed Rs. 
+                <span class="total-cell disbursed-inline one-line">{{ $money($disbursed) }}/- </span> "{{ $amountWords($disbursed) }}"</td>
             </tr>
             <tr><td colspan="9" class="muted">This is a system generated document and does not require a signature</td></tr>
             @if (!$loop->last)

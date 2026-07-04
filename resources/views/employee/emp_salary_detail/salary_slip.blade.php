@@ -105,7 +105,6 @@
                     'P.E.S.S.I' => !empty($data->pessi) ? $data->pessi : '0',
                     'Income Tax' => !empty($data->it) ? $data->it : '0',
                     'Advance' => !empty($payscale->advance) ? $payscale->advance : '0',
-                    'Stop Salary' => !empty($data->stop_sal) ? $data->stop_sal : '0',
                     'Training Course' => !empty($payscale->training) ? $payscale->training : '0',
                     'Others' => !empty($payscale->other) ? $payscale->other : '0',
                     'Loan Emp Security' => !empty($data->loan_emp_sec) ? $data->loan_emp_sec : '0',
@@ -163,7 +162,7 @@
                                 {{ !empty($data->other1) ? @$data->other1 : '0' }}</td>
                         </tr>
                         <tr>
-                            <td style="border: 1px solid black; padding: 8px;">Stop Salary</td>
+                            <td style="border: 1px solid black; padding: 8px;">Salary ({{ \Carbon\Carbon::parse($data->salary_date)->format('M, y') }})</td>
                             <td style="border: 1px solid black; padding: 8px;">Rs.
                                 {{ !empty($data->stop_sal) ? @$data->stop_sal : '0' }}</td>
                         </tr>
@@ -177,7 +176,7 @@
                         <tr>
                             <td style="border: 1px solid black; padding: 8px;"><b>Gross Pay</b></td>
                             <td style="border: 1px solid black; padding: 8px;">Rs.
-                                {{ !empty($data->gross) ? @$data->gross : '0' }}</td>
+                                {{ (float) ($data->gross ?? 0) }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -191,7 +190,7 @@
                     (!empty($data->pessi) ? @$data->pessi : '0') +
                     (!empty($data->dedu) ? @$data->dedu : '0') +
                     (!empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0');
-                $total_payable = (!empty($data->gross) ? @$data->gross : '0') - $net_deduction;
+                $total_payable = (((float) ($data->gross ?? 0)) + ((float) ($data->stop_sal ?? 0))) - $net_deduction;
             @endphp
             <div style="display: table-cell; width: 50%; text-align: center; vertical-align: middle;">
                 <table style="width: 100%; border-collapse: collapse;">

@@ -47,7 +47,8 @@
         @endphp
         @foreach ($datas as $key => $data)
             @php
-                $tot_gross += !empty($data->gross) ? $data->gross : 0;
+                $display_gross = (!empty($data->gross) ? $data->gross : 0) + (!empty($data->stop_sal) ? $data->stop_sal : 0);
+                $tot_gross += $display_gross;
                 $tot_emp_sec += !empty($data->emp_sec) ? $data->emp_sec : 0;
                 $tot_it += !empty($data->it) ? $data->it : 0;
                 $tot_sal_advance += !empty($data->sal_advance) ? $data->sal_advance : 0;
@@ -68,7 +69,7 @@
                 <td>
                     {{ !empty($data->employee->designation->name) ? @$data->employee->designation->name : '' }}</td>
                 <td>
-                    {{ !empty($data->gross) ? $data->gross : 0 }}</td>
+                    {{ $display_gross }}</td>
                 <td>
                     {{ !empty($data->emp_sec) ? $data->emp_sec : 0 }}</td>
                 <td>{{ !empty($data->it) ? $data->it : 0 }}
@@ -95,7 +96,7 @@
                         (!empty($data->emp_sec_loan) ? $data->emp_sec_loan : 0) +
                         (!empty($data->loan) ? $data->loan : 0) +
                         (!empty($data->dedu) ? $data->dedu : 0);
-                    $net = (!empty($data->gross) ? $data->gross : 0) - $total_deduction;
+                    $net = $display_gross - $total_deduction;
                     $tot_dec += $total_deduction;
                 @endphp
                 <td>{{ $total_deduction }}</td>

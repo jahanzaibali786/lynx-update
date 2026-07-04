@@ -980,11 +980,11 @@
                                             'Bank Deposit AF' => 'Bank Deposit AF',
                                             'Demand Draft' => 'Demand Draft',
                                             'Cheque' => 'Cheque',
-                                            'Bank Deposite' => 'Bank Deposite',
+                                            'Bank' => 'Bank Deposite',
                                             'Cash' => 'Cash',
                                         ],
                                         isset($_GET['paymode']) ? $_GET['paymode'] : '',
-                                        ['class' => 'form-control'],
+                                        ['class' => 'form-control select custom-select'],
                                     ) }}
                                 </div>
                             </div>
@@ -1199,7 +1199,7 @@ foreach ($heads as $scale_head) {
                             <td>
                                 {{ !empty(@$data->employeemonthlysalary) ? (($data->employeemonthlysalary->drns ?? 0) + ($data->employeemonthlysalary->misc ?? 0)) : '0' }}
                             </td>
-                            <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->gross : '0' }}
+                            <td>{{ !empty(@$data->employeemonthlysalary) ? (($data->employeemonthlysalary->gross ?? 0) + ($data->employeemonthlysalary->stop_sal ?? 0)) : '0' }}
                             </td>
                             <td>{{ !empty(@$arrears) ? $arrears : '0' }}</td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->emp_sec : '0' }}

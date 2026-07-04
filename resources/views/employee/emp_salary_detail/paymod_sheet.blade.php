@@ -31,7 +31,7 @@
                 <p>Month : <span>{{ \Carbon\Carbon::parse($requestdata['date'])->format('F-Y') }}</span> </p>
             </b>
             <b>
-                <p>Date : <span>{!! \Carbon\Carbon::parse(@$requestdata['date'])->format('d-F-Y') !!}</span> </p>
+                <p>Date : <span>{{ now()->format('d-F-Y') }}</span> </p>
             </b>
         </div>
         <table style="border: 1px solid #000; border-collapse: collapse; width: 100% !important;">
@@ -62,7 +62,7 @@
                 @foreach ($datas as $key => $data)
                     @php
                         $tot_pay += !empty($data->net_pay) ? $data->net_pay : '';
-                        $gross += $data->gross;
+                        $gross += ($data->gross ?? 0) + ($data->stop_sal ?? 0);
                         $payscale = $data->employee->employee_payscale_details->last();
 
                     @endphp

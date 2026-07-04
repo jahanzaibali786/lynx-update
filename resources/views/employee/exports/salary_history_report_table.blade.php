@@ -160,7 +160,7 @@
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->stop_sal) ? @$salary->stop_sal : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
-                        {{ !empty(@$salary->gross) ? @$salary->gross : '0' }}</td>
+                        {{ ((float) (@$salary->gross ?? 0)) + ((float) (@$salary->stop_sal ?? 0)) }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->emp_sec) ? @$salary->emp_sec : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
@@ -172,20 +172,19 @@
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->other) ? @$salary->other : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
-                        {{ !empty(@$salary->stop_sal) ? @$salary->stop_sal : '0' }}</td>
+                        0</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$payscale->pessi) ? @$payscale->pessi : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->loan_adj) ? @$salary->loan_adj : '0' }}</td>
                     @php
                         $total_deduction =
-                            @$salary->gross -
+                            (((float) (@$salary->gross ?? 0)) + ((float) (@$salary->stop_sal ?? 0))) -
                             (@$salary->emp_sec +
                                 @$salary->it +
                                 @$payscale->eobi +
                                 @$salary->loan +
                                 @$salary->other +
-                                @$salary->stop_sal +
                                 @$salary->loan_adj +
                                 @$payscale->pessi);
                     @endphp

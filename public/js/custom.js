@@ -250,12 +250,14 @@ $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true
         title = (toggleTitle != undefined && toggleTitle !== 'tooltip') ? toggleTitle : '';
     }
 
-    $('.modal-dialog').removeClass('modal-xl');
-    var size = ($(this).data('size') == '') ? 'md' : $(this).data('size');
+    $('#commonModal .modal-dialog').removeClass('modal-sm modal-md modal-lg modal-xl modal-fullscreen');
+    var rawSize = $(this).data('size');
+    var size = (!rawSize) ? 'md' : String(rawSize);
+    var modalSizeClass = size.indexOf('modal-') === 0 ? size : 'modal-' + size;
 
     var url = $(this).data('url');
     $("#commonModal .modal-title").html(title);
-    $("#commonModal .modal-dialog").addClass('modal-' + size);
+    $("#commonModal .modal-dialog").addClass(modalSizeClass);
 
     if ($('#vc_name_hidden').length > 0) {
         data['vc_name'] = $('#vc_name_hidden').val();
@@ -650,12 +652,14 @@ $(document).on('click', 'a[data-ajax-popup-over="true"], button[data-ajax-popup-
         id = $(validate).val();
     }
     var title_over = $(this).data('title');
-    $('#commonModalOver .modal-dialog').removeClass('modal-lg');
-    var size_over = ($(this).data('size') == '') ? 'md' : $(this).data('size');
+    $('#commonModalOver .modal-dialog').removeClass('modal-sm modal-md modal-lg modal-xl modal-fullscreen');
+    var rawSizeOver = $(this).data('size');
+    var size_over = (!rawSizeOver) ? 'md' : String(rawSizeOver);
+    var modalSizeOverClass = size_over.indexOf('modal-') === 0 ? size_over : 'modal-' + size_over;
 
     var url = $(this).data('url');
     $("#commonModalOver .modal-title").html(title_over);
-    $("#commonModalOver .modal-dialog").addClass('modal-' + size_over);
+    $("#commonModalOver .modal-dialog").addClass(modalSizeOverClass);
     $.ajax({
         url: url + '?id=' + id,
         success: function (data) {

@@ -23,7 +23,7 @@
 @endsection
 
 @section('content')
-    {{ Form::model($productService, ['route' => ['productservice.update', $productService->id], 'method' => 'PUT', 'enctype' => 'multipart/form-data']) }}
+    {{ Form::model($productService, ['route' => ['productservice.update', $productService->id], 'method' => 'PUT', 'enctype' => 'multipart/form-data', 'class' => 'product-service-ajax-form']) }}
     <div class="row">
         <div class="col-12">
             <div class="card">
@@ -63,26 +63,22 @@
                             {{ Form::label('unit_id', __('Unit of Measure'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
                             {{ Form::select('unit_id', $unit, old('unit_id', $productService->unit_id), ['class' => 'form-control select', 'id' => 'unit_id', 'required' => 'required']) }}
                             <div class="text-xs">
-                                {{ __('Please add constant unit. ') }}<a href="#" data-url="{{ route('product-unit.create') }}" data-ajax-popup="true" data-bs-toggle="{{ __('Create New Unit') }}" class="add-unit-modal-btn"><b>{{ __('Add Unit') }}</b></a>
+                                {{ __('Please add constant unit. ') }}<a href="#" data-url="{{ route('product-unit.create') }}" data-size="md" data-ajax-popup-over="true" data-title="{{ __('Create New Unit') }}" class="add-unit-modal-btn"><b>{{ __('Add Unit') }}</b></a>
                             </div>
                         </div>
                         <div class="form-group col-md-4">
                             {{ Form::label('category_id', __('Category'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
                             {{ Form::select('category_id', $category, old('category_id', $productService->category_id), ['class' => 'form-control select', 'id' => 'category_id', 'required' => 'required']) }}
                             <div class="text-xs">
-                                {{ __('Please add constant category. ') }}<a href="#" data-url="{{ route('product-category.create') }}" data-ajax-popup="true" data-bs-toggle="{{ __('Create New Category') }}" class="add-category-modal-btn"><b>{{ __('Add Category') }}</b></a>
+                                {{ __('Please add constant category. ') }}<a href="#" data-url="{{ route('product-category.create') }}" data-size="md" data-ajax-popup-over="true" data-title="{{ __('Create New Category') }}" class="add-category-modal-btn"><b>{{ __('Add Category') }}</b></a>
                             </div>
                         </div>
                         <div class="form-group col-md-4">
                             {{ Form::label('sub_category_id', __('SubCategory'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
                             {{ Form::select('sub_category_id', [], old('sub_category_id', $productService->sub_category_id), ['class' => 'form-control select', 'id' => 'sub_category_id', 'required' => 'required']) }}
                             <div class="text-xs">
-                                {{ __('Please add constant sub category. ') }}<a href="#" data-url="{{ route('product-sub-category.create') }}" data-ajax-popup="true" data-bs-toggle="{{ __('Create New SubCategory') }}" class="add-subcategory-modal-btn"><b>{{ __('Add Subcategory') }}</b></a>
+                                {{ __('Please add constant sub category. ') }}<a href="#" data-url="{{ route('product-sub-category.create') }}" data-size="md" data-ajax-popup-over="true" data-title="{{ __('Create New SubCategory') }}" class="add-subcategory-modal-btn"><b>{{ __('Add Subcategory') }}</b></a>
                             </div>
-                        </div>
-                        <div class="form-group col-md-4">
-                            {{ Form::label('tax_id', __('Tax'), ['class' => 'form-label']) }}
-                            {{ Form::select('tax_id[]', $tax, old('tax_id', $productService->tax_id), ['class' => 'form-control select2', 'id' => 'choices-multiple1', 'multiple' => 'multiple']) }}
                         </div>
                         <div class="form-group col-md-4">
                             {{ Form::label('pro_image', __('Product Image'), ['class' => 'form-label']) }}
@@ -110,7 +106,7 @@
                     </div>
                     <div class="form-group">
                         {{ Form::label('expense_chartaccount_id', __('COGS Account'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
-                        {{ Form::select('expense_chartaccount_id', $expenseChartAccounts, old('expense_chartaccount_id', $productService->expense_chartaccount_id), ['class' => 'form-control select custom-select', 'id' => 'expense_chartaccount_id', 'required' => 'required']) }}
+                        {{ Form::select('expense_chartaccount_id', $expenseChartAccounts, old('expense_chartaccount_id', $productService->expense_chartaccount_id), ['class' => 'form-control select custom-select', 'id' => 'expense_chartaccount_id', 'data-custom-required' => '1']) }}
                     </div>
                 </div>
             </div>
@@ -132,7 +128,7 @@
                     </div>
                     <div class="form-group">
                         {{ Form::label('sale_chartaccount_id', __('Income Account'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
-                        {{ Form::select('sale_chartaccount_id', $incomeChartAccounts, old('sale_chartaccount_id', $productService->sale_chartaccount_id), ['class' => 'form-control select custom-select', 'id' => 'sale_chartaccount_id', 'required' => 'required']) }}
+                        {{ Form::select('sale_chartaccount_id', $incomeChartAccounts, old('sale_chartaccount_id', $productService->sale_chartaccount_id), ['class' => 'form-control select custom-select', 'id' => 'sale_chartaccount_id', 'data-custom-required' => '1']) }}
                     </div>
                 </div>
             </div>
@@ -147,7 +143,7 @@
                     <div class="row">
                         <div class="form-group col-md-6">
                             {{ Form::label('inventory_asset_account_id', __('Inventory Asset Account'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
-                            {{ Form::select('inventory_asset_account_id', $inventoryAssetAccounts, old('inventory_asset_account_id', $productService->inventory_asset_account_id), ['class' => 'form-control select custom-select', 'id' => 'inventory_asset_account_id', 'required' => 'required']) }}
+                            {{ Form::select('inventory_asset_account_id', $inventoryAssetAccounts, old('inventory_asset_account_id', $productService->inventory_asset_account_id), ['class' => 'form-control select custom-select', 'id' => 'inventory_asset_account_id', 'data-custom-required' => '1']) }}
                         </div>
                         @if (!$customFields->isEmpty())
                             <div class="form-group col-md-6">
@@ -168,7 +164,14 @@
 
     <script src="{{ asset('public/acron/select2.js') }}"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        (function() {
+            function initProductServiceEditForm() {
+            const productForm = document.querySelector('.product-service-ajax-form');
+            if (!productForm || productForm.dataset.productEditReady === '1') {
+                return;
+            }
+            productForm.dataset.productEditReady = '1';
+
             const categorySelect = document.getElementById('category_id');
             const subCategorySelect = document.getElementById('sub_category_id');
             const selectedSubCategory = @json(old('sub_category_id', $productService->sub_category_id));
@@ -176,14 +179,6 @@
             const parentSelect = document.getElementById('parent_id');
             const imageInput = document.getElementById('pro_image');
             const imagePreview = document.getElementById('image');
-
-            if (window.jQuery && jQuery.fn.select2) {
-                jQuery('#choices-multiple1').select2({
-                    width: '100%',
-                    placeholder: '{{ __('Select Tax') }}',
-                    allowClear: true
-                });
-            }
 
             function toggleParentItem() {
                 if (!subItemCheckbox || !parentSelect) {
@@ -264,11 +259,11 @@
                     if (skuDiv) skuDiv.className = 'form-group col-md-4';
                     
                     if (inventoryInfoDiv) inventoryInfoDiv.classList.add('d-none');
-                    if (inventoryAssetSelect) inventoryAssetSelect.removeAttribute('required');
+                    if (inventoryAssetSelect) inventoryAssetSelect.dataset.customRequired = '0';
                     
                     if (purchaseInfoDiv) purchaseInfoDiv.classList.add('d-none');
                     if (purchasePriceInput) purchasePriceInput.removeAttribute('required');
-                    if (expenseChartAccountSelect) expenseChartAccountSelect.removeAttribute('required');
+                    if (expenseChartAccountSelect) expenseChartAccountSelect.dataset.customRequired = '0';
                     
                 } else if (type === 'non_inventory_part') {
                     if (manufacturerPartNumDiv) manufacturerPartNumDiv.classList.remove('d-none');
@@ -277,11 +272,11 @@
                     if (skuDiv) skuDiv.className = 'form-group col-md-3';
                     
                     if (inventoryInfoDiv) inventoryInfoDiv.classList.add('d-none');
-                    if (inventoryAssetSelect) inventoryAssetSelect.removeAttribute('required');
+                    if (inventoryAssetSelect) inventoryAssetSelect.dataset.customRequired = '0';
                     
                     if (purchaseInfoDiv) purchaseInfoDiv.classList.add('d-none');
                     if (purchasePriceInput) purchasePriceInput.removeAttribute('required');
-                    if (expenseChartAccountSelect) expenseChartAccountSelect.removeAttribute('required');
+                    if (expenseChartAccountSelect) expenseChartAccountSelect.dataset.customRequired = '0';
                     
                 } else {
                     // inventory_part
@@ -291,11 +286,11 @@
                     if (skuDiv) skuDiv.className = 'form-group col-md-3';
                     
                     if (inventoryInfoDiv) inventoryInfoDiv.classList.remove('d-none');
-                    if (inventoryAssetSelect) inventoryAssetSelect.setAttribute('required', 'required');
+                    if (inventoryAssetSelect) inventoryAssetSelect.dataset.customRequired = '1';
                     
                     if (purchaseInfoDiv) purchaseInfoDiv.classList.remove('d-none');
                     if (purchasePriceInput) purchasePriceInput.setAttribute('required', 'required');
-                    if (expenseChartAccountSelect) expenseChartAccountSelect.setAttribute('required', 'required');
+                    if (expenseChartAccountSelect) expenseChartAccountSelect.dataset.customRequired = '1';
                 }
             }
 
@@ -309,8 +304,102 @@
                 toggleItemTypeFields();
             }
 
+            function validateVisibleCustomSelects() {
+                var requiredSelects = [
+                    { selector: '#expense_chartaccount_id', label: '{{ __('COGS Account') }}' },
+                    { selector: '#sale_chartaccount_id', label: '{{ __('Income Account') }}' },
+                    { selector: '#inventory_asset_account_id', label: '{{ __('Inventory Asset Account') }}' }
+                ];
+
+                $('.custom-select-wrapper .custom-select-display').css('border-color', '');
+
+                for (var i = 0; i < requiredSelects.length; i++) {
+                    var field = requiredSelects[i];
+                    var $select = $(field.selector);
+
+                    if (!$select.length || $select.closest('.d-none').length || String($select[0].dataset.customRequired) !== '1') {
+                        continue;
+                    }
+
+                    if (!$select.val()) {
+                        var $display = $select.next('.custom-select-wrapper').find('.custom-select-display');
+                        $display.css('border-color', '#dc3545');
+                        if ($display.length) {
+                            $display[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        if ($select[0].customSelectInstance) {
+                            $select[0].customSelectInstance.open();
+                        } else if ($display.length) {
+                            setTimeout(function() {
+                                $display.trigger('click');
+                            }, 150);
+                        }
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('error', field.label + ' is required.', 'error');
+                        } else {
+                            alert(field.label + ' is required.');
+                        }
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            $('#expense_chartaccount_id, #sale_chartaccount_id, #inventory_asset_account_id').on('change', function() {
+                if ($(this).val()) {
+                    $(this).next('.custom-select-wrapper').find('.custom-select-display').css('border-color', '');
+                }
+            });
+
+            if (window.jQuery && typeof ajaxModalForm === 'function') {
+                $(document).off('submit.productServiceCustomRequired', '.product-service-ajax-form')
+                    .on('submit.productServiceCustomRequired', '.product-service-ajax-form', function(e) {
+                        if (!validateVisibleCustomSelects()) {
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            return false;
+                        }
+                    });
+
+                ajaxModalForm({
+                    formSelector: '.product-service-ajax-form',
+                    submitText: '{{ __('Updating...') }}',
+                    closeOnSuccess: false,
+                    onSuccess: function(response) {
+                        if (response && response.row_html) {
+                            var $tbody = $('#product-service-table-body');
+                            if (!$tbody.length) {
+                                window.location.href = '{{ route('productservice.index') }}';
+                                return;
+                            }
+
+                            var $existing = response.id ? $tbody.find('tr[data-product-id="' + response.id + '"]') : $();
+                            if ($existing.length) {
+                                $existing.replaceWith(response.row_html);
+                            } else {
+                                $tbody.prepend(response.row_html);
+                            }
+
+                            $tbody.find('tr').each(function(index) {
+                                $(this).find('.product-row-number').text(index + 1);
+                            });
+
+                            if (typeof commonLoader === 'function') {
+                                commonLoader();
+                            }
+
+                            closeActiveBootstrapModal();
+                        }
+
+                        show_toastr('success', response.message || '{{ __('Product successfully updated.') }}', 'success');
+                    }
+                });
+            }
+
             // --- AJAX modal form submit handlers for Add Category / SubCategory / Unit ---
-            $(document).on('submit', '#commonModal form', function(e) {
+            $(document).off('submit.productServiceRelatedForms', '#commonModal form, #commonModalOver form')
+                .on('submit.productServiceRelatedForms', '#commonModal form, #commonModalOver form', function(e) {
                 var $form = $(this);
                 var actionUrl = $form.attr('action');
 
@@ -332,7 +421,7 @@
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     success: function(response) {
                         if (response.success) {
-                            $('#commonModal').modal('hide');
+                            $('#commonModalOver').modal('hide');
                             show_toastr('success', response.message);
 
                             if (isCategoryForm && response.category) {
@@ -340,6 +429,7 @@
                                 var newOpt = new Option(response.category.name, response.category.id, true, true);
                                 $('#category_id').append(newOpt);
                                 $('#category_id').val(response.category.id);
+                                $('#category_id').trigger('change');
                                 // Trigger subcategory reload
                                 loadSubCategories();
                             }
@@ -354,6 +444,7 @@
                                 var newUnitOpt = new Option(response.unit.name, response.unit.id, true, true);
                                 $('#unit_id').append(newUnitOpt);
                                 $('#unit_id').val(response.unit.id);
+                                $('#unit_id').trigger('change');
                             }
                         } else {
                             show_toastr('error', response.message || '{{ __('Something went wrong.') }}');
@@ -365,6 +456,13 @@
                     }
                 });
             });
-        });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initProductServiceEditForm);
+            } else {
+                initProductServiceEditForm();
+            }
+        })();
     </script>
 @endsection

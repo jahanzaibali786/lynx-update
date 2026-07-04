@@ -177,9 +177,10 @@
                 @foreach ($branchRows->sortBy(fn ($data) => strtolower(optional($data->employee)->name ?? '')) as $data)
                     @php
                         $employee = $data->employee;
-                        $costToCompany = ($data->gross ?? 0) + ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
+                        $displayGross = ($data->gross ?? 0) + ($data->stop_sal ?? 0);
+                        $costToCompany = $displayGross + ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
                         $rowTotals = [
-                            'gross' => $data->gross ?? 0,
+                            'gross' => $displayGross,
                             'net_pay' => $data->net_pay ?? 0,
                             'cost_to_company' => $costToCompany,
                         ];
@@ -196,7 +197,7 @@
                         <td class="text-left">{{ optional($employee)->name }}</td>
                         <td class="text-left">{{ optional(optional($employee)->designation)->name }}</td>
                         <td>{{ optional($employee)->company_doj ? \Carbon\Carbon::parse($employee->company_doj)->format('d-M-Y') : '' }}</td>
-                        <td class="num">{{ $fmt($data->gross ?? 0) }}</td>
+                        <td class="num">{{ $fmt($displayGross) }}</td>
                         <td class="num">{{ $fmt($data->net_pay ?? 0) }}</td>
                         <td class="num">{{ $fmt($costToCompany) }}</td>
                     </tr>

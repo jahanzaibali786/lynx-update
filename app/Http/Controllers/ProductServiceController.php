@@ -23,6 +23,7 @@ use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
@@ -82,7 +83,7 @@ class ProductServiceController extends Controller
     }
 
 
-    public function create()
+    public function create(Request $request)
     {
         if (\Auth::user()->can('create product & service')) {
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'product')->get();
@@ -106,9 +107,14 @@ class ProductServiceController extends Controller
                 'non_inventory_part' => 'Non-Inventory Part',
                 'service' => 'Service',
             ];
+            $viewData = compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'inventoryAssetAccounts', 'parentItems', 'itemTypes');
 
+            if ($request->ajax()) {
+                $html = view('productservice.create', $viewData)->renderSections()['content'] ?? '';
+                return response('<div class="modal-body product-service-create-modal">' . $html . '</div>');
+            }
 
-            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'inventoryAssetAccounts', 'parentItems', 'itemTypes'));
+            return view('productservice.create', $viewData);
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -144,10 +150,18 @@ class ProductServiceController extends Controller
             if ($validator->fails()) {
                 $messages = $validator->getMessageBag();
 
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $messages->first(),
+                        'errors' => $validator->errors(),
+                    ], 422);
+                }
+
                 return redirect()->back()->with('error', $messages->first())->withInput();
             }
 
-            DB::transaction(function () use ($request) {
+            $productService = DB::transaction(function () use ($request) {
                 $productService = new ProductService();
                 $productService->name = $request->name;
                 $productService->description = $request->sales_description ?: $request->description;
@@ -217,10 +231,33 @@ class ProductServiceController extends Controller
                     $desc = $productService->damaged_quantity . ' Damaged opening balance added against product code ' . $productService->sku;
                     Utility::addProductStock($productService->id, $productService->damaged_quantity, 'opening_balance', $desc, 0);
                 }
+
+                return $productService;
             });
+
+            if ($request->expectsJson() || $request->ajax()) {
+                $productService->load(['category', 'subcategory']);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Product successfully created.'),
+                    'id' => $productService->id,
+                    'row_html' => view('productservice.partials.row', [
+                        'productService' => $productService,
+                        'index' => 1,
+                    ])->render(),
+                ]);
+            }
 
             return redirect()->route('productservice.index')->with('success', __('Product successfully created.'));
         } else {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Permission denied.'),
+                ], 403);
+            }
+
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
@@ -256,7 +293,7 @@ class ProductServiceController extends Controller
         return view('productservice.show', compact('productService', 'warehouseProducts', 'itemTypes', 'customFields'));
     }
 
-    public function edit($id)
+    public function edit(Request $request, $id)
     {
         $productService = ProductService::find($id);
 
@@ -287,9 +324,14 @@ class ProductServiceController extends Controller
                     'non_inventory_part' => 'Non-Inventory Part',
                     'service' => 'Service',
                 ];
+                $viewData = compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'inventoryAssetAccounts', 'parentItems', 'itemTypes');
 
+                if ($request->ajax()) {
+                    $html = view('productservice.edit', $viewData)->renderSections()['content'] ?? '';
+                    return response('<div class="modal-body product-service-create-modal">' . $html . '</div>');
+                }
 
-                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'inventoryAssetAccounts', 'parentItems', 'itemTypes'));
+                return view('productservice.edit', $viewData);
             } else {
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
@@ -329,6 +371,14 @@ class ProductServiceController extends Controller
 
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
+
+                    if ($request->expectsJson() || $request->ajax()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $messages->first(),
+                            'errors' => $validator->errors(),
+                        ], 422);
+                    }
 
                     return redirect()->back()->with('error', $messages->first())->withInput();
                 }
@@ -402,20 +452,102 @@ class ProductServiceController extends Controller
                 $productService->save();
                 CustomField::saveData($productService, $request->customField);
 
+                if ($request->expectsJson() || $request->ajax()) {
+                    $productService->load(['category', 'subcategory']);
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => __('Product successfully updated.'),
+                        'id' => $productService->id,
+                        'row_html' => view('productservice.partials.row', [
+                            'productService' => $productService,
+                            'index' => '',
+                        ])->render(),
+                    ]);
+                }
+
                 return redirect()->route('productservice.index')->with('success', __('Product successfully updated.'));
             } else {
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => __('Permission denied.'),
+                    ], 403);
+                }
+
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
         } else {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Permission denied.'),
+                ], 403);
+            }
+
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    private function productDeleteBlockers($productId)
+    {
+        $checks = [
+            'Purchase' => [
+                ['purchase_products', 'product_id'],
+                ['bill_products', 'product_id'],
+            ],
+            'GRN' => [
+                ['grn_items', 'product_id'],
+            ],
+            'Invoice' => [
+                ['invoice_products', 'product_id'],
+                ['pos_products', 'product_id'],
+            ],
+            'Purchase Order' => [
+                ['branch_purchase_items', 'product_id'],
+            ],
+            'Stock History' => [
+                ['stock_reports', 'product_id'],
+                ['warehouse_products', 'product_id'],
+                ['warehouse_transfers', 'product_id'],
+            ],
+            'Return Order' => [
+                ['return_order_products', 'product_id'],
+            ],
+        ];
+
+        $blockers = [];
+
+        foreach ($checks as $label => $tables) {
+            foreach ($tables as [$table, $column]) {
+                if (
+                    Schema::hasTable($table) &&
+                    Schema::hasColumn($table, $column) &&
+                    DB::table($table)->where($column, $productId)->exists()
+                ) {
+                    $blockers[] = $label;
+                    break;
+                }
+            }
+        }
+
+        return $blockers;
     }
 
     public function destroy($id)
     {
         if (\Auth::user()->can('delete product & service')) {
             $productService = ProductService::find($id);
+            if (empty($productService)) {
+                return redirect()->back()->with('error', __('Product not found.'));
+            }
+
             if ($productService->created_by == \Auth::user()->creatorId()) {
+                $blockers = $this->productDeleteBlockers($productService->id);
+                if (!empty($blockers)) {
+                    return redirect()->back()->with('error', __('Product cannot be deleted because it is used in: ') . implode(', ', $blockers) . '.');
+                }
+
                 if (!empty($productService->pro_image)) {
                     //storage limit
                     $file_path = '/uploads/pro_image/' . $productService->pro_image;

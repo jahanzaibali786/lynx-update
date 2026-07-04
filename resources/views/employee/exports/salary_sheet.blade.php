@@ -156,12 +156,13 @@
                 $payscale = $data->employee->employee_payscale_details->last();
                 $conv_other = $data->conv ?? 0;
                 $other_misc = ($data->drns ?? 0) + ($data->misc ?? 0);
+                $display_gross = (!empty($data->gross) ? @$data->gross : 0) + (!empty($data->stop_sal) ? @$data->stop_sal : 0);
                 $total_basics += $data->basics;
                 $total_other += $data->other;
                 $total_conv_other += $conv_other;
                 $total_other_misc += $other_misc;
                 $total_stop_sal += $data->stop_sal;
-                $total_gross += !empty($data->gross) ? @$data->gross : '0';
+                $total_gross += $display_gross;
                 $total_emp_sec += !empty($data->emp_sec) ? @$data->emp_sec : '0';
                 $total_it += !empty($data->it) ? @$data->it : '0';
                 $total_advance += !empty($data->sal_advance) ? @$data->sal_advance : '0';
@@ -170,19 +171,19 @@
                 $total_eobi += !empty($data->eobi) ? @$data->eobi : '0';
                 $total_loan += !empty($data->loan) ? @$data->loan : '0';
                 $total_net_pay += !empty($data->net_pay) ? @$data->net_pay : '0';
-                $total_stop_sal_deductions += !empty($data->stop_sal) ? @$data->stop_sal : '0';
+                $total_stop_sal_deductions += 0;
                 $total_other_deduction += !empty($data->dedu) ? @$data->dedu : '0';
                 $total_pessi_employer += !empty($data->pessi_employer) ? @$data->pessi_employer : '0';
                 $total_eobi_employer += !empty($data->eobi_employer) ? @$data->eobi_employer : '0';
                 $total_total_cost += !empty($total_cost) ? @$total_cost : '0';
                 // for branch totals
-                $gross_bra += !empty($data->gross) ? @$data->gross : '0';
+                $gross_bra += $display_gross;
                 $total_basics_bra += $data->basics;
                 $total_other_bra += $data->other;
                 $total_conv_other_bra += $conv_other;
                 $total_other_misc_bra += $other_misc;
                 $total_stop_sal_bra += $data->stop_sal;
-                $total_gross_bra += !empty($data->gross) ? @$data->gross : '0';
+                $total_gross_bra += $display_gross;
                 $total_emp_sec_bra += !empty($data->emp_sec) ? @$data->emp_sec : '0';
                 $total_it_bra += !empty($data->it) ? @$data->it : '0';
                 $total_advance_bra += !empty($data->sal_advance) ? @$data->sal_advance : '0';
@@ -191,7 +192,7 @@
                 $total_eobi_bra += !empty($data->eobi) ? @$data->eobi : '0';
                 $total_loan_bra += !empty($data->loan) ? @$data->loan : '0';
                 $total_net_pay_bra += !empty($data->net_pay) ? @$data->net_pay : '0';
-                $total_stop_sal_deductions_bra += !empty($data->stop_sal) ? @$data->stop_sal : '0';
+                $total_stop_sal_deductions_bra += 0;
                 $total_other_deduction_bra += !empty($data->dedu) ? @$data->dedu : '0';
                 $total_pessi_employer_bra += !empty($data->pessi_employer) ? @$data->pessi_employer : '0';
                 $total_eobi_employer_bra += !empty($data->eobi_employer) ? @$data->eobi_employer : '0';
@@ -323,7 +324,7 @@
                 <td>
                     {{ !empty($data->stop_sal) ? @$data->stop_sal : '0' }}</td>
                 <td>
-                    {{ !empty($data->gross) ? @$data->gross : '0' }}</td>
+                    {{ $display_gross }}</td>
 
                 <td>
                     {{ !empty($data->emp_sec) ? @$data->emp_sec : '0' }}</td>
@@ -341,7 +342,7 @@
             @endphp --}}
 
                 <td>
-                    {{ !empty($data->stop_sal) ? @$data->stop_sal : '0' }}</td>
+                    0</td>
                 <td>
                     {{ !empty($data->pessi) ? @$data->pessi : '0' }}</td>
                 <td>
@@ -362,7 +363,7 @@
                         (!empty($data->pessi_employer) ? @$data->pessi_employer : '0') +
                         (!empty($data->eobi_employer) ? @$data->eobi_employer : '0');
                     $cost_to_comp =
-                        (!empty($total_cost) ? @$total_cost : '0') + (!empty($data->gross) ? @$data->gross : '0');
+                        (!empty($total_cost) ? @$total_cost : '0') + $display_gross;
                     $total_cost_to_comp += $cost_to_comp;
                 @endphp
 

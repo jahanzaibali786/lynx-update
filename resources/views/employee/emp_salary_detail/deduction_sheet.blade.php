@@ -201,8 +201,9 @@
                             + ($data->emp_sec_loan ?? 0)
                             + ($data->loan ?? 0)
                             + ($data->dedu ?? 0);
+                        $displayGross = ($data->gross ?? 0) + ($data->stop_sal ?? 0);
                         $rowTotals = [
-                            'gross' => $data->gross ?? 0,
+                            'gross' => $displayGross,
                             'emp_sec' => $data->emp_sec ?? 0,
                             'it' => $data->it ?? 0,
                             'sal_advance' => $data->sal_advance ?? 0,
@@ -227,7 +228,7 @@
                         <td class="text-left">{{ optional($employee)->name }}</td>
                         <td class="text-left">{{ optional(optional($employee)->designation)->name }}</td>
                         <td>{{ optional($employee)->company_doj ? \Carbon\Carbon::parse($employee->company_doj)->format('d-M-Y') : '' }}</td>
-                        <td class="num">{{ $fmt($data->gross ?? 0) }}</td>
+                        <td class="num">{{ $fmt($displayGross) }}</td>
                         <td class="num">{{ $fmt($data->emp_sec ?? 0) }}</td>
                         <td class="num">{{ $fmt($data->it ?? 0) }}</td>
                         <td class="num">{{ $fmt($data->sal_advance ?? 0) }}</td>

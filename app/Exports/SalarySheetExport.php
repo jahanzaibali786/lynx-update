@@ -117,15 +117,16 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                     $row[] = $data->other_add ?? 0;
                     $row[] = $data->conv ?? 0;
                     $row[] = ($data->drns ?? 0) + ($data->misc ?? 0);
+                    $displayGross = ($data->gross ?? 0) + ($data->stop_sal ?? 0);
                     $row[] = $data->stop_sal ?? 0;
-                    $row[] = $data->gross ?? 0;
+                    $row[] = $displayGross;
 
                     $row[] = $data->emp_sec ?? 0;
                     $row[] = $data->it ?? 0;
                     $row[] = $data->sal_advance ?? 0;
                     $row[] = $data->eobi ?? 0;
                     $row[] = $data->emp_sec_loan ?? 0;
-                    $row[] = $data->stop_sal ?? 0;
+                    $row[] = 0;
                     $row[] = $data->pessi ?? 0;
                     $row[] = $data->dedu ?? 0;
                     $row[] = $data->loan ?? 0;
@@ -136,7 +137,7 @@ class SalarySheetExport implements FromArray, WithColumnFormatting, WithEvents
                     $row[] = $data->eobi_employer ?? 0;
 
                     $totalCost = ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
-                    $costComp = $totalCost + ($data->gross ?? 0);
+                    $costComp = $totalCost + $displayGross;
 
                     $row[] = $totalCost;
                     $row[] = $costComp;

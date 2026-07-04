@@ -2,6 +2,38 @@
     $salarySlipYtdTotals = $salarySlipYtdTotals ?? [];
     $salarySlipHeadYtdTotals = $salarySlipHeadYtdTotals ?? [];
     $salaryHeadNames = collect($salaryHeads ?? [])->pluck('head', 'id');
+    $amountWords = function ($value) {
+        $value = (int) round((float) $value);
+        if ($value === 0) {
+            return 'zero only';
+        }
+
+        $ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        $tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+        $underThousand = function ($number) use (&$underThousand, $ones, $tens) {
+            $number = (int) $number;
+            if ($number < 20) {
+                return $ones[$number];
+            }
+            if ($number < 100) {
+                return trim($tens[intdiv($number, 10)] . ' ' . $ones[$number % 10]);
+            }
+            return trim($ones[intdiv($number, 100)] . ' hundred' . ($number % 100 ? ' and ' . $underThousand($number % 100) : ''));
+        };
+
+        $parts = [];
+        foreach ([10000000 => 'crore', 100000 => 'lakh', 1000 => 'thousand'] as $divider => $label) {
+            if ($value >= $divider) {
+                $parts[] = $underThousand(intdiv($value, $divider)) . ' ' . $label;
+                $value %= $divider;
+            }
+        }
+        if ($value > 0) {
+            $parts[] = (!empty($parts) && $value < 100 ? 'and ' : '') . $underThousand($value);
+        }
+
+        return trim(implode(' ', $parts)) . ' only';
+    };
 @endphp
 
 @foreach ($datas as $key => $data)
@@ -160,7 +192,8 @@
             }
 
             // Gross total (trust monthly 'gross' column)
-            $GrossRs = (float) ($data->gross ?? 0);
+$StopSalary = (float) ($data->stop_sal ?? 0);
+$GrossRs = (float) ($data->gross ?? 0);
             $grossYTD = (float) ($employeeYtd['gross'] ?? 0);
 
             // Enticements (from monthly slip columns)
@@ -183,7 +216,7 @@ $earnings = [
     ],
     'Adjustments' => [
         [
-            'label' => 'Stop Salary (' . $salDate->format('M, y') . ')',
+            'label' => 'Salary (' . $salDate->format('M, y') . ')',
             'pm' => (float) ($data->stop_sal ?? 0),
             'ytd' => null,
         ],
@@ -192,7 +225,6 @@ $earnings = [
 
 // For "Net Gross Rs." and totals row
 $NetGrossRs = $conv_pm + $fuel_pm + $mobile_pm + $others_pm; // enticements total P.M
-$StopSalary = (float) ($data->stop_sal ?? 0);
 $enticementsYTDTotal = $conv_ytd + 0 + $mobile_ytd + $others_ytd;
 
 // Deductions (P.M + Y.T.D)
@@ -228,7 +260,6 @@ $deductions = [
         'pm' => (float) ($data->sal_advance ?? 0),
         'ytd' => $ytd('sal_advance'),
     ],
-    ['label' => 'Stop Salary', 'pm' => 0, 'ytd' => '-'],
     [
         'label' => 'Training Course',
         'pm' => (float) ($data->tra_course ?? 0),
@@ -255,11 +286,17 @@ $deductionsTotalYTD = array_sum(
 $empSecYTD = $ytd('emp_sec');
 
 $employerContributions = [
-    'Employee Security Balance Y.T.D' => [['label' => 'Employee Security', 'amount' => $empSecYTD]],
-    'Employer Contribution P.M' => [
-        ['label' => 'Eobi Contribution', 'amount' => (float) ($data->eobi_employer ?? 0)],
-        ['label' => 'Pessi Contribution', 'amount' => (float) ($data->pessi_employer ?? 0)],
-        ['label' => 'Child Concession', 'amount' => (float) ($data->chaild_con ?? 0)],
+    'Employee Security Balance' => [
+        'period' => 'Y.T.D',
+        'items' => [['label' => 'Employee Security', 'amount' => $empSecYTD]],
+    ],
+    'Employer Contribution' => [
+        'period' => 'P.M',
+        'items' => [
+            ['label' => 'Eobi Contribution', 'amount' => (float) ($data->eobi_employer ?? 0)],
+            ['label' => 'Pessi Contribution', 'amount' => (float) ($data->pessi_employer ?? 0)],
+            ['label' => 'Child Concession', 'amount' => (float) ($data->chaild_con ?? 0)],
+        ],
     ],
 ];
 
@@ -333,10 +370,12 @@ if (count($deductions)) {
 }
 
 $flatEmployerContributions = [];
-foreach ($employerContributions as $category => $items) {
+foreach ($employerContributions as $category => $group) {
+    $items = $group['items'] ?? [];
     $flatEmployerContributions[] = [
         'category' => $category,
         'label' => $category,
+        'period' => $group['period'] ?? '',
         'amount' => '',
         'head' => true,
         'total' => false,
@@ -345,15 +384,17 @@ foreach ($employerContributions as $category => $items) {
         $flatEmployerContributions[] = [
             'category' => $category,
             'label' => $item['label'],
+            'period' => '',
             'amount' => $item['amount'],
             'head' => false,
             'total' => false,
         ];
     }
-    if ($category === 'Employee Security Balance Y.T.D') {
+    if ($category === 'Employee Security Balance') {
         $flatEmployerContributions[] = [
             'category' => $category,
             'label' => '',
+            'period' => '',
             'amount' => '',
             'head' => false,
             'total' => false,
@@ -361,6 +402,7 @@ foreach ($employerContributions as $category => $items) {
         $flatEmployerContributions[] = [
             'category' => $category,
             'label' => 'Net Balance Rs.',
+            'period' => '',
             'amount' => $NetBalanceRs,
             'head' => false,
             'total' => true,
@@ -368,6 +410,7 @@ foreach ($employerContributions as $category => $items) {
         $flatEmployerContributions[] = [
             'category' => $category,
             'label' => '',
+            'period' => '',
             'amount' => '',
             'head' => false,
             'total' => false,
@@ -576,13 +619,15 @@ $result = [
                 {{-- EMPLOYER CONTRIBUTIONS --}}
                 @if ($result['employer_contributions'][$i]['head'])
                     <td
-                        style="background: #d8d8d8; border: 1px solid black; font-weight: bold; border-right: 0px solid #d8d8d8; font-size: 9px;">
+                        style="background: #d8d8d8; border: 1px solid black; font-weight: bold; font-size: 9px;">
                         {{ $result['employer_contributions'][$i]['label'] }}
                     </td>
-                    <td style="background: #d8d8d8; border-bottom: 1px solid black; border-top: 1px solid black;">
+                    <td
+                        style="background: #d8d8d8; border: 1px solid black; text-align: center; font-weight: bold; font-size: 9px;">
+                        {{ $result['employer_contributions'][$i]['period'] ?? '' }}
                     </td>
                     <td
-                        style="background: #d8d8d8; text-align: right; border: 1px solid black; border-left: 0px solid #d8d8d8; font-weight: bold; font-size: 9px;">
+                        style="background: #d8d8d8; text-align: right; border: 1px solid black; font-weight: bold; font-size: 9px;">
                         {{ $result['employer_contributions'][$i]['amount'] }}
                     </td>
                 @else
@@ -609,7 +654,7 @@ $result = [
             <td style="border-left: 1px solid black;"></td>
             <td style="border: 1px solid black; font-size: 9px; font-weight: bold;">Total Rs.</td>
             <td style="border: 1px solid black; font-size: 9px; text-align: right; font-weight: bold;">
-                {{ number_format((float) $NetGrossRs + $StopSalary + $GrossRs) }}
+                {{ number_format((float) $NetGrossRs + $GrossRs + $StopSalary) }}
             </td>
             <td style="border: 1px solid black; font-size: 9px; text-align: right; font-weight: bold;">
                 {{ number_format((float) $enticementsYTDTotal) }}
@@ -628,7 +673,7 @@ $result = [
             <td style="border-bottom: 1px solid black; border-top: 1px solid black;"></td>
             <td
                 style=" border: 1px solid black; border-left: 0px solid white; font-size: 9px; text-align: right; font-weight: bold;">
-                {{ number_format((float) $CostToCompanyContributions + $GrossRs) }}
+                {{ number_format((float) $CostToCompanyContributions + $GrossRs + $StopSalary) }}
             </td>
             <td style="border-right: 1px solid black;"></td>
         </tr>
@@ -640,12 +685,14 @@ $result = [
         <tr>
             <td></td>
             <td style="border-left: 1px solid black;"></td>
-            <td style="font-weight: bold; text-align: right; font-size: 9px;" colspan="6">Total Amount
+            <td style="border: 1px solid black; font-weight: bold; text-align: left; font-size: 9px;" colspan="2">Total Amount
                 Disbursed Rs.</td>
-            <td style="font-weight: bold; text-align: right; border: 4px solid black; font-size: 9px;">
-                {{ number_format((float) ($NetGrossRs + $StopSalary + $GrossRs - $deductionsTotalPM)) }}
+            <td style="border: 1px solid black; font-weight: bold; text-align: right; text-decoration: underline; font-size: 9px;">
+                {{ number_format((float) ($NetGrossRs + $GrossRs + $StopSalary - $deductionsTotalPM)) }}/-
             </td>
-            <td colspan="5" style="border-right: 1px solid black;"></td>
+            <td colspan="9" style="border: 1px solid black; font-weight: bold; text-align: left; font-size: 9px;">
+                "{{ $amountWords($NetGrossRs + $GrossRs + $StopSalary - $deductionsTotalPM) }}"
+            </td>
         </tr>
         <tr>
             <td></td>

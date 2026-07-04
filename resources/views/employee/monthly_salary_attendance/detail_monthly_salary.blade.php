@@ -10,9 +10,8 @@
         (float) ($employeesalary->it ?? 0) +
         (float) ($employeesalary->dedu ?? 0) +
         (float) ($employeesalary->tra_course ?? 0) +
-        (float) ($employeesalary->sal_advance ?? 0) +
-        (float) ($employeesalary->stop_sal ?? 0);
-    $calculatedNetPay = max(0, (float) ($employeesalary->gross ?? 0) - $salaryTotalDeductions);
+        (float) ($employeesalary->sal_advance ?? 0);
+    $calculatedNetPay = max(0, (float) ($employeesalary->gross ?? 0) + (float) ($employeesalary->stop_sal ?? 0) - $salaryTotalDeductions);
 @endphp
 <div class="modal-body">
     @if (!$salaryEditable)
@@ -156,6 +155,14 @@
             {!! Form::label('advance_payable_account', __('Advance Payable Account'), ['class' => 'form-label']) !!}
             {{ Form::text('advance_payable_account',  !empty($lastPayscaleDetail->advance_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->advance_payable_account )->first()->name: '',  ['class' => 'form-control']) }}
         </div>
+        <div class="form-group col-md-6">
+            {!! Form::label('stop_sal', __('Stop Salary'), ['class' => 'form-label']) !!}
+            {{ Form::number('stop_sal', !empty($employeesalary) ? $employeesalary->stop_sal : '0', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-6">
+            {!! Form::label('remarks', __('Description / Remarks'), ['class' => 'form-label']) !!}
+            {{ Form::textarea('remarks', $employeesalary->remarks ?? '', ['class' => 'form-control', 'rows' => 2, 'maxlength' => 1000]) }}
+        </div>
     </div>
 
     <div class="row net_row">
@@ -228,9 +235,9 @@
             (float) ($employeesalary->emp_sec ?? 0) +
             (float) ($employeesalary->pessi ?? 0) +
             (float) ($employeesalary->eobi ?? 0) +
-            (float) ($employeesalary->tra_course ?? 0) +
-            (float) ($employeesalary->stop_sal ?? 0)
+            (float) ($employeesalary->tra_course ?? 0)
         );
+        const stopSalary = @json((float) ($employeesalary->stop_sal ?? 0));
         const initialEditableEarnings = earningFields.reduce((total, fieldName) => {
             return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
         }, 0);
@@ -244,7 +251,7 @@
                 return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
             }, 0);
             const gross = baseGross + editableEarnings;
-            const net = Math.max(0, gross - fixedDeductions - editableDeductions);
+            const net = Math.max(0, gross + stopSalary - fixedDeductions - editableDeductions);
 
             if (grossElement) {
                 grossElement.value = gross.toFixed(2);

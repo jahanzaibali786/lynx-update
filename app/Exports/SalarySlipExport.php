@@ -19,6 +19,7 @@ class SalarySlipExport implements FromArray, WithEvents
     protected array $sectionRows = [];
     protected array $headerRows = [];
     protected array $totalRows = [];
+    protected array $disbursedRows = [];
     protected array $dottedRows = [];
     protected array $breakRows = [];
     protected array $logoRows = [];
@@ -117,7 +118,7 @@ class SalarySlipExport implements FromArray, WithEvents
                     $this->displayNumber($deductions[$i]['ytd']),
                     '',
                     $contributions[$i]['label'],
-                    '',
+                    $contributions[$i]['period'] ?? '',
                     $this->displayNumber($contributions[$i]['amount']),
                 ]);
             }
@@ -127,9 +128,11 @@ class SalarySlipExport implements FromArray, WithEvents
             $this->totalRows[] = $totalRow;
             $rows[] = $this->row(['', '']);
             $disbursedRow = count($rows) + 1;
-            $rows[] = $this->row(['', '', 'Total Amount Disbursed Rs.', '', '', '', '', $totals['disbursed']]);
-            $this->merges[] = "C{$disbursedRow}:G{$disbursedRow}";
+            $rows[] = $this->row(['', '', 'Total Amount Disbursed Rs.', '', number_format((float) $totals['disbursed']) . '/-', '"' . $this->amountWords($totals['disbursed']) . '"']);
+            $this->merges[] = "C{$disbursedRow}:D{$disbursedRow}";
+            $this->merges[] = "F{$disbursedRow}:M{$disbursedRow}";
             $this->totalRows[] = $disbursedRow;
+            $this->disbursedRows[] = $disbursedRow;
             $rows[] = $this->row(['', '']);
             $rows[] = $this->row(['', 'This is a system generated document and does not require a signature']);
             $this->merges[] = 'B' . count($rows) . ':N' . count($rows);
@@ -165,7 +168,7 @@ class SalarySlipExport implements FromArray, WithEvents
                     $sheet->mergeCells($merge);
                 }
 
-                $widths = ['A' => 1, 'B' => 1, 'C' => 17, 'D' => 10, 'E' => 10, 'F' => 1, 'G' => 16, 'H' => 9, 'I' => 9, 'J' => 1, 'K' => 18, 'L' => 1, 'M' => 12, 'N' => 1];
+                $widths = ['A' => 1, 'B' => 1, 'C' => 17, 'D' => 10, 'E' => 10, 'F' => 1, 'G' => 16, 'H' => 9, 'I' => 9, 'J' => 1, 'K' => 17, 'L' => 8, 'M' => 6, 'N' => 1];
                 foreach ($widths as $col => $width) {
                     $sheet->getColumnDimension($col)->setWidth($width);
                 }
@@ -189,6 +192,11 @@ class SalarySlipExport implements FromArray, WithEvents
                 foreach ($this->totalRows as $row) {
                     $sheet->getStyle("C{$row}:M{$row}")->getFont()->setBold(true);
                     $sheet->getStyle("C{$row}:M{$row}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                }
+                foreach ($this->disbursedRows as $row) {
+                    $sheet->getStyle("E{$row}")->getFont()->setUnderline(true);
+                    $sheet->getStyle("E{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                    $sheet->getStyle("F{$row}:M{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 }
                 foreach ($this->dottedRows as $row) {
                     $sheet->getStyle("B{$row}:N{$row}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_DOTTED);
@@ -269,15 +277,15 @@ class SalarySlipExport implements FromArray, WithEvents
             ];
         }
 
-        $grossPm = (float) ($data->gross ?? 0);
+        $baseGrossPm = (float) ($data->gross ?? 0);
+        $stopSalary = (float) ($data->stop_sal ?? 0);
+        $grossPm = $baseGrossPm;
         $grossYtd = $ytd('gross');
         $otherPm = (float) ($data->conv ?? 0);
         $miscPm = (float) ($data->misc ?? 0);
         $otherAllowancePm = (float) ($data->other ?? 0);
         $enticementPm = $otherPm + $miscPm + $otherAllowancePm;
         $enticementYtd = $ytd('conv') + $ytd('misc') + $ytd('other');
-        $stopSalary = (float) ($data->stop_sal ?? 0);
-
         $earnings = array_merge(
             [['label' => 'Gross Salary', 'pm' => 'P.M', 'ytd' => 'Y.T.D', 'head' => true, 'total' => false]],
             $grossRows,
@@ -288,7 +296,7 @@ class SalarySlipExport implements FromArray, WithEvents
                 ['label' => 'Drns, Misc', 'pm' => $miscPm, 'ytd' => $ytd('misc'), 'head' => false, 'total' => false],
                 ['label' => 'Other Allowance', 'pm' => $otherAllowancePm, 'ytd' => $ytd('other'), 'head' => false, 'total' => false],
                 ['label' => 'Net Gross Rs.', 'pm' => $grossPm + $enticementPm, 'ytd' => '', 'head' => true, 'total' => false],
-                ['label' => 'Stop Salary', 'pm' => $stopSalary, 'ytd' => '', 'head' => false, 'total' => false],
+                ['label' => 'Salary (' . date('M, y', strtotime($data->salary_date)) . ')', 'pm' => $stopSalary, 'ytd' => '', 'head' => false, 'total' => false],
             ]
         );
 
@@ -300,17 +308,16 @@ class SalarySlipExport implements FromArray, WithEvents
             ['label' => 'Income Tax', 'pm' => (float) ($data->it ?? 0), 'ytd' => $ytd('it'), 'head' => false, 'total' => false],
             ['label' => 'Other Deduction', 'pm' => (float) ($data->dedu ?? 0), 'ytd' => $ytd('dedu'), 'head' => false, 'total' => false],
             ['label' => 'Advance', 'pm' => (float) ($data->sal_advance ?? 0), 'ytd' => $ytd('sal_advance'), 'head' => false, 'total' => false],
-            ['label' => 'Stop Salary', 'pm' => 0, 'ytd' => '-', 'head' => false, 'total' => false],
             ['label' => 'Training Course', 'pm' => (float) ($data->tra_course ?? 0), 'ytd' => $ytd('tra_course'), 'head' => false, 'total' => false],
             ['label' => 'Loan Emp Security', 'pm' => (float) ($data->loan ?? 0), 'ytd' => $ytd('loan'), 'head' => false, 'total' => false],
         ];
 
         $empSecYtd = $ytd('emp_sec');
         $contributions = [
-            ['label' => 'Employee Security Balance Y.T.D', 'amount' => '', 'head' => true, 'total' => false],
+            ['label' => 'Employee Security Balance', 'period' => 'Y.T.D', 'amount' => '', 'head' => true, 'total' => false],
             ['label' => 'Employee Security', 'amount' => $empSecYtd, 'head' => false, 'total' => false],
             ['label' => 'Net Balance Rs.', 'amount' => $empSecYtd, 'head' => false, 'total' => true],
-            ['label' => 'Employer Contribution P.M', 'amount' => '', 'head' => true, 'total' => false],
+            ['label' => 'Employer Contribution', 'period' => 'P.M', 'amount' => '', 'head' => true, 'total' => false],
             ['label' => 'Eobi Contribution', 'amount' => (float) ($data->eobi_employer ?? 0), 'head' => false, 'total' => false],
             ['label' => 'Pessi Contribution', 'amount' => (float) ($data->pessi_employer ?? 0), 'head' => false, 'total' => false],
             ['label' => 'Child Concession', 'amount' => (float) ($data->chaild_con ?? 0), 'head' => false, 'total' => false],
@@ -324,7 +331,7 @@ class SalarySlipExport implements FromArray, WithEvents
             'earning_ytd' => $enticementYtd,
             'deduction_pm' => $deductionPm,
             'deduction_ytd' => $deductionYtd,
-            'ctc' => $grossPm + (float) ($data->eobi_employer ?? 0) + (float) ($data->pessi_employer ?? 0) + (float) ($data->chaild_con ?? 0),
+            'ctc' => $grossPm + $stopSalary + (float) ($data->eobi_employer ?? 0) + (float) ($data->pessi_employer ?? 0) + (float) ($data->chaild_con ?? 0),
             'disbursed' => $grossPm + $enticementPm + $stopSalary - $deductionPm,
         ]];
     }
@@ -349,6 +356,40 @@ class SalarySlipExport implements FromArray, WithEvents
     protected function displayNumber($value)
     {
         return is_numeric($value) ? (float) $value : $value;
+    }
+
+    protected function amountWords($value): string
+    {
+        $value = (int) round((float) $value);
+        if ($value === 0) {
+            return 'zero only';
+        }
+
+        $ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        $tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+        $underThousand = function ($number) use (&$underThousand, $ones, $tens) {
+            $number = (int) $number;
+            if ($number < 20) {
+                return $ones[$number];
+            }
+            if ($number < 100) {
+                return trim($tens[intdiv($number, 10)] . ' ' . $ones[$number % 10]);
+            }
+            return trim($ones[intdiv($number, 100)] . ' hundred' . ($number % 100 ? ' and ' . $underThousand($number % 100) : ''));
+        };
+
+        $parts = [];
+        foreach ([10000000 => 'crore', 100000 => 'lakh', 1000 => 'thousand'] as $divider => $label) {
+            if ($value >= $divider) {
+                $parts[] = $underThousand(intdiv($value, $divider)) . ' ' . $label;
+                $value %= $divider;
+            }
+        }
+        if ($value > 0) {
+            $parts[] = (!empty($parts) && $value < 100 ? 'and ' : '') . $underThousand($value);
+        }
+
+        return trim(implode(' ', $parts)) . ' only';
     }
 
     protected function headingStyle(): array

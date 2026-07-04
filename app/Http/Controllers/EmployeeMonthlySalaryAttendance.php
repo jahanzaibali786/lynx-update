@@ -494,8 +494,12 @@ class EmployeeMonthlySalaryAttendance extends Controller
             ->first();
         $salaryEditable = trim(strtolower($employeesalary->status ?? 'unpaid')) === 'unpaid'
             && (int) optional($salaryAttendance)->gm_final !== 1;
-        $arrears = \App\Models\EmployeeMonthlySalary::where('employee_id', $employeesalary->employee_id)->whereMonth('salary_date', '<', $attendanceMonth)
-            ->where('status', 'unpaid')->get();
+        $arrears = \App\Models\EmployeeMonthlySalary::where('employee_id', $employeesalary->employee_id)
+            ->whereDate('salary_date', '<', Carbon::parse($employeesalary->salary_date)->startOfMonth()->format('Y-m-d'))
+            ->where('status', 'unpaid')
+            ->where('on_hold', 0)
+            ->whereNull('carried_to_salary_id')
+            ->get();
         return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears', 'salaryEditable'));
     }
     public function final_attendance(Request $request)
@@ -780,8 +784,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     ->whereMonth('for_month_of', $toDate->month);
             }
             if ($paymode && $paymode != 'all') {
-                $query->whereHas('employeemonthlysalary', function ($query) use ($paymode) {
-                    $query->where('paymode', $paymode);
+                $query->whereHas('employeemonthlysalary', function ($query) use ($paymode, $toDate) {
+                    $query->whereYear('salary_date', $toDate->year)
+                        ->whereMonth('salary_date', $toDate->month)
+                        ->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
                 });
             }
             if ($department_id && $department_id != 'all') {
@@ -881,11 +887,12 @@ class EmployeeMonthlySalaryAttendance extends Controller
         }
         if (!empty($paymodeFilter)) {
             $query->whereHas('employee.employee_payscale_details', function ($query) use ($paymodeFilter) {
-                $query->where('id', function ($subquery) {
-                    $subquery->select('id')
-                        ->from('employee_payscale_details as epd')
-                        ->last();
-                })->where('paymode', $paymodeFilter);
+                $query->whereRaw('employee_payscale_details.id = (
+                        select max(epd.id)
+                        from employee_payscale_details as epd
+                        where epd.employee_id = employee_payscale_details.employee_id
+                    )')
+                    ->whereRaw('TRIM(paymode) = ?', [trim($paymodeFilter)]);
             });
         }
         if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -1029,9 +1036,18 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 }
                 // dd($monthTax, $data->employee_id, $taxYear, $daysInPeriod, $data->month_days, $payscalesauto->employeeScaleHeads, $addition);
 
-                 $deduction = $loanAmount + $securityLoanAmount + $advanceAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $employeeEobiAmount + $lastPayscaleDetail->other_deduction;
+                $heldSalariesToCarry = EmployeeMonthlySalary::where('employee_id', $data->employee_id)
+                    ->where('owned_by', $data->employee->owned_by)
+                    ->where('on_hold', 1)
+                    ->where('status', '!=', 'paid')
+                    ->whereNull('carried_to_salary_id')
+                    ->whereDate('salary_date', '<', $toDate->copy()->startOfMonth()->format('Y-m-d'))
+                    ->get();
+                $heldSalaryCarryAmount = round($heldSalariesToCarry->sum('net_pay'));
+
+                $deduction = $loanAmount + $securityLoanAmount + $advanceAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $employeeEobiAmount + $lastPayscaleDetail->other_deduction;
                 // dd($basicSalary, $grossSalary,$deduction);
-                $net_sal = ($grossSalary  - $deduction) > 0 ? ($grossSalary  - $deduction) : 0;
+                $net_sal = ($grossSalary + $heldSalaryCarryAmount - $deduction) > 0 ? ($grossSalary + $heldSalaryCarryAmount - $deduction) : 0;
 
 
                 $employeemonthlysal = EmployeeMonthlySalary::create([
@@ -1050,7 +1066,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'chaild_con' => $lastPayscaleDetail ? $lastPayscaleDetail->chaild_concession : '0',
                     'drns' => $lastPayscaleDetail ? $lastPayscaleDetail->drns : '0',
                     'misc' => $lastPayscaleDetail ? $lastPayscaleDetail->misc : '0',
-                    'stop_sal' => 0,
+                    'stop_sal' => $heldSalaryCarryAmount,
                     'other' => '0',
                     'gross' => round($grossSalary),
                     'loan' => $loanAmount ? $loanAmount : '0',
@@ -1068,6 +1084,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'net_pay' => round($net_sal),
                     'sal_final' => 0,
                     'on_hold' => 0,
+                    'remarks' => $heldSalaryCarryAmount > 0
+                        ? 'Held salary carried from: ' . $heldSalariesToCarry->map(fn($salary) => date('M Y', strtotime($salary->salary_date)))->implode(', ')
+                        : null,
                     'owned_by' => $data->employee->owned_by,
                     'created_by' => \Auth::user()->creatorId(),
                 ]);
@@ -1075,6 +1094,15 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $employeemonthlysal->created_at = $created_date ?? Carbon::now();
                 $employeemonthlysal->created_at = $created_date ?? Carbon::now();
                 $employeemonthlysal->save();
+
+                if ($heldSalariesToCarry->isNotEmpty()) {
+                    EmployeeMonthlySalary::whereIn('id', $heldSalariesToCarry->pluck('id'))
+                        ->update([
+                            'carried_to_salary_id' => $employeemonthlysal->id,
+                            'carried_at' => now(),
+                            'status' => 'carried',
+                        ]);
+                }
 
                 foreach ($salaryLoanDeductions as $loanDeduction) {
                     $salaryLoan = $loanDeduction['loan'];
@@ -1214,7 +1242,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'account_id' => $lastPayscaleDetail->net_payable_account,
                             'name' => 'Net Salary Payable',
                             'debit' => 0,
-                            'credit' => round($employeemonthlysal->net_pay),
+                            'credit' => round(max(0, (float) $employeemonthlysal->net_pay - (float) $employeemonthlysal->stop_sal)),
                         ],
                         // Cr: Employer PASSI Payable
                         [
@@ -1483,7 +1511,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
             $emp_sal->chaild_con = (float) ($request->chaild_concession ?? 0);
             $emp_sal->drns = (float) ($request->drns ?? 0);
             $emp_sal->misc = (float) ($request->misc ?? 0);
-            $emp_sal->stop_sal = 0;
+            $emp_sal->remarks = $request->remarks;
             $emp_sal->it = (float) ($request->itax ?? 0);
             $emp_sal->dedu = (float) ($request->other_deduction ?? 0);
             $emp_sal->tra_course = 0;
@@ -1507,9 +1535,8 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 + (float) $emp_sal->pessi
                 + (float) $emp_sal->eobi
                 + $newEditableDeductions
-                + (float) $emp_sal->tra_course
-                + (float) $emp_sal->stop_sal;
-            $emp_sal->net_pay = round(max(0, (float) $emp_sal->gross - $totalDeductions));
+                + (float) $emp_sal->tra_course;
+            $emp_sal->net_pay = round(max(0, (float) $emp_sal->gross + (float) $emp_sal->stop_sal - $totalDeductions));
             $emp_sal->save();
 
             $lastPayscaleDetail = EmployeePayscaleDetail::where('employee_id', $emp_sal->employee_id)
@@ -1834,7 +1861,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 'account_id' => $payscale->net_payable_account,
                 'name' => 'Net Salary Payable',
                 'debit' => 0,
-                'credit' => round((float) $salary->net_pay),
+                'credit' => round(max(0, (float) $salary->net_pay - (float) $salary->stop_sal)),
             ],
             [
                 'account_id' => 225,

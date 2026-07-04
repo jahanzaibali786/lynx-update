@@ -346,7 +346,7 @@
                                                 $otherAdd = (float) (@$salary->other_add ?? @$salary->other ?? 0);
                                                 $drnsMisc = (float) (@$salary->drns ?? 0) + (float) (@$salary->misc ?? 0);
                                                 $stopSal = (float) (@$salary->stop_sal ?? 0);
-                                                $gross = (float) (@$salary->gross ?? 0);
+                                                $gross = (float) (@$salary->gross ?? 0) + $stopSal;
                                                 $empSec = (float) (@$salary->emp_sec ?? 0);
                                                 $it = (float) (@$salary->it ?? 0);
                                                 $eobi = (float) (@$payscale->eobi ?? 0);
@@ -356,14 +356,14 @@
                                                 $loanAdj = (float) (@$salary->loan_adj ?? 0);
                                                 $total_deduction =
                                                     $gross -
-                                                    ($empSec + $it + $eobi + $loan + $dedu + $stopSal + $loanAdj + $pessi);
+                                                    ($empSec + $it + $eobi + $loan + $dedu + $loanAdj + $pessi);
                                             @endphp
                                             <td>{{ $basics }}</td>
                                             <td>{{ $conv }}</td>
                                             <td>{{ $salAll }}</td>
                                             <td>{{ $otherAdd }}</td>
                                             <td>{{ $drnsMisc }}</td>
-                                            <td>{{ $stopSal }}</td>
+                                            <td>0</td>
                                             <td>{{ $gross }}</td>
                                             <td>{{ $empSec }}</td>
                                             <td>{{ $it }}</td>
@@ -407,7 +407,7 @@
                                                 $payrollTotals['eobi'] += $eobi;
                                                 $payrollTotals['loan'] += $loan;
                                                 $payrollTotals['dedu'] += $dedu;
-                                                $payrollTotals['stop_sal_ded'] += $stopSal;
+                                                $payrollTotals['stop_sal_ded'] += 0;
                                                 $payrollTotals['pessi'] += $pessi;
                                                 $payrollTotals['loan_adj'] += $loanAdj;
                                                 $payrollTotals['net'] += $total_deduction;

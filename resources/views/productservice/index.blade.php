@@ -92,13 +92,33 @@
     }
     </script>
 @endpush
+@push('css-page')
+    <style>
+        #commonModal .modal-xl {
+            max-width: calc(100vw - 24px);
+            margin: 12px auto;
+        }
+
+        #commonModal .modal-xl .modal-content {
+            min-height: calc(100vh - 24px);
+        }
+
+        #commonModal .product-service-create-modal {
+            max-height: calc(100vh - 92px);
+            overflow-y: auto;
+            padding: 16px 18px;
+        }
+    </style>
+@endpush
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
 <li class="breadcrumb-item">{{ __('Product Information ') }}</li>
 @endsection
 @section('action-btn')
 <div class="float-end">
-    <a href="{{ route('productservice.create') }}" class="btn mx-1 btn-sm btn-outline-primary">
+    <a href="#" data-url="{{ route('productservice.create') }}" data-size="modal-fullscreen"
+        data-ajax-popup="true" data-bs-title="{{ __('Create Product') }}"
+        class="btn mx-1 btn-sm btn-outline-primary">
         <span class="btn-inner--icon">Create</span>
     </a>
 </div>
@@ -194,61 +214,9 @@
                                 <th>{{ __('Action') }}</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="product-service-table-body">
                             @foreach ($productServices as $productService)
-                            <tr class="font-style">
-                                <td>{{ $loop->iteration }}</td>
-                                <td>{{ $productService->name }}</td>
-                                <td>{{ $productService->sku }}</td>
-                                <td>{{ \Auth::user()->priceFormat($productService->sale_price) }}</td>
-                                <td>{{ \Auth::user()->priceFormat($productService->purchase_price) }}</td>
-                                <td>{{ !empty($productService->category) ? $productService->category->name : '' }}</td>
-                                <td>{{ !empty($productService->subcategory) ? $productService->subcategory->name : '' }}</td>
-                                <td>{{ !empty($productService->unit()) ? $productService->unit()->name : '' }}</td>
-                                @if ($productService->type == 'product')
-                                    <td>{{ $productService->quantity ?? 0 }}</td>
-                                    <td>{{ $productService->used_quantity ?? 0 }}</td>
-                                    <td>{{ $productService->damaged_quantity ?? 0 }}</td>
-                                    <td>{{ ($productService->quantity ?? 0) + ($productService->used_quantity ?? 0) + ($productService->damaged_quantity ?? 0) }}</td>
-                                @else
-                                    <td>-</td>
-                                    <td>-</td>
-                                    <td>-</td>
-                                    <td>-</td>
-                                @endif
-
-
-                                @if (Gate::check('manage product & service') || Gate::check('edit product & service') || Gate::check('delete product & service'))
-                                <td class="Action">
-                                    <div class="action-btn ms-2">
-
-                                        <a href="{{ route('productservice.show', $productService->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
-                                            data-bs-title="{{ __('View') }}">
-                                            <span class="btn-inner--icon"><i class="fas fa-eye"></i></span>
-                                        </a>
-
-                                        @can('edit product & service')
-                                        <a href="{{ route('productservice.edit', $productService->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
-                                            data-bs-title="{{ __('Edit') }}">
-                                            <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                                        </a>
-                                        @endcan
-                                        @can('delete product & service')
-                                        {!! Form::open([
-                                        'method' => 'DELETE',
-                                        'route' => ['productservice.destroy', $productService->id],
-                                        'id' => 'delete-form-' . $productService->id,
-                                        ]) !!}
-                                        <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"
-                                             data-bs-title="{{ __('Delete') }}">
-                                            <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
-                                        </a>
-                                        {!! Form::close() !!}
-                                        @endcan
-                                    </div>
-                                </td>
-                                @endif
-                            </tr>
+                                @include('productservice.partials.row', ['productService' => $productService, 'index' => $loop->iteration])
                             @endforeach
 
                         </tbody>

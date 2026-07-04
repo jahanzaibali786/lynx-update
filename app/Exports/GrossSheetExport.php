@@ -55,7 +55,8 @@ class GrossSheetExport implements FromArray, WithColumnFormatting, WithEvents
             $branchSr = 1;
 
             foreach ($branchItems->sortBy(fn ($data) => strtolower(optional($data->employee)->name ?? '')) as $data) {
-                $costToCompany = ($data->gross ?? 0) + ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
+                $displayGross = ($data->gross ?? 0) + ($data->stop_sal ?? 0);
+                $costToCompany = $displayGross + ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
                 $row = [
                     $globalSr++,
                     $branchSr++,
@@ -64,7 +65,7 @@ class GrossSheetExport implements FromArray, WithColumnFormatting, WithEvents
                     $data->employee->name ?? '',
                     $data->employee->designation->name ?? '',
                     !empty($data->employee->company_doj) ? Date::PHPToExcel(new \DateTime($data->employee->company_doj)) : '',
-                    $data->gross ?? 0,
+                    $displayGross,
                     $data->net_pay ?? 0,
                     $costToCompany,
                 ];

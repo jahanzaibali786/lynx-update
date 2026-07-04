@@ -247,6 +247,57 @@
     @endif
 
     @stack('css-page')
+    <style>
+        #commonModal .modal-dialog.modal-fullscreen,
+        #commonModal .modal-dialog.modal-modal-fullscreen,
+        #commonModalOver .modal-dialog.modal-fullscreen,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen {
+            position: fixed !important;
+            top: 8px !important;
+            right: 8px !important;
+            bottom: 8px !important;
+            left: 8px !important;
+            width: auto !important;
+            max-width: none !important;
+            height: auto !important;
+            max-height: none !important;
+            margin: 0 !important;
+            transform: none !important;
+            zoom: 1 !important;
+        }
+
+        #commonModal .modal-dialog.modal-fullscreen .modal-content,
+        #commonModal .modal-dialog.modal-modal-fullscreen .modal-content,
+        #commonModalOver .modal-dialog.modal-fullscreen .modal-content,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen .modal-content {
+            height: 100% !important;
+            max-height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        #commonModal .modal-dialog.modal-fullscreen .modal-header,
+        #commonModal .modal-dialog.modal-modal-fullscreen .modal-header,
+        #commonModalOver .modal-dialog.modal-fullscreen .modal-header,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen .modal-header {
+            flex: 0 0 auto !important;
+        }
+
+        #commonModal .modal-dialog.modal-fullscreen .modal-body,
+        #commonModal .modal-dialog.modal-fullscreen .body,
+        #commonModal .modal-dialog.modal-modal-fullscreen .modal-body,
+        #commonModal .modal-dialog.modal-modal-fullscreen .body,
+        #commonModalOver .modal-dialog.modal-fullscreen .modal-body,
+        #commonModalOver .modal-dialog.modal-fullscreen .body,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen .modal-body,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen .body {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow-y: auto !important;
+        }
+    </style>
 </head>
 {{-- <body class="{{ $color }}" class="rtl" data-bs-padding="21px"> --}}
 

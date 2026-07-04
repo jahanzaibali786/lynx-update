@@ -7,8 +7,10 @@ use Maatwebsite\Excel\Concerns\FromView;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
 class PaymodesSheetExport implements FromView, WithEvents
 {
@@ -190,6 +192,23 @@ class PaymodesSheetExport implements FromView, WithEvents
                 $sheet->getStyle("E8:E{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("D8:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                 $sheet->getStyle("D8:D{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->getStyle("C8:C{$lastDataRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+                $sheet->getStyle("E8:E{$lastDataRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+                $paymode = strtolower($this->requestdata['paymode'] ?? '');
+                $referenceDate = now()->format('d-M');
+                foreach ($this->datas as $index => $data) {
+                    $row = $index + 8;
+                    $payscale = optional($data->employee)->employee_payscale_details
+                        ? $data->employee->employee_payscale_details->last()
+                        : null;
+                    $accountText = $paymode === 'cash'
+                        ? 'cash'
+                        : (string) ($payscale->account_number ?? '');
+                    $referenceText = "{$referenceDate}-" . ($data->id ?? '');
+
+                    $sheet->setCellValueExplicit("C{$row}", $accountText, DataType::TYPE_STRING);
+                    $sheet->setCellValueExplicit("E{$row}", $referenceText, DataType::TYPE_STRING);
+                }
                 $sheet->getStyle("A8:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
             },
         ];

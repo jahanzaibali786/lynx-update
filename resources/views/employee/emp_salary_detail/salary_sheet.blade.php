@@ -248,21 +248,22 @@
                             $casualLeaves = ($leaves->total_casual ?? 0) - ($leaves->bal_casual ?? 0);
                             $annualLeaves = ($leaves->total_annual ?? 0) - ($leaves->bal_annual ?? 0);
                             $otherMisc = ($data->drns ?? 0) + ($data->misc ?? 0);
+                            $displayGross = ($data->gross ?? 0) + ($data->stop_sal ?? 0);
                             $totalCost = ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
-                            $costToComp = $totalCost + ($data->gross ?? 0);
+                            $costToComp = $totalCost + $displayGross;
 
                             $totals['basics'] += $data->basics ?? 0;
                             $totals['other_add'] += $data->other_add ?? 0;
                             $totals['other'] += $data->conv ?? 0;
                             $totals['other_misc'] += $otherMisc;
                             $totals['stop_sal'] += $data->stop_sal ?? 0;
-                            $totals['gross'] += $data->gross ?? 0;
+                            $totals['gross'] += $displayGross;
                             $totals['emp_sec'] += $data->emp_sec ?? 0;
                             $totals['it'] += $data->it ?? 0;
                             $totals['sal_advance'] += $data->sal_advance ?? 0;
                             $totals['eobi'] += $data->eobi ?? 0;
                             $totals['emp_sec_loan'] += $data->emp_sec_loan ?? 0;
-                            $totals['stop_deduction'] += $data->stop_sal ?? 0;
+                            $totals['stop_deduction'] += 0;
                             $totals['pessi'] += $data->pessi ?? 0;
                             $totals['dedu'] += $data->dedu ?? 0;
                             $totals['loan'] += $data->loan ?? 0;
@@ -277,13 +278,13 @@
                             $branchTotals['other'] += $data->conv ?? 0;
                             $branchTotals['other_misc'] += $otherMisc;
                             $branchTotals['stop_sal'] += $data->stop_sal ?? 0;
-                            $branchTotals['gross'] += $data->gross ?? 0;
+                            $branchTotals['gross'] += $displayGross;
                             $branchTotals['emp_sec'] += $data->emp_sec ?? 0;
                             $branchTotals['it'] += $data->it ?? 0;
                             $branchTotals['sal_advance'] += $data->sal_advance ?? 0;
                             $branchTotals['eobi'] += $data->eobi ?? 0;
                             $branchTotals['emp_sec_loan'] += $data->emp_sec_loan ?? 0;
-                            $branchTotals['stop_deduction'] += $data->stop_sal ?? 0;
+                            $branchTotals['stop_deduction'] += 0;
                             $branchTotals['pessi'] += $data->pessi ?? 0;
                             $branchTotals['dedu'] += $data->dedu ?? 0;
                             $branchTotals['loan'] += $data->loan ?? 0;
@@ -314,13 +315,13 @@
                             <td>{{ $data->conv ?? 0 }}</td>
                             <td>{{ $otherMisc }}</td>
                             <td>{{ $data->stop_sal ?? 0 }}</td>
-                            <td>{{ $data->gross ?? 0 }}</td>
+                            <td>{{ $displayGross }}</td>
                             <td>{{ $data->emp_sec ?? 0 }}</td>
                             <td>{{ $data->it ?? 0 }}</td>
                             <td>{{ $data->sal_advance ?? 0 }}</td>
                             <td>{{ $data->eobi ?? 0 }}</td>
                             <td>{{ $data->emp_sec_loan ?? 0 }}</td>
-                            <td>{{ $data->stop_sal ?? 0 }}</td>
+                            <td>0</td>
                             <td>{{ $data->pessi ?? 0 }}</td>
                             <td>{{ $data->dedu ?? 0 }}</td>
                             <td>{{ $data->loan ?? 0 }}</td>

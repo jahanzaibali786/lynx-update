@@ -69,13 +69,13 @@ class SalaryHistoryReportExport implements FromArray, ShouldAutoSize, WithEvents
                         (float) ($salary->other_add ?? $salary->other ?? 0),
                         (float) ($salary->drns ?? 0) + (float) ($salary->misc ?? 0),
                         (float) ($salary->stop_sal ?? 0),
-                        (float) ($salary->gross ?? 0),
+                        (float) ($salary->gross ?? 0) + (float) ($salary->stop_sal ?? 0),
                         (float) ($salary->emp_sec ?? 0),
                         (float) ($salary->it ?? 0),
                         (float) ($payscale->eobi ?? 0),
                         (float) ($salary->loan ?? 0),
                         (float) ($salary->dedu ?? $salary->other ?? 0),
-                        (float) ($salary->stop_sal ?? 0),
+                        0,
                         (float) ($payscale->pessi ?? 0),
                         (float) ($salary->loan_adj ?? 0),
                         $deductionNet,
@@ -346,13 +346,12 @@ class SalaryHistoryReportExport implements FromArray, ShouldAutoSize, WithEvents
 
     private function netSalary($salary, $payscale): float
     {
-        return (float) ($salary->gross ?? 0) - (
+        return ((float) ($salary->gross ?? 0) + (float) ($salary->stop_sal ?? 0)) - (
             (float) ($salary->emp_sec ?? 0)
             + (float) ($salary->it ?? 0)
             + (float) ($payscale->eobi ?? 0)
             + (float) ($salary->loan ?? 0)
             + (float) ($salary->dedu ?? $salary->other ?? 0)
-            + (float) ($salary->stop_sal ?? 0)
             + (float) ($salary->loan_adj ?? 0)
             + (float) ($payscale->pessi ?? 0)
         );
