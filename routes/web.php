@@ -27,6 +27,7 @@ use App\Http\Controllers\StudentRegistration;
 use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentReportController2;
 use App\Http\Controllers\StudyPackChallanController;
+use App\Http\Controllers\BulkBillingController;
 use App\Http\Controllers\WhatsappController;
 use App\Models\EmployeeMonthlySalary;
 use App\Models\EmployeeMonthlySalaryHeads;
@@ -2126,6 +2127,11 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/student-import', [StudentImportController::class, 'showImportForm'])->name('student.import');
             Route::post('/student-import', [StudentImportController::class, 'import'])->name('student.import.store');
 
+            Route::get('/bulk-billing', [BulkBillingController::class, 'create'])->name('bulk-billing.create');
+            Route::post('/bulk-billing', [BulkBillingController::class, 'store'])->name('bulk-billing.store');
+            Route::get('/bulk-billing/students/{branchId}', [BulkBillingController::class, 'getStudents'])->name('bulk-billing.students');
+            Route::get('/bulk-billing/fee-structure/{studentId}/{month}', [BulkBillingController::class, 'getFeeStructure'])->name('bulk-billing.fee-structure');
+
             Route::get('/employee-import-sample', [EmployeeImportController::class, 'downloadSample'])->name('employee.bulk.sample');
             Route::get('/employee-bulk-update', [EmployeeImportController::class, 'showImportForm'])->name('employee.bulk.update');
             Route::post('/employee-bulk-update', [EmployeeImportController::class, 'import'])->name('employee.bulk.store');
@@ -2220,7 +2226,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('/transfer-add-head', [StudentTransferController::class, 'challanheadadd'])->name('transfer.add_head');
             Route::resource('/withdrawlstudent', StudentWithdrawalController::class);
             Route::get('/withdrawlapplication/{id}', [StudentWithdrawalController::class, 'withdrawlapplication'])->name('withdrawlapplication');
-            Route::get('/fwd-to-ho/{id}', [StudentWithdrawalController::class, 'fwdtoho'])->name('fwdtoho');
+            Route::any('/fwd-to-ho/{id}', [StudentWithdrawalController::class, 'fwdtoho'])->name('fwdtoho');
             Route::post('/withdrawlapplication/{id}/store', [StudentWithdrawalController::class, 'withdrawlapplicationstore'])->name('withdrawlapplicationstore');
             Route::post('/withdrawlapplication/{id}/save-basics', [StudentWithdrawalController::class, 'saveBasics'])->name('withdrawlapplication.savebasics');
             Route::post('/calculate-balance', [StudentWithdrawalController::class, 'calculateBalance'])->name('calculate.balance');
@@ -2597,6 +2603,8 @@ Route::get('/emp-salaries-id-update', function () {
 Route::get('/clearance-certificate-pdf/{id}', [StudentWithdrawalController::class, 'certificatePdf'])->name('student_withdrawal.certificate_pdf');
 // for print
 Route::get('/clearance-certificate-print/{id}', [StudentWithdrawalController::class, 'certificatePrint'])->name('student_withdrawal.certificate_print');
+// settlement certificate (dompdf preview)
+Route::get('/clearance-certificate-settlement/{id}', [StudentWithdrawalController::class, 'settlementCertificate'])->name('student_withdrawal.settlement_certificate');
 
 Route::delete('employee_exp_info/{id}', [App\Http\Controllers\EmployeeController::class, 'destroyEmployeeExperience'])->name('employee_exp_info.destroy');
 

@@ -3333,6 +3333,15 @@ class StudentReportController extends Controller
                 ->whereNotNull('roll_no')
                 ->get()
                 ->pluck('stdname', 'roll_no')->prepend('Select Student', '');
+            if (!empty($selected_student)) {
+                $extra = StudentRegistration::select(\DB::raw('CONCAT(`roll_no`, " - ", `stdname`, " s/d/o ", `fathername`) AS stdname'), 'roll_no')
+                    ->where('roll_no', $selected_student)
+                    ->where('created_by', '=', \Auth::user()->creatorId())
+                    ->first();
+                if ($extra && !$students->has($selected_student)) {
+                    $students->put($extra->roll_no, $extra->stdname);
+                }
+            }
         } else {
             $branches = User::where('id', '=', \Auth::user()->ownedId())
                 ->get()
@@ -3664,7 +3673,6 @@ class StudentReportController extends Controller
             ->orderBy('created_at', 'asc')
             ->orderBy('id', 'asc')
             ->get();
-
         $statement = collect();
         $runningBalance = $openingBalance;
 

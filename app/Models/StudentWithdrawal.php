@@ -19,11 +19,18 @@ class StudentWithdrawal extends Model
         'reason',
         'remark',
         'ho_remarks',
+        'branch_snapshot',
+        'ho_snapshot',
         'approved_by',
         'status',
         'is_po',
         'created_by',
         'owned_by',
+    ];
+
+    protected $casts = [
+        'branch_snapshot' => 'array',
+        'ho_snapshot' => 'array',
     ];
 
     protected $studentCache = null;

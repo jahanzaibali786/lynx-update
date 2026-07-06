@@ -123,7 +123,7 @@
             });
         }
 
-        function classStudents(classId, status) {
+        function classStudents(classId, status, selectedStudent) {
             $.ajax({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -160,7 +160,11 @@
                                 }));
                             }
                         }
-                        $('#student_select').val('all');
+                        if (selectedStudent && result.students.hasOwnProperty(selectedStudent)) {
+                            $('#student_select').val(selectedStudent);
+                        } else {
+                            $('#student_select').val('all');
+                        }
                         CustomSelect.create(document.getElementById('student_select'));
                         toggleExportButtons();
                     }
@@ -249,6 +253,7 @@
 
         $(document).ready(function() {
             toggleExportButtons();
+            classStudents($('#class_select').val(), $('#status_select').val() || 'active', '{{ $selected_student ?? '' }}');
         });
 
         $(document).on('change', '#student_select', function() {

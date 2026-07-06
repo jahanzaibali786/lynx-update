@@ -1799,7 +1799,7 @@
                             Gate::check('manage vistor'))
                         <li class="dash-item dash-hasmenu">
                             <a href="#Student_formation"
-                                class="dash-link {{ Request::segment(1) == 'withdrawlstudent' || Request::segment(1) == 'student-import' || Request::segment(1) == 'clearanceCertificate' || Request::segment(1) == 'readmissionstudent' || Request::segment(1) == 'transferstudent' || Request::segment(1) == 'concession' || Request::segment(1) == 'student-promotion' ? ' active dash-trigger' : '' }}"><span
+                                class="dash-link {{ Request::segment(1) == 'withdrawlstudent' || Request::segment(1) == 'student-import' || Request::segment(1) == 'bulk-billing' || Request::segment(1) == 'clearanceCertificate' || Request::segment(1) == 'readmissionstudent' || Request::segment(1) == 'transferstudent' || Request::segment(1) == 'concession' || Request::segment(1) == 'student-promotion' ? ' active dash-trigger' : '' }}"><span
                                     class="dash-micon">
                                     <svg width="21" height="22" viewBox="0 0 21 22" fill="none"
                                         xmlns="http://www.w3.org/2000/svg">
@@ -1828,6 +1828,12 @@
                                     <li class="dash-item ">
                                         <a class="dash-link {{ Request::segment(1) == 'student-import' ? 'active' : '' }}"
                                             href="{{ route('student.import') }}">{{ __('Student Import') }}</a>
+                                    </li>
+                                @endcan
+                                @can('view spacetype')
+                                    <li class="dash-item ">
+                                        <a class="dash-link {{ Request::segment(1) == 'bulk-billing' ? 'active' : '' }}"
+                                            href="{{ route('bulk-billing.create') }}">{{ __('Bulk Billing') }}</a>
                                     </li>
                                 @endcan
                                 @can('manage promotion')

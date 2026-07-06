@@ -2,25 +2,17 @@
 @section('page-title')
     {{ __('Manage Student Profiles') }}
 @endsection
-
-@push('css-page')
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
-        crossorigin="anonymous" referrerpolicy="no-referrer" />
-@endpush
-
 @push('script-page')
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 @endpush
-
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('Manage Student Profiles') }}</li>
 @endsection
 
 @section('content')
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
     {{-- @if (\Auth::user()->type == 'company') --}}
     <div class="row">
         <div class="col-sm-12">
@@ -132,83 +124,74 @@
     </div>
     {{-- @endif --}}
 
-    <div class="card">
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped" id="enrollment-datatable" style="width:100%">
-                    <thead>
-                        <tr>
-                            <th>{{ __('Sr No') }}</th>
-                            <th>{{ __('Branch') }}</th>
-                            <th>{{ __('Reg No') }}</th>
-                            <th>{{ __('Roll No') }}</th>
-                            <th>{{ __('Student Name') }}</th>
-                            <th>{{ __('Father Name') }}</th>
-                            <th>{{ __('Class') }}</th>
-                            <th>{{ __('Section') }}</th>
-                            <th>{{ __('Session') }}</th>
-                            <th>{{ __('Reg Type') }}</th>
-                            <th>{{ __('Admission Date') }}</th>
-                            <th width="200px">{{ __('Action') }}</th>
-                        </tr>
-                    </thead>
-                </table>
-            </div>
-        </div>
-    </div>
+    <table class="datatable" id="enrollment-table">
+        <thead class="table_heads">
+            <tr>
+                <th>{{ __('Sr No') }}</th>
+                <th max-width="200px">{{ __('Branch') }}</th>
+                <th>{{ __('Reg No') }}</th>
+                <th>{{ __('Roll No') }}</th>
+                <th>{{ __('Student Name') }}</th>
+                <th>{{ __('Father Name') }}</th>
+                <th>{{ __('Class') }}</th>
+                <th>{{ __('Section') }}</th>
+                <th>{{ __('Session') }}</th>
+                <th>{{ __('Reg Type') }}</th>
+                <th>{{ __('Admission Date') }}</th>
+                <th width="200px">{{ __('Action') }}</th>
+                {{-- <th width="200px">{{__('Action')}}</th> -- --}}
+
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($enrollments as $enroll)
+                <tr>
+                    <td>{{ $loop->iteration }}</td>
+                    <td>{{ $enroll->branch->name ?? '-' }}</td>
+                    <td>{{ $enroll->StudentRegistration->reg_no ?? '-' }}</td>
+                    <td>{{ $enroll->enrollId }}</td>
+                    <td>{{ $enroll->StudentRegistration->stdname ?? '-' }}</td>
+                    <td>{{ $enroll->StudentRegistration->fathername ?? '-' }}</td>
+                   <td>{{ $enroll->class->name ?? '-' }}</td>
+					@php
+					    $sectionName = $enroll->section->name ?? 'Set Section';
+					    $sectionUrl = route('section.show', $enroll->id);
+					@endphp
+					
+					<td>
+					    <a href="#"
+					       class="btn btn-sm btn-outline-primary w-100 d-flex align-items-start justify-content-start text-left"
+					       style="text-align:left; min-height:38px; white-space:normal; word-break:break-word; line-height:1.2; width:160px !important;"
+					       data-size="lg"
+					       data-url="{{ $sectionUrl }}"
+					       data-ajax-popup="true"
+					       data-title="Section History">
+					        {{ $sectionName }}
+					    </a>
+					</td>
+                    <td>{{ $enroll->StudentRegistration->session->year ?? '-' }}</td>
+                    <td>{{ $enroll->StudentRegistration->registeroption->name ?? '-' }}</td>
+                    <td>{{ $enroll->adm_date ? date('d-M-Y', strtotime($enroll->adm_date)) : '-' }}</td>
+                    <td>
+                        <div class="action-btn ms-2">
+                            <a href="{{ route('registration.show', $enroll->regId) }}"
+                                class="mx-1 btn btn-sm align-items-center btn-outline-primary">
+                                <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
+                            </a>
+                            <a href="{{ route('admission.order', $enroll->regId) }}"
+                                class="mx-1 btn btn-sm align-items-center btn-outline-success">
+                                <span class="btn-inner--icon"><i class="ti ti-receipt"></i></span>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+    <div id="pagination-container" class="mt-3"></div>
     <script>
-        var table;
-        $(document).ready(function() {
-            // Initialize DataTable
-            table = $('#enrollment-datatable').DataTable({
-                processing: true,
-                serverSide: true,
-                ajax: {
-                    url: "{{ route('enrollment.index') }}",
-                    data: function(d) {
-                        d.branches = $('select[name="branches"]').val();
-                        d.classes = $('select[name="classes"]').val();
-                        d.sections = $('select[name="sections"]').val();
-                        d.sessions = $('select[name="sessions"]').val();
-                        d.gender = $('select[name="gender"]').val();
-                        d.search = $('input[name="search"]').val();
-                        d.sort = $('select[name="sort"]').val();
-                    }
-                },
-                columns: [
-                    { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
-                    { data: 'branch_name', name: 'branch_name' },
-                    { data: 'reg_no', name: 'reg_no' },
-                    { data: 'roll_no', name: 'roll_no' },
-                    { data: 'student_name', name: 'student_name' },
-                    { data: 'father_name', name: 'father_name' },
-                    { data: 'class_name', name: 'class_name' },
-                    { data: 'section_name', name: 'section_name', orderable: false },
-                    { data: 'session_year', name: 'session_year' },
-                    { data: 'reg_type', name: 'reg_type' },
-                    { data: 'admission_date', name: 'admission_date' },
-                    { data: 'action', name: 'action', orderable: false, searchable: false }
-                ],
-                order: [[1, 'asc']],
-                pageLength: 25,
-                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
-                language: {
-                    processing: '<i class="fa fa-spinner fa-spin fa-3x fa-fw"></i><span class="sr-only">Loading...</span>'
-                }
-            });
-
-            // Reload table on search button click
-            $(document).on('click', '.btn-outline-primary', function(e) {
-                if ($(this).text().trim() === 'Search') {
-                    e.preventDefault();
-                    table.ajax.reload();
-                }
-            });
-        });
-
         $(document).on('change', '#class_select', function() {
             var class_id = $(this).val();
-
             $.ajax({
                 url: '{{ route('class.section') }}',
                 type: 'POST',
@@ -217,13 +200,11 @@
                     "_token": "{{ csrf_token() }}",
                 },
                 success: function(data) {
-
                     $('#section_select').empty();
                     $('#section_select').append($('<option>', {
                         value: 'all',
                         text: 'All Sections'
                     }));
-                    // $('#section_to').append('<option value="">{{ __('Select Section') }}</option>');
                     for (let index = 0; index < data.length; index++) {
                         $('#section_select').append('<option value="' + data[index]['id'] + '">' + data[
                             index]['name'] + '</option>');
@@ -233,7 +214,6 @@
         });
 
         function branchcustomer(id) {
-            var customer = $('#customerselect').val();
             $.ajax({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -245,10 +225,8 @@
                 },
                 dataType: 'json',
                 success: function(result) {
-
                     if (result.status == 'success') {
                         var $classSelect = $('#class_select');
-                        // Remove previous custom select wrapper and instance
                         if ($classSelect[0] && $classSelect[0].customSelectInstance) {
                             $classSelect[0].customSelectInstance.destroy();
                             delete $classSelect[0].customSelectInstance;
@@ -257,8 +235,6 @@
                             $classSelect.next('.custom-select-wrapper').remove();
                         }
                         $classSelect.removeClass('custom-select');
-
-                        // Clear and append new options
                         $classSelect.empty();
                         $classSelect.append($('<option>', {
                             value: 'all',
@@ -271,16 +247,11 @@
                                 text: cls.name
                             }));
                         }
-
-                        // Re-add class and re-init
                         $classSelect.addClass('custom-select');
                         $classSelect.show();
-                        // Directly create new CustomSelect instance for this select only
                         if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
                             window.CustomSelect.create($classSelect[0]);
                         }
-
-                        // Session select update (unchanged)
                         $('#sessionselect').empty();
                         $('#sessionselect').append($('<option>', {
                             value: 'all',
@@ -294,48 +265,8 @@
                             }));
                         }
                     }
-                    if (result.status == 'error') {}
-
                 }
             });
         }
-
-        // function classStudents(id) {
-        //     $.ajax({
-        //         headers: {
-        //             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        //         },
-        //         url: "{{ route('class.students') }}",
-        //         type: "POST",
-        //         data: {
-        //             class_id: id
-        //         },
-        //         dataType: 'json',
-        //         success: function(result) {
-        //             if (result.status == 'success') {
-        //                 $('#student_select').empty();
-        //                 $('#student_select').append($('<option>', {
-        //                     value: '',
-        //                     text: 'Select Student'
-        //                 }));
-        //                 for (var id in result.students) {
-        //                     if (result.students.hasOwnProperty(id)) {
-        //                         $('#student_select').append($('<option>', {
-        //                             value: id,
-        //                             text: result.students[id]
-        //                         }));
-        //                     }
-        //                 }
-        //                 $('#student_select').val('');
-        //             }
-        //         }
-        //     });
-        // }
-        // $(document).on('change', '#class_select', function() {
-        //     var classId = $(this).val();
-        //     if (classId) {
-        //         classStudents(classId);
-        //     }
-        // });
     </script>
 @endsection

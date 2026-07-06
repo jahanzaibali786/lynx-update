@@ -215,19 +215,21 @@
                             align-items: end;
                             /* justify-content: center; */
                             font-size: 20px;">
-                        {{-- @can('edit section') --}}
+                        @if (\Auth::user()->type == 'company' || \Auth::user()->type == 'super admin' || $transfer->status == 'draft')
                         <a href="#!" data-size="lg" data-url="{{route('withdrawlstudent.edit', $transfer->id)}}"
                             data-ajax-popup="true" class="mx-1 btn btn-sm btn-outline-primary"
                              data-bs-title="{{__('Edit')}}">
                             <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span></a>
+                        @endif
                             
                             <a href="{{ route('withdrawlapplication', ['id' => @$transfer->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Withdrawal Application')}}">
                                 <span class="btn-inner--icon"><i class="ti ti-eye"></i></</span></a>
                                 <a href="{{ route('clearance_certificate', ['id' => @$transfer->id]) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Clearance Certificate')}}">
                                     <span class="btn-inner--icon"><i class="ti ti-list"></i></span></a>
-                                    {{--Print button icon for certificate --}}
+                                    @if ($transfer->status == 'approved')
                                     <a href="{{ route('student_withdrawal.certificate_print', $transfer->id) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Print')}}">
                                         <span class="btn-inner--icon"><i class="ti ti-printer"></i></span></a>
+                                    @endif
                                     {{-- @endcan --}}
                                     {{--
                                                     <a href="{{ route('transferstudent.change_status', [$transfer->id, 'For Approval']) }}"

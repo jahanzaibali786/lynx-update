@@ -11,6 +11,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use Illuminate\Contracts\View\View;
+
 class StudentEnrollmentExport implements FromView, WithEvents
 {
     protected $enrollments;
@@ -25,8 +26,6 @@ class StudentEnrollmentExport implements FromView, WithEvents
         $this->enrollments = $enrollments;
         $this->branch = $branch;
         $this->branches = $branches;
-        $this->is_signature = false;
-        $this->is_period = false;
         $this->request = $request;
     }
     /**
@@ -34,14 +33,15 @@ class StudentEnrollmentExport implements FromView, WithEvents
      */
     public function view(): View
     {
-        // dd('export file', $this->request->all());
         $branch = @$this->branch;
+        
         $is_signature = false;
         $is_period = false;
-        // Pass
-        if (!empty($this->request->classes) && $this->request->classes != 'all') {
+        if (!empty($this->request->class_list_export) && $this->request->class_list_export == 'excel') {
             $report_name = __('Classwise Student Enrollment Report');
-            return view('student.exports.classwiseenrollments', [
+            // Pass
+            //  only the table-related data to the export view
+            return view('student.exports.classwise_enrollment', [
                 'enrollments' => $this->enrollments,
                 'branch' => $branch,
                 'branches' => $this->branches,
@@ -49,9 +49,9 @@ class StudentEnrollmentExport implements FromView, WithEvents
                 'is_period' => $is_period,
                 'report_name' => $report_name,
             ]);
-        } else {
+        }
+        else{
             $report_name = __('Student Enrollment Report');
-            //  only the table-related data to the export view
             return view('student.exports.enrollment', [
                 'enrollments' => $this->enrollments,
                 'branch' => $branch,
@@ -62,6 +62,7 @@ class StudentEnrollmentExport implements FromView, WithEvents
             ]);
         }
     }
+
 
     // public function drawings()
     // {
@@ -89,7 +90,7 @@ class StudentEnrollmentExport implements FromView, WithEvents
                 $sheet->getPageSetup()->setFitToPage(true);
                 $sheet->getPageSetup()->setFitToWidth(1);
                 $sheet->getPageSetup()->setFitToHeight(0); // unlimited height
-    
+
                 // 🔁 Repeat heading row (row 5)
                 $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(8, 8);
                 $sheet = $event->sheet->getDelegate();
@@ -148,5 +149,4 @@ class StudentEnrollmentExport implements FromView, WithEvents
             },
         ];
     }
-
 }
