@@ -189,13 +189,15 @@ class PaymodesSheetExport implements FromView, WithEvents
                 // style col font size 8px and align center
                 $sheet->getStyle("A8:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle("A8:A{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("E8:E{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("D8:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-                $sheet->getStyle("D8:D{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->getStyle("G8:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("F8:F{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("B8:B{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("F8:F{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0');
                 $sheet->getStyle("C8:C{$lastDataRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
                 $sheet->getStyle("E8:E{$lastDataRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
+                // $sheet->getStyle("G8:G{$lastDataRow}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_TEXT);
                 $paymode = strtolower($this->requestdata['paymode'] ?? '');
-                $referenceDate = now()->format('d-M');
+                $referenceDate = now()->format('dM');
                 foreach ($this->datas as $index => $data) {
                     $row = $index + 8;
                     $payscale = optional($data->employee)->employee_payscale_details
@@ -204,10 +206,11 @@ class PaymodesSheetExport implements FromView, WithEvents
                     $accountText = $paymode === 'cash'
                         ? 'cash'
                         : (string) ($payscale->account_number ?? '');
-                    $referenceText = "{$referenceDate}-" . ($data->id ?? '');
+                    $referenceText = "{$referenceDate}" . ($data->id ?? '');
 
-                    $sheet->setCellValueExplicit("C{$row}", $accountText, DataType::TYPE_STRING);
-                    $sheet->setCellValueExplicit("E{$row}", $referenceText, DataType::TYPE_STRING);
+                    $sheet->setCellValueExplicit("B{$row}", (string) (optional($data->employee)->employee_id ?? ''), DataType::TYPE_STRING);
+                    $sheet->setCellValueExplicit("E{$row}", $accountText, DataType::TYPE_STRING);
+                    $sheet->setCellValueExplicit("G{$row}", $referenceText, DataType::TYPE_STRING);
                 }
                 $sheet->getStyle("A8:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
             },

@@ -5,53 +5,179 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            color: #000;
+        }
+        .report-header {
+            width: 100%;
+            display: table;
+            margin-bottom: 12px;
+        }
+        .report-header-cell {
+            display: table-cell;
+            vertical-align: middle;
+        }
+        .report-logo {
+            width: 20%;
+            text-align: center;
+        }
+        .report-title {
+            width: 60%;
+            text-align: center;
+        }
+        .report-title-image {
+            width: 330px;
+            max-width: 330px;
+            height: auto;
+            display: inline-block;
+        }
+        .report-branch {
+            margin: 4px 0;
+            font-size: 18px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .report-month {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 800;
+        }
+        .paymode-meta {
+            margin: 8px 0 28px 0;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .paymode-meta table {
+            border-collapse: collapse;
+        }
+        .paymode-meta td {
+            padding: 4px 8px 4px 0;
+            white-space: nowrap;
+        }
+        .paymode-meta .label {
+            width: 72px;
+        }
+        .paymode-table {
+            border: 1px solid #000;
+            border-collapse: collapse;
+            width: 100% !important;
+            font-size: 12px;
+        }
+        .paymode-table th,
+        .paymode-table td {
+            border: 1px solid #000;
+            padding: 3px 6px;
+        }
+        .paymode-table th {
+            background: #bfbfbf;
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .paymode-table .sr {
+            width: 34px;
+            text-align: center;
+        }
+        .paymode-table .amount {
+            text-align: right;
+        }
+        .paymode-grand-total td {
+            background: #bfbfbf;
+            font-weight: bold;
+            text-align: center;
+        }
+        .paymode-signatures {
+            width: 100%;
+            margin-top: 62px;
+            border-collapse: collapse;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .paymode-signatures td {
+            width: 50%;
+            text-align: center;
+            border: 0;
+        }
+        .paymode-sign-line {
+            display: inline-block;
+            width: 145px;
+            border-top: 1px solid #000;
+            padding-top: 2px;
+        }
+    </style>
 </head>
 
 <body>
-    <div style="width: 100%; position: relative; bottom: 30px; display: table;">
-        <div style="display: table-cell; width: 25%; text-align: center; vertical-align: middle;">
-            <div class="logo">
-                <img src="{{ asset('assets/images/lynx2.jpg') }}" style="max-width: 90px; max-height: 90px;"
-                    alt="logo">
-            </div>
+    @php
+        $branchName = '';
+        if (!empty($requestdata['branches'])) {
+            $branchName = optional(\App\Models\User::find($requestdata['branches']))->name;
+        }
+        if (empty($branchName)) {
+            $branchName = 'All Branches';
+        }
+        $logoSrc = asset('assets/images/lynx2.jpg');
+        $schoolTitleSrc = asset('assets/images/lynxheadertext.jpg');
+        $paymodeLabel = $requestdata['paymode'] ?? '------';
+        $bankNames = [
+            'Bank Deposit HBL' => 'Habib Bank Ltd.',
+            'Bank Deposit AF' => 'Bank Deposit AF',
+            'Demand Draft' => 'Demand Draft',
+            'Cheque' => 'Cheque',
+            'Bank' => 'Bank Deposite',
+            'Cash' => 'Cash',
+        ];
+        $bankName = $bankNames[$paymodeLabel] ?? $paymodeLabel;
+    @endphp
+    <div class="report-header">
+        <div class="report-header-cell report-logo">
+            <img src="{{ $logoSrc }}" style="max-width: 90px; max-height: 90px;" alt="logo">
         </div>
-        <div style="display: table-cell; width: 65%; text-align: center; vertical-align: middle;">
-            <h4 style="font-size: 1.7rem; font-weight: 800; margin: 0;">EMPLOYEES SALARY DETAIL</h4>
-            <p style="font-family: 'Edwardian Script ITC'; text-align: center; margin: 0;">The Lynx School</p>
+        <div class="report-header-cell report-title">
+            <img src="{{ $schoolTitleSrc }}" class="report-title-image" alt="The Lynx School">
+            <div class="report-branch">{{ $branchName }}</div>
+            <div class="report-month">Employees Salary Detail</div>
         </div>
-        <div style="display: table-cell; width: 10%; text-align: center; vertical-align: middle;">
+        <div class="report-header-cell report-logo">
         </div>
     </div>
     <div>
-        <div class="">
-            <b>
-                <p>Bank Name : <span>{!! $requestdata ? $requestdata['paymode'] : '------' !!}</span> </p>
-            </b>
-            <b>
-                <p>Month : <span>{{ \Carbon\Carbon::parse($requestdata['date'])->format('F-Y') }}</span> </p>
-            </b>
-            <b>
-                <p>Date : <span>{{ now()->format('d-F-Y') }}</span> </p>
-            </b>
+        <div class="paymode-meta">
+            <table>
+                <tr>
+                    <td class="label">Bank Name</td>
+                    <td>{{ $bankName }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Month:</td>
+                    <td>{{ \Carbon\Carbon::parse($requestdata['date'])->format('F Y') }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Date</td>
+                    <td>{{ now()->format('F d, Y') }}</td>
+                </tr>
+            </table>
         </div>
-        <table style="border: 1px solid #000; border-collapse: collapse; width: 100% !important;">
+        <table class="paymode-table">
             <thead>
-                <tr style="border: 1px solid #000; background-color:gray; font-size:0.9rem;">
-                    <th style="border: 1px solid #000;">Sr#</th>
-                    <th style="border: 1px solid #000;">Name</th>
-                    <th style="border: 1px solid #000;">CNIC</th>
-                    <th style="border: 1px solid #000;">Email</th>
-                    <th style="border: 1px solid #000;">Contact Number</th>
+                <tr>
+                    <th class="sr">Sr.#</th>
+                    <th>Name</th>
+                    <th>CNIC</th>
+                    <th>Contact Number</th>
                     @if (isset($requestdata) &&
                             (strtolower($requestdata['paymode']) != 'cheque' && strtolower($requestdata['paymode']) != 'cash'))
-                        <th style="border: 1px solid #000;">Account Number</th>
+                        <th>Account No</th>
                     @elseif(isset($requestdata) && strtolower($requestdata['paymode']) == 'cheque')
-                        <th style="border: 1px solid #000;">Cheque Number</th>
+                        <th>Cheque Number</th>
                     @elseif(isset($requestdata) && strtolower($requestdata['paymode']) == 'cash')
-                        <th style="border: 1px solid #000;">Cash</th>
+                        <th>Cash</th>
                     @endif
 
-                    <th style="border: 1px solid #000;">Amount</th>
+                    <th>Amount</th>
                 </tr>
             </thead>
             <tbody>
@@ -66,33 +192,36 @@
                         $payscale = $data->employee->employee_payscale_details->last();
 
                     @endphp
-                    <tr style="border: 1px solid #000; font-size:0.7rem;">
-                        <td style="border: 1px solid #000;">{{ $key + 1 }}</td>
-                        <td style="border: 1px solid #000;">
+                    <tr>
+                        <td class="sr">{{ $key + 1 }}</td>
+                        <td>
                             {{ !empty($data->employee->name) ? @$data->employee->name : '' }}</td>
-                        <td style="border: 1px solid #000;">
+                        <td>
                             {{ !empty($data->employee->cnic) ? @$data->employee->cnic : '' }}</td>
-                        <td style="border: 1px solid #000;">
-                            {{ !empty($data->employee->email) ? @$data->employee->email : '' }}</td>
-                        <td style="border: 1px solid #000;">
+                        <td>
                             {{ !empty($data->employee->phone) ? @$data->employee->phone : '' }}</td>
                         @if (isset($requestdata) &&
                                 (strtolower($requestdata['paymode']) != 'cash'))
-                        <td style="border: 1px solid #000;">
+                        <td>
                             {{ !empty($payscale->account_number) ? @$payscale->account_number : '' }}</td>
                         @elseif(isset($requestdata) && strtolower($requestdata['paymode']) == 'cash')
-                        <td style="border: 1px solid #000;">
+                        <td>
                            cash</td>
                         @endif
-                        <td style="border: 1px solid #000;">{{ !empty($data->net_pay) ? $data->net_pay : '' }}</td>
+                        <td class="amount">{{ !empty($data->net_pay) ? number_format($data->net_pay) : '' }}</td>
                     </tr>
                 @endforeach
-                <tr style="border: 1px solid #000; font-size:0.7rem;  background-color:gray; font-size:0.9rem;">
-                    <td style="border: 1px solid #000; text-align: center;" colspan="2"> Grand Total</td>
-                    <td colspan="3"></td>
-                    <td style="border: 1px solid #000; text-align: center;" colspan="2">{{ @$tot_pay }}</td>
+                <tr class="paymode-grand-total">
+                    <td colspan="5">Grand Total</td>
+                    <td class="amount">{{ number_format(@$tot_pay) }}</td>
                 </tr>
             </tbody>
+        </table>
+        <table class="paymode-signatures">
+            <tr>
+                <td><span class="paymode-sign-line">Checked By</span></td>
+                <td><span class="paymode-sign-line">Authorised By</span></td>
+            </tr>
         </table>
 
 

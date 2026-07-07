@@ -817,7 +817,9 @@ class EmployeeSalaryDetail extends Controller
             if (!empty($paymode)) {
                     $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
-            $datas = $query->get();
+            $datas = $query->get()
+                ->sortBy(fn($salary) => strtolower(optional($salary->employee)->name ?? ''))
+                ->values();
         }
 
         $viewData = [
@@ -829,8 +831,10 @@ class EmployeeSalaryDetail extends Controller
         $html = '<html><head>
              <style>
                  @page {
-                     margin-top: 100px;
-                     margin-bottom: 100px;
+                     margin-top: 25px;
+                     margin-bottom: 70px;
+                     margin-left: 18px;
+                     margin-right: 18px;
                  }
                  .footer { position: fixed; bottom: -30px; height: 50px; left:0px; right:0px; }
              </style>
@@ -2192,7 +2196,9 @@ class EmployeeSalaryDetail extends Controller
             if (!empty($paymode)) {
                 $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
             }
-            $datas = $query->get();
+            $datas = $query->get()
+                ->sortBy(fn($salary) => strtolower(optional($salary->employee)->name ?? ''))
+                ->values();
         }
 
         $requestdata = $request->all();

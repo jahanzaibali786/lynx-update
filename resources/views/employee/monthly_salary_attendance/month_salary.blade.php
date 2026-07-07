@@ -984,7 +984,7 @@
                                             'Cash' => 'Cash',
                                         ],
                                         isset($_GET['paymode']) ? $_GET['paymode'] : '',
-                                        ['class' => 'form-control select custom-select'],
+                                        ['class' => 'form-control select'],
                                     ) }}
                                 </div>
                             </div>
@@ -1080,10 +1080,10 @@
                         <th colspan="6">{{ __('Status') }}</th>
                     </tr>
                     <tr class="table_heads salary-column-header">
+                        <th>{{ __('Basic') }}</th>
                         @foreach ($salaryheads as $head)
                             <th>{{ $shortenedHeads[$head->head] ?? $head->head }}</th>
                         @endforeach
-                        <th>{{ __('Basic') }}</th>
                         <th>{{ __('Other') }}</th>
                         <th>{{ __('Other Allowance') }}</th>
                         <th>{{ __('Drns & Misc') }}</th>
@@ -1146,17 +1146,17 @@
                                         data-bs-title="{{ __('Monthly Salary Detail') }}"
                                         data-bs-title="{{ __('Monthly Salary Detail') }}">
                                         <span
-                                            class="btn-inner--icon">{{ \Auth::user()->employeeIdFormat($data->employee->employee_id) }}</span>
+                                            class="btn-inner--icon">{{ $data->employee->employee_id }}</span>
 
                                     </a>
                                 @else
-                                    {{ \Auth::user()->employeeIdFormat($data->employee->employee_id) }}
+                                    {{ $data->employee->employee_id }}
                                 @endif
                             </td>
                             <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
                             <td>{{ !empty($data) ? date('M-Y', strtotime($data->for_month_of)) : '' }}</td>
                             <td>{{ !empty($data) ? $data->working_days : '' }}</td>
-
+                            <td>{{ !empty($data->employeemonthlysalary) ? $data->employeemonthlysalary->basics : '0' }}
                             @php
                                 $gross = 0;
                                 $lastPayscaleDetail = $data->employee->employee_payscale_details->last();
@@ -1191,7 +1191,7 @@ foreach ($heads as $scale_head) {
                                 <td>{{ $employeeHeadValues[$head->head] ?? '0' }}</td>
                             @endforeach
 
-                            <td>{{ !empty($data->employeemonthlysalary) ? $data->employeemonthlysalary->basics : '0' }}
+                            
                             </td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->conv : '0' }}</td>
                             <td>{{ !empty(@$data->employeemonthlysalary) ? $data->employeemonthlysalary->other : '0' }}
