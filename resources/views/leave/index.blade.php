@@ -133,75 +133,8 @@
         </thead>
         <tbody>
             @foreach ($leaves as $leave)
-                <tr>
-                    <td>{{ $loop->iteration }}</td>
-                    @if (\Auth::user()->type != 'Employee')
-                        <td>{{ !empty(\Auth::user()->getEmployee($leave->employee_id)) ? \Auth::user()->getEmployee(@$leave->employee_id)->name : '-' }}
-                        </td>
-                    @endif
-                    <td>{{ !empty($leave->leaveType) ? $leave->leaveType->title : '' }}
-                    </td>
-                    <td>{{ \Auth::user()->dateFormat($leave->applied_on) }}</td>
-                    <td>{{ \Auth::user()->dateFormat($leave->start_date) }}</td>
-                    <td>{{ \Auth::user()->dateFormat($leave->end_date) }}</td>
-                    <td>{{ $leave->total_leave_days }}</td>
-                    @php
-                        $leavesreasons = [
-                            'sick_leave' => __('Sick Leave'),
-                            'domestic_problem' => __('Domestic Problem'),
-                            'maternity' => __('Maternity'),
-                        ];
-                    @endphp
-                    <td>{{ $leavesreasons[$leave->leave_reason] ?? $leave->leave_reason }}</td>
-                    <td>{{ optional($leave->addedBy)->name ?? '-' }}</td>
-                    <td>
-                        @if ($leave->status == 'Pending')
-                            <div class="status_badge badge bg-warning p-2 px-3 rounded">
-                                {{ $leave->status }}</div>
-                        @elseif($leave->status == 'Approved')
-                            <div class="status_badge badge bg-success p-2 px-3 rounded">{{ $leave->status }}</div>
-                        @else
-                            <div class="status_badge badge bg-danger p-2 px-3 rounded">{{ $leave->status }}</div>
-                        @endif
-                    </td>
-                    @can('edit leave')
-                        <td>
-                            <div class="action-btn d-flex align-items-center gap-1">
-                                @if (\Auth::user()->type == 'Employee')
-                                    @if ($leave->status == 'Pending')
-                                        <a href="#" data-url="{{ URL::to('leave/' . $leave->id . '/edit') }}"
-                                            data-size="lg" data-ajax-popup="true" data-bs-title="{{ __('Edit Leave') }}"
-                                            class="btn mx-1 btn-sm btn-outline-primary align-items-center">
-                                            <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span></a>
-                                    @endif
-                                @else
-                                    <a href="#" data-url="{{ URL::to('leave/' . $leave->id . '/action') }}" data-size="lg"
-                                        data-ajax-popup="true" class="btn mx-1 btn-sm btn-outline-warning align-items-center"
-                                        data-bs-title="{{ __('Leave Action') }}">
-                                        <span class="btn-inner--icon"><i class="ti ti-caret-right"></i></span> </a>
-                                    <a href="#" data-url="{{ URL::to('leave/' . $leave->id . '/edit') }}" data-size="lg"
-                                        data-ajax-popup="true" class="btn mx-1 btn-sm btn-outline-primary align-items-center"
-                                        data-bs-toggle="{{ __('Edit Leave') }}" data-bs-title="{{ __('Edit') }}">
-                                        <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span></a>
-                                @endif
-                                @can('delete leave')
-                                    {!! Form::open([
-                                        'method' => 'DELETE',
-                                        'route' => ['leave.destroy', $leave->id],
-                                        'id' => 'delete-form-' . $leave->id,
-                                    ]) !!}
-                                    <a href="#" class="btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"
-                                        data-bs-toggle="{{ __('Delete') }}" data-bs-title="{{ __('Delete') }}"
-                                        data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                                        data-confirm-yes="document.getElementById('delete-form-{{ $leave->id }}').submit();">
-                                        <span class="btn-inner--icon"><i class="ti ti-trash"></i></span></a>
-                                    {!! Form::close() !!}
-                                @endcan
-                            </div>
-                        </td>
-                    @endcan
-                </tr>
-                @endforeach
+                @include('leave.partials.row', ['leave' => $leave, 'loopIteration' => $loop->iteration])
+            @endforeach
             </tbody>
         </table>
 
@@ -277,5 +210,26 @@
                     }
                 }
             });
+        </script>
+        <script>
+            if (window.jQuery && typeof ajaxDeleteForm === 'function') {
+                ajaxDeleteForm({
+                    selector: '.leave-ajax-delete',
+                    showToast: false,
+                    onSuccess: function(response) {
+                        if (response && response.success) {
+                            show_toastr('success', response.message || '{{ __('Leave successfully deleted.') }}',
+                                'success');
+                            $('#leave-row-' + response.leave_id).fadeOut(200, function() {
+                                $(this).remove();
+                            });
+                            return;
+                        }
+
+                        show_toastr('error', (response && response.message) || '{{ __('Something went wrong.') }}',
+                            'error');
+                    }
+                });
+            }
         </script>
     @endpush

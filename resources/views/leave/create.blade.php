@@ -104,7 +104,7 @@
         });
     }
 </script>
-{{Form::open(array('url' => 'leave', 'method' => 'post'))}}
+{{ Form::open(['url' => 'leave', 'method' => 'post', 'id' => 'leave-create-form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
@@ -194,6 +194,28 @@
 </div>
 <div class="modal-footer">
     <input type="button" value="{{__('Cancel')}}" class="btn  btn-outline-light" data-bs-dismiss="modal">
-    <input type="submit" value="{{__('Create')}}" class="btn  btn-outline-primary">
+    <input type="submit" value="{{__('Create')}}" class="btn  btn-outline-primary" id="leave-create-submit">
 </div>
 {{Form::close()}}
+<script>
+    if (window.jQuery && typeof ajaxModalForm === 'function') {
+        ajaxModalForm({
+            formSelector: '#leave-create-form',
+            submitText: '{{ __('Processing...') }}',
+            closeOnSuccess: false,
+            showToast: false,
+            onSuccess: function(response, $form) {
+                if (response && response.row_html) {
+                    $('.datatable tbody').prepend(response.row_html);
+                }
+
+                show_toastr('success', (response && response.message) || '{{ __('Leave successfully created.') }}',
+                    'success');
+                closeActiveBootstrapModal();
+                if ($form && $form[0]) {
+                    $form[0].reset();
+                }
+            }
+        });
+    }
+</script>

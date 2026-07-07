@@ -546,6 +546,90 @@ function deleteAjax(url, data, cb) {
     });
 }
 
+function ajaxDeleteForm(options) {
+    var settings = $.extend({
+        selector: '.ajax-delete',
+        formIdAttribute: 'form-id',
+        confirmAttribute: 'confirm',
+        defaultConfirm: 'Are you sure?',
+        processingClass: 'disabled',
+        showToast: true,
+        onSuccess: null,
+        onError: null
+    }, options || {});
+
+    $(document).off('click.ajaxDeleteForm', settings.selector).on('click.ajaxDeleteForm', settings.selector, function (e) {
+        e.preventDefault();
+
+        var $button = $(this);
+        var formId = $button.data(settings.formIdAttribute);
+        var $form = formId ? $('#' + formId) : $button.closest('form');
+        var confirmMessage = $button.data(settings.confirmAttribute) || settings.defaultConfirm;
+
+        if (!$form.length) {
+            if (typeof show_toastr === 'function') {
+                show_toastr('error', 'Delete form not found.', 'error');
+            }
+            return false;
+        }
+
+        if (confirmMessage && !confirm(confirmMessage)) {
+            return false;
+        }
+
+        if ($button.data('processing')) {
+            return false;
+        }
+
+        $button.data('processing', true).addClass(settings.processingClass);
+
+        $.ajax({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                'Accept': 'application/json'
+            },
+            url: $form.attr('action'),
+            type: $form.attr('method') || 'POST',
+            data: $form.serialize(),
+            dataType: 'json',
+            success: function (response) {
+                if (response && response.success === false) {
+                    handleAjaxDeleteFormError(response.message, response, $button, settings);
+                    return;
+                }
+
+                if (typeof settings.onSuccess === 'function') {
+                    settings.onSuccess(response, $button, $form);
+                }
+
+                if (settings.showToast && response && response.message && typeof show_toastr === 'function') {
+                    show_toastr('success', response.message, 'success');
+                }
+            },
+            error: function (xhr) {
+                var response = xhr.responseJSON || {};
+                handleAjaxDeleteFormError(response.message || 'Something went wrong.', response, $button, settings);
+            },
+            complete: function () {
+                $button.data('processing', false).removeClass(settings.processingClass);
+            }
+        });
+    });
+}
+
+function handleAjaxDeleteFormError(message, response, $button, settings) {
+    if (typeof settings.onError === 'function') {
+        settings.onError(message, response, $button);
+        return;
+    }
+
+    if (typeof show_toastr === 'function') {
+        show_toastr('error', message || 'Something went wrong.', 'error');
+    } else {
+        alert(message || 'Something went wrong.');
+    }
+}
+
 // Google calendar
 $(document).on('click', '.local_calender .fc-daygrid-event, .fc-timegrid-event', function (e) {
     // if (!$(this).hasClass('project')) {
