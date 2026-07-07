@@ -3996,11 +3996,10 @@ class ChallanController extends Controller
 
     public function storeChallan(Request $request)
     {
-        // dd($request->all());
         if ($request->has('challan_type')) {
             $clean = preg_replace('/\s*challan\s*$/i', '', $request->input('challan_type'));
             $request->merge(['challan_type' => strtolower($clean)]);
-        }
+            }
         $rules = [
             'session_id' => 'required',
             'branch_id' => 'required',
@@ -4020,6 +4019,7 @@ class ChallanController extends Controller
 
             return redirect()->back()->with('error', $messages->first());
         }
+        
         $chType = str_replace(' CHALLAN', '', $request->challan_type);
         $type = strtolower($chType);
         $feeMonth = $request->fee_month;
@@ -4064,7 +4064,7 @@ class ChallanController extends Controller
             $students = StudentRegistration::with('enrollment')
                 ->where('roll_no', $request->student_id)
                 ->where('student_status', 'Enrolled')
-                ->where('session_id', $request->session_id)
+                // ->where('session_id', $request->session_id)
                 ->get();
             // $students = collect([
             //     StudentRegistration::where('roll_no', $request->student_id)
@@ -4163,6 +4163,7 @@ class ChallanController extends Controller
                     'owned_by' => $student->owned_by,
                     'created_by' => \Auth::user()->creatorId(),
                 ]);
+                // dd($challan, $feeHeads, $concession);
                 $totalAmt = 0;
                 $totalConces = 0;
                 $annualAdded = false;

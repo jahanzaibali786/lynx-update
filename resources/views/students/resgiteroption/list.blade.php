@@ -39,7 +39,9 @@
                         </td>
                         <td>{{ $registeroption->name }}</td>
                         <td>{{ $registeroption->discount }}</td>
-                        <td style="    text-align: center;">
+                        <td style="text-align: center;">
+                            @php $isTeacherChild = strtoupper($registeroption->name) === 'TEACHER CHILD'; @endphp
+                            @if (!$isTeacherChild || \Auth::user()->type == 'company')
                             <div class="action-btn ms-2">
                                 <a href="#!"data-url="{{ route('registerOption.edit', $registeroption->id) }}"
                                     data-ajax-popup="true" class="mx-1 btn mx-1 btn-sm btn-outline-primary"
@@ -47,6 +49,7 @@
                                     data-original-title="{{ __('Edit') }}"><span class="btn-inner--icon"><i
                                             class="ti ti-pencil"></i></span></a>
                             </div>
+                            @endif
                         </td>
                     </tr>
                 @endforeach

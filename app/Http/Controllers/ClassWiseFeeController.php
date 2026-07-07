@@ -32,12 +32,8 @@ class ClassWiseFeeController extends Controller
      * @return \Illuminate\Http\Response
      */
 
-    // public function index($id)
     public function index(Request $request)
     {
-        // if(\Auth::user()->can('manage session'))
-        // {
-
         if (\Auth::user()->type == 'company') {
             $branches = User::where('type', '=', 'branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
@@ -48,18 +44,17 @@ class ClassWiseFeeController extends Controller
             $branches->prepend('Select Branch', '');
             $query = ClassWiseFee::orderBy('id', 'Desc');
         }
-        // $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->where('name', 'Income')->first();
-        // $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-        // ->where('type', $types->id)
-        // ->where('created_by', \Auth::user()->creatorId())->get();
         $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get();
         $session = Session::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('year', 'id');
 
         $class = [];
+        $structureTypes = [
+            'regular' => 'Regular',
+            'teacher_child' => 'Teacher Child',
+        ];
 
         if (!empty($request->branches)) {
             $query->where('owned_by', '=', $request->branches);
-            // $session = Session::where('owned_by', '=', $request->branches)->get()->pluck('year','id');
             $class = Classes::where('owned_by', '=', $request->branches)->get()->pluck('name', 'id');
         }
         if (!empty($request->session)) {
@@ -68,25 +63,25 @@ class ClassWiseFeeController extends Controller
         if (!empty($request->class)) {
             $query->where('class_id', '=', $request->class);
         }
-        $classfee = $query->get()->pluck('amount', 'head_id');
+
+        $type = $request->type ?? 'regular';
+        if ($type === 'teacher_child') {
+            $teacherQuery = clone $query;
+            $teacherQuery->where('type', 'teacher_child');
+            $classfee = $teacherQuery->get()->pluck('amount', 'head_id');
+            if ($classfee->isEmpty()) {
+                $query->where('type', 'regular');
+                $classfee = $query->get()->pluck('amount', 'head_id');
+            }
+        } else {
+            $query->where('type', 'regular');
+            $classfee = $query->get()->pluck('amount', 'head_id');
+        }
 
         if (empty($request->branches) && empty($request->session) && empty($request->class)) {
-            // $classfee = ClassWiseFee::where('id','0')->get();
             $classfee = [];
-
         }
-        // ->pluck('code_name', 'id');
-        // $session = Session::where('created_by',Auth::user()->creatorId())->get()->pluck('title', 'id');
-        // $class = Classes::where('created_by',Auth::user()->creatorId())->get()->pluck('name', 'id');
-
-        // $class->prepend('Select Class', '');
-        // $session->prepend('Select Session', '');
-        return view('students.classwisefee.index', compact('heads', 'branches', 'session', 'class', 'classfee'));
-        // }
-        // else
-        // {
-        //     return redirect()->back()->with('error', 'Permission denied.');
-        // }
+        return view('students.classwisefee.index', compact('heads', 'branches', 'session', 'class', 'classfee', 'structureTypes'));
     }
 
     /**
@@ -141,6 +136,8 @@ class ClassWiseFeeController extends Controller
             return redirect()->back()->with('error', $messages->first());
         }
 
+        $type = $request->type ?? 'regular';
+
         if ($request->account_id > 0) {
             for ($i = 0; $i < count($request->account_id); $i++) {
                 $classWiseFee = ClassWiseFee::updateOrCreate(
@@ -148,6 +145,7 @@ class ClassWiseFeeController extends Controller
                         'session_id' => $request->session,
                         'class_id' => $request->class,
                         'head_id' => $request->account_id[$i],
+                        'type' => $type,
                     ],
                     [
                         'amount' => $request->account_value[$i],
@@ -158,7 +156,7 @@ class ClassWiseFeeController extends Controller
                 );
             }
         }
-        return redirect()->route('class_wise_fee.index', ['branches' => $request->branch, 'session' => $request->session, 'class' => $request->class])->with('success', 'Fee Structure has been created or updated successfully');
+        return redirect()->route('class_wise_fee.index', ['branches' => $request->branch, 'session' => $request->session, 'class' => $request->class, 'type' => $type])->with('success', 'Fee Structure has been created or updated successfully');
         // return redirect()->route('class_wise_fee.index')->with('success','Session Class Wise Fee has been created successfully');
         // }
         // else
@@ -385,10 +383,19 @@ class ClassWiseFeeController extends Controller
             return redirect()->back()->with('error', 'Student not found.');
         }
 
+        // Determine type from student's register_option
+        $teacherChildOption = \App\Models\Registring_option::where('name', 'TEACHER CHILD')->first();
+        $type = ($teacherChildOption && $student->register_option == $teacherChildOption->id) ? 'teacher_child' : 'regular';
+
         \DB::beginTransaction();
         try {
             $feeStructureBefore = $this->feeStructureAmountSnapshot($student);
-            $classfee = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->get();
+            $classfee = ClassWiseFee::with('account')
+                ->where('session_id', $student->session_id)
+                ->where('class_id', $student->class_id)
+                ->where('owned_by', $student->owned_by)
+                ->where('type', $type)
+                ->get();
             // dd($classfee);
             if ($classfee->isNotEmpty()) {
                 foreach ($classfee as $fee) {

@@ -429,11 +429,16 @@ class StudentRegistration extends Controller
             $query = ModelsStudentRegistration::with('session', 'class')->where('owned_by', '=', \Auth::user()->ownedId());
         }
         $student = ModelsStudentRegistration::where('id', $id)->with('class', 'session', 'branches', 'enrollment')->first();
+
+        // Determine type from student's register_option
+        $teacherChildOption = Registring_option::where('name', 'TEACHER CHILD')->first();
+        $type = ($teacherChildOption && $student->register_option == $teacherChildOption->id) ? 'teacher_child' : 'regular';
+
         $classes = Classes::where('owned_by', $student->owned_by)->get()->pluck('name', 'id');
         $classfee = StudentFeeStructure::with('feehead')->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
 
         if ($classfee->isEmpty()) {
-            $fee_head = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->get();
+            $fee_head = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->where('type', $type)->get();
             if ($fee_head) {
                 for ($i = 0; $i < count($fee_head); $i++) {
                     $classfee = StudentFeeStructure::updateOrCreate(

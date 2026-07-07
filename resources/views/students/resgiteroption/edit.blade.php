@@ -1,8 +1,9 @@
+@php $isTeacherChild = strtoupper($registerOption->name) === 'TEACHER CHILD'; @endphp
 {{ Form::model($registerOption, array('route' => array('registerOption.update', $registerOption->id), 'method' => 'PUT')) }}
 <div class="modal-body">
     <div class="form-group">
         {{ Form::label('name', __('Name'),['class'=>'form-label']) }}<span style="color: red"> *</span>
-        {{ Form::text('name', null, array('class' => 'form-control','placeholder'=>__('Name'),'required'=>'required')) }}
+        {{ Form::text('name', null, array('class' => 'form-control','placeholder'=>__('Name'),'required'=>'required', 'disabled' => $isTeacherChild)) }}
     </div>
     <div class="form-group">
         {{ Form::label('discount', __('Value'),['class'=>'form-label']) }}<span style="color: red"> *</span>
