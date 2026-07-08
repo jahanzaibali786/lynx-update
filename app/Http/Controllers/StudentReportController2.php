@@ -253,9 +253,6 @@ public function sibling_students(Request $request)
         }
         $branches->prepend('Select Branch', '');
 
-        // Register types for filter
-        $registerTypes = Registring_option::where('created_by', $user->creatorId())->pluck('name', 'id');
-
         // Base query with eager loads
         $baseQuery = StudentRegistration::with([
             'concession.policy',
@@ -278,12 +275,26 @@ public function sibling_students(Request $request)
 
         $baseOn = $request->base_on ?? 'cnic';
 
-        // Pre-load all employees keyed by CNIC for instant lookup
-        $employeesByCnic = Employee::with('designation')->get()->keyBy('cnic');
+        // Employee status filter
+        $employeeStatus = $request->employee_status ?? 'active';
+        $employeeQuery = Employee::with('designation');
+        if ($employeeStatus === 'active') {
+            $employeeQuery->where(function ($q) {
+                $q->where('is_res_ter', 0)->orWhereNull('is_res_ter');
+            });
+        } elseif ($employeeStatus === 'resigned') {
+            $employeeQuery->where('is_res_ter', 1);
+        }
 
-        if ($baseOn === 'register_type' && $request->filled('register_type')) {
+        // Pre-load employees keyed by CNIC
+        $employeesByCnic = $employeeQuery->get()->keyBy('cnic');
+
+        if ($baseOn === 'staff_child') {
+            $teacherChild = Registring_option::where('created_by', $user->creatorId())
+                ->where('name', 'TEACHER CHILD')
+                ->first();
             $students = $baseQuery
-                ->where('register_option', $request->register_type)
+                ->where('register_option', $teacherChild->id ?? 0)
                 ->orderBy('stdname')
                 ->get();
         } else {
@@ -307,9 +318,12 @@ public function sibling_students(Request $request)
         $students->each(function ($student) use ($employeesByCnic) {
             $employee = $employeesByCnic->get($student->fathercnic)
                 ?? $employeesByCnic->get($student->mothercnic)
-                ?? new \App\Models\Employee(['owned_by' => null]);
+                ?? new \App\Models\Employee(['owned_by' => null, 'employee_id' => '']);
             $student->setRelation('employee', $employee);
         });
+
+        // Keep only students whose employee was found in the filtered set
+        $students = $students->filter(fn ($s) => $s->employee->exists)->values();
 
         $groupedStudents = $students->groupBy('owned_by');
 
@@ -322,7 +336,7 @@ public function sibling_students(Request $request)
             return Excel::download(new StaffChildExport($branches, $groupedStudents, $report_name, $request->all()), 'StaffChildReport.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
 
-        return view('studentReports.report2.staff_child', compact('branches', 'students', 'groupedStudents', 'registerTypes'));
+        return view('studentReports.report2.staff_child', compact('branches', 'students', 'groupedStudents'));
     }
     public function student_data_analysis(Request $request)
     {

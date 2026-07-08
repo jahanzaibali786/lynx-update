@@ -4,15 +4,6 @@
 @endsection
 @push('script-page')
     <script src="{{ asset('js/jquery.min.js') }}"></script>
-    <script>
-        function toggleRegisterType(select) {
-            if (select.value === 'register_type') {
-                document.getElementById('register_type_group').style.display = 'block';
-            } else {
-                document.getElementById('register_type_group').style.display = 'none';
-            }
-        }
-    </script>
 @endpush
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
@@ -35,13 +26,13 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('base_on', __('Search By'), ['class' => 'form-label']) }}
-                                    {{ Form::select('base_on', ['cnic' => 'CNIC', 'register_type' => 'Register Type'], request()->get('base_on', 'cnic'), ['class' => 'form-control select custom-select', 'onchange' => 'toggleRegisterType(this)']) }}
+                                    {{ Form::select('base_on', ['cnic' => 'CNIC', 'staff_child' => 'Staff Child (Regtype)'], request()->get('base_on', 'cnic'), ['class' => 'form-control select custom-select']) }}
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2" id="register_type_group" style="{{ request()->get('base_on') === 'register_type' ? '' : 'display:none;' }}">
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
-                                    {{ Form::label('register_type', __('Register Type'), ['class' => 'form-label']) }}
-                                    {{ Form::select('register_type', $registerTypes, request()->get('register_type'), ['class' => 'form-control select custom-select']) }}
+                                    {{ Form::label('employee_status', __('Employee Status'), ['class' => 'form-label']) }}
+                                    {{ Form::select('employee_status', ['active' => 'Active Employee', 'resigned' => 'Resigned Employee'], request()->get('employee_status', 'active'), ['class' => 'form-control select custom-select']) }}
                                 </div>
                             </div>
                             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-4 d-flex justify-content-end gap-2 align-items-center">
@@ -117,7 +108,7 @@
                     @endphp
                     @foreach ($groupedStudents as $branchId => $students)
                         <tr class="branch-header" style="background-color:#bcbcbc;">
-                            <td colspan="15" style="font-weight: bold;">
+                            <td colspan="15" style="font-weight: bold; text-align: left;">
                                 {{ $branches[$branchId] ?? 'Branch Not Specified' }}
                             </td>
                         </tr>

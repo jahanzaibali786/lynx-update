@@ -348,10 +348,41 @@ class BulkBillingController extends Controller
                 'total' => $netPayable,
             ];
 
+            $feeMonth = $challan->fee_month;
+            $isBeforeFeb2026 = $feeMonth && strtotime($feeMonth) < strtotime('2026-02-01');
+
+            if ($isBeforeFeb2026) {
+                $bankTransfer = \App\Models\BankTransfer::where(function ($q) use ($request) {
+                    $q->where('from_account', $request->bank_id);
+                })
+                    ->whereYear('date', 2026)
+                    ->whereMonth('date', 2)
+                    ->orderBy('date')
+                    ->orderBy('id')
+                    ->first();
+
+                if ($bankTransfer) {
+                    $bankTransfer->amount = ($bankTransfer->amount ?? 0) + $netPayable;
+                    $bankTransfer->previous_balance = ($bankTransfer->previous_balance ?? 0) + $netPayable;
+                    $bankTransfer->save();
+
+                    $journalItems = \App\Models\JournalItem::where('journal', $bankTransfer->voucher_id)->get();
+                    foreach ($journalItems as $ji) {
+                        if ($ji->debit > 0) {
+                            $ji->debit += $netPayable;
+                        }
+                        if ($ji->credit > 0) {
+                            $ji->credit += $netPayable;
+                        }
+                        $ji->save();
+                    }
+                }
+            }
+
             if (ucwords($request->payment_type) == 'CD') {
-                Utility::crv_entry($receiptData);
+                Utility::crv_entry($receiptData, !$isBeforeFeb2026);
             } else {
-                Utility::brv_entry($receiptData);
+                Utility::brv_entry($receiptData, !$isBeforeFeb2026);
             }
 
             DB::commit();

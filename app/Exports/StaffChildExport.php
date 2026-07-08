@@ -192,6 +192,15 @@ class StaffChildExport implements FromView, WithEvents
                 $sheet->getStyle("L8:N{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                 $sheet->getStyle("L8:N{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0');
                 $sheet->getStyle("A8:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
+
+                // Left-align branch header rows (merged cells spanning A-O with no data in column B)
+                for ($row = 8; $row <= $lastDataRow; $row++) {
+                    $valA = $sheet->getCell("A{$row}")->getValue();
+                    $valB = $sheet->getCell("B{$row}")->getValue();
+                    if ($valA !== null && $valA !== '' && ($valB === null || $valB === '')) {
+                        $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    }
+                }
             },
         ];
     }

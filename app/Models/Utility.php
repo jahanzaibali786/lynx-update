@@ -6092,9 +6092,9 @@ class Utility extends Model
     // }
 
 
-    public static function brv_entry($data)
+    public static function brv_entry($data, $updateBankBalance = true)
     {
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data, $updateBankBalance) {
 
             $voucherType = 'BRV';
 
@@ -6203,7 +6203,7 @@ class Utility extends Model
                 ]);
             }
 
-            if (!empty($data['bank_id']) && $data['total'] > 0) {
+            if ($updateBankBalance && !empty($data['bank_id']) && $data['total'] > 0) {
                 self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
             }
 
@@ -6211,9 +6211,9 @@ class Utility extends Model
         });
     }
 
-    public static function crv_entry($data)
+    public static function crv_entry($data, $updateBankBalance = true)
     {
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data, $updateBankBalance) {
 
             $voucherType = 'CRV';
 
@@ -6322,7 +6322,7 @@ class Utility extends Model
                 ]);
             }
 
-            if (!empty($data['bank_id']) && $data['total'] > 0) {
+            if ($updateBankBalance && !empty($data['bank_id']) && $data['total'] > 0) {
                 self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
             }
 

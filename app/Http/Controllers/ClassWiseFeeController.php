@@ -346,17 +346,20 @@ class ClassWiseFeeController extends Controller
     }
     public function getClasswithdrawStudents(Request $request)
     {
+        // dd($request->all());
         if ($request->ajax()) {
             $status = $request->input('status');
-            $query = StudentRegistration::select(\DB::raw('CONCAT(roll_no, " - ", stdname, " s/d/o ", fathername) AS stdname'), 'roll_no')->whereNotNull('roll_no')
-                ->where('class_id', '=', $request->class_id);
+
+            $query = StudentRegistration::select(\DB::raw('CONCAT(roll_no, " - ", stdname, " s/d/o ", fathername) AS stdname'), 'roll_no')->whereNotNull('roll_no');
             if ($status == 'active') {
+                if ($request->class_id != 'all' && $request->class_id != null) {
+                    $query->where('class_id', $request->class_id);
+                }
                 $query->whereDoesntHave('withdrawal');
             } else if ($status == 'withdraw') {
                 $query->whereHas('withdrawal');
             }
-            $students = $query->get()->pluck('stdname', 'roll_no');
-            ;
+            $students = $query->get()->pluck('stdname', 'roll_no');;
             return response()->json(['status' => 'success', 'students' => $students]);
         }
 

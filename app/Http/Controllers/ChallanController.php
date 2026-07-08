@@ -3415,7 +3415,39 @@ class ChallanController extends Controller
                 ]
             );
 
-            Utility::bankAccountBalance($request->account_id, $request->amount, 'credit');
+            $feeMonth = $invoicePayment->fee_month;
+            $isBeforeFeb2026 = $feeMonth && strtotime($feeMonth) < strtotime('2026-02-01');
+
+            if ($isBeforeFeb2026) {
+                $bankTransfer = \App\Models\BankTransfer::where(function ($q) use ($request) {
+                    $q->where('from_account', $request->bank)
+                      ->orWhere('to_account', $request->bank);
+                })
+                    ->whereYear('date', 2026)
+                    ->whereMonth('date', 2)
+                    ->orderBy('date')
+                    ->orderBy('id')
+                    ->first();
+
+                if ($bankTransfer) {
+                    $bankTransfer->amount = ($bankTransfer->amount ?? 0) + $total;
+                    $bankTransfer->previous_balance = ($bankTransfer->previous_balance ?? 0) + $total;
+                    $bankTransfer->save();
+
+                    $journalItems = \App\Models\JournalItem::where('journal', $bankTransfer->voucher_id)->get();
+                    foreach ($journalItems as $ji) {
+                        if ($ji->debit > 0) {
+                            $ji->debit += $total;
+                        }
+                        if ($ji->credit > 0) {
+                            $ji->credit += $total;
+                        }
+                        $ji->save();
+                    }
+                }
+            } else {
+                Utility::bankAccountBalance($request->account_id, $request->amount, 'credit');
+            }
             $invoicePayment = Challans::where('challanNo', $request->challan_id)->first();
 
             $bankAccount = BankAccount::find($request->bank);
@@ -3447,10 +3479,10 @@ class ChallanController extends Controller
             // $dataret = Utility::brv_entry($data);
 
             if (ucwords($request->receive_type) == 'CD') {
-                $dataret = Utility::crv_entry($data);
+                $dataret = Utility::crv_entry($data, !$isBeforeFeb2026);
             } else {
 
-                $dataret = Utility::brv_entry($data);
+                $dataret = Utility::brv_entry($data, !$isBeforeFeb2026);
             }
             if ($invoicePayment->challan_type == 'Admission') {
                 $Enroll = StudentEnrollments::where('regId', $invoicePayment->student_id)->first();
