@@ -1785,14 +1785,18 @@ body.theme-10 .formTextbox:focus{
     width: 100%;
 }
 
-.btn-outline-primary, .btn-outline-success, .btn-outline-danger, .btn-outline-warning,.btn-outline-info {
+.btn-outline-primary, .btn-outline-secondary, .btn-outline-success, .btn-outline-danger, .btn-outline-warning, .btn-outline-info {
     outline: none!important;
     border: none;
     box-shadow: none!important;
+    color: white!important;
 }
 
 .btn-outline-primary {
     background: #343C6A;
+}
+.btn-outline-secondary {
+    background: #4B5563;
 }
 .btn-outline-success  {
     background: #15E222;
@@ -1805,7 +1809,7 @@ body.theme-10 .formTextbox:focus{
 }
 
 
-.btn-outline-primary, .btn-outline-primary span i, .btn-outline-success, .btn-outline-success span i, .btn-outline-danger, .btn-outline-danger span i, .btn-outline-warning, .btn-outline-warning span i {
+.btn-outline-primary, .btn-outline-primary span i,.btn-outline-secondary, .btn-outline-secondary span i, .btn-outline-success, .btn-outline-success span i, .btn-outline-danger, .btn-outline-danger span i, .btn-outline-warning span i, .btn-outline-warning span i {
     color: white!important;
 }
 
@@ -1813,8 +1817,12 @@ table .btn-outline-primary, table .btn-outline-primary span i {
     color: #100773!important;
 }
 
+table .btn-outline-secondary, table .btn-outline-secondary span i {
+    color: #6c757d !important;
+}
+
 table .btn-outline-success, table .btn-outline-success span i {
-    color: #15E222!important;
+    color: #15E222 !important;
 }
 
 table .btn-outline-danger, table .btn-outline-danger span i {
@@ -1827,10 +1835,14 @@ table .btn-outline-warning, table .btn-outline-warning span i {
     color: #ffa21d!important;
 }
 
+.btn-outline-warning span i:hover {
+    background-color: none !important;
+}
 
-table .btn-outline-primary .btn-inner--icon, table .btn-outline-success .btn-inner--icon, table .btn-outline-danger .btn-inner--icon, table .btn-outline-warning .btn-inner--icon {
+table .btn-outline-primary .btn-inner--icon, table .btn-outline-secondary .btn-inner--icon, table .btn-outline-success .btn-inner--icon, table .btn-outline-danger .btn-inner--icon, table .btn-outline-warning .btn-inner--icon {
     color: white!important;
 }
+
 
 table a:has(span i) {
     background: none !important;
@@ -1841,11 +1853,11 @@ table a:has(span i) {
 
 table a:not(:has(*)) {
     background: none !important;
-    border: 3px solid var(--primary-darker) !important;
-    color: #343C6A !important;
+    /* border: 3px solid var(--primary-darker) !important; */
+    color: var(--primary-darker) !important;
 }
 
-table a.btn.btn-sm.btn-outline-primary:not(:has(*)):hover {
+table .btn.btn-sm.btn-outline-primary:not(:has(*)):hover {
     color: var(--primary-darker) !important;
 }
 

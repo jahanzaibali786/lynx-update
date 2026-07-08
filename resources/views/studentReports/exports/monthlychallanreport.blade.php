@@ -51,7 +51,7 @@
                     style="font-weight:bold; text-align:left; background-color:#bcbcbc; border:1px solid #000;">
                     {{ $branches[$a] ?? 'Branch Not Specified' }}
                 </td>
-                <td colspan="{{ 10 + $heads->count() * 3 + 5 }}"
+                <td colspan="{{ 6 + $heads->count() * 3 + 5 }}"
                     style="background-color:#bcbcbc; border:1px solid #000;">
                 </td>
             </tr>
@@ -79,18 +79,18 @@
                     // ── Gross = total_amount (full, before concession) ───────
                     $total_amount      = floatval($data->total_amount ?? 0);
                     $concession_amount = floatval($data->concession_amount ?? 0);
-                    $gross             = $total_amount;                      // gross = full billed amount
-                    $net_receivable    = $total_amount - $concession_amount; // net after discount
+                    $gross             = $total_amount - $concession_amount;                      // gross = full billed amount
 
                     // ── Arrears ──────────────────────────────────────────────
                     $startDate = '2026-01-01';
                     $previousUnpaidChallans = App\Models\Challans::where('student_id', $data->student_id)
                         ->where('status', '!=', 'Paid')
-                        ->where('challan_type','!=','registration') // exclude registration challans from arrears
+						->where('challan_type','!=','registration')
                         ->whereDate('fee_month', '>=', $startDate)
                         ->whereDate('fee_month', '<', date('Y-m-d', strtotime($data->fee_month)))
                         ->where('id', '!=', $data->id)
                         ->sum(\DB::raw('total_amount - concession_amount - paid_amount'));
+                    $net_receivable    = ($total_amount - $concession_amount) + $previousUnpaidChallans; // net after discount
 
                     // ── Adm date parsing ─────────────────────────────────────
                     $admDateRaw  = $data->enrollstudent->adm_date ?? null;

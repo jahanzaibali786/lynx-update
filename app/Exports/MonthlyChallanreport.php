@@ -158,6 +158,7 @@ class MonthlyChallanreport implements FromView, WithEvents
                 $sheet->getColumnDimension('A')->setWidth(5);
                 $sheet->getColumnDimension('B')->setWidth(5);
                 $sheet->getColumnDimension('E')->setWidth(20);
+				$sheet->getColumnDimension('H')->setAutoSize(true); 
 
                 // ── Data cell alignment & formatting ─────────────────────
                 $sheet->getStyle("A9:C{$lastDataRow}")->getAlignment()
@@ -180,7 +181,7 @@ class MonthlyChallanreport implements FromView, WithEvents
 // ----------------------------------
                 $sheet->getStyle("H9:H{$lastDataRow}")
                     ->getNumberFormat()
-                    ->setFormatCode('yyyy-mm-dd');
+                    ->setFormatCode('dd-MMM-yyy');
 
                 // ----------------------------------
 // ✅ MONTH-YEAR FORMAT (Column I)

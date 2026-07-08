@@ -67,10 +67,7 @@ class StudentPromotions extends Controller
             $students = StudentEnrollments::with(['StudentRegistration', 'class', 'section'])
                 ->where('owned_by', $branchFrom)
                 ->where('class_id', $request->class_id)
-                // ->whereHas('StudentRegistration', function ($q) use ($request) {
-                //     $q->where('active_status',1);
-                // })
-                ->where('active_status', 1)
+				->where('active_status', 1)
                 ->when($request->filled('section_from'), fn($q) => $q->where('section_id', $request->section_from))
                 ->when($request->filled('session_from_id'), fn($q) => $q->where('session_id', $request->session_from_id))
                 ->get();

@@ -31,6 +31,11 @@
         @endphp
 
         @forelse ($studentData as $branchId => $students)
+			<tr class="branch-name-row">
+			    <td colspan="{{ 10 + count($heads) }}">
+			        <strong>{{ $branches[$branchId] ?? ($students->first()->branch->name ?? 'Unknown Branch') }}</strong>
+			    </td>
+			</tr>
             @foreach ($students as $index => $student)
                 @php
                     $studentKey = $student->regId;
@@ -72,8 +77,8 @@
                 <td></td>
                 <td></td>
                 <td></td>
-                <td>Branch Total</td>
 
+                <td>Branch Total</td>
                 @foreach ($headNames as $headId => $head)
                     <td>{{ $branchHeadTotals[$branchId][$headId] ?? 0 }}</td>
                 @endforeach
@@ -96,7 +101,7 @@
             <td></td>
             <td></td>
             <td>Grand Total</td>
-            
+
             @foreach ($headNames as $headId => $head)
                 <td>{{ $grandHeadTotals[$headId] ?? 0 }}</td>
             @endforeach

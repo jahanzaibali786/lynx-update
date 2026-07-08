@@ -87,6 +87,22 @@ class BankTransferController extends Controller
                 ->orderBy('id', 'desc')
                 ->get();
 
+			if ($request->has('export') && $request->export == '1') {
+                $dateFrom = '';
+                $dateTo = '';
+                if (!empty($request->date)) {
+                    $dates = explode(' to ', $request->date);
+                    if (count($dates) > 1) {
+                        $dateFrom = $dates[0];
+                        $dateTo = $dates[1];
+                    } else {
+                        $dateFrom = $dates[0];
+                        $dateTo = $dates[0];
+                    }
+                }
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\BankTransferExport($transfers, $dateFrom, $dateTo), 'bank_transfers.xlsx');
+            }
+
             // ─────────────────────────────
             // GET LATEST IDS PER FROM ACCOUNT
             // ─────────────────────────────
@@ -164,8 +180,8 @@ class BankTransferController extends Controller
                     $messages = $validator->getMessageBag();
                     return redirect()->back()->with('error', $messages->first());
                 }
-                $bankAccounts = BankAccount::select('chart_account_id', 'bank_name', 'owned_by')->where('id', $request->from_account)->first();
-                $to_account = BankAccount::select('chart_account_id', 'bank_name', 'owned_by')->where('id', $request->to_account)->first();
+                $bankAccounts = BankAccount::select('id','chart_account_id', 'bank_name', 'owned_by')->where('id', $request->from_account)->first();
+                $to_account = BankAccount::select('id','chart_account_id', 'bank_name', 'owned_by')->where('id', $request->to_account)->first();
                 // dd($bankAccounts, $to_account);
                 $transfer = new BankTransfer();
                 $transfer->from_account = $request->from_account;

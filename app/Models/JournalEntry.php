@@ -84,7 +84,7 @@ class JournalEntry extends Model
     {
         return $this->hasOne('App\Models\User', 'id', 'owned_by');
     }
-    public function securityAdjustment()
+	public function securityAdjustment()
     {
         return $this->hasOne('App\Models\ChallanSecAdjustment', 'voucher_id', 'id');
     }

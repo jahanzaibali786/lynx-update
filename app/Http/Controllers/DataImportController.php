@@ -2853,7 +2853,7 @@ class DataImportController extends Controller
                         return is_string($value)
                             ? iconv('UTF-8', 'UTF-8//IGNORE', $value)
                             : $value;
-                    }, $all_data);
+                    }, $all_data);                    
                     if ($count > 0) {
                         $error_reason = null;
                         // dd($all_data);
@@ -2894,7 +2894,7 @@ class DataImportController extends Controller
                         // dd($all_data);
                         $clean_title = preg_replace('/\s*\(.*?\)/', '', $all_data[0]);
                         $branch = User::where('name', $clean_title)->first();
-                        if ($all_data[22] != '') {
+                        if($all_data[22] != ''){
                             $regType = strtolower($all_data[22]) == 'normal' ? 1 : 2;
                         }
                         if (!$branch) {
@@ -2966,7 +2966,7 @@ class DataImportController extends Controller
                             $reg->registrationfee = $all_data[18] ?? null;
                             $reg->reg_class = $class->id;
                             $reg->register_option = $regType;
-
+                            
                             // Update status from sheet data
                             $reg->student_status = $all_data[19];
                             $reg->active_status = $all_data[20];
@@ -3724,7 +3724,7 @@ class DataImportController extends Controller
                                 $dataret = Utility::crv_entry($data);
                                 $challan->voucher_id = $dataret;
                                 $challan->save();
-
+                            
                             }
                         }
                         //log
@@ -4482,7 +4482,7 @@ class DataImportController extends Controller
                                 $challan_head->created_at = date('Y-m-d H:i:s', strtotime($billingMonth));
                                 $challan_head->updated_at = date('Y-m-d H:i:s', strtotime($billingMonth));
                                 $challan_head->save();
-
+                                
                                 $challan->total_amount += $head_amount;
                                 $challan->concession_amount += $concession;
                                 $challan->save();
@@ -6486,7 +6486,7 @@ class DataImportController extends Controller
         $latest = Challans::orderByRaw('CAST(challanNo AS UNSIGNED) DESC')
             ->first();
 
-        if (!$latest || !$latest->challanNo) {
+        if (! $latest || ! $latest->challanNo) {
             return 1;
         }
 

@@ -46,24 +46,39 @@
         <div class="col-6">
             <div class="form-group">
                 {{ Form::label('reason', __('Reason'), ['class' => 'form-label']) }}<span style="color:red"> *</span>
-                {{ Form::select('reason', [
-                    'School Change' => 'School Change',
-                    'Dissatisfaction Academics, Teachers, Management' => 'Dissatisfaction Academics, Teachers, Management',
-                    'Transport Issue' => 'Transport Issue',
-                    'Fee defaulter' => 'Fee defaulter',
-                    'Fee Affordability Issue' => 'Fee Affordability Issue',
-                    'Passing Out' => 'Passing Out',
-                    'Other' => 'Other'
-                ], null, ['class' => 'form-control','required'=>'required']) }}
+                {{ Form::select(
+                    'reason',
+                    [
+                        'School Change' => 'School Change',
+                        'Dissatisfaction Academics, Teachers, Management' => 'Dissatisfaction Academics, Teachers, Management',
+                        'Transport Issue' => 'Transport Issue',
+                        'Fee defaulter' => 'Fee defaulter',
+                        'Fee Affordability Issue' => 'Fee Affordability Issue',
+                        'Passing Out' => 'Passing Out',
+                        'Other' => 'Other',
+                    ],
+                    null,
+                    ['class' => 'form-control', 'required' => 'required', 'id' => 'reason_select'],
+                ) }}
             </div>
         </div>
+
+        {{-- NEW: Other Reason field - only shows when Other is selected --}}
+        <div class="col-6" id="other_reason_box" style="display: none;">
+            <div class="form-group">
+                {{ Form::label('other_reason', __('Other Reason'), ['class' => 'form-label']) }}<span
+                    style="color:red"> *</span>
+                {{ Form::text('other_reason', null, ['class' => 'form-control', 'placeholder' => __('Enter Other Reason'), 'maxlength' => '55', 'id' => 'other_reason_field']) }}
+            </div>
+        </div>
+
 
         <input type="hidden" name="is_po" id="is_po" value="0">
 
         <div class="col-12">
             <div class="form-group">
                 {{ Form::label('remark', __('Remarks'), ['class' => 'form-label']) }}<span style="color:red"> *</span>
-                {{ Form::textarea('remark', null, ['class' => 'form-control','placeholder'=>__('Enter Remarks'),'required'=>'required','rows'=>2]) }}
+                {{ Form::textarea('remark', null, ['class' => 'form-control','placeholder'=>__('Enter detailed remarks'),'required'=>'required','rows'=>2,'maxlength'=>'1000']) }}
             </div>
         </div>
     </div>
@@ -76,9 +91,6 @@
 {{ Form::close() }}
 
 <script>
-/* --------------------------------------------------------------------------
-   Helpers for custom-select plugin
---------------------------------------------------------------------------- */
 function destroyCustomSelect($el) {
     if (!$el || !$el.length) return;
 
@@ -101,32 +113,39 @@ function reInitCustomSelect($el) {
     }
 }
 
-/* --------------------------------------------------------------------------
-   On document ready
---------------------------------------------------------------------------- */
 $(document).ready(function () {
-    // Ensure selects start clean
     destroyCustomSelect($('#class_from'));
     destroyCustomSelect($('#class_students'));
 
     reInitCustomSelect($('#class_from'));
     reInitCustomSelect($('#class_students'));
+
+    $('#reason_select').trigger('change');
 });
 
-$(document).on('change', '#reason', function () {
-    $('#is_po').val($(this).val() === 'Passing Out' ? '1' : '0');
+/* Reason change */
+$(document).on('change', '#reason_select', function () {
+    let reason = $(this).val();
+
+    $('#is_po').val(reason === 'Passing Out' ? '1' : '0');
+
+    if (reason === 'Other') {
+        $('#other_reason_box').show();
+        $('#other_reason_field').attr('required', 'required');
+    } else {
+        $('#other_reason_box').hide();
+        $('#other_reason_field').removeAttr('required').val('');
+    }
 });
 
-/* --------------------------------------------------------------------------
-   Branch → Classes
---------------------------------------------------------------------------- */
+/* Branch → Classes */
 $(document).on('change', '#branch_from', function () {
     let branchId = $(this).val();
     let $classSelect = $('#class_from');
     let $studentSelect = $('#class_students');
 
     $.ajax({
-        url: '{{ route('branch.class') }}',
+        url: '{{ route("branch.class") }}',
         type: 'POST',
         data: {
             branch_id: branchId,
@@ -135,8 +154,8 @@ $(document).on('change', '#branch_from', function () {
         dataType: 'json',
         success: function (data) {
 
-            /* Reset Class select */
             destroyCustomSelect($classSelect);
+
             $classSelect.empty().append(
                 $('<option>', { value: '', text: 'Select Class' })
             );
@@ -154,34 +173,35 @@ $(document).on('change', '#branch_from', function () {
 
             reInitCustomSelect($classSelect);
 
-            /* Reset Student select */
             destroyCustomSelect($studentSelect);
+
             $studentSelect.empty().append(
                 $('<option>', { value: '', text: 'Select Student' })
             );
+
             reInitCustomSelect($studentSelect);
         }
     });
 });
 
-/* --------------------------------------------------------------------------
-   Class → Students
---------------------------------------------------------------------------- */
+/* Class → Students */
 $(document).on('change', '#class_from', function () {
     let classId = $(this).val();
     let $studentSelect = $('#class_students');
 
     if (!classId) {
         destroyCustomSelect($studentSelect);
+
         $studentSelect.empty().append(
             $('<option>', { value: '', text: 'Select Student' })
         );
+
         reInitCustomSelect($studentSelect);
         return;
     }
 
     $.ajax({
-        url: '{{ route('class.student_head') }}',
+        url: '{{ route("class.student_head") }}',
         type: 'POST',
         data: {
             class_id: classId,
@@ -191,6 +211,7 @@ $(document).on('change', '#class_from', function () {
         success: function (response) {
 
             destroyCustomSelect($studentSelect);
+
             $studentSelect.empty().append(
                 $('<option>', { value: '', text: 'Select Student' })
             );
@@ -199,7 +220,7 @@ $(document).on('change', '#class_from', function () {
                 response.student.forEach(function (s) {
                     $studentSelect.append(
                         $('<option>', {
-                            value: s.id, // ✅ correct value
+                            value: s.id,
                             text: s.roll_no + ' - ' + s.stdname + ' s/d/o ' + s.fathername
                         })
                     );

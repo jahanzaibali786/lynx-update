@@ -62,6 +62,10 @@
                 {{-- <span> --}}
                     <div class="action-btn ms-2">
                     @if($account->holder_name!='Cash')
+                        <a href="{{ route('bank-account.statement', $account->id) }}" class="mx-1 btn btn-sm btn-outline-info align-items-center"
+                            data-bs-title="{{__('Statement')}}" title="{{__('Statement')}}">
+                            <span class="btn-inner--icon"><i class="ti ti-file-invoice"></i></span>
+                        </a>
                     @can('edit bank account')
                         <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center"
                             data-url="{{ route('bank-account.edit',$account->id) }}" data-ajax-popup="true"

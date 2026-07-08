@@ -32,16 +32,16 @@ class preChallanController extends Controller
             ->pluck('name', 'id')
             ->prepend('All Branches', 'all');
         $query = PreChallanReport::with('branch');
-        // if (Auth::user()->type == 'branch') {
-        //     $query->where('owned_by', Auth::user()->ownedId());
-        // }
-        // if ($request->has('branches') && $request->branches != '' && $request->branches != 'all') {
-        //     $query->where('branch_id', $request->branches);
-        // }
-        // // date filter 
-        // if ($request->has('date') && $request->date != '') {
-        //     $query->where('month', $request->date);
-        // }
+        if (Auth::user()->type == 'branch') {
+            $query->where('owned_by', Auth::user()->ownedId());
+        }
+        if ($request->has('branches') && $request->branches != '' && $request->branches != 'all') {
+            $query->where('branch_id', $request->branches);
+        }
+        // date filter 
+        if ($request->has('date') && $request->date != '') {
+            $query->where('month', $request->date);
+        }
         $prechallanreports = $query->orderBy('month', 'desc')->get();
         return view('studentReports.prechallan.list', compact('prechallanreports', 'branches'));
     }
@@ -320,6 +320,7 @@ class preChallanController extends Controller
         $creatorId = $user->type == 'company' ? $user->creatorId() : $user->ownedId();
         $isCompany = $user->type == 'company';
         $rows = collect();
+
         // ── Branch dropdown ───────────────────────────────────────────────────────
         $branches = \DB::table('users')
             ->when(
@@ -340,7 +341,8 @@ class preChallanController extends Controller
 
             // ── 1. Pull pre-challan snapshots ─────────────────────────────────────
             $snapshotQuery = PreChallanSnapshot::with(['student.enrollment', 'student.class'])
-                ->where('month', $month);
+                ->where('month', $month)
+                ->where('created_by', $creatorId);
 
             if ($selectedBranchId && $selectedBranchId !== 'all') {
                 $snapshotQuery->where('owned_by', $selectedBranchId);
@@ -453,14 +455,14 @@ class preChallanController extends Controller
 
             if ($request->export == 'excel') {
                 return Excel::download(
-                    new PreChallanComparisonExport($branches, $report, $selectedBranchId, $reportName, 'excel'),
+                    new PreChallanComparisonExport($branches, $report, $selectedBranchId, $reportName,'excel'),
                     $filename . '.xlsx'
                 );
             }
 
             if ($request->export == 'pdf') {
                 return Excel::download(
-                    new PreChallanComparisonExport($branches, $report, $selectedBranchId, $reportName, 'pdf'),
+                    new PreChallanComparisonExport($branches, $report, $selectedBranchId, $reportName,'pdf'),
                     $filename . '.pdf',
                     \Maatwebsite\Excel\Excel::MPDF
                 );
@@ -477,8 +479,8 @@ class preChallanController extends Controller
         $report = $sortedRows->groupBy('owned_by')->sortKeys();
 
         // ─────────────────────────────────────────────────────────────────────────
-        // Replace your final return view() with this:
-        // ─────────────────────────────────────────────────────────────────────────
+// Replace your final return view() with this:
+// ─────────────────────────────────────────────────────────────────────────
         return view('studentReports.prechallan.comparison', [
             'branches' => $branches,
             'report' => $report,

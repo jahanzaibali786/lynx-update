@@ -63,10 +63,14 @@
                 @endphp <tr>
                     <td>{{ $loop->iteration }}</td>
                     <td>
-                        {{ !empty($item['date']) && $item['date'] !== '-'
-                            ? \PhpOffice\PhpSpreadsheet\Shared\Date::dateTimeToExcel(\Carbon\Carbon::parse($item['date']))
-                            : '-' }}
-                    </td>
+    {{
+        (!empty($item['date']) && $item['date'] !== '-')
+            ? \PhpOffice\PhpSpreadsheet\Shared\Date::dateTimeToExcel(
+                \Carbon\Carbon::parse($item['date'])
+            )
+            : '-'
+    }}
+</td>
                     <td>{{ $item['description'] }}</td>
                     <td>{{ $item['challan_no'] ?? '-' }}</td>
                     <td>{{ $item['billing_month'] ?? '-' }}</td>
@@ -95,3 +99,4 @@
 
 </div>
 @include('student.exports.footer')
+

@@ -474,16 +474,19 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
-                                    @if (!empty($showJunJulExemptionLabel))
+									@if (!empty($showJunJulExemptionLabel))
                                         <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
                                     @endif
                                 </td>
                             </tr>
                             <tr>
-                                <td class="detail-label"><b>Name:</b></td>
-                                <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ @$challan->student->stdname }}</td>
-                            </tr>
+    <td class="detail-label"><b>Name:</b></td>
+    <td class="detail-value"
+        colspan="3"
+        style="text-transform: uppercase; word-break: break-word;">
+        {{ @$challan->student->stdname }}
+    </td>
+</tr>
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
@@ -633,6 +636,7 @@
                                         CALCULATED AND CHARGED BY THE BANK / Branch AFTER DUE DATE</div>
                                     <div style="font-size: 0.75rem;">2. ANY ERROR IN THE CALCULATION OF FINE BY THE BANK / Branch
                                         WILL BE ADJUSTED IN THE NEXT FEE BILL</div>
+									<div style="font-size: 0.75rem;">3. IN CASE THE MONTHLY FEE IS NOT SETTLED IN FULL, A DAILY LATE SURCHARGE WILL BE APPLICABLE AFTER THE DUE DATE.</div>	
                                 </div>
                             @endif
 
@@ -732,16 +736,19 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
-                                    @if (!empty($showJunJulExemptionLabel))
+									@if (!empty($showJunJulExemptionLabel))
                                         <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
                                     @endif
                                 </td>
                             </tr>
                             <tr>
-                                <td class="detail-label"><b>Name:</b></td>
-                                <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ @$challan->student->stdname }}</td>
-                            </tr>
+    <td class="detail-label"><b>Name:</b></td>
+    <td class="detail-value"
+        colspan="3"
+        style="text-transform: uppercase; word-break: break-word;">
+        {{ @$challan->student->stdname }}
+    </td>
+</tr>
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
@@ -881,6 +888,7 @@
                                         CALCULATED AND CHARGED BY THE BANK / Branch AFTER DUE DATE</div>
                                     <div style="font-size: 0.75rem;">2. ANY ERROR IN THE CALCULATION OF FINE BY THE BANK / Branch
                                         WILL BE ADJUSTED IN THE NEXT FEE BILL</div>
+									<div style="font-size: 0.75rem;">3. IN CASE THE MONTHLY FEE IS NOT SETTLED IN FULL, A DAILY LATE SURCHARGE WILL BE APPLICABLE AFTER THE DUE DATE.</div>
                                 </div>
                             @endif
 
@@ -981,16 +989,19 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
-                                    @if (!empty($showJunJulExemptionLabel))
+									@if (!empty($showJunJulExemptionLabel))
                                         <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
                                     @endif
                                 </td>
                             </tr>
                             <tr>
-                                <td class="detail-label"><b>Name:</b></td>
-                                <td class="detail-value" style="text-transform: uppercase;">
-                                    {{ @$challan->student->stdname }}</td>
-                            </tr>
+    <td class="detail-label"><b>Name:</b></td>
+    <td class="detail-value"
+        colspan="3"
+        style="text-transform: uppercase; word-break: break-word;">
+        {{ @$challan->student->stdname }}
+    </td>
+</tr>
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
@@ -1140,6 +1151,7 @@
                                         CALCULATED AND CHARGED BY THE BANK / Branch AFTER DUE DATE</div>
                                     <div style="font-size: 0.75rem;">2. ANY ERROR IN THE CALCULATION OF FINE BY THE BANK / Branch
                                         WILL BE ADJUSTED IN THE NEXT FEE BILL</div>
+									<div style="font-size: 0.75rem;">3. IN CASE THE MONTHLY FEE IS NOT SETTLED IN FULL, A DAILY LATE SURCHARGE WILL BE APPLICABLE AFTER THE DUE DATE.</div>
                                 </div>
                             @endif
 

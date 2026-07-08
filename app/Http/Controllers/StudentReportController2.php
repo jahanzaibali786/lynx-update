@@ -9,9 +9,9 @@ use App\Exports\StaffChildExport;
 use App\Exports\StudentDataAnalysisExport;
 use App\Exports\StudypackStudentExport;
 use App\Models\Classes;
+use App\Models\Registring_option;
 use App\Models\EmpChildrens;
 use App\Models\Employee;
-use App\Models\Registring_option;
 use App\Models\StudentEnrollments;
 use App\Models\StudentRegistration;
 use App\Models\StudentTransfer;
@@ -235,7 +235,7 @@ public function sibling_students(Request $request)
 
     return view('studentReports.report2.sibling_students', compact('branches', 'students', 'groupedStudents'));
 }
-    public function staff_child(Request $request)
+   public function staff_child(Request $request)
     {
         $user = \Auth::user();
         $isCompany = $user->type === 'company';

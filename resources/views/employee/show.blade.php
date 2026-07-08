@@ -162,13 +162,12 @@
         document.getElementById('profileImageInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
-                const maxSizeMB = 2;
+                const maxSizeMB = 0.6;
                 const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
                 if (file.size > maxSizeBytes) {
-                    alert(
-                        'The selected file exceeds the maximum allowed size of 2MB. Please choose a smaller image.'
-                        );
+                    $('#imageError').text('Size of image should not be more than 600 KB.');
+                    show_toastr('error', 'Size of image should not be more than 600 KB.', 'error');
                     event.target.value = '';
                 } else {
                     const reader = new FileReader();
@@ -181,6 +180,31 @@
         });
     </script>
     <script>
+		function toggleEducationFields() {
+        let degree = $('#degree_level').val();
+
+        if (degree === 'illiterate') {
+            // Remove required
+            $('.edu-field').prop('required', false);
+
+            // Hide *
+            $('.required-star').hide();
+        } else {
+            // Add required
+            $('.edu-field').prop('required', true);
+
+            // Show *
+            $('.required-star').show();
+        }
+    }
+
+    // Run on change
+    $('#degree_level').on('change', function () {
+        toggleEducationFields();
+    });
+
+    // Run on page load (important for edit case)
+    toggleEducationFields();
         function editExperience(btn) {
             var organization = btn.getAttribute('data-organization');
             var designation = btn.getAttribute('data-designation');
@@ -188,7 +212,7 @@
             var to = btn.getAttribute('data-to');
             var reason = btn.getAttribute('data-reason');
             var id = btn.getAttribute('data-id');
-    
+
             $('#organization').val(organization);
             $('#designation').val(designation);
             $('#from').val(from);
@@ -196,18 +220,18 @@
             $('#reason').val(reason);
             $('#experience_id').val(id);
         }
-        
+
         // Reset form when adding new experience
         function resetExperienceForm() {
             $('#exp-info-form')[0].reset();
             $('#experience_id').val('');
         }
-        
+
         // Call reset function when the tab is shown or when clicking "Add New"
         $('#experience-tab').on('shown.bs.tab', function() {
             resetExperienceForm();
         });
-    
+
         function editEducation(btn) {
             var institute = btn.getAttribute('data-institute');
             var degree = btn.getAttribute('data-degree');
@@ -218,7 +242,7 @@
             var grade = btn.getAttribute('data-grade');
             var reason = btn.getAttribute('data-reason');
             var id = btn.getAttribute('data-id');
-    
+
             $('#institute_name').val(institute);
             $('#degree_level').val(degree);
             $('#degree_title').val(title);
@@ -230,19 +254,19 @@
             $('#education_id').val(id);
             $('#edu-info-save-btn-label').text('Update');
         }
-        
+
         // Reset form when adding new education
         function resetEducationForm() {
             $('#exp-edu-form')[0].reset();
             $('#education_id').val('');
             $('#edu-info-save-btn-label').text('Save');
         }
-        
+
         // Call reset function when the tab is shown or when clicking "Add New"
         $('#education-tab').on('shown.bs.tab', function() {
             resetEducationForm();
         });
-    
+
         function editFacility(btn) {
             var title = btn.getAttribute('data-title');
             var type = btn.getAttribute('data-type');
@@ -250,7 +274,7 @@
             var to = btn.getAttribute('data-to');
             var detail = btn.getAttribute('data-detail');
             var id = btn.getAttribute('data-id');
-    
+
             $('#facility_title').val(title);
             $('#facility_type').val(type);
             $('#facility_from').val(from);
@@ -259,20 +283,284 @@
             $('#facility_id').val(id);
             $('#facility-info-save-btn-label').text('Update');
         }
-        
+
         // Reset form when adding new facility
         function resetFacilityForm() {
             $('#exp-facility-form')[0].reset();
             $('#facility_id').val('');
             $('#facility-info-save-btn-label').text('Save');
         }
-        
+
         // Call reset function when the tab is shown or when clicking "Add New"
         $('#facility-tab').on('shown.bs.tab', function() {
             resetFacilityForm();
         });
-    
     </script>
+    <script>
+        let employeeId = "{{ $employee->id }}";
+
+        /* ------------------------
+        ADD MORE ROW (NO SAVE)
+        ------------------------ */
+        $(document).on('click', '.add-row', function() {
+
+            let row = `
+                <div class="row contact-row mb-2">
+                    <div class="col-md-4">
+                        <input type="text" name="contact_name[]" class="form-control emg_c" placeholder="Contact Name">
+                    </div>
+
+                    <div class="col-md-4">
+                        <select name="relationship[]" class="form-control relationship_drop emg_c">
+                            <option value="Father">Father</option>
+                            <option value="Mother">Mother</option>
+                            <option value="Spouse">Spouse</option>
+                            <option value="Brother">Brother</option>
+                            <option value="Sister">Sister</option>
+                            <option value="Friend">Friend</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <input type="text" class="form-control mt-1 other-input emg_c" placeholder="Specify" style="display:none;">
+                    </div>
+
+                    <div class="col-md-3">
+                        <input type="text" name="emgphone[]" class="form-control emg_c" placeholder="Phone">
+                    </div>
+
+                    <div class="col-md-1 d-flex gap-1">
+                        <button type="button" class="btn btn-danger remove-row">-</button>
+                    </div>
+                </div>
+            `;
+
+            $('#contact-wrapper').append(row);
+        });
+
+        /* remove row */
+        $(document).on('click', '.remove-row', function() {
+            $(this).closest('.contact-row').remove();
+        });
+
+        /* ------------------------
+        SAVE ALL CONTACTS (AJAX)
+        ------------------------ */
+        $('#saveContacts').click(function() {
+
+            let contacts = [];
+
+            $('.contact-row').each(function() {
+
+                let name = $(this).find('input[name="contact_name[]"]').val();
+                let rel = $(this).find('select[name="relationship[]"]').val();
+                if (rel == 'Other') {
+                    rel = $(this).find('.other-input').val();
+                }
+                let phone = $(this).find('input[name="emgphone[]"]').val();
+
+                if (name || phone) {
+                    contacts.push({
+                        contact_name: name,
+                        relationship: rel,
+                        phone: phone
+                    });
+                }
+            });
+
+            let saveUrl = "{{ route('employee.emergency.save', ':id') }}";
+            saveUrl = saveUrl.replace(':id', employeeId);
+            $.ajax({
+                url: saveUrl,
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    contacts: contacts
+                },
+                success: function(res) {
+
+                    show_toastr('success', res.message, 'success');
+                    $('.emg_c').val('');
+                    loadContacts();
+                }
+            });
+        });
+
+        /* ------------------------
+        LOAD CONTACTS
+        ------------------------ */
+        function loadContacts() {
+
+            let listUrl = "{{ route('employee.emergency.list', ':id') }}";
+            listUrl = listUrl.replace(':id', employeeId);
+
+            $.get(listUrl, function(data) {
+
+                let html = '';
+
+                if (data.length === 0) {
+                    html = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        No emergency contacts found
+                    </td>
+                </tr>
+            `;
+                } else {
+
+                    data.forEach(function(c, index) {
+                        html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${c.contact_name}</td>
+                        <td>${c.relationship ?? '-'}</td>
+                        <td>${c.phone}</td>
+                        <td>
+                            <button type="button" class="btn btn-danger btn-sm deleteContact" data-id="${c.id}">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                    });
+                }
+
+                $('#contactList').html(html);
+            });
+        }
+
+        loadContacts();
+
+        /* ------------------------
+        DELETE CONTACT
+        ------------------------ */
+        $(document).on('click', '.deleteContact', function(e) {
+            e.preventDefault();
+
+            let id = $(this).data('id');
+
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "This contact will be deleted permanently!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+
+                if (result.isConfirmed) {
+
+                    let deleteUrl = "{{ route('emergency.delete', ':id') }}";
+                    deleteUrl = deleteUrl.replace(':id', id);
+                    $.ajax({
+                        url: deleteUrl,
+                        method: 'DELETE',
+                        data: {
+                            _token: '{{ csrf_token() }}'
+                        },
+                        success: function(res) {
+
+                            if (!res.status) {
+                                show_toastr('error', res.message, 'error');
+                                return;
+                            }
+
+                            show_toastr('success', res.message, 'success');
+                            loadContacts(); // refresh table only
+                        }
+                    });
+
+                }
+            });
+        });
+        $(document).on('change', '.relationship_drop', function() {
+            let val = $(this).val();
+            let otherInput = $(this).closest('.col-md-4').find('.other-input');
+            let rel_ship = $(this).closest('.col-md-4').find('.relationship_drop');
+            if (val == 'Other') {
+                rel_ship.hide();
+                otherInput.show();
+            } else {
+                rel_ship.show();
+                otherInput.hide().val('');
+            }
+        });
+
+
+        function employeeChild() {
+            $.ajax({
+                url: '{{ route('employee.children_cnic.list') }}',
+                type: 'GET',
+                data: {
+                    employee_id: employeeId
+                },
+                success: function(response) {
+                    if (response.siblings.length > 0) {
+                        populateSiblingTable(response.siblings, response.head);
+                        // $('#siblingtable').show();
+                    } else {
+                        // $('#siblingtable').hide();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error:', error);
+                }
+            });
+        }
+
+        employeeChild();
+
+        function populateSiblingTable(siblings, head) {
+            var tableBody = $('#siblingtable tbody');
+            tableBody.empty();
+            var dis = 0;
+            siblings.forEach(function(sibling) {
+                $.ajax({
+                    url: '{{ route('get.concession') }}',
+                    type: 'GET',
+                    data: {
+                        studentId: sibling.id
+                    },
+                    success: function(response) {
+                        const fee_data = sibling.fee_structure.find(item => item.head_id == head.id);
+
+                        if (!fee_data) {
+                            console.error('No matching fee_data found');
+                            return;
+                        }
+
+                        let dis = 0;
+
+                        if (response == 0) {
+                            dis = fee_data.amount;
+                        } else {
+                            dis = Math.round(fee_data.amount * (1 - response / 100));
+                        }
+
+                        var row = $('<tr>');
+                        row.append($('<td>').text(sibling.roll_no));
+                        row.append($('<td>').text(sibling.stdname));
+                        row.append($('<td>').text(sibling.branches.name));
+                        row.append($('<td>').text(sibling.class.name));
+                        row.append($('<td>').text(fee_data.amount));
+                        row.append($('<td>').text(response));
+                        row.append($('<td>').text(dis));
+                        row.append($('<td>').text(sibling.student_status));
+                        tableBody.append(row);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error:', error);
+                    }
+                });
+
+
+            });
+        }
+
+        function fetchSubTotal(studentId) {
+
+        }
+    </script>
+    
 @endpush
 @section('action-btn')
     @if (!empty($employee))
@@ -359,25 +647,26 @@
         {{ Form::open(['route' => ['employee-personal-info', $employee->id], 'id' => 'employee_personal_info', 'method' => 'post', 'enctype' => 'multipart/form-data']) }}
         @csrf
         <div class="row mt-4">
-            <div class="col-xl-3">
-                <div class="" style="height: 200px;">
+            <div class="col-xl-3 col-md-3">
+                <div class="mt-6" style="height: 500px;">
                     @if ($employee->profile_img)
                         <img id="profileImage" src="{{ Storage::url('emp_profile_images/' . $employee->profile_img) }}"
-                            alt="" style="border:1px solid var(--primary); width:100%; height: 100%; object-fit: contain;">
+                            alt=""
+                            style="border:1px solid var(--primary); width:100%; height: 100%; object-fit: fill; border-radius: 20px;">
                     @else
                         <img id="profileImage" src="{{ Storage::url('emp_profile_images/avatar.png') }}" alt=""
-                            style="border:1px solid var(--primary); width:100%; height: 100%; object-fit: contain;">
+                            style="border:1px solid var(--primary); width:100%; height: 100%; object-fit: fill; border-radius: 20px;">
                     @endif
                 </div>
                 <div class="mb-2">
 
                     <input type="file" class="form-control mt-1" name="profile_img" id="profileImageInput">
-                    <span style="color:red; font-size:0.6rem;">Size of image should not be more than 2MB.</span>
+                    <span id="imageError" style="color:red; font-size:0.7rem;">Size of image should not be more than 600 KB.</span>
                 </div>
-                <h4>{{ !empty($employee) ? $employee->name : '' }}<span style="font-size: 1rem;"></h4>
+                <h3>{{ !empty($employee) ? $employee->name : '' }} <span style="font-size: 1rem;"></h3>
                 ({{ !empty($employee->designation) ? $employee->designation->name : '' }})</span>
             </div>
-            <div class="col-xl-9">
+            <div class="col-xl-9 col-md-9">
                 <ul class="nav nav-tabs" id="employeeTabs" role="tablist">
                     <li class="nav-item">
                         <a class="nav-link active" id="personal-detail-tab" data-bs-toggle="tab" href="#personal-detail"
@@ -387,6 +676,11 @@
                     <li class="nav-item">
                         <a class="nav-link" id="job-info-tab" data-bs-toggle="tab" href="#job-info" role="tab"
                             aria-controls="job-info" aria-selected="false">{{ __('Job Info') }}</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="emergency-contacts-tab" data-bs-toggle="tab" href="#emergency-contacts"
+                            role="tab" aria-controls="emergency-contacts"
+                            aria-selected="false">{{ __('Emergency Contacts') }}</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" id="experience-tab" data-bs-toggle="tab" href="#experience" role="tab"
@@ -431,18 +725,16 @@
                                     </div>
 
                                     <div class="form-group col-md-3">
-    @php
-        $salutes = ['Mr' => 'Mr', 'Mrs' => 'Mrs', 'Miss' => 'Miss', 'Ms' => 'Ms'];
-    @endphp
-    {!! Form::label('salute', __('Salute'), ['class' => 'form-label']) !!}
-    <span class="text-danger pl-1">*</span>
-    {{ Form::select(
-        'salute',
-        $salutes,
-        !empty($employee) ? $employee->salute : '',
-        ['class' => 'form-control', 'required' => 'required']
-    ) }}
-</div>
+                                        @php
+                                            $salutes = ['Mr' => 'Mr', 'Mrs' => 'Mrs', 'Miss' => 'Miss', 'Ms' => 'Ms'];
+                                        @endphp
+                                        {!! Form::label('salute', __('Salute'), ['class' => 'form-label']) !!}
+                                        <span class="text-danger pl-1">*</span>
+                                        {{ Form::select('salute', $salutes, !empty($employee) ? $employee->salute : '', [
+                                            'class' => 'form-control',
+                                            'required' => 'required',
+                                        ]) }}
+                                    </div>
 
                                     <div class="form-group col-md-6">
                                         {!! Form::label('name', __('Name'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
@@ -458,23 +750,23 @@
                                             'required' => 'required',
                                         ]) !!}
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-3">
+                                        {!! Form::label('dob', __('Date of Birth'), ['class' => 'form-label']) !!}
+                                        {!! Form::date('dob', !empty($employee) ? $employee->dob : '', ['class' => 'form-control']) !!}
+                                        {{-- {!! Form::text('dob', old('dob'), ['class' => 'form-control datepicker']) !!} --}}
+                                    </div>
+                                    <div class="col-md-3">
                                         {!! Form::label('cnic', __('CNIC'), ['class' => 'form-label']) !!}
                                         {!! Form::text('cnic', !empty($employee) ? $employee->cnic : '', [
                                             'class' => 'form-control',
                                             'id' => 'cnic',
                                         ]) !!}
                                     </div>
-                                    <div class="col-md-3">
-                                        <div class="form-group">
-                                            {!! Form::label('dob', __('Date of Birth'), ['class' => 'form-label']) !!}
-                                            {!! Form::date('dob', !empty($employee) ? $employee->dob : '', ['class' => 'form-control']) !!}
-                                            {{-- {!! Form::text('dob', old('dob'), ['class' => 'form-control datepicker']) !!} --}}
-                                        </div>
-                                    </div>
+
+
                                     <div class="form-group col-md-3">
                                         {!! Form::label('gender', __('Gender'), ['class' => 'form-label']) !!}
-                                        <div class="d-flex radio-check mt-2">
+                                        <div class="d-flex radio-check mt-2 ms-2">
                                             <div class="form-check form-check-inline form-group">
                                                 <input type="radio" id="g_male" value="Male" name="gender"
                                                     class="form-check-input"
@@ -488,6 +780,33 @@
                                                     {{ $employee->gender == 'Female' ? 'checked' : '' }}>
                                                 <label class="form-check-label"
                                                     for="g_female">{{ __('Female') }}</label>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-md-3">
+                                        {!! Form::label('category', __('Category'), ['class' => 'form-label']) !!}
+                                        <div class="d-flex radio-check mt-2 ms-2">
+                                            <div class="form-check form-check-inline form-group">
+                                                <input type="radio" id="cate_reg" value="Regular" name="category"
+                                                    class="form-check-input"
+                                                    {{ $employee->category == 'Regular' ? 'checked' : '' }}>
+                                                <label class="form-check-label"
+                                                    for="cate_reg">{{ __('Regular') }}</label>
+                                            </div>
+                                            <div class="form-check form-check-inline form-group">
+                                                <input type="radio" id="cate_adh" value="Adhoc" name="category"
+                                                    class="form-check-input"
+                                                    {{ $employee->category == 'Adhoc' ? 'checked' : '' }}>
+                                                <label class="form-check-label"
+                                                    for="cate_adh">{{ __('Adhoc') }}</label>
+                                            </div>
+                                            <div class="form-check form-check-inline form-group">
+                                                <input type="radio" id="cate_vis" value="Visiting" name="category"
+                                                    class="form-check-input"
+                                                    {{ $employee->category == 'Visiting' ? 'checked' : '' }}>
+                                                <label class="form-check-label"
+                                                    for="cate_vis">{{ __('Visiting') }}</label>
                                             </div>
 
                                         </div>
@@ -512,12 +831,16 @@
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-6">
-                                        {!! Form::label('eobi', __('EOBI'), ['class' => 'form-label']) !!}
-                                        {!! Form::number('eobi', !empty($employee) ? $employee->eobi : '', ['class' => 'form-control', 'min' => '0']) !!}
+                                        {!! Form::label('eobi_id', __('EOBI ID'), ['class' => 'form-label']) !!}
+                                        {!! Form::text('eobi_id', !empty($employee) ? $employee->eobi_id : '', [
+                                            'class' => 'form-control',
+                                            'min' => '0',
+                                        ]) !!}
                                     </div>
+
                                     <div class="form-group col-md-6">
-                                        {!! Form::label('ssc', __('SSC#'), ['class' => 'form-label']) !!}
-                                        {!! Form::number('ssc', !empty($employee) ? $employee->ssc : '', ['class' => 'form-control', 'min' => '0']) !!}
+                                        {!! Form::label('ssc', __('SSC ID'), ['class' => 'form-label']) !!}
+                                        {!! Form::text('ssc_id', !empty($employee) ? $employee->ssc_id : '', ['class' => 'form-control', 'min' => '0']) !!}
                                     </div>
                                     <div class="form-group col-md-6">
                                         {!! Form::label('present_address', __('Present Address'), ['class' => 'form-label']) !!}
@@ -535,17 +858,28 @@
                                     </div>
                                     <div class="form-group col-md-4">
                                         {{ Form::label('branch_id', __('Branch'), ['class' => 'form-label']) }}
-                                        {{ Form::select('branch_id', $branches, $employee->branch_id, ['class' => 'form-control select', 'readonly' => 'readonly', 'id' => 'branch_id']) }}
+                                        {{ Form::text('branch', $branches[$employee->owned_by] ?? '', ['class' => 'form-control select', 'readonly' => 'readonly']) }}
                                     </div>
-
-                                    <div class="form-group col-md-4">
-                                        {{ Form::label('department_id', __('Department'), ['class' => 'form-label']) }}
-                                        {{ Form::select('department_id', $departments, $employee->department_id, ['class' => 'form-control  ', 'id' => 'department_id', 'required' => 'required']) }}
-                                    </div>
-                                    <div class="form-group col-md-4">
-                                        {{ Form::label('designation_id', __('Designation'), ['class' => 'form-label']) }}
-                                        {{ Form::select('designation_id', $designations, $employee->designation_id, ['class' => 'form-control  ', 'id' => 'designation_id', 'required' => 'required']) }}
-                                    </div>
+                                    {{-- if auth user is company then change else simple readonly  --}}
+                                    @if (\Auth::user()->type == 'company')
+                                        <div class="form-group col-md-4">
+                                            {{ Form::label('department_id', __('Department'), ['class' => 'form-label']) }}
+                                            {{ Form::select('department_id', $departments, $employee->department_id, ['class' => 'form-control  ', 'id' => 'department_id', 'required' => 'required']) }}
+                                        </div>
+                                        <div class="form-group col-md-4">
+                                            {{ Form::label('designation_id', __('Designation'), ['class' => 'form-label']) }}
+                                            {{ Form::select('designation_id', $designations, $employee->designation_id, ['class' => 'form-control  ', 'id' => 'designation_id', 'required' => 'required']) }}
+                                        </div>
+                                    @else
+                                        <div class="form-group col-md-4">
+                                            {{ Form::label('department_id', __('Department'), ['class' => 'form-label']) }}
+                                            {{ Form::text('department', $departments[$employee->department_id] ?? '', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+                                        </div>
+                                        <div class="form-group col-md-4">
+                                            {{ Form::label('designation_id', __('Designation'), ['class' => 'form-label']) }}
+                                            {{ Form::text('designation', $designations[$employee->designation_id] ?? '', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+                                        </div>
+                                    @endif
                                 </div>
                                 </form>
                                 <div class='d-flex justify-content-end'>
@@ -583,7 +917,7 @@
                                     </div>
                                     <div class="form-group col-md-6">
                                         {!! Form::label('effect_from', 'Effective From', ['class' => 'form-label']) !!}
-                                        {!! Form::date('effect_from', !empty($payscalesauto) ? $payscalesauto->effect_from : '', [
+                                        {!! Form::date('effect_from', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->effect_from : '', [
                                             'class' => 'form-control ',
                                             'readonly' => 'readonly',
                                         ]) !!}
@@ -629,12 +963,14 @@
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-3">
+                                        {{-- if user is  company then can ernnter other wise readonly --}}
                                         {!! Form::label('probation_period', __('Probation Months'), ['class' => 'form-label']) !!}
                                         {!! Form::number('probation_period', !empty($employee->probation_period) ? $employee->probation_period : '', [
                                             'class' => 'form-control',
                                             'id' => 'pro_date',
                                             'required' => 'required',
                                             'min' => '1',
+                                            'readonly' => \Auth::user()->type != 'company'
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-3 pt-5">
@@ -732,10 +1068,77 @@
                                 </div>
                                 </form>
                                 <div class='d-flex justify-content-end'>
-                                   <button id=""
+                                    <button id=""
                                         onclick="document.getElementById('job-info-form').submit(); return false;"
                                         class="btn btn-outline-primary mt-3">Save</button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="emergency-contacts" role="tabpanel"
+                        aria-labelledby="emergency-contacts-tab">
+                        <div class="card">
+                            <div class="card-body employee-detail-body fulls-card">
+                                <div id="contact-wrapper">
+
+                                    <!-- Row Template -->
+                                    <div class="row contact-row mb-2">
+                                        <div class="col-md-4">
+                                            <input type="text" name="contact_name[]" class="form-control emg_c"
+                                                placeholder="Contact Name">
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <select name="relationship[]" class="form-control relationship_drop emg_c">
+                                                <option value="Father">Father</option>
+                                                <option value="Mother">Mother</option>
+                                                <option value="Spouse">Spouse</option>
+                                                <option value="Brother">Brother</option>
+                                                <option value="Sister">Sister</option>
+                                                <option value="Friend">Friend</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                            <input type="text" class="form-control mt-1 other-input emg_c"
+                                                placeholder="Specify" style="display:none;">
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            <input type="text" name="emgphone[]" class="form-control emg_c"
+                                                placeholder="Phone">
+                                        </div>
+
+                                        <div class="col-md-1 d-flex gap-1">
+                                            <button type="button" class="btn btn-success add-row">+</button>
+                                        </div>
+                                    </div>
+
+                                </div>
+                                <button type="button" class="btn btn-primary" style='float: right;' id="saveContacts">
+                                    Save Contacts
+                                </button>
+
+
+
+                                <div id="msg" style="margin-top: 70px;"></div>
+
+                                <hr>
+
+                                <table class="">
+                                    <thead>
+                                        <tr class="table_heads">
+                                            <th>#</th>
+                                            <th>Contact Name</th>
+                                            <th>Relationship</th>
+                                            <th>Phone</th>
+                                            <th width="100">Action</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody id="contactList">
+                                        <!-- AJAX rows will load here -->
+                                    </tbody>
+                                </table>
+
                             </div>
                         </div>
                     </div>
@@ -762,14 +1165,14 @@
                                     </div>
                                     <div class="form-group col-md-6">
                                         {!! Form::label('exp_from', __('From'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
-                                        {!! Form::date('exp_from', null, [
+                                        {!! Form::input('month', 'exp_from', null, [
                                             'class' => 'form-control',
                                             'id' => 'from',
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-6">
                                         {!! Form::label('exp_to', __('To'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
-                                        {!! Form::date('exp_to', null, [
+                                        {!! Form::input('month','exp_to', null, [
                                             'class' => 'form-control',
                                             'id' => 'to',
                                         ]) !!}
@@ -792,57 +1195,63 @@
                                 </div>
                                 <div class="col-md-12 mx-3 table-responsive" style="width:100%; margin-top: 20px;">
                                     <table class="table-auto w-full border-collapse">
-    <thead>
-        <tr class="table_heads">
-            <th class="px-2 py-1">{{ __('Sr.') }}</th>
-            <th class="px-2 py-1">{{ __('Organization') }}</th>
-            <th class="px-2 py-1">{{ __('Designation') }}</th>
-            <th class="px-2 py-1">{{ __('From') }}</th>
-            <th class="px-2 py-1">{{ __('To') }}</th>
-            <th class="px-2 py-1">{{ __('Reason Of Leaving') }}</th>
-            <th class="px-2 py-1 w-[160px] text-center">{{ __('Action') }}</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach ($emp_exp as $exp)
-            <tr data-id="{{ $exp->id }}" data-employee-id="{{ $employee->id }}">
-                <td class="px-2 py-1">{{ strtoupper($loop->iteration) }}</td>
-                <td class="px-2 py-1">{{ strtoupper($exp->organization) }}</td>
-                <td class="px-2 py-1">{{ strtoupper($exp->designation) }}</td>
-                <td class="px-2 py-1 text-center">{{ strtoupper($exp->from) }}</td>
-                <td class="px-2 py-1 text-center">{{ strtoupper($exp->to) }}</td>
-                <td class="px-2 py-1">{{ strtoupper($exp->reason) }}</td>
+                                        <thead>
+                                            <tr class="table_heads">
+                                                <th class="px-2 py-1">{{ __('Sr.') }}</th>
+                                                <th class="px-2 py-1">{{ __('Organization') }}</th>
+                                                <th class="px-2 py-1">{{ __('Designation') }}</th>
+                                                <th class="px-2 py-1">{{ __('From') }}</th>
+                                                <th class="px-2 py-1">{{ __('To') }}</th>
+                                                <th class="px-2 py-1">{{ __('Reason Of Leaving') }}</th>
+                                                <th class="px-2 py-1 w-[160px] text-center">{{ __('Action') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($emp_exp as $exp)
+                                                <tr data-id="{{ $exp->id }}"
+                                                    data-employee-id="{{ $employee->id }}">
+                                                    <td class="px-2 py-1">{{ strtoupper($loop->iteration) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper($exp->organization) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper($exp->designation) }}</td>
+                                                    <td class="px-2 py-1 text-center">{{ strtoupper($exp->from) }}</td>
+                                                    <td class="px-2 py-1 text-center">{{ strtoupper($exp->to) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper($exp->reason) }}</td>
 
-                <!-- Action column -->
-                <td class="px-2 py-1 text-center">
-                    <div class="flex gap-2 justify-center">
-                        <!-- Edit button -->
-                        <a href="#" class="btn btn-sm edit-experience-btn"
-                           style="background: linear-gradient(141.55deg,#100773 3.46%,#100773 99.86%) !important;"
-                           onclick="editExperience(this)"
-                           data-organization="{{ $exp->organization }}"
-                           data-designation="{{ $exp->designation }}"
-                           data-from="{{ $exp->from }}"
-                           data-to="{{ $exp->to }}"
-                           data-reason="{{ $exp->reason }}"
-                           data-id="{{ $exp->id }}">
-                           <i class="ti ti-pencil text-white"></i>
-                        </a>
+                                                    <!-- Action column -->
+                                                    <td class="px-2 py-1 text-center">
+                                                        <div class="flex gap-2 justify-center">
+                                                            <!-- Edit button -->
+                                                            <a href="#" class="btn btn-sm edit-experience-btn"
+                                                                style="background: linear-gradient(141.55deg,#100773 3.46%,#100773 99.86%) !important;"
+                                                                onclick="editExperience(this)"
+                                                                data-organization="{{ $exp->organization }}"
+                                                                data-designation="{{ $exp->designation }}"
+                                                                data-from="{{ $exp->from }}"
+                                                                data-to="{{ $exp->to }}"
+                                                                data-reason="{{ $exp->reason }}"
+                                                                data-id="{{ $exp->id }}">
+                                                                <i class="ti ti-pencil text-white"></i>
+                                                            </a>
 
-                        <!-- Delete button -->
-                        {!! Form::open(['method' => 'DELETE', 'route' => ['employee_exp_info.destroy', $exp->id],'id'=>'delete-form-'.$exp->id]) !!}
-                            <a href="#" class="btn btn-sm bg-red-600 hover:bg-red-700 text-white flex items-center justify-center bs-pass-para"
-                               data-confirm="{{ __('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?') }}"
-                               data-confirm-yes="document.getElementById('delete-form-{{$exp->id}}').submit();">
-                               <i class="ti ti-trash text-white"></i>
-                            </a>
-                        {!! Form::close() !!}
-                    </div>
-                </td>
-            </tr>
-        @endforeach
-    </tbody>
-</table>
+                                                            <!-- Delete button -->
+                                                            {!! Form::open([
+                                                                'method' => 'DELETE',
+                                                                'route' => ['employee_exp_info.destroy', $exp->id],
+                                                                'id' => 'delete-form-' . $exp->id,
+                                                            ]) !!}
+                                                            <a href="#"
+                                                                class="btn btn-sm bg-red-600 hover:bg-red-700 text-white flex items-center justify-center bs-pass-para"
+                                                                data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
+                                                                data-confirm-yes="document.getElementById('delete-form-{{ $exp->id }}').submit();">
+                                                                <i class="ti ti-trash text-white"></i>
+                                                            </a>
+                                                            {!! Form::close() !!}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
 
                                 </div>
                             </div>
@@ -855,14 +1264,13 @@
                                 @csrf
                                 <div class="row">
                                     <div class="form-group col-md-4">
-                                        {!! Form::label('institute_name', __('Institute Name'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
+                                        {!! Form::label('institute_name', __('Institute Name'), ['class' => 'form-label edu-field']) !!}<span class="text-danger required-star pl-1">*</span>
                                         {!! Form::text('institute_name', null, [
                                             'class' => 'form-control',
                                         ]) !!}
                                     </div>
                                     @php
                                         $degreestitle = [
-                                            
                                             'phd' => 'PHD',
                                             'master' => 'Masters / M.Phil',
                                             'bachelor' => 'Bachelors',
@@ -871,6 +1279,7 @@
                                             'middle' => 'Middle',
                                             'primary' => 'Primary',
                                             'illiterate' => 'Illiterate',
+                                            'Diploma' => 'Diploma',
                                         ];
                                     @endphp
 
@@ -886,34 +1295,35 @@
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-4">
-                                        {!! Form::label('subject', __('Subject'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
+                                        {!! Form::label('subject', __('Subject'), ['class' => 'form-label']) !!}
                                         {!! Form::text('subject', null, [
                                             'class' => 'form-control',
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-4">
-                                        {!! Form::label('adm_date', __('Admission Date'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
-                                        {!! Form::date('adm_date', null, [
-                                            'class' => 'form-control',
+                                        {!! Form::label('adm_date', __('Admission Year'), ['class' => 'form-label']) !!}<span class="text-danger required-star pl-1">*</span>
+                                        {!! Form::number('adm_date', null, [
+                                            'class' => 'form-control  edu-field','placeholder' => 'YYYY', 'pattern' => '\d{4}', 'maxlength' => 4 , 'min' => 1900,
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-4">
-                                        {!! Form::label('passing_year', __('Passing Year'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
-                                        {!! Form::date('passing_year', null, [
-                                            'class' => 'form-control',
+                                        {!! Form::label('passing_year', __('Passing Year'), ['class' => 'form-label']) !!}<span class="text-danger required-star pl-1">*</span>
+                                        {!! Form::number('passing_year', null, [
+                                            'class' => 'form-control  edu-field','placeholder' => 'YYYY','pattern' => '\d{4}','maxlength' => 4 ,'min' => 1900,
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-4">
                                         {!! Form::label('grade', __('Grade'), ['class' => 'form-label']) !!}
-                                        <span class="text-danger pl-1">*</span>
-                                        
+                                        <span class="text-danger required-star pl-1">*</span>
+
                                         {!! Form::select(
                                             'grade',
                                             ['A' => 'A', 'B' => 'B', 'C' => 'C', 'D' => 'D', 'E' => 'E', 'F' => 'F'],
-                                            old('grade'), ['class' => 'form-control', 'required' => true]
+                                            old('grade'),
+                                            ['class' => 'form-control edu-field', 'required' => true],
                                         ) !!}
                                     </div>
-                                    
+
                                     <div class="form-group col-md-8">
                                         {!! Form::label('description', __('Description'), ['class' => 'form-label']) !!}
                                         {!! Form::textarea('description', !empty($employee) ? $employee->permanent_address : '', [
@@ -926,71 +1336,77 @@
                                 <div class='d-flex justify-content-end'>
                                     <button id="edu-info-save-btn"
                                         onclick="document.getElementById('exp-edu-form').submit(); return false;"
-                                        class="btn btn-outline-primary mt-3"><span id="edu-info-save-btn-label">Save</span></button>
+                                        class="btn btn-outline-primary mt-3"><span
+                                            id="edu-info-save-btn-label">Save</span></button>
                                 </div>
                                 </form>
 
                                 <div class="col-md-12 mx-3 table-responsive" style="width:100%; margin-top: 20px;">
                                     <table class="table-auto w-full border-collapse">
-    <thead>
-        <tr class="table_heads">
-            <th class="px-2 py-1 w-[40px]">Sr.</th>
-            <th class="px-2 py-1">Institute Name</th>
-            <th class="px-2 py-1">Degree Level</th>
-            <th class="px-2 py-1">Degree Title</th>
-            <th class="px-2 py-1">Subject</th>
-            <th class="px-2 py-1 w-[80px]">Grade</th>
-            <th class="px-2 py-1 w-[70px]">Admission Date</th>
-            <th class="px-2 py-1 w-[70px]">Passing Year</th>
-            <th class="px-2 py-1">Details</th>
-            <th class="px-2 py-1 w-[90px]">Action</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach ($emp_edu as $edu)
-            <tr data-id="{{ @$edu->id }}" data-employee-id="{{ @$employee->id }}">
-                <td class="px-2 py-1 text-center">{{ $loop->iteration }}</td>
-                <td class="px-2 py-1">{{ strtoupper(@$edu->institute) }}</td>
-                <td class="px-2 py-1">{{ strtoupper(@$edu->degree) }}</td>
-                <td class="px-2 py-1">{{ strtoupper(@$edu->title) }}</td>
-                <td class="px-2 py-1">{{ strtoupper(@$edu->subject) }}</td>
-                <td class="px-2 py-1 text-center">{{ strtoupper(@$edu->grade) }}</td>
-                <td class="px-2 py-1">{{ strtoupper(@$edu->adm_date) }}</td>
-                <td class="px-2 py-1">{{ strtoupper(@$edu->pass_date) }}</td>
-                <td class="px-2 py-1">{{ strtoupper(@$edu->reason) }}</td>
-                <td class="px-2 py-1 text-center">
-                    <div class="flex gap-2 justify-center">
-                        <!-- Edit button -->
-                        <a href="#" class="btn btn-sm edit-education-btn"
-                           style="background: linear-gradient(141.55deg,#100773 3.46%,#100773 99.86%) !important;"
-                           onclick="editEducation(this)"
-                           data-institute="{{ @$edu->institute }}"
-                           data-degree="{{ @$edu->degree }}"
-                           data-title="{{ @$edu->title }}"
-                           data-subject="{{ @$edu->subject }}"
-                           data-adm_date="{{ @$edu->adm_date }}"
-                           data-pass_date="{{ @$edu->pass_date }}"
-                           data-grade="{{ @$edu->grade }}"
-                           data-reason="{{ @$edu->reason }}"
-                           data-id="{{ @$edu->id }}">
-                           <i class="ti ti-pencil text-white"></i>
-                        </a>
+                                        <thead>
+                                            <tr class="table_heads">
+                                                <th class="px-2 py-1 w-[40px]">Sr.</th>
+                                                <th class="px-2 py-1">Institute Name</th>
+                                                <th class="px-2 py-1">Degree Level</th>
+                                                <th class="px-2 py-1">Degree Title</th>
+                                                <th class="px-2 py-1">Subject</th>
+                                                <th class="px-2 py-1 w-[80px]">Grade</th>
+                                                <th class="px-2 py-1 w-[70px]">Admission Date</th>
+                                                <th class="px-2 py-1 w-[70px]">Passing Year</th>
+                                                <th class="px-2 py-1">Details</th>
+                                                <th class="px-2 py-1 w-[90px]">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($emp_edu as $edu)
+                                                <tr data-id="{{ @$edu->id }}"
+                                                    data-employee-id="{{ @$employee->id }}">
+                                                    <td class="px-2 py-1 text-center">{{ $loop->iteration }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper(@$edu->institute) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper(@$edu->degree) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper(@$edu->title) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper(@$edu->subject) }}</td>
+                                                    <td class="px-2 py-1 text-center">{{ strtoupper(@$edu->grade) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper(@$edu->adm_date) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper(@$edu->pass_date) }}</td>
+                                                    <td class="px-2 py-1">{{ strtoupper(@$edu->reason) }}</td>
+                                                    <td class="px-2 py-1 text-center">
+                                                        <div class="flex gap-2 justify-center">
+                                                            <!-- Edit button -->
+                                                            <a href="#" class="btn btn-sm edit-education-btn"
+                                                                style="background: linear-gradient(141.55deg,#100773 3.46%,#100773 99.86%) !important;"
+                                                                onclick="editEducation(this)"
+                                                                data-institute="{{ @$edu->institute }}"
+                                                                data-degree="{{ @$edu->degree }}"
+                                                                data-title="{{ @$edu->title }}"
+                                                                data-subject="{{ @$edu->subject }}"
+                                                                data-adm_date="{{ @$edu->adm_date }}"
+                                                                data-pass_date="{{ @$edu->pass_date }}"
+                                                                data-grade="{{ @$edu->grade }}"
+                                                                data-reason="{{ @$edu->reason }}"
+                                                                data-id="{{ @$edu->id }}">
+                                                                <i class="ti ti-pencil text-white"></i>
+                                                            </a>
 
-                        <!-- Delete button -->
-                        {!! Form::open(['method' => 'DELETE', 'route' => ['employee_education.destroy', $edu->id],'id'=>'delete-form-'.$edu->id]) !!}
-                        <a href="#" class="btn btn-sm bs-pass-para"
-                           style="background-color:rgb(255,58,110) !important;"
-                           data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}"
-                           data-confirm-yes="document.getElementById('delete-form-{{$edu->id}}').submit();">
-                           <i class="ti ti-trash text-white"></i>
-                        </a>
-                        {!! Form::close() !!}
-                    </div>
-                </td>
-            </tr>
-        @endforeach
-    </tbody>
-</table>
+                                                            <!-- Delete button -->
+                                                            {!! Form::open([
+                                                                'method' => 'DELETE',
+                                                                'route' => ['employee_education.destroy', $edu->id],
+                                                                'id' => 'delete-form-' . $edu->id,
+                                                            ]) !!}
+                                                            <a href="#" class="btn btn-sm bs-pass-para"
+                                                                style="background-color:rgb(255,58,110) !important;"
+                                                                data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
+                                                                data-confirm-yes="document.getElementById('delete-form-{{ $edu->id }}').submit();">
+                                                                <i class="ti ti-trash text-white"></i>
+                                                            </a>
+                                                            {!! Form::close() !!}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
 
                                 </div>
                             </div>
@@ -1134,7 +1550,8 @@
                                 <div class='d-flex justify-content-end'>
                                     <button id="facility-info-save-btn"
                                         onclick="document.getElementById('exp-facility-form').submit(); return false;"
-                                        class="btn btn-outline-primary mt-3"><span id="facility-info-save-btn-label">Save</span></button>
+                                        class="btn btn-outline-primary mt-3"><span
+                                            id="facility-info-save-btn-label">Save</span></button>
                                 </div>
                                 </form>
                                 <div class="col-md-12 mx-3 table-responsive" style="width:100%; margin-top: 20px;">
@@ -1147,12 +1564,13 @@
                                                 <th> {{ __('Given Date') }}</th>
                                                 <th> {{ __('UpTo Date') }}</th>
                                                 <th> {{ __('Date') }}</th>
-                                                <th width="200px">{{__('Action')}}</th>
+                                                <th width="200px">{{ __('Action') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @foreach ($emp_fac as $fac)
-                                                <tr data-id="{{ @$fac->id }}" data-employee-id="{{ @$employee->id }}">
+                                                <tr data-id="{{ @$fac->id }}"
+                                                    data-employee-id="{{ @$employee->id }}">
                                                     <td>{{ $loop->iteration }}</td>
                                                     <td>{{ strtoupper(@$fac->title) }}</td>
                                                     <td>{{ strtoupper(@$fac->type) }}</td>
@@ -1162,9 +1580,10 @@
                                                     {{-- add edit and delete --}}
                                                     <td style="display: flex">
                                                         <div class="action-btn ms-2">
-                                                            <a href="#" class=" btn btn-sm align-items-center edit-facility-btn"
-                                                            style="background: linear-gradient(141.55deg, #100773 3.46%, #100773 99.86%), #100773 !important;"
-                                                            onclick="editFacility(this)"
+                                                            <a href="#"
+                                                                class=" btn btn-sm align-items-center edit-facility-btn"
+                                                                style="background: linear-gradient(141.55deg, #100773 3.46%, #100773 99.86%), #100773 !important;"
+                                                                onclick="editFacility(this)"
                                                                 data-title="{{ @$fac->title }}"
                                                                 data-type="{{ @$fac->type }}"
                                                                 data-from="{{ @$fac->given_date }}"
@@ -1173,16 +1592,22 @@
                                                                 data-id="{{ @$fac->id }}"
                                                                 data-employee-id="{{ @$employee->id }}">
                                                                 <i class="ti ti-pencil text-white"></i></a>
-                                                                {!! Form::open(['method' => 'DELETE', 'route' => ['employee_facility.destroy', $fac->id],'id'=>'delete-form-'.$fac->id]) !!}
-                                                                <a href="#" class="ms-2 btn btn-sm  align-items-center bs-pass-para"
-                                                                     style="background-color: rgb(255, 58, 110) !important;" 
-                                                                    data-bs-title="{{__('Delete')}}" data-bs-title="{{__('Delete')}}"
-                                                                    data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}"
-                                                                    data-confirm-yes="document.getElementById('delete-form-{{$fac->id}}').submit();">
-                                                                    <i class="ti ti-trash text-white"></i></a>
+                                                            {!! Form::open([
+                                                                'method' => 'DELETE',
+                                                                'route' => ['employee_facility.destroy', $fac->id],
+                                                                'id' => 'delete-form-' . $fac->id,
+                                                            ]) !!}
+                                                            <a href="#"
+                                                                class="ms-2 btn btn-sm  align-items-center bs-pass-para"
+                                                                style="background-color: rgb(255, 58, 110) !important;"
+                                                                data-bs-title="{{ __('Delete') }}"
+                                                                data-bs-title="{{ __('Delete') }}"
+                                                                data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
+                                                                data-confirm-yes="document.getElementById('delete-form-{{ $fac->id }}').submit();">
+                                                                <i class="ti ti-trash text-white"></i></a>
                                                         </div>
                                                         <div class="action-btn ms-2" style="width: 0px !important;">
-                                                            
+
                                                             {!! Form::close() !!}
                                                         </div>
                                                     </td>
@@ -1329,66 +1754,24 @@
                     <div class="tab-pane fade" id="employee-childrens" role="tabpanel"
                         aria-labelledby="employee-childrens-tab">
                         <div class="card">
-                            <div class="card-body employee-detail-body fulls-card">
-                                {{ Form::open(['route' => ['employee_child', $employee->id], 'id' => 'emp-child-form', 'method' => 'post']) }}
-                                @csrf
-                                <div class="row">
-                                    <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
-                                        <div class="btn-box">
-                                            {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                            {{ Form::select('branches', $branches, null, ['class' => 'form-control select', 'onchange' => 'branchcustomer(this.value)']) }}
-                                        </div>
-                                    </div>
-                                    <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
-                                        <div class="btn-box">
-                                            {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}
-                                            {{ Form::select('class', $class, null, ['class' => 'form-control select', 'id' => 'class_select', 'required' => 'required']) }}
-                                        </div>
-                                    </div>
-                                    <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
-                                        <div class="btn-box">
-                                            {{ Form::label('student', __('Students'), ['class' => 'form-label']) }}
-                                            {{ Form::select('student', $student, null, ['class' => 'form-control select', 'id' => 'student_select', 'required' => 'required']) }}
-                                        </div>
-                                    </div>
-                                    <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
-                                        <div class="btn-box">
-                                            {{ Form::label('Amount', __('Amount'), ['class' => 'form-label']) }}
-                                            {{ Form::number('amount', null, ['class' => 'form-control', 'required' => 'required', 'min' => '0', 'id' => 'amount_field','Readonly']) }}
-
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class='d-flex justify-content-end'>
-                                    <button id=""
-                                        onclick="document.getElementById('emp-child-form').submit(); return false;"
-                                        class="btn btn-primary mt-3">Save</button>
-                                </div>
-                                </form>
-                            </div>
-                            <div class="col-md-12 mx-3 table-responsive" style="width:100%;">
-                                <table class="table-auto w-full border-collapse">
-                                    <thead>
-                                        <tr class="table_heads">
-                                            <th class="px-2 py-1">{{ __('Sr.') }}</th>
-                                            <th class="px-2 py-1">{{ __('Child. Name') }}</th>
-                                            <th class="px-2 py-1">{{ __('Class') }}</th>
-                                            <th class="px-2 py-1">{{ __('Branch') }}</th>
-                                            <th class="px-2 py-1 text-center">{{ __('Amount') }}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach ($emp_child as $child)
-                                            <tr>
-                                                <td>{{ $loop->iteration }}</td>
-                                                <td class="px-2 py-1">{{ $child->student->stdname ?? '' }}</td>
-                                                <td class="px-2 py-1">{{ $child->student->class->name ?? '' }}</td>
-                                                <td class="px-2 py-1">{{ $child->student->branches->name ?? '' }}</td>
-                                                <td class="px-2 py-1 text-center">{{ $child->amount ?? '' }}</td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
+                            
+                            <div class="col-md-12 table-responsive"  style="width:100%; margin-top: -9px; margin-left: 0px;">
+                               <table id="siblingtable">
+                                <thead>
+                                    <tr class="table_heads">
+                                        <th>Roll No</th>
+                                        <th>Name</th>
+                                        <th>Branch</th>
+                                        <th>Class</th>
+                                        <th>Fee</th>
+                                        <th>Disount %</th>
+                                        <th>Pay Fee</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
 
                             </div>
                         </div>

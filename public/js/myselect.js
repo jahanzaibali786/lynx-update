@@ -5,32 +5,31 @@
  */
 
 (function () {
-    "use strict";
+    'use strict';
 
     // CSS Styles
     const css = `
         .custom-select-wrapper {
-        position: relative;
-        width: auto;          /* ← was 100% */
-        min-width: 100%;      /* ← still fills container by default */
-        font-family: Arial, sans-serif;
-    }
+            position: relative;
+            width: 100%;
+            font-family: Arial, sans-serif;
+        }
 
-    .custom-select-display {
-        width: 100%;
-        padding: 8px 12px;
-        border: 1px solid var(--primary);
-        border-radius: 10px;
-        background: white;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 14px;
-        min-height: 20px;
-        box-sizing: border-box;
-        white-space: nowrap;   /* ← add this */
-    }
+        .custom-select-display {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--primary);
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            min-height: 20px;
+            box-sizing: border-box;
+        }
+
         .custom-select-display:hover {
             border-color: var(--primary);
         }
@@ -57,7 +56,7 @@
             position: absolute;
             top: 100%;
             left: 0;
-            right: auto;          /* ← was 'right: 0' which capped it to wrapper width */
+            right: 0;
             background: white;
             border: 1px solid var(--primary);
             border-top: none;
@@ -67,8 +66,6 @@
             z-index: 1000;
             display: none;
             box-sizing: border-box;
-            width: max-content;   /* ← grows to fit longest option text */
-            min-width: 100%;      /* ← never narrower than the trigger button */
         }
 
         .custom-select-dropdown.show {
@@ -129,9 +126,9 @@
     `;
 
     function injectCSS() {
-        if (!document.getElementById("custom-select-styles")) {
-            const style = document.createElement("style");
-            style.id = "custom-select-styles";
+        if (!document.getElementById('custom-select-styles')) {
+            const style = document.createElement('style');
+            style.id = 'custom-select-styles';
             style.textContent = css;
             document.head.appendChild(style);
         }
@@ -141,9 +138,7 @@
     function findNearestLabel(selectElement) {
         // First check if the select has an id and if there's a label with matching 'for' attribute
         if (selectElement.id) {
-            const labelForSelect = document.querySelector(
-                `label[for="${selectElement.id}"]`,
-            );
+            const labelForSelect = document.querySelector(`label[for="${selectElement.id}"]`);
             if (labelForSelect) {
                 return labelForSelect.textContent.trim();
             }
@@ -152,13 +147,13 @@
         // Check if select is inside a label
         let parent = selectElement.parentElement;
         while (parent) {
-            if (parent.tagName === "LABEL") {
+            if (parent.tagName === 'LABEL') {
                 return parent.textContent.trim();
             }
 
             // Look for a label in the same parent container (common pattern in forms)
-            if (parent.querySelector("label")) {
-                const labels = parent.querySelectorAll("label");
+            if (parent.querySelector('label')) {
+                const labels = parent.querySelectorAll('label');
                 // Get the first label in the same container
                 if (labels.length > 0) {
                     return labels[0].textContent.trim();
@@ -169,10 +164,7 @@
             parent = parent.parentElement;
 
             // Limit how far we look up (e.g., stop at form level)
-            if (
-                parent &&
-                (parent.tagName === "FORM" || parent.tagName === "BODY")
-            ) {
+            if (parent && (parent.tagName === 'FORM' || parent.tagName === 'BODY')) {
                 break;
             }
         }
@@ -187,71 +179,40 @@
             this.originalSelect = selectElement;
             this.options = [];
             this.filteredOptions = [];
-            this.selectedValue = "";
-            this.selectedText = "";
+            this.selectedValue = '';
+            this.selectedText = '';
             this.isOpen = false;
 
             this.init();
         }
 
         init() {
-            this.originalSelect.style.display = "none";
+            // Hide original select
+            this.originalSelect.style.display = 'none';
+
+            // Get options from original select
             this.extractOptions();
+
+            // Create custom select structure
             this.createCustomSelect();
+
+            // Set initial value
             this.setInitialValue();
+
+            // Bind events
             this.bindEvents();
-            this.autoWidth(); // ← add this
-        }
-
-        autoWidth() {
-            // Measure the longest option text using a hidden sizer span
-            const sizer = document.createElement("span");
-            sizer.style.cssText = [
-                "position:absolute",
-                "visibility:hidden",
-                "white-space:nowrap",
-                "font-size:14px",
-                "font-family:Arial,sans-serif",
-                "padding:8px 36px 8px 12px", // matches display padding + arrow space
-                "box-sizing:border-box",
-                "pointer-events:none",
-            ].join(";");
-            document.body.appendChild(sizer);
-
-            let maxWidth = 0;
-
-            // Measure placeholder
-            sizer.textContent = this.displayText.textContent;
-            maxWidth = Math.max(maxWidth, sizer.getBoundingClientRect().width);
-
-            // Measure each option
-            this.options.forEach((opt) => {
-                sizer.textContent = opt.text;
-                maxWidth = Math.max(
-                    maxWidth,
-                    sizer.getBoundingClientRect().width,
-                );
-            });
-
-            document.body.removeChild(sizer);
-
-            const finalWidth = Math.ceil(maxWidth) + 2; // +2 for sub-pixel safety
-            this.wrapper.style.minWidth = finalWidth + "px";
-            this.wrapper.style.width = finalWidth + "px";
         }
 
         extractOptions() {
             this.options = [];
-            const selectOptions =
-                this.originalSelect.querySelectorAll("option");
+            const selectOptions = this.originalSelect.querySelectorAll('option');
 
-            selectOptions.forEach((option) => {
-                if (option.value !== "") {
-                    // Skip empty placeholder options
+            selectOptions.forEach(option => {
+                if (option.value !== '') { // Skip empty placeholder options
                     this.options.push({
                         value: option.value,
                         text: option.textContent.trim(),
-                        selected: option.selected,
+                        selected: option.selected
                     });
                 }
             });
@@ -261,51 +222,50 @@
 
         createCustomSelect() {
             // Create wrapper
-            this.wrapper = document.createElement("div");
-            this.wrapper.className = "custom-select-wrapper";
+            this.wrapper = document.createElement('div');
+            this.wrapper.className = 'custom-select-wrapper';
 
             if (this.originalSelect.disabled) {
-                this.wrapper.classList.add("disabled");
+                this.wrapper.classList.add('disabled');
             }
 
             // Create display element
-            this.display = document.createElement("div");
-            this.display.className = "custom-select-display";
+            this.display = document.createElement('div');
+            this.display.className = 'custom-select-display';
 
-            this.displayText = document.createElement("span");
+            this.displayText = document.createElement('span');
 
             // Get placeholder text - look for label first
-            let placeholderText = "Select .....";
+            let placeholderText = 'Select .....';
             const labelText = findNearestLabel(this.originalSelect);
 
             if (labelText) {
                 placeholderText = `Select ${labelText}`;
-            } else if (this.originalSelect.getAttribute("placeholder")) {
+            } else if (this.originalSelect.getAttribute('placeholder')) {
                 // Fallback to explicitly set placeholder
-                placeholderText =
-                    this.originalSelect.getAttribute("placeholder");
+                placeholderText = this.originalSelect.getAttribute('placeholder');
             }
 
             this.displayText.textContent = placeholderText;
 
-            this.arrow = document.createElement("div");
-            this.arrow.className = "custom-select-arrow";
+            this.arrow = document.createElement('div');
+            this.arrow.className = 'custom-select-arrow';
 
             this.display.appendChild(this.displayText);
             this.display.appendChild(this.arrow);
 
             // Create dropdown
-            this.dropdown = document.createElement("div");
-            this.dropdown.className = "custom-select-dropdown";
+            this.dropdown = document.createElement('div');
+            this.dropdown.className = 'custom-select-dropdown';
 
             // Create search input
-            this.searchInput = document.createElement("input");
-            this.searchInput.className = "custom-select-search";
-            this.searchInput.type = "text";
-            this.searchInput.placeholder = "Search ......";
+            this.searchInput = document.createElement('input');
+            this.searchInput.className = 'custom-select-search';
+            this.searchInput.type = 'text';
+            this.searchInput.placeholder = 'Search ......';
 
             // Create options container
-            this.optionsContainer = document.createElement("div");
+            this.optionsContainer = document.createElement('div');
 
             this.dropdown.appendChild(this.searchInput);
             this.dropdown.appendChild(this.optionsContainer);
@@ -315,17 +275,14 @@
             this.wrapper.appendChild(this.dropdown);
 
             // Insert after original select
-            this.originalSelect.parentNode.insertBefore(
-                this.wrapper,
-                this.originalSelect.nextSibling,
-            );
+            this.originalSelect.parentNode.insertBefore(this.wrapper, this.originalSelect.nextSibling);
 
             // Render options
             this.renderOptions();
         }
 
         setInitialValue() {
-            const selectedOption = this.options.find((opt) => opt.selected);
+            const selectedOption = this.options.find(opt => opt.selected);
             if (selectedOption) {
                 this.selectedValue = selectedOption.value;
                 this.selectedText = selectedOption.text;
@@ -334,27 +291,27 @@
         }
 
         renderOptions() {
-            this.optionsContainer.innerHTML = "";
+            this.optionsContainer.innerHTML = '';
 
             if (this.filteredOptions.length === 0) {
-                const noResults = document.createElement("div");
-                noResults.className = "custom-select-no-results";
-                noResults.textContent = "No options found";
+                const noResults = document.createElement('div');
+                noResults.className = 'custom-select-no-results';
+                noResults.textContent = 'No options found';
                 this.optionsContainer.appendChild(noResults);
                 return;
             }
 
-            this.filteredOptions.forEach((option) => {
-                const optionElement = document.createElement("div");
-                optionElement.className = "custom-select-option";
+            this.filteredOptions.forEach(option => {
+                const optionElement = document.createElement('div');
+                optionElement.className = 'custom-select-option';
                 optionElement.textContent = option.text;
                 optionElement.dataset.value = option.value;
 
                 if (option.value === this.selectedValue) {
-                    optionElement.classList.add("selected");
+                    optionElement.classList.add('selected');
                 }
 
-                optionElement.addEventListener("click", () => {
+                optionElement.addEventListener('click', () => {
                     this.selectOption(option);
                 });
 
@@ -364,40 +321,40 @@
 
         bindEvents() {
             // Toggle dropdown
-            this.display.addEventListener("click", (e) => {
+            this.display.addEventListener('click', (e) => {
                 if (!this.originalSelect.disabled) {
                     this.toggle();
                 }
             });
 
             // Search functionality
-            this.searchInput.addEventListener("input", (e) => {
+            this.searchInput.addEventListener('input', (e) => {
                 this.search(e.target.value);
             });
 
             // Prevent dropdown close when clicking search input
-            this.searchInput.addEventListener("click", (e) => {
+            this.searchInput.addEventListener('click', (e) => {
                 e.stopPropagation();
             });
 
             // Close dropdown when clicking outside
-            document.addEventListener("click", (e) => {
+            document.addEventListener('click', (e) => {
                 if (!this.wrapper.contains(e.target)) {
                     this.close();
                 }
             });
 
             // Keyboard navigation
-            this.searchInput.addEventListener("keydown", (e) => {
-                if (e.key === "Escape") {
+            this.searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
                     this.close();
-                } else if (e.key === "Enter") {
+                } else if (e.key === 'Enter') {
                     e.preventDefault();
                     const firstOption = this.filteredOptions[0];
                     if (firstOption) {
                         this.selectOption(firstOption);
                     }
-                } else if (e.key === "Tab") {
+                } else if (e.key === 'Tab') {
                     e.preventDefault();
                     const firstOption = this.filteredOptions[0];
                     if (firstOption) {
@@ -410,13 +367,12 @@
         search(query) {
             const searchTerm = query.toLowerCase().trim();
 
-            if (searchTerm === "") {
+            if (searchTerm === '') {
                 this.filteredOptions = [...this.options];
             } else {
-                this.filteredOptions = this.options.filter(
-                    (option) =>
-                        option.text.toLowerCase().includes(searchTerm) ||
-                        option.value.toLowerCase().includes(searchTerm),
+                this.filteredOptions = this.options.filter(option =>
+                    option.text.toLowerCase().includes(searchTerm) ||
+                    option.value.toLowerCase().includes(searchTerm)
                 );
             }
 
@@ -432,11 +388,11 @@
             this.originalSelect.value = option.value;
 
             // Trigger change event on original select
-            const changeEvent = new Event("change", { bubbles: true });
+            const changeEvent = new Event('change', { bubbles: true });
             this.originalSelect.dispatchEvent(changeEvent);
 
             // Clear search and close dropdown
-            this.searchInput.value = "";
+            this.searchInput.value = '';
             this.filteredOptions = [...this.options];
             this.close();
         }
@@ -445,18 +401,18 @@
             if (this.originalSelect.disabled) return;
 
             this.isOpen = true;
-            this.dropdown.classList.add("show");
-            this.display.classList.add("active");
-            this.arrow.classList.add("open");
+            this.dropdown.classList.add('show');
+            this.display.classList.add('active');
+            this.arrow.classList.add('open');
             this.searchInput.focus();
         }
 
         close() {
             this.isOpen = false;
-            this.dropdown.classList.remove("show");
-            this.display.classList.remove("active");
-            this.arrow.classList.remove("open");
-            this.searchInput.value = "";
+            this.dropdown.classList.remove('show');
+            this.display.classList.remove('active');
+            this.arrow.classList.remove('open');
+            this.searchInput.value = '';
             this.filteredOptions = [...this.options];
             this.renderOptions();
         }
@@ -473,28 +429,29 @@
         updateOptions() {
             this.extractOptions();
             this.renderOptions();
-            this.autoWidth(); // ← add this
         }
 
         // Public method to set value
         setValue(value) {
-            const option = this.options.find((opt) => opt.value === value);
+            const option = this.options.find(opt => String(opt.value) === String(value));
             if (option) {
                 this.selectOption(option);
+            } else {
+                console.warn("Value not found:", value, this.options);
             }
         }
 
         // Public method to destroy the custom select
         destroy() {
             this.wrapper.remove();
-            this.originalSelect.style.display = "";
+            this.originalSelect.style.display = '';
         }
     }
 
     // Initialize CustomSelect for all elements with 'custom-select' class
     function initCustomSelects(container = document) {
-        const selects = container.querySelectorAll("select.custom-select");
-        selects.forEach((select) => {
+        const selects = container.querySelectorAll('select.custom-select');
+        selects.forEach(select => {
             if (!select.customSelectInstance) {
                 select.customSelectInstance = new CustomSelect(select);
             }
@@ -506,28 +463,19 @@
         const observer = new MutationObserver(function (mutations) {
             mutations.forEach(function (mutation) {
                 mutation.addedNodes.forEach(function (node) {
-                    if (node.nodeType === 1) {
-                        // Element node
+                    if (node.nodeType === 1) { // Element node
                         // Check if the added node itself is a select with custom-select class
-                        if (
-                            node.matches &&
-                            node.matches("select.custom-select")
-                        ) {
+                        if (node.matches && node.matches('select.custom-select')) {
                             if (!node.customSelectInstance) {
-                                node.customSelectInstance = new CustomSelect(
-                                    node,
-                                );
+                                node.customSelectInstance = new CustomSelect(node);
                             }
                         }
                         // Check for select elements within the added node
-                        const selectsInNode =
-                            node.querySelectorAll &&
-                            node.querySelectorAll("select.custom-select");
+                        const selectsInNode = node.querySelectorAll && node.querySelectorAll('select.custom-select');
                         if (selectsInNode && selectsInNode.length > 0) {
-                            selectsInNode.forEach((select) => {
+                            selectsInNode.forEach(select => {
                                 if (!select.customSelectInstance) {
-                                    select.customSelectInstance =
-                                        new CustomSelect(select);
+                                    select.customSelectInstance = new CustomSelect(select);
                                 }
                             });
                         }
@@ -539,13 +487,13 @@
         // Start observing
         observer.observe(document.body, {
             childList: true,
-            subtree: true,
+            subtree: true
         });
     }
 
     // Auto-initialize when DOM is ready
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
             injectCSS();
             initCustomSelects();
             setupMutationObserver();
@@ -559,8 +507,11 @@
     // Expose global functions
     window.CustomSelect = {
         init: initCustomSelects,
-        create: (selectElement) => new CustomSelect(selectElement),
-        initContainer: (container) => initCustomSelects(container),
+        create: (selectElement) => {
+            const instance = new CustomSelect(selectElement);
+            selectElement.customSelectInstance = instance;
+            return instance;
+        },
+        initContainer: (container) => initCustomSelects(container)
     };
-    
 })();

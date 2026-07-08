@@ -18,8 +18,8 @@ use App\Exports\EmployeeSecReportExport;
 use App\Exports\EmployeeEmploymentHistoryExport;
 use App\Exports\EmployeeMonthlyReconsilationExport;
 use App\Exports\EmployeeEmploymentHistoryReportExport;
-use App\Models\Department;
 use App\Models\Designation;
+use App\Models\Department;
 use App\Models\EmpChildrens;
 use App\Models\EmployeePayscaleDetail;
 use App\Models\EmpEducation;
@@ -2786,8 +2786,7 @@ class EmployeeReportsController extends Controller
         }
         return view('employee.reports.emp_retirement_report', compact('employees', 'branches', 'employeesdata'));
     }
-
-    public function employeeProfileReport(Request $request)
+	public function employeeProfileReport(Request $request)
     {
         $userType = \Auth::user()->type;
         $userCreatorId = \Auth::user()->creatorId();

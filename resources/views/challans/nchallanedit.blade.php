@@ -418,17 +418,9 @@
 
                     </div>
                     <br>
-                    @if (!$anyPaid)
                         <div class="modal-footer p-4">
                             <input type="submit" value="{{ __('Update') }}" class="btn  btn-primary">
                         </div>
-                    @else
-                        <div class="modal-footer p-4">
-                            {{-- the challan is already partially / fully piad so can't be edit --}}
-                            <span class="text-danger">Note: This challan has already been partially or fully paid. Editing
-                                is restricted to prevent inconsistencies.</span>
-                        </div>
-                    @endif
                 </div>
             </div>
         </div>

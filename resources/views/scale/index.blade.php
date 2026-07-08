@@ -106,7 +106,7 @@
                             <div class="col-xl-2 col-lg-2 col-md-4 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('status', __('Status'), ['class' => 'form-label']) }}
-                                    {{ Form::select('status', ['' => 'Select', '1' => 'Active', '0' => 'In-Active'], isset($_GET['status']) ? $_GET['status'] : '', ['class' => 'form-control']) }}
+                                    {{ Form::select('status', ['all ' => 'All Select', '1' => 'Active', '0' => 'In-Active'], isset($_GET['status']) ? $_GET['status'] : $stat, ['class' => 'form-control']) }}
                                 </div>
                             </div>
 
@@ -168,13 +168,13 @@
                         <th>{{ !empty($account->head) ? @$account->head : '-' }}</th>
                     @endforeach
                     <th>{{ __('Net Gross') }}</th>
-                    <th>{{ __('Emp. Sec. 8% of Gross') }}</th>
-                    <th>{{ __('Eobi Employee Cont.') }}</th>
-                    <th>{{ __('Inc. Tax') }}</th>
-                    <th>{{ __('Net Payable') }}</th>
-                    {{-- <th>{{ __('Effect From') }}</th> --}}
-                    {{-- <th>{{ __('IsAdhoc') }}</th>
-                    <th>{{ __('Status') }}</th> --}}
+                    {{-- <th>{{ __('Emp. Sec. 8% of Gross') }}</th> --}}
+                    {{-- <th>{{ __('Eobi Employee Cont.') }}</th> --}}
+                    {{-- <th>{{ __('Inc. Tax') }}</th> --}}
+                    {{-- <th>{{ __('Net Payable') }}</th> --}}
+                    <th>{{ __('Effect From') }}</th>
+                    <th>{{ __('IsAdhoc') }}</th>
+                    <th>{{ __('Status') }}</th>
                     @if (Gate::check('edit trainer') || Gate::check('delete trainer') || Gate::check('show trainer'))
                         <th>{{ __('Action') }}</th>
                     @endif
@@ -182,18 +182,21 @@
             </thead>
             <tbody class="font-style">
                 @foreach ($employee_scales as $scale)
+                    @php
+                        $net_gross = 0;
+                    @endphp
                     <tr>
                         <td>{{ $scale->id }}</td>
                         <td>{{ !empty($scale->scale_no) ? $scale->scale_no : '' }}</td>
                         <td>{{ !empty($scale->department) ? $scale->department->name : '' }}</td>
-                        @php
+                        {{-- @php
                             $net_gross = 0;
                             $emplastscal = @$scale->employeepayScaledetailHeads->last();
                             $employeedata = \App\Models\Employee::where(
                                 'employee_id',
                                 @$scale->employeepayScaledetailHeads->last()->employee_id,
                             )->first();
-                        @endphp
+                        @endphp --}}
                         @foreach ($heads as $account)
                             @php
                                 $headValue = @$scale->employeeScaleHeads->firstWhere('head', $account->id);
@@ -206,20 +209,20 @@
                             <td>{{ $headValue ? $headValue->head_value : '-' }}</td>
                         @endforeach
                         <td>{{ $net_gross }}</td>
-                        <td>{{ isset($basic) ? ($basic * 8) / 100 : 0 }}</td>
-                        <td>{{ @$employeedata->eobi ?? '-' }}</td>
-                        <td>{{ @$emplastscal->itax ?? '-' }}</td>
-                        <td>{{ @$emplastscal->net ?? '-' }}</td>
+                        {{-- <td>{{ isset($basic) ? ($basic * 8) / 100 : 0 }}</td> --}}
+                        {{-- <td>{{ @$employeedata->eobi ?? '-' }}</td> --}}
+                        {{-- <td>{{ @$emplastscal->itax ?? '-' }}</td> --}}
+                        {{-- <td>{{ @$emplastscal->net ?? '-' }}</td> --}}
                         {{-- <td>{{ $basic }}</td> --}}
-                        {{-- <td>{{ $scale->effect_from }}</td> --}}
-                        {{-- <td>{{ $scale->adhoc == 1 ? 'Yes' : 'No' }}</td>
-                        <td>{{ $scale->status == '1' ? 'Active' : 'In-Active' }}</td> --}}
+                        <td>{{ date('d-M-Y', strtotime($scale->effect_from)) }}</td>
+                        <td>{{ $scale->adhoc == 1 ? 'Yes' : 'No' }}</td>
+                        <td>{{ $scale->status == '1' ? 'Active' : 'In-Active' }}</td>
                         @if (Gate::check('edit trainer') || Gate::check('delete trainer') || Gate::check('show trainer'))
                             <td>
                                 <div class="action-btn ms-2">
                                     @can('edit trainer')
                                         <a href="#" data-url="{{ route('employee_scale.edit', $scale->id) }}"
-                                            data-size="lg" data-ajax-popup="true" data-bs-toggle="tooltip"
+                                            data-size="lg" data-ajax-popup="true" data-bs-toggle="Edit Employee Scale"
                                             data-bs-title="{{ __('Edit Employee Scale') }}"
                                             class="mx-1 btn mx-1 btn-sm btn-outline-primary">
                                             <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>

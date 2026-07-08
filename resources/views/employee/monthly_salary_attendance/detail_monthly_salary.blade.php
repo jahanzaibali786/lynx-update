@@ -1,5 +1,24 @@
 {{ Form::model($employeesalary, ['route' => ['emp-month-sal-attendance.update', $employeesalary->id], 'method' => 'PUT']) }}
+@php
+    $salaryEditable = $salaryEditable ?? false;
+    $salaryTotalDeductions =
+        (float) ($employeesalary->loan ?? 0) +
+        (float) ($employeesalary->emp_sec_loan ?? 0) +
+        (float) ($employeesalary->emp_sec ?? 0) +
+        (float) ($employeesalary->pessi ?? 0) +
+        (float) ($employeesalary->eobi ?? 0) +
+        (float) ($employeesalary->it ?? 0) +
+        (float) ($employeesalary->dedu ?? 0) +
+        (float) ($employeesalary->tra_course ?? 0) +
+        (float) ($employeesalary->sal_advance ?? 0);
+    $calculatedNetPay = max(0, (float) ($employeesalary->gross ?? 0) + (float) ($employeesalary->stop_sal ?? 0) - $salaryTotalDeductions);
+@endphp
 <div class="modal-body">
+    @if (!$salaryEditable)
+        <div class="alert alert-warning mb-3">
+            {{ __('This salary can be edited only while it is unpaid and not GM finalized.') }}
+        </div>
+    @endif
     <div class="row">
         <div class="col-md-3"><b>Emp Code</b> : {{@$employeesalary->employee->id}} </div>
         <div class="col-md-3"><b>Name</b> : {{@$employeesalary->employee->name}}</div>
@@ -58,15 +77,19 @@
             {{ Form::number('drns',  !empty($employeesalary->drns) ? $employeesalary->drns : '', ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">
-            {!! Form::label('conv', __('Conv'), ['class' => 'form-label']) !!}
+            {!! Form::label('conv', __('Other'), ['class' => 'form-label']) !!}
             {{ Form::number('conv',  !empty($employeesalary->conv) ? $employeesalary->conv : '',  ['class' => 'form-control']) }}
+        </div>
+        <div class="form-group col-md-3">
+            {!! Form::label('other_add', __('Other Allowance'), ['class' => 'form-label']) !!}
+            {{ Form::number('other_add', !empty($employeesalary->other_add) ? $employeesalary->other_add : '', ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">
             {!! Form::label('misc', __('Misc'), ['class' => 'form-label']) !!}
             {{ Form::number('misc', !empty($employeesalary->misc) ? $employeesalary->misc : '',  ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">
-            {!! Form::label('chaild_concession', __('Chaild Cons.'), ['class' => 'form-label']) !!}
+            {!! Form::label('chaild_concession', __('Child Cons.'), ['class' => 'form-label']) !!}
             {{ Form::number('chaild_concession',  !empty($employeesalary->chaild_con) ? $employeesalary->chaild_con : '',  ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-3">
@@ -117,7 +140,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_deduction', __('Other Deduction'), ['class' => 'form-label']) !!}
-            {{ Form::number('other_deduction',  !empty($employeesalary) ? $employeesalary->other : '',  ['class' => 'form-control']) }}
+            {{ Form::number('other_deduction',  !empty($employeesalary) ? $employeesalary->dedu : '',  ['class' => 'form-control']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_dedu_payable_account', __('Deduction Payable Account'), ['class' => 'form-label'])
@@ -132,12 +155,20 @@
             {!! Form::label('advance_payable_account', __('Advance Payable Account'), ['class' => 'form-label']) !!}
             {{ Form::text('advance_payable_account',  !empty($lastPayscaleDetail->advance_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->advance_payable_account )->first()->name: '',  ['class' => 'form-control']) }}
         </div>
+        <div class="form-group col-md-6">
+            {!! Form::label('stop_sal', __('Stop Salary'), ['class' => 'form-label']) !!}
+            {{ Form::number('stop_sal', !empty($employeesalary) ? $employeesalary->stop_sal : '0', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-6">
+            {!! Form::label('remarks', __('Description / Remarks'), ['class' => 'form-label']) !!}
+            {{ Form::textarea('remarks', $employeesalary->remarks ?? '', ['class' => 'form-control', 'rows' => 2, 'maxlength' => 1000]) }}
+        </div>
     </div>
 
     <div class="row net_row">
         <div class="form-group col-md-6">
             {!! Form::label('net', __('Net'), ['class' => 'form-label']) !!}
-            {{ Form::number('net',  !empty($employeesalary) ? $employeesalary->net_pay : '0',  ['class' => 'form-control']) }}
+            {{ Form::number('net', $calculatedNetPay, ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net_payable_account', __('Net Payable Account'), ['class' => 'form-label']) !!}
@@ -170,23 +201,71 @@
     </div>
     @endif
 </div>
-<div class="modal-footer d-none">
+<div class="modal-footer {{ $salaryEditable ? '' : 'd-none' }}">
     <input type="button" value="{{__('Cancel')}}" class="btn  btn-light" data-bs-dismiss="modal">
     <input type="submit" value="{{__('Update')}}" class="btn  btn-primary">
 </div>
 <script>
-    [ 'chaild_concession', 'drns', 'misc', 'conv', 'itax', 'other_deduction', 'advance' ].forEach(fieldName => {
-        const field = document.querySelector(`input[name="${fieldName}"]`);
-        if (field) {
-            const netElement = document.querySelector('input[name="net"]');
-            let previousValue = parseFloat(field.value) || 0;
-            field.addEventListener('input', function() {
-                const newValue = parseFloat(this.value) || 0; 
-                const difference = newValue - previousValue;   
-                netElement.value = (parseFloat(netElement.value) - difference).toFixed(2);
-                previousValue = newValue;
+    if (!@json($salaryEditable)) {
+        const salaryDetailForm = document.currentScript ? document.currentScript.closest('form') : null;
+        if (salaryDetailForm) {
+            salaryDetailForm.querySelectorAll('input, select, textarea, button').forEach(field => {
+                if (field.type === 'hidden' || field.dataset.bsDismiss === 'modal') {
+                    return;
+                }
+                field.setAttribute(field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' ? 'readonly' : 'disabled', 'readonly');
             });
         }
-    });
+    }
+
+    (() => {
+        const form = document.currentScript ? document.currentScript.closest('form') : null;
+        if (!form) {
+            return;
+        }
+
+        const earningFields = ['chaild_concession', 'drns', 'misc', 'conv', 'other_add'];
+        const deductionFields = ['itax', 'other_deduction', 'advance'];
+        const grossElement = form.querySelector('input[name="gross"]');
+        const netElement = form.querySelector('input[name="net"]');
+        const initialGross = @json((float) ($employeesalary->gross ?? 0));
+        const fixedDeductions = @json(
+            (float) ($employeesalary->loan ?? 0) +
+            (float) ($employeesalary->emp_sec_loan ?? 0) +
+            (float) ($employeesalary->emp_sec ?? 0) +
+            (float) ($employeesalary->pessi ?? 0) +
+            (float) ($employeesalary->eobi ?? 0) +
+            (float) ($employeesalary->tra_course ?? 0)
+        );
+        const stopSalary = @json((float) ($employeesalary->stop_sal ?? 0));
+        const initialEditableEarnings = earningFields.reduce((total, fieldName) => {
+            return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
+        }, 0);
+        const baseGross = initialGross - initialEditableEarnings;
+
+        function recalculateSalary() {
+            const editableEarnings = earningFields.reduce((total, fieldName) => {
+                return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
+            }, 0);
+            const editableDeductions = deductionFields.reduce((total, fieldName) => {
+                return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
+            }, 0);
+            const gross = baseGross + editableEarnings;
+            const net = Math.max(0, gross + stopSalary - fixedDeductions - editableDeductions);
+
+            if (grossElement) {
+                grossElement.value = gross.toFixed(2);
+            }
+            if (netElement) {
+                netElement.value = net.toFixed(2);
+            }
+        }
+
+        earningFields.concat(deductionFields).forEach(fieldName => {
+            form.querySelector(`input[name="${fieldName}"]`)?.addEventListener('input', recalculateSalary);
+        });
+
+        recalculateSalary();
+    })();
 </script>
 {{ Form::close() }}

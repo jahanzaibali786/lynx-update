@@ -172,6 +172,12 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
         $sheet->getColumnDimension('AF')->setWidth(30);
         $sheet->getStyle('B:B')->getNumberFormat()->setFormatCode('YYYY-MM-DD');
         $sheet->getStyle('E:E')->getNumberFormat()->setFormatCode('YYYY-MM-DD');
+        $sheet->getStyle('I:I')->getNumberFormat()->setFormatCode('@');
+        $sheet->getStyle('J:J')->getNumberFormat()->setFormatCode('@');
+        $sheet->getStyle('K:K')->getNumberFormat()->setFormatCode('@');
+        $sheet->getStyle('L:L')->getNumberFormat()->setFormatCode('@');
+        $sheet->getStyle('AB:AB')->getNumberFormat()->setFormatCode('@');
+        $sheet->getStyle('AC:AC')->getNumberFormat()->setFormatCode('@');
     }
 
     public function registerEvents(): array
@@ -179,7 +185,16 @@ class StudentImportSampleExport implements FromArray, WithHeadings, WithStyles, 
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
-                $highest = $sheet->getHighestColumn() . $sheet->getHighestRow();
+                $highestColumn = $sheet->getHighestColumn();
+
+                // Insert instruction row after header
+                $sheet->insertNewRowBefore(2, 1);
+                $sheet->setCellValue('A2', 'Date format: YYYY-MM-DD (e.g., 2026-07-06). Invalid dates will be skipped.');
+                $sheet->mergeCells('A2:' . $highestColumn . '2');
+                $sheet->getStyle('A2')->getFont()->setItalic(true);
+                $sheet->getStyle('A2')->getFont()->getColor()->setARGB('FFFF0000');
+
+                $highest = $highestColumn . $sheet->getHighestRow();
                 $sheet->getStyle('A1:' . $highest)
                     ->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
                 $sheet->getStyle('A1:' . $highest)

@@ -391,8 +391,14 @@
                                     {{ Form::select('student', @$students, isset($_GET['student']) ? $_GET['student'] : 'all', ['class' => 'form-control select custom-select', 'id' => 'student_select']) }}
                                 </div>
                             </div>
-
+							
                             @if ($challanType == 'regular')
+							<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
+                                    <div class="btn-box">
+                                        {{ Form::label('register_option', __('Student Category'), ['class' => 'form-label']) }}
+                                        {{ Form::select('register_option', ['all' => 'All Students', 'shifa' => 'Shifa Students', 'non_shifa' => 'Non-Shifa Students'], isset($_GET['register_option']) ? 																		$_GET['register_option'] : 'all', ['class' => 'form-control', 'id' => 'register_option']) }}
+                                    </div>
+                                </div>
                                 {{-- Challan Month --}}
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
                                     <div class="btn-box">
@@ -425,7 +431,7 @@
 
                                 {{-- Fee Subscription --}}
                                 @php
-                                    $subscription = [
+                                     $subscription = [
                                         'monthly' => 'Monthly',
                                         'bi-monthly' => 'Bi-Monthly',
                                         // 'quarterly' => 'Quarterly',
@@ -469,7 +475,6 @@
                                     <span class="btn-inner--icon">Search</span>
                                 </button>
 
-                                {{-- @if (\Auth::user()->type == 'super admin' || \Auth::user()->type == 'company') --}}
                                     @if ($challanType == 'regular')
                                         <button type="button" id="generateChallanButton"
                                             class="btn mx-1 btn-sm btn-outline-primary ml-2"
@@ -477,7 +482,7 @@
                                             <span class="btn-inner--icon">Generate Bulk Challan</span>
                                         </button>
                                     @endif
-                                {{-- @endif --}}
+                
 
                                 <button id="printButton" class="btn mx-1 btn-sm btn-outline-success ml-2"
                                     title="Download Challan in PDF" onclick="openPrintModal(event)" disabled>
@@ -548,9 +553,18 @@
                         <td><input type="checkbox" name="checked[]" value="{{ $challan->id }}"></td>
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ $challan->challanNo }}</td>
-                        <td>{{ $challan->rollno }}</td>
+                        <td>{{ @$challan->student->roll_no ?? 'N/A' }}</td>
                         <td class="student-name">{{ @$challan->student->stdname }}</td>
-                        <td>{{ $challan->challan_type }}</td>
+                        <td>
+                            {{ $challan->challan_type }}
+                            @if ($challan->challan_type == 'Admission')
+                                {{ App\Models\Challans::where('student_id', $challan->student_id)->where('challan_type', 'Admission')->orderBy('fee_month', 'asc')->get()->count() == 2
+                                    ? (App\Models\Challans::where('student_id', $challan->student_id)->where('challan_type', 'Admission')->orderBy('fee_month', 'asc')->get()->last()->id == $challan->id
+                                        ? '2nd Installment'
+                                        : '1st Installment')
+                                    : '' }}
+                            @endif
+                        </td>
                         @if (strtolower($challan->challan_type) == 'advance' && $challan->other_months != null)
                             <td>
                                 {{ collect(explode(',', $challan->other_months))->map(fn($date) => \Carbon\Carbon::parse($date)->format('F, Y'))->implode(', ') }}
@@ -572,20 +586,23 @@
                                     data-bs-toggle="tooltip" data-bs-title="{{ __('View Challan') }}">
                                     <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                 </a>
-                                <a href="{{ route('challan.legacy_show', $challan->id) }}" target="_blank"
+								<a href="{{ route('challan.legacy_show', $challan->id) }}" target="_blank"
                                     class="mx-1 btn btn-sm align-items-center btn-outline-secondary"
                                     data-bs-toggle="tooltip" data-bs-title="{{ __('Legacy Challan View') }}">
                                     <span class="btn-inner--icon"><i class="ti ti-layout-list"></i></span>
                                 </a>
-                                @if (
-                                    (strtolower($challan->status) == 'issued' && \Auth::user()->type == 'super admin') ||
-                                        \Auth::user()->type == 'company')
-                                    <a href="{{ route('challan.edit', $challan->id) }}" target="_blank"
-                                        class="mx-1 btn btn-sm align-items-center btn-outline-primary"
-                                        data-bs-toggle="tooltip" data-bs-title="{{ __('Edit Challan') }}">
-                                        <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                                    </a>
-                                @endif
+                                {{--@if (
+									strtolower($challan->status) == 'issued'
+									&& $challan->challan_type != 'admission'
+									&& in_array(\Auth::user()->type, ['super admin', 'company'])
+								)
+									<a href="{{ route('challan.edit', $challan->id) }}" target="_blank"
+										class="mx-1 btn btn-sm align-items-center btn-outline-primary"
+										data-bs-toggle="tooltip" data-bs-title="{{ __('Edit Challan') }}">
+										<span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
+									</a>
+								 
+								@endif--}}
                             </div>
                         </td>
                         <input type="text" name="challan_id" value="{{ $challan->id }}" hidden>

@@ -185,7 +185,7 @@
         </div>
     </div>
 
-    <div class="row">
+    <div class="row mt-2">
         <div class="col-md-12">
             <div class="card pb-0">
                 <div class="card-body">

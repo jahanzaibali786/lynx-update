@@ -10,10 +10,11 @@
     <div class="card-body full-card">
         <div class="table-responsive">
             @if (!$emp_leave->isEmpty())
-                <table class="">
+                <table class="table datatable">
                     <thead class="">
                         <tr class="table_heads">
                             <th>#</th>
+                            <th>{{ __('emp no') }}</th>
                             <th>{{ __('Employee') }}</th>
                             <th>{{ __('Casual Total') }}</th>
                             <th>{{ __('Casual Consumed') }}</th>
@@ -27,8 +28,19 @@
                     <tbody>
                         @foreach ($emp_leave as $lv)
                             <tr>
-                                <td>{{ ($emp_leave->currentPage() - 1) * $emp_leave->perPage() + $loop->iteration }}</td>
-                                <td>{{ @$lv->employee->name }}</td>
+                                <td>{{ $loop->iteration }}</td>
+                                <td>
+                                    @can('show employee profile')
+                                        <a href="{{ route('employee.show', \Illuminate\Support\Facades\Crypt::encrypt(@$lv->emp_id)) }}"
+                                            class="btn id-btn mx-1 btn-sm btn-outline-primary" data-bs-toggle="tooltip" data-bs-title="{{ __('Edit') }}"><span
+                                                class="btn-inner--icon">{{ \Auth::user()->employeeIdFormat(@$lv->emp_no) }}</span></a>
+                                    @else
+                                        <a href="#" class="btn id-btn mx-1 btn-sm btn-outline-primary"><span
+                                                class="btn-inner--icon">{{ \Auth::user()->employeeIdFormat(@$lv->emp_no) }}</span></a>
+                                    @endcan
+                                </td>
+                                
+                                <td>{{ @$lv->emp_name }}</td>
                                 <td>{{ @$lv->casual_total }}</td>
                                 <td>{{ @$lv->casual_consumed }}</td>
                                 <td>{{ @$lv->annual_total }}</td>
@@ -61,7 +73,7 @@
         </div>
     </div>
 
-    @if ($emp_leave->hasPages())
+    {{-- @if ($emp_leave->hasPages())
         <div class="pagination">
             <ul>
                 @if ($emp_leave->onFirstPage())
@@ -103,6 +115,6 @@
                 @endif
             </ul>
         </div>
-    @endif
+    @endif --}}
 
 @endsection

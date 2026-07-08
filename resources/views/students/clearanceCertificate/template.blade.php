@@ -14,7 +14,7 @@
     </div>
 @endsection
 @section('content')
-    @if (\Auth::user()->type == 'company')
+
         <div class="row">
             <div class="col-sm-12">
                 <div class="mt-2" id="multiCollapseExample1">
@@ -31,7 +31,7 @@
                                 <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                                     <div class="btn-box">
                                         {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                        {{ Form::select('branches', $branches, @$studentDetail->branch ? @$studentDetail->branch->id : '', ['class' => 'form-control select', 'onchange' => 'branchcustomer(this.value)']) }}
+                                        {{ Form::select('branches', $branches, @$studentDetail->branch ? @$studentDetail->branch->id : '', ['class' => 'form-control select', 'onchange' => 														'branchcustomer(this.value)']) }}
                                     </div>
                                 </div>
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -63,7 +63,6 @@
                 </div>
             </div>
         </div>
-    @endif
     <div class="card mt-2 p-4">
         <div style="width:8.5in; margin:0 auto; font-family: DejaVu Sans, sans-serif; font-size:12px;">
 
@@ -77,7 +76,7 @@
                     </div>
 
                     <div style="font-size:12px; margin-top:5px;">
-                        I-8/4 DAYCARE BRANCH ISLAMABAD
+                        {{isset(request()->branches) ? $branches[request()->branches] : ''}}
                     </div>
 
                     <img src="{{ asset('assets/images/lynx2.jpg') }}"
@@ -263,7 +262,7 @@
         // Class -> Students (safe CustomSelect re-init, no JS search)
         function classStudents(classId) {
             $.ajax({
-                url: "{{ route('class.student_head') }}",
+                url: "{{ route('class.student_headwithdrawl') }}",
                 type: "POST",
                 data: {
                     class_id: classId,

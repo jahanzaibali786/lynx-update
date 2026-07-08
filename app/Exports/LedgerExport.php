@@ -7,11 +7,13 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use Maatwebsite\Excel\Concerns\WithCustomStartCell;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
-class LedgerExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths, WithCustomStartCell, WithEvents
+class LedgerExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths, WithCustomStartCell, WithColumnFormatting, WithEvents
 {
     protected $data;
     protected $headings;
@@ -47,12 +49,21 @@ class LedgerExport implements FromArray, WithHeadings, WithStyles, WithColumnWid
     public function columnWidths(): array
     {
         return [
-            'A' => 20,
-            'B' => 20,
-            'C' => 20,
-            'D' => 20,
+            'A' => 8,
+            'B' => 15,
+            'C' => 25,
+            'D' => 25,
             'E' => 20,
-            'F' => 20,
+            'F' => 15,
+            'G' => 15,
+            'H' => 15,
+        ];
+    }
+
+    public function columnFormats(): array
+    {
+        return [
+            'B' => NumberFormat::FORMAT_DATE_DDMMYYYY,
         ];
     }
 
@@ -60,7 +71,7 @@ class LedgerExport implements FromArray, WithHeadings, WithStyles, WithColumnWid
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $event->sheet->getStyle('A1:F1')->applyFromArray([
+                $event->sheet->getStyle('A1:H1')->applyFromArray([
                     'font' => [
                         'bold' => true,
                     ],

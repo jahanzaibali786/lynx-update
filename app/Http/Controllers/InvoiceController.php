@@ -571,8 +571,7 @@ class InvoiceController extends Controller
         $quantity = 1;
         $taxPrice = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
-
-        // Add stock quantities for all three types
+// Add stock quantities for all three types
         $data['stock_new'] = $product->quantity ?? 0;
         $data['stock_used'] = $product->used_quantity ?? 0;
         $data['stock_damaged'] = $product->damaged_quantity ?? 0;
@@ -889,6 +888,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
+
 
     function invoiceNumber()
     {

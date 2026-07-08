@@ -106,6 +106,20 @@ class Employee extends Model
         return $this->belongsTo(SchoolDetails::class, 'created_by', 'branch_id');
     }
 
+    public function emergencyContacts()
+    {
+        return $this->hasMany(EmployeeEmergencyContact::class);
+    }
+
+    public function getDesignationFormattedAttribute(): string
+    {
+           $text = $this->designation->name ?? '';
+
+            if (strlen($text) <= 25) return $text;
+
+            return str_replace("\n", "<br>", wordwrap($text, 30, "\n", false));
+    }
+
     public function get_net_salary()
     {
 
@@ -216,6 +230,11 @@ class Employee extends Model
 
     }
 
+	    public function latestPayscale()
+    {
+        return $this->hasOne(EmployeePayscaleDetail::class)->latestOfMany();
+    }
+
     public static function commission($id)
     {
         //commission
@@ -294,16 +313,29 @@ class Employee extends Model
 
     public function branch()
     {
-        return $this->hasOne('App\Models\Branch', 'id', 'branch_id');
+        return $this->hasOne('App\Models\Branch', 'id', 'owned_by');
     }
     public function userbranch()
     {
-        return $this->hasOne('App\Models\User', 'id', 'branch_id');
+        return $this->hasOne('App\Models\User', 'id', 'owned_by');
+    }
+    public function branchdetail()
+    {
+        return $this->belongsTo('App\Models\User', 'id', 'owned_by');
+    }
+    public function ownedBranch()
+    {
+        return $this->belongsTo('App\Models\User', 'owned_by', 'id');
     }
 
     public function department()
     {
         return $this->hasOne('App\Models\Department', 'id', 'department_id');
+    }
+    
+    public function latestEducation()
+    {
+        return $this->hasOne('App\Models\EmpEducation', 'emp_id', 'id')->orderByDesc('pass_date');
     }
     public function resignation()
     {
@@ -338,6 +370,18 @@ class Employee extends Model
     public function present_status($employee_id, $data)
     {
         return AttendanceEmployee::where('employee_id', $employee_id)->where('date', $data)->first();
+    }
+
+    public function eobi($employee_id, $branches_id)
+    {
+        $branches_school = \App\Models\SchoolDetails::where('branch_id', $branches_id)->first();
+        $employee = Employee::where('id', $employee_id)->first();
+        $eobiValue = ($employee->eobi / 100) * ($branches_school->eobi_values ?? 0);
+        $eobiEmployerValue = ($employee->eobi_employer / 100) * ($branches_school->eobi_values ?? 0);
+        return [
+            'employee_eobi' => $eobiValue,
+            'employer_eobi' => $eobiEmployerValue,
+        ];
     }
 
 

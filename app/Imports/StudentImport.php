@@ -33,8 +33,7 @@ class StudentImport implements ToModel, WithHeadingRow
 
         $parts = explode(' - ', $combined, 2);
         if (count($parts) < 2) {
-            $this->errors[] = __("Skipped: Invalid format \"{$combined}\". Use \"Name - Roll No\".");
-            $this->errorCount++;
+            $this->skipCount++;
             return null;
         }
 
@@ -104,6 +103,15 @@ class StudentImport implements ToModel, WithHeadingRow
             }
         }
 
+        // Validate date fields — skip entry if invalid
+        foreach (['regdate', 'dob'] as $dateField) {
+            if (isset($data[$dateField]) && !$this->isValidDate($data[$dateField])) {
+                $this->errors[] = __("Skipped: Invalid date format for \"{$dateField}\" on student \"{$studentName}\" ({$rollNo}). Expected YYYY-MM-DD.");
+                $this->errorCount++;
+                return null;
+            }
+        }
+
         if (empty($data)) {
             return null;
         }
@@ -132,6 +140,15 @@ class StudentImport implements ToModel, WithHeadingRow
             }
         }
         return null;
+    }
+
+    protected function isValidDate($value)
+    {
+        if (empty($value)) {
+            return true;
+        }
+        $d = \DateTime::createFromFormat('Y-m-d', $value);
+        return $d && $d->format('Y-m-d') === $value;
     }
 
     protected function convertDateIfNeeded($field, $value)

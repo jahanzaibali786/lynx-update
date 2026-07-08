@@ -1280,11 +1280,21 @@ class ReportController extends Controller
     {
         $user = \Auth::user();
         if (\Auth::user()->can('ledger report')) {
-
+             if (\Auth::user()->type == 'company') {
+                $branches = User::where('type', 'branch')->where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+                $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+                $branches->prepend('All Branches', 'All Branches');
+            } else {
+                $branches = User::where('id', \Auth::user()->ownedId())->pluck('name', 'id');
+                $branches->prepend('All Branches', 'All Branches');
+            }
              
             $creatorId = $user->creatorId();
             $start = $request->start_date ?? date('Y-m-01');
             $end = $request->end_date ?? date('Y-m-d', strtotime('+1 day'));
+
+
+            $selectedBranch = $request->branch ?? null;
 
             $isAccountFiltered = !empty($request->account);
             $type = $isAccountFiltered ? 'other' : 'group';
@@ -1319,9 +1329,9 @@ class ReportController extends Controller
             if($request->old){
                 return view('report.ledger_summary_old', compact('filter', 'chart_accounts', 'accounts', 'subAccounts', 'type'));
             }
-            $rows = $this->ledgerService->buildLedgerRows($chart_accounts,$type, $start, $end);
+            $rows = $this->ledgerService->buildLedgerRows($chart_accounts, $type, $start, $end, $selectedBranch);
             // dd($rows);
-            return view('report.ledger_summary', compact('filter', 'chart_accounts', 'accounts', 'subAccounts', 'type','rows'));      
+            return view('report.ledger_summary', compact('filter', 'chart_accounts', 'accounts', 'subAccounts', 'type', 'rows', 'branches'));      
         } else {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
@@ -3457,116 +3467,45 @@ class ReportController extends Controller
 
     public function ledgerSummaryExport(Request $request)
     {
-        $accounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $accounts->prepend('All', '');
+        $user = \Auth::user();
+        $creatorId = $user->creatorId();
+        $start = $request->start_date ?? date('Y-m-01');
+        $end = $request->end_date ?? date('Y-m-d', strtotime('+1 day'));
+        $selectedBranch = $request->branch ?? null;
 
-        if (!empty($request->start_date) && !empty($request->end_date)) {
-            $start = $request->start_date;
-            $end = $request->end_date;
-        } else {
-            $start = date('Y-01-01');
-            $end = date('Y-m-d', strtotime('+1 day'));
+        $isAccountFiltered = !empty($request->account);
+        $type = $isAccountFiltered ? 'other' : 'group';
+
+        $chartAccountsQuery = ChartOfAccount::where('created_by', $creatorId);
+        if ($isAccountFiltered) {
+            $chartAccountsQuery->where('id', $request->account);
         }
+        $chart_accounts = $chartAccountsQuery->get();
 
-        if (!empty($request->account)) {
-            $accountss = ChartOfAccount::where('id', $request->account)->get();
-        } else {
-            $accountss = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get();
-        }
+        $rows = $this->ledgerService->buildLedgerRows($chart_accounts, $type, $start, $end, $selectedBranch);
 
-        $balance = 0;
-        $debit = 0;
-        $credit = 0;
+        $headings = ['#', 'Date', 'Account Name', 'Memo', 'Transaction Type', 'Debit', 'Credit', 'Balance'];
 
-        // foreach($journalItems as $item)
-        // {
-        //     if($item->debit > 0)
-        //     {
-        //         $debit += $item->debit;
-        //     }
-
-        //     else
-        //     {
-        //         $credit += $item->credit;
-        //     }
-
-        //     $balance = $credit - $debit;
-        // }
-
-        $filter['balance'] = $balance;
-        $filter['credit'] = $credit;
-        $filter['debit'] = $debit;
-        $filter['startDateRange'] = $start;
-        $filter['endDateRange'] = $end;
-        // asdhasudgyuas
-
-        // ashgdhasdhjashdkjas
-
-
-
-
-        $balance = 0;
-        $debit = 0;
-        $credit = 0;
-
-
-        $accountArrays = [];
-        foreach ($accountss as $key => $account) {
-            $chartDatas = Utility::getAccountData($account->id, $filter['startDateRange'], $filter['endDateRange']);
-            $a = [0 => ['account' => $account->id]];
-            $chartDatas = array_merge($chartDatas, $a);
-            $accountArrays[] = $chartDatas;
-        }
         $data = [];
-        $headings = ['Account Name', 'Description', 'Date', 'Debit', 'Credit', 'Balance'];
+        $i = 1;
+        foreach ($rows as $row) {
+            // Convert date string to Excel serial date for proper date formatting
+            $dateValue =  $row['date'];
 
-        foreach ($accountArrays as $account) {
-            if ('other' == 'other') {
-                foreach ($account['journalItem'] as $journalItemData) {
-                    $accountName = \App\Models\ChartOfAccount::find($journalItemData->account);
-
-                    if ($journalItemData->debit != 0) {
-                        $balance += $journalItemData->debit;
-                    } else {
-                        $balance -= $journalItemData->credit;
-                    }
-                    $data[] = [
-                        @$accountName->name,
-                        '-',
-                        $journalItemData->created_at->format('d-m-Y'),
-                        isset($journalItemData->debit) ? $journalItemData->debit : 0,
-                        isset($journalItemData->credit) ? $journalItemData->credit : 0,
-                        $balance
-                    ];
-                }
-            } else {
-                if ($account['type'] == 'group') {
-                    foreach ($account['journalItem'] as $journalItem) {
-                        foreach ($journalItem as $journalItemData) {
-                            $accountName = \App\Models\ChartOfAccount::find($journalItemData->account);
-                            if ($journalItemData->debit != 0) {
-                                $balance -= $journalItemData->debit;
-                            } else {
-                                $balance += $journalItemData->credit;
-                            }
-
-                            $data[] = [
-                                @$accountName->name,
-                                '-',
-                                $journalItemData->created_at->format('d-m-Y'),
-                                isset($journalItemData->debit) ? $journalItemData->debit : 0,
-                                isset($journalItemData->credit) ? $journalItemData->credit : 0,
-                                $balance
-                            ];
-                        }
-                    }
-                }
-            }
+            $data[] = [
+                $i++,
+                $dateValue,
+                $row['account'],
+                $row['memo'],
+                $row['voucher'],
+                $row['debit'],
+                $row['credit'],
+                $row['balance'],
+            ];
         }
 
-        $name = 'Trial_Balance_' . now()->format('Y_m_d_H_i_s');
-        $data= Excel::download(new LedgerExport($data, $headings), $name . '.xlsx');
-
+        $name = 'Ledger_Summary_' . now()->format('Y_m_d_H_i_s');
+        $data = Excel::download(new LedgerExport($data, $headings), $name . '.xlsx');
 
         ob_end_clean();
 

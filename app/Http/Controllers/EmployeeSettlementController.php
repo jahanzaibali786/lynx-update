@@ -123,7 +123,7 @@ class EmployeeSettlementController extends Controller
             $diffMonths = $empResignMonth - 1;
 
             $empTakeAnnual = $diffMonths * 2.5;
-            $empTakeCasual = $diffMonths * 0.8;
+            $empTakeCasual = $diffMonths * 0.833;
 
             // Casual
             $casualUsed = $leavescalc->casual_consumed;
@@ -439,7 +439,7 @@ class EmployeeSettlementController extends Controller
             $diffMonths = $empResignMonth - 1;
 
             $empTakeAnnual = $diffMonths * 2.5;
-            $empTakeCasual = $diffMonths * 0.8;
+            $empTakeCasual = $diffMonths * 0.833;
 
             // Casual
             $casualUsed = $leavescalc->casual_consumed;

@@ -72,26 +72,26 @@ class FixJournalData extends Command
                 ->whereIn('journal', $voucherIds)
                 ->get();
 
-            // foreach ($journalItems as $item) {
-            //     $receipt = $receipts->firstWhere('voucher_id', $item->journal);
-            //     // $bankAccount = DB::table('bank_accounts')->where('id', $receipt->bank_id)->first();
-            //     // $fee_head = DB::table('fee_heads')->where('id', $item->head)->first();
-            //     // $chartAccountId = $bankAccount->chart_account_id ?? null;
+            foreach ($journalItems as $item) {
+                $receipt = $receipts->firstWhere('voucher_id', $item->journal);
+                // $bankAccount = DB::table('bank_accounts')->where('id', $receipt->bank_id)->first();
+                // $fee_head = DB::table('fee_heads')->where('id', $item->head)->first();
+                // $chartAccountId = $bankAccount->chart_account_id ?? null;
 
-            //     // $newAccount = ($item->head == 0 && $item->credit == 0 && $chartAccountId)
-            //     //     ? $chartAccountId
-            //     //     : $fee_head->receivable_account_id;
+                // $newAccount = ($item->head == 0 && $item->credit == 0 && $chartAccountId)
+                //     ? $chartAccountId
+                //     : $fee_head->receivable_account_id;
 
-            //     // DB::table('journal_items')
-            //     //     ->where('id', $item->id)
-            //     //     ->update([
-            //     //         'user_id' => $receipt->student_id, // Assuming student_id is already correct
-            //     //         'user_type' => 'Student',
-            //     //         // 'created_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(created_at))"),
-            //     //         // 'updated_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(updated_at))"),
-            //     //         // 'account' => $newAccount,
-            //     //     ]);
-            // }
+                DB::table('journal_items')
+                    ->where('id', $item->id)
+                    ->update([
+                        'user_id' => $receipt->student_id, // Assuming student_id is already correct
+                        'user_type' => 'Student',
+                        // 'created_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(created_at))"),
+                        // 'updated_at' => DB::raw("TIMESTAMP('$receipt->recipt_date', TIME(updated_at))"),
+                        // 'account' => $newAccount,
+                    ]);
+            }
 
             $this->info("Chunk $start → $end processed ✅");
         }

@@ -176,7 +176,7 @@
             function validateSection(sectionId) {
                 var valid = true;
                 $(sectionId + ' [required]').each(function() {
-                    if (!$(this).val() || $(this).val().trim() === '') {
+                    if (!$(this).val() || $(this).val().trim() == '') {
                         $(this).css('border-color', 'red');
                         valid = false;
                     } else {
@@ -232,8 +232,7 @@
             //     sendFormData(formData);
             // });
 $('#submitBtnSection1').click(function() {
-                if (!validateSection('#section1')) return;
-
+				if (!validateSection('#section1')) return;
                 let sectionData = $('#section1 :input').serializeArray();
 
                 let file = $('#profileInput')[0].files[0];
@@ -273,7 +272,7 @@ $('#submitBtnSection1').click(function() {
                 }
             });
             $('#submitBtnSection2').click(function() {
-                if (!validateSection('#section2')) return;
+			if (!validateSection('#section2')) return;
                 var formData = {
                     sectionName: 'section2',
                     sectionData: $('#section2 :input').serializeArray()
@@ -282,7 +281,7 @@ $('#submitBtnSection1').click(function() {
             });
 
             $('#submitBtnSection3').click(function() {
-                if (!validateSection('#section3')) return;
+				if (!validateSection('#section3')) return;
                 var checkedRowsData = [];
                 var uncheckedRowsData = [];
                 var checkboxes = document.getElementsByName("checked[]");
@@ -539,7 +538,7 @@ $('#submitBtnSection1').click(function() {
                     <div class="general-details col-12 col-md-12 col-lg-12">
                         <div class="mt-2 px-2">
                             <div class="form-group">
-                                <div class="d-flex" style="gap: 10px;">
+                                 <div class="d-flex" style="gap: 10px;">
                                     <div style="flex: 1;">
                                         {{ Form::label('branchname', __('Branch'), ['class' => 'form-label']) }}<span
                                             style="color: red"> *</span>
@@ -559,24 +558,24 @@ $('#submitBtnSection1').click(function() {
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="gap: 10px;">
-                                    <div style="flex: 1;">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+									<div style="flex: 1;">
                                         {{ Form::label('reg_no', __('Registration No'), ['class' => 'form-label']) }}
                                         {{ Form::text('reg_no', $student->reg_no, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('roll_no', __('Roll No'), ['class' => 'form-label']) }}
-                                        {{ Form::text('roll_no', @$student->roll_no, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                                        {{ Form::text('roll_no', @$student->roll_no, ['class' => 'form-control' ,'disabled' => 'disabled']) }}
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="gap: 10px;">
-                                    <div style="flex: 1;">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+									<div style="flex: 1;">
                                         {{ Form::label('name', __('Name'), ['class' => 'form-label']) }}
                                         {{ Form::text('name', $student->stdname, ['class' => 'form-control', 'required' => 'required', 'style' => 'text-transform: uppercase;']) }}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('dob', __('D.O.B'), ['class' => 'form-label']) }}<span
                                             style="color: red">*</s>
                                             {{ Form::date('dob', $student->dob, ['class' => 'form-control', 'id' => 'dob', 'required' => 'required']) }}
@@ -584,8 +583,8 @@ $('#submitBtnSection1').click(function() {
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="gap: 10px;">
-                                    <div style="flex: 1;">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+									<div style="flex: 1;">
                                         {!! Form::label('gender', __('Gender'), ['class' => 'form-label']) !!}
                                         <span style="color: red">*</span>
                                         {!! Form::select('gender', ['' => 'Select Gender', 'male' => 'Male', 'female' => 'Female'], $student->gender, [
@@ -593,7 +592,7 @@ $('#submitBtnSection1').click(function() {
                                             'required' => 'required',
                                         ]) !!}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('birth_place', __('Birth Place'), ['class' => 'form-label']) }}
                                         {{ Form::text('birth_place', $student->birth_place, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
@@ -601,35 +600,35 @@ $('#submitBtnSection1').click(function() {
                             </div>
 
                             <div class="form-group">
-                                <div class="d-flex" style="gap: 10px;">
-                                    <div style="flex: 1;">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+									<div style="flex: 1;">
                                         {{ Form::label('religion', __('Religion'), ['class' => 'form-label']) }}
                                         {{ Form::text('religion', $student->religion, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('nationality', __('Nationality'), ['class' => 'form-label']) }}
                                         {{ Form::text('nationality', $student->nationality, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="gap: 10px;">
-                                    <div style="flex: 1;">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+                                    <div class="col-md-6">
                                         {!! Form::label('register_option', __('Register Option'), ['class' => 'form-label']) !!}<span style="color: red"> *</span>
                                         {!! Form::select('register_option', $registerOption, $selectedOptionId, [
                                             'class' => 'form-control',
                                             'required' => 'required',
                                         ]) !!}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('mobile_phone', __('Phone Mobile'), ['class' => 'form-label']) }}
                                         {{ Form::text('mobile_phone', $student->fatherphone, ['class' => 'form-control', 'required' => 'required', 'id' => 'fatherphone']) }}
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <div class="d-flex" style="gap: 10px;">
-                                    <div style="flex: 1;">
+                                <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+									<div style="flex: 1;">
                                         {{ Form::label('mobile_cell', __('Father Cell'), ['class' => 'form-label']) }}
 <!-- in your Blade -->
 <input type="text"
@@ -639,7 +638,7 @@ $('#submitBtnSection1').click(function() {
        class="form-control"
        required>
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('prevschool', __('Previous School'), ['class' => 'form-label']) }}
                                         {{ Form::text('prevschool', $student->prevschool, ['class' => 'form-control', 'placeholder' => __('Previous School'), 'required' => 'required']) }}
                                     </div>
@@ -739,8 +738,8 @@ $('#submitBtnSection1').click(function() {
                 </div>
                 <div class="tab-pane fade mt-3" id="section2" role="tabpanel" aria-labelledby="section2-tab">
                     <div class="form-group">
-                        <div class="d-flex" style="gap: 10px;">
-                            <div style="flex: 1;">
+                        <div class="d-flex" style="justify-content: space-between; gap: 10px;">
+							<div style="flex: 1;">
                                 {{ Form::label('father_name', __('Father Name'), ['class' => 'form-label']) }}
                                 {{ Form::text('father_name', $student->fathername, ['class' => 'form-control', 'id' => 'fathername', 'required' => 'required']) }}
                             </div>
@@ -942,7 +941,7 @@ $('#submitBtnSection1').click(function() {
                             <div style="flex: 1;">
                                 {{ Form::label('section', __('Section'), ['class' => 'form-label']) }}
                                 {!! Form::text('section',  @$student->enrollment->section ? @$student->enrollment->section->name : '',
-                                   [ 'class' => 'form-control','required' => 'required','disabled' => 'disabled',]) !!}
+                                   [ 'class' => 'form-control','disabled' => 'disabled',]) !!}
                             </div>
                             <div style="flex: 1;">
                                 {{ Form::label('discount_policy', __('Discount Policy'), ['class' => 'form-label']) }}

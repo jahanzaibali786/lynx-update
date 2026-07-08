@@ -308,7 +308,16 @@ class ChartOfAccountController extends Controller
         return view('chartOfAccount.edit', compact('chartOfAccount', 'types'));
     }
 
-
+public function updateCategory(Request $request)
+    {
+        $account = ChartOfAccount::find($request->account_id);
+        if ($account) {
+            $account->category = $request->category;
+            $account->save();
+            return response()->json(['success' => true]);
+        }
+        return response()->json(['success' => false]);
+    }
     public function update(Request $request, ChartOfAccount $chartOfAccount)
     {
 
@@ -362,16 +371,5 @@ class ChartOfAccountController extends Controller
         $types->prepend('Select an account', 0);
 
         return response()->json($types);
-    }
-
-    public function updateCategory(Request $request)
-    {
-        $account = ChartOfAccount::find($request->account_id);
-        if ($account) {
-            $account->category = $request->category;
-            $account->save();
-            return response()->json(['success' => true]);
-        }
-        return response()->json(['success' => false]);
     }
 }

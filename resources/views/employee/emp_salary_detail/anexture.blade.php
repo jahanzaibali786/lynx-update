@@ -134,7 +134,7 @@
                         <td style="padding: 3px 8px; font-size: 9px;">{{ number_format($medical->head_value ?? 0, 2) }}</td>
                     </tr>
                     <tr>
-                        <td style="font-weight: bold; padding: 3px 8px; font-size: 9px;">Others</td>
+                        <td style="font-weight: bold; padding: 3px 8px; font-size: 9px;">Other Allowance</td>
                         <td style="padding: 3px 8px; font-size: 9px;">{{ number_format($others->sum('head_value'), 2) }}</td>
                     </tr>
                     <tr>
@@ -182,7 +182,7 @@
                                     <td style="padding: 4px 6px; border: 1px solid #000; text-align: right; font-size: 9px;">-</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 4px 6px; border: 1px solid #000; font-size: 9px; font-weight: bold;">Others</td>
+                                    <td style="padding: 4px 6px; border: 1px solid #000; font-size: 9px; font-weight: bold;">Other Allowance</td>
                                     <td style="padding: 4px 6px; border: 1px solid #000; text-align: right; font-size: 9px;">-</td>
                                 </tr>
                                 <tr>

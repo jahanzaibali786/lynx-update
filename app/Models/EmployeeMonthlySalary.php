@@ -41,7 +41,11 @@ class EmployeeMonthlySalary extends Model
         'prc_final',
         'sal_final',
         'on_hold',
+        'carried_to_salary_id',
+        'carried_at',
         'net_pay',
+        'remarks',
+        'emp_sec_loan',
         'voucher_id',
         'status',
         'owned_by',
@@ -49,6 +53,9 @@ class EmployeeMonthlySalary extends Model
     ];
     public function employee(){
         return $this->belongsTo(Employee::class,'employee_id','id');
+    }
+    public function salarydepartment(){
+        return $this->belongsTo(Department::class,'department_id','id');
     }
     public function employee_scale(){
         return $this->belongsTo(Employee::class,'employee_id','employee_id');
@@ -58,5 +65,14 @@ class EmployeeMonthlySalary extends Model
     }
     public function salary_heads(){
         return $this->hasMany(EmployeeMonthlySalaryHeads::class, 'sal_id', 'id');
+    }
+
+    public function deductions()
+    {
+        return $this->hasMany(SalaryDeductionDetail::class, 'salary_id');
+    }
+    public function scaleHeads()
+    {
+        return $this->hasMany(EmployeeScaleHeads::class, 'scale_id', 'scale_id');
     }
 }

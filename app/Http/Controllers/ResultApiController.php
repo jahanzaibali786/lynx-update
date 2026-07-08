@@ -24,6 +24,7 @@ class ResultApiController extends Controller
                 'gender',
                 'fathername',
                 'fathercell',
+                'mothername',
                 'class_id',
                 'branch',
                 'session_id',
@@ -40,6 +41,41 @@ class ResultApiController extends Controller
             'data' => $students
         ]);
     }
+
+	public function getStudent($id)
+    {
+        // dd('hi');
+        $students = StudentRegistration::with('enrollment')
+		    ->select(
+		        'id',
+		        'reg_no',
+		        'roll_no',
+		        'stdname',
+		        'dob',
+		        'gender',
+		        'fathername',
+		        'fathercell',
+		        'mothername',
+		        'class_id',
+		        'branch',
+		        'session_id',
+		        'owned_by',
+		        'created_by'
+		    )
+		    ->where('student_Status', 'Enrolled')
+		    ->where('active_Status', 1)
+		    ->whereHas('enrollment', function ($q) use ($id) {
+		        $q->where('owned_by', $id);
+		    })
+		    ->get();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Students fetched successfully',
+            'data' => $students
+        ]);
+    }	
+
     public function getClasses()
     {
 
@@ -98,7 +134,7 @@ class ResultApiController extends Controller
             ->whereHas('employee.department', function ($q) {
 
                 $q->where(function ($query) {
-                    $query->where('name', 'LIKE', '%MANAGEMENT%')
+                    $query->where('name', 'LIKE', '%MANAGEMENT%')->orWhere('name', 'LIKE', '%ADMINISTRATION%')
                         ->orWhere('name', 'LIKE', '%ACADEMIC%');
                 });
             })

@@ -36,6 +36,7 @@ class CreateLoansTable extends Migration
             $table->integer('chartaccount_id')->nullable();
             $table->integer('referance_id')->nullable();
             $table->integer('voucher_id')->nullable();
+            $table->integer('approved_by')->nullable();
             $table->integer('owned_by');
             $table->integer('created_by');
             $table->timestamps();

@@ -47,7 +47,7 @@
                         window.CustomSelect.create($classSelect[0]);
                     }
 
-                    $('#student_select').html('<option value="">Select Student</option>');
+                    $('#student_select').html('<option value="all">All Students</option>');
                 }
             });
         });
@@ -77,8 +77,8 @@
                     // Clear and append new options
                     $studentSelect.empty();
                     $studentSelect.append($('<option>', {
-                        value: '',
-                        text: 'Select Student'
+                        value: 'all',
+                        text: 'All Students'
                     }));
 
                     for (var j = 0; j < data.student.length; j++) {
@@ -141,7 +141,7 @@
 @endpush
 @section('action-btn')
     <div class="float-end mb-2">
-        
+
         {{-- //pre challan reports list --}}
         <a href="{{ route('prechallan.index') }}" class="btn btn-sm btn-outline-primary">
             {{ __('Pre Challan List') }}
@@ -163,7 +163,7 @@
                 </div>
                 <div class="col-xl-2 col-lg-2 col-md-3">
                     {{ Form::label('student', 'Student') }}
-                    {{ Form::select('student', $students, request('student'), ['class' => 'form-control custom-select', 'id' => 'student_select']) }}
+                    {{ Form::select('student', $students, request('student', 'all'), ['class' => 'form-control custom-select', 'id' => 'student_select']) }}
                 </div>
                 <div class="col-xl-2 col-lg-2 col-md-3">
                     {{ Form::label('date', 'Billing Month') }}
@@ -210,10 +210,10 @@
                             <th>Branch</th>
                             <th>Roll No</th>
                             <th>Name</th>
+                            <th>Admission Date</th>
                             <th>Reg Type</th>
                             <th>Class</th>
                             <th>Monthly Fee</th>
-                            <th>Challan Type</th>
                             @foreach ($heads as $head)
                                 <th>{{ $head->fee_head }}</th>
                                 <th>Disc</th>
@@ -222,7 +222,7 @@
                             <th>Total</th>
                             <th>Discount</th>
                             <th>Net</th>
-                            <th>Policy</th>
+                            <th>Category</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -234,10 +234,11 @@
                                     <td>{{ $branches[$branchId] ?? '' }}</td>
                                     <td>{{ $stu['roll_no'] }}</td>
                                     <td>{{ $stu['student_name'] }}</td>
+                                    <td>{{ $stu['adm_date'] ? \Carbon\Carbon::parse($stu['adm_date'])->format('d-M-Y') : '-' }}
+                                    </td>
                                     <td>{{ $stu['registration_type'] }}</td>
                                     <td>{{ $stu['class_name'] }}</td>
                                     <td>{{ round($stu['total_amount']) }}</td>
-                                    <td>{{ $stu['challan_type_short'] }}</td>
 
                                     @foreach ($heads as $head)
                                         @php

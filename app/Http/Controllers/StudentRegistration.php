@@ -12,10 +12,10 @@ use App\Models\Registring_option;
 use App\Models\Section;
 use App\Models\StudentReceipt;
 use App\Models\Session;
-use App\Models\StudentFeeRevisionBatch;
-use App\Models\StudentFeeRevisionItem;
 use App\Models\StudentFeeStructure;
 use App\Models\User;
+use App\Models\StudentFeeRevisionBatch;
+use App\Models\StudentFeeRevisionItem;
 use App\Models\StudentRegistration as ModelsStudentRegistration;
 use App\Models\Utility;
 use Aws\AppRegistry\AppRegistryClient;
@@ -199,7 +199,7 @@ class StudentRegistration extends Controller
             'motherprofession' => 'nullable|string',
             'register_option' => 'required|integer',
             'email' => 'nullable|email',
-            'father_email' => 'required|email',
+			 'father_email' => 'required|email',
             'mother_email' => 'required|email',
             // 'address' => 'required|string',
             'branch' => 'required',
@@ -246,7 +246,6 @@ class StudentRegistration extends Controller
             $registration->mothercnic = $request->input('mothercnic');
             $registration->motherprofession = $request->input('motherprofession');
             $registration->register_option = $request->input('register_option');
-            $registration->email = $request->input('email');
             $registration->father_email = $request->input('father_email');
             $registration->mother_email = $request->input('mother_email');
             $presentParts = array_filter([
@@ -525,6 +524,8 @@ class StudentRegistration extends Controller
                     'city' => 'nullable|string',
                     'prevschool' => 'nullable|string',
                     'adm_session' => 'nullable|string',
+                    'present_address' => 'nullable|string',
+                    'permanent_address' => 'nullable|string',
 
                 ]);
                 if ($validator->fails()) {
@@ -544,7 +545,7 @@ class StudentRegistration extends Controller
                 $student->birth_place = $sectionData['birth_place'];
                 $student->district = $sectionData['district'];
                 $student->city = $sectionData['city'];
-                $student->email = $sectionData['email'] ?? '';
+               $student->email = $sectionData['email'] ?? '';
                 $student->register_option = $sectionData['register_option'];
                 $student->prevschool = $sectionData['prevschool'];
                 $presentParts = array_filter([
@@ -564,7 +565,7 @@ class StudentRegistration extends Controller
                     $sectionData['permanent_city_addr'] ?? '',
                     $sectionData['permanent_district_addr'] ?? '',
                 ]);
-                $student->permanent_address = strtoupper(implode(', ', $permanentParts));
+                $student->permanent_address = strtoupper(implode(', ', $permanentParts));                
                 $student->save();
                 if (isset($sectionData['branch']) && $sectionData['branch']) {
                     if ($sectionData['branch'] != $student->owned_by) {
@@ -664,11 +665,11 @@ class StudentRegistration extends Controller
                 $student->fatherphone = isset($sectionData['home_phone']) ? $sectionData['home_phone'] : '';
                 $student->fathercell = isset($sectionData['mobile_phone']) ? $sectionData['mobile_phone'] : '';
                 $student->fatherprofession = $sectionData['father_occupation'];
-                $student->father_email = $sectionData['father_email'] ?? '';
+				$student->father_email = $sectionData['father_email'] ?? '';
                 $student->mothername = $sectionData['mother_name'];
                 $student->mothercnic = $sectionData['mother_cnic'];
                 $student->motherprofession = $sectionData['mother_occupation'];
-                $student->mother_email = $sectionData['mother_email'] ?? '';
+				$student->mother_email = $sectionData['mother_email'] ?? '';
                 $student->guardianname = isset($sectionData['guardian_name']) ? $sectionData['guardian_name'] : '';
                 $student->guardianrelation = isset($sectionData['guardian_relation']) ? $sectionData['guardian_relation'] : '';
                 $student->guardianprofession = isset($sectionData['guardian_occupation']) ? $sectionData['guardian_occupation'] : '';
@@ -692,8 +693,7 @@ class StudentRegistration extends Controller
         } else if ($request->sectionName == 'section3') {
             \DB::beginTransaction();
             try {
-                $feeStructureBefore = $this->feeStructureAmountSnapshot($student);
-
+				$feeStructureBefore = $this->feeStructureAmountSnapshot($student);
                 if ($this->canShowJunJulFeeExempt($student)) {
                     $requestedExempt = !empty($sectionData['fee_exempt_jun_jul'])
                         && (string) $sectionData['fee_exempt_jun_jul'] === '1';
@@ -803,7 +803,7 @@ class StudentRegistration extends Controller
                 // dd($request->all());
 
                 $student->save();
-                $this->recordFeeStructureAmountHistory($student, $feeStructureBefore, 'manual_fee_structure', 'Manual fee structure update');
+				$this->recordFeeStructureAmountHistory($student, $feeStructureBefore, 'manual_fee_structure', 'Manual fee structure update');
                 \DB::commit();
                 return response(['success' => 'Student Updated Successfully']);
             } catch (\Exception $e) {
@@ -813,35 +813,7 @@ class StudentRegistration extends Controller
             }
         }
     }
-    private function transformSectionData($sectionData)
-    {
-        $transformedData = [];
-        foreach ($sectionData as $item) {
-            $transformedData[$item['name']] = $item['value'];
-        }
-        return $transformedData;
-    }
-
-    private function canShowJunJulFeeExempt(ModelsStudentRegistration $student): bool
-    {
-        if (!in_array(\Auth::user()->type, ['company', 'branch'], true)) {
-            return false;
-        }
-
-        $admDate = optional($student->enrollment)->adm_date;
-        if (empty($admDate)) {
-            return false;
-        }
-
-        $today = Carbon::today();
-        $admissionDate = Carbon::parse($admDate);
-
-        return (int) $today->year === (int) $admissionDate->year
-            && (int) $today->month >= 1
-            && (int) $today->month <= 5;
-    }
-
-    private function feeStructureAmountSnapshot(ModelsStudentRegistration $student)
+	private function feeStructureAmountSnapshot(ModelsStudentRegistration $student)
     {
         $concessionPolicyHeads = $this->activeConcessionPolicyHeads($student->id);
 
@@ -956,6 +928,34 @@ class StudentRegistration extends Controller
         }
     }
 
+    private function transformSectionData($sectionData)
+    {
+        $transformedData = [];
+        foreach ($sectionData as $item) {
+            $transformedData[$item['name']] = $item['value'];
+        }
+        return $transformedData;
+    }
+
+    private function canShowJunJulFeeExempt(ModelsStudentRegistration $student): bool
+    {
+        if (!in_array(\Auth::user()->type, ['company', 'branch'], true)) {
+            return false;
+        }
+
+        $admDate = optional($student->enrollment)->adm_date;
+        if (empty($admDate)) {
+            return false;
+        }
+
+        $today = Carbon::today();
+        $admissionDate = Carbon::parse($admDate);
+
+        return (int) $today->year === (int) $admissionDate->year
+            && (int) $today->month >= 1
+            && (int) $today->month <= 5;
+    }
+
     function challanNo()
     {
         $latest = Challans::where('created_by', '=', \Auth::user()->creatorId())->orderBY('id', 'desc')->first();
@@ -981,7 +981,7 @@ class StudentRegistration extends Controller
         $reg_recipt = ModelsStudentRegistration::with('session', 'class', 'branches', 'branch_name', 'branch_name.headmaster_name')->find($id);
         return view('students.registration.reg_slip', compact('reg_recipt'));
     }
-    public function admission_order(Request $request, $id)
+   public function admission_order(Request $request, $id)
     {
         $adm_order = ModelsStudentRegistration::with(
             'session',

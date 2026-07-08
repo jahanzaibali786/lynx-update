@@ -471,10 +471,10 @@
                                 <td class="detail-value" style="text-transform: uppercase;">
                                     {{ $fromMonth->format('F, Y') }}
 
-                                    @if ($toMonth)
+                                    @if ( $toMonth != null && $toMonth != $fromMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
-                                    @if (!empty($showJunJulExemptionLabel))
+									@if (!empty($showJunJulExemptionLabel))
                                         <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
                                     @endif
                                 </td>
@@ -633,6 +633,7 @@
                                         CALCULATED AND CHARGED BY THE BANK / Branch AFTER DUE DATE</div>
                                     <div style="font-size: 0.75rem;">2. ANY ERROR IN THE CALCULATION OF FINE BY THE BANK / Branch
                                         WILL BE ADJUSTED IN THE NEXT FEE BILL</div>
+									<div style="font-size: 0.75rem;">3. IN CASE THE MONTHLY FEE IS NOT SETTLED IN FULL, A DAILY LATE SURCHARGE WILL BE APPLICABLE AFTER THE DUE DATE.</div>
                                 </div>
                             @endif
 
@@ -732,7 +733,7 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
-                                    @if (!empty($showJunJulExemptionLabel))
+									@if (!empty($showJunJulExemptionLabel))
                                         <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
                                     @endif
                                 </td>
@@ -981,7 +982,7 @@
                                     @if ($toMonth)
                                         - {{ $toMonth->format('F, Y') }}
                                     @endif
-                                    @if (!empty($showJunJulExemptionLabel))
+									@if (!empty($showJunJulExemptionLabel))
                                         <small style="font-size: 0.7rem; text-transform: none;">(exempted)</small>
                                     @endif
                                 </td>

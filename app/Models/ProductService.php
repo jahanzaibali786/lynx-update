@@ -29,7 +29,7 @@ class ProductService extends Model
         'sale_chartaccount_id',
         'expense_chartaccount_id',
         'inventory_asset_account_id',
-        'quantity',
+	'quantity',
         'used_quantity',
         'damaged_quantity',
         'owned_by',

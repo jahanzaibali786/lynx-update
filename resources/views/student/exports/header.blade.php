@@ -111,6 +111,7 @@
                 @endphp
             </td>
         @else
+            {{-- ✅ Separate TDs for proper spacing --}}
             <td colspan="1" style="text-align: left; font-family: calibri; font-weight: bold; font-size: 10px;">
                 From:
             </td>

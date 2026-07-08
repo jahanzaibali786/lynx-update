@@ -895,7 +895,7 @@
                     head.amount + '" disabled></div>');
                 row.append(
                     '<div class="col-md-3 mb-1"><input name="ramount[]" class="form-control ramount" style="font-size:13px;" type="number" value="" min="0" step="any"></div>'
-                );
+                    );
                 c.append(row);
             });
 
@@ -945,11 +945,11 @@
             c.append('<h5><strong>Arrears :-</strong></h5><br>');
             $('head').append(
                 '<style>@keyframes blink-effect{0%{background-color:#100773;color:#fff;}50%{background-color:#fff;color:#100773;}100%{background-color:#100773;color:#fff;}}</style>'
-            );
+                );
             previousUnpaidChallans.forEach(function(arrear) {
                 var row = $(
                     '<div class="mb-3 arrear-row" style="cursor:pointer;display:flex;flex-direction:row;gap:20px;">'
-                );
+                    );
                 row.append(
                     '<div><b>Challan No:</b> <span style="background-color:#100773;color:#fff;font-weight:bold;padding:2px 5px;border-radius:3px;animation:blink-effect 1s infinite;">' +
                     arrear.challanNo + '</span></div>');
@@ -1001,7 +1001,7 @@
                         (head.price - head.concession - head.paid) + '" disabled></div>');
                     headRow.append(
                         '<div class="col-md-4"><input name="oldramount[]" class="form-control oldramount" type="number" value="" min="0" step="any"></div>'
-                    );
+                        );
                     mhc.append(headRow);
                 }
             });

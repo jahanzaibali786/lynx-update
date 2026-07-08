@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Grn;
 use App\Models\GrnItem;
+use App\Models\ChartOfAccount;
 use App\Models\ProductService;
 use App\Models\StockReport;
 use App\Models\Utility;
@@ -220,8 +221,8 @@ class GrnController extends Controller
             'vendor_id' => 'required|integer|exists:venders,id',
             'warehouse_id' => 'required|integer',
             'grn_date' => 'required|date',
-            'reference_no' => 'nullable|string|max:191',
-            'purchase_order_id' => 'nullable|string|max:191',
+            'reference_no' => 'required|string|max:191',
+            'purchase_order_id' => 'required|string|max:191',
             'remarks' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer|exists:product_services,id',
@@ -264,7 +265,20 @@ class GrnController extends Controller
             ];
         });
 
-        return compact('vendors', 'warehouses', 'warehouseRecords', 'productOptions', 'productMeta', 'nextGrnNumber');
+        $vendorAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.parent')
+            ->where('parent', 0)
+            ->where('created_by', $user->creatorId())
+            ->orderBy('code')
+            ->get();
+
+        $vendorSubAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_account_parents.account')
+            ->leftJoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id')
+            ->where('chart_of_accounts.parent', '!=', 0)
+            ->where('chart_of_accounts.created_by', $user->creatorId())
+            ->orderBy('chart_of_accounts.code')
+            ->get();
+
+        return compact('vendors', 'warehouses', 'warehouseRecords', 'productOptions', 'productMeta', 'nextGrnNumber', 'vendorAccounts', 'vendorSubAccounts');
     }
 
     private function warehouseOptions($branchId = null)

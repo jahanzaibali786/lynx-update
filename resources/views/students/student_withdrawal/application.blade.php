@@ -268,6 +268,24 @@
             $('#calculateBalance').trigger('click');
         });
 
+        var branchSnapshot = {!! json_encode($studentwithdrawal->branch_snapshot ?? []) !!};
+        var hoSnapshot = {!! json_encode($studentwithdrawal->ho_snapshot ?? []) !!};
+
+        function applySnapshot(snapshot) {
+            if (!snapshot) return;
+            if (snapshot.actual_fee !== undefined) $('#actual_fee').val(snapshot.actual_fee);
+            if (snapshot.security_deposit !== undefined) $('#security_deposit').val(Number(snapshot.security_deposit).toFixed(2));
+            if (snapshot.security_payable !== undefined) $('#security_payable').val(snapshot.security_payable);
+            if (snapshot.other_fee !== undefined) $('#other_fee').val(snapshot.other_fee);
+            if (snapshot.other_account !== undefined) $('[name="other_account"]').val(snapshot.other_account);
+            if (snapshot.refund !== undefined) $('#refund').val(snapshot.refund);
+            if (snapshot.notice_fee !== undefined) $('#notice_fee').val(snapshot.notice_fee);
+            if (snapshot.other_deduction !== undefined) $('#other_deduction').val(snapshot.other_deduction);
+            if (snapshot.total_payables !== undefined) $('#total_payables').val(snapshot.total_payables);
+            if (snapshot.total_receivables !== undefined) $('#total_receivables').val(snapshot.total_receivables);
+            if (snapshot.net_balance !== undefined) $('#net_balance').val(snapshot.net_balance);
+        }
+
         @if (!$isHO)
         $(document).on('click', '#sendToHoBtn', function() {
             var formData = new FormData();
@@ -313,6 +331,26 @@
     <div class="float-end">
         @if (!$isHO && @$studentwithdrawal->fwd_to_ho == 0)
             <button type="button" id="sendToHoBtn" class="btn btn-sm btn-outline-warning">Send to HO</button>
+        @endif
+        @if ($isHO)
+            @if (@$studentwithdrawal->branch_snapshot)
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="applySnapshot(branchSnapshot)" data-bs-title="{{ __('Branch Calculation') }}">
+                Branch Calc
+            </button>
+            @endif
+            @if (@$studentwithdrawal->ho_snapshot)
+            <button type="button" class="btn btn-sm btn-outline-warning" onclick="applySnapshot(hoSnapshot)" data-bs-title="{{ __('Company Calculation') }}">
+                Company Calc
+            </button>
+            @endif
+            <a href="{{ route('student_withdrawal.settlement_certificate', $studentwithdrawal->id) }}" target="_blank" class="btn btn-sm btn-outline-success" data-bs-title="{{ __('Clearance Certificate') }}">
+                Clr Certificate
+            </a>
+            @if ($studentwithdrawal->status == 'approved')
+            <a href="{{ route('student_withdrawal.certificate_print', $studentwithdrawal->id) }}" target="_blank" class="btn btn-sm btn-outline-secondary" data-bs-title="{{ __('School Leaving Certificate') }}">
+                Lvg Certificate
+            </a>
+            @endif
         @endif
         @if (@$withdrawal_challan)
             <button type="button" class="btn btn-sm btn-primary"

@@ -38,7 +38,6 @@
         @endphp
         
         @foreach ($groupedReceipts as $branchId => $receipts)
-            {{-- @dd($groupedReceipts) --}}
             @php 
                 $branchSr = 1; 
                 $branchTotal = 0;
@@ -78,7 +77,7 @@
                                 }
                             }
                         @endphp
-                        {{-- @dd($matchedItem) --}}
+                        
                         {{-- Show row for this head if matched --}}
                         @if($matchedItem)
                             <tr>

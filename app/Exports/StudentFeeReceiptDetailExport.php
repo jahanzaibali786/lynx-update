@@ -35,19 +35,21 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
     /**
      * Export the student fee receipt data to an Excel view.
      */
-    public function view(): View
+   public function view(): View
     {
         $is_signature = false;
         $is_period = true;
         $is_branch = true;
-        // dd($this->request->all());
+        
         // Get branch name
         $branchName = $this->branches->get($this->branchId) ?? 'All Branches';
-
+        
         // Prepare date range if available
         $dateFrom = $this->request['from_date'] ?? null;
         $dateTo = $this->request['to_date'] ?? null;
-
+        $this->params['date_from'] = $dateFrom;
+        $this->params['date_to'] = $dateTo;
+        // dd($dateFrom, $dateTo,$this->params);
         return view('student.exports.student_fee_receipt_detail_report', [
             'recipts' => $this->receipts,
             'branch' => $branchName,
@@ -63,6 +65,7 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
             'date_to' => $dateTo,
         ]);
     }
+
 
     public function registerEvents(): array
     {

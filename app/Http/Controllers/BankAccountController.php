@@ -12,7 +12,11 @@ use App\Models\Payment;
 use App\Models\Revenue;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\JournalItem;
+use App\Models\Utility;
+use App\Exports\LedgerExport;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BankAccountController extends Controller
 {
@@ -189,6 +193,119 @@ class BankAccountController extends Controller
     }
 
 
+    public function statement(Request $request, $id)
+    {
+        if (\Auth::user()->can('manage bank account') || \Auth::user()->can('create bank account')) {
+            $bankAccount = BankAccount::find($id);
+
+            if (\Auth::user()->type == 'company') {
+                $branches = User::where('type', 'branch')->where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+                $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+                $branches->prepend('All Branches', '');
+            } else {
+                $branches = User::where('id', \Auth::user()->ownedId())->pluck('name', 'id');
+                $branches->prepend('All Branches', '');
+            }
+
+            $start = $request->start_date ?? date('Y-m-01');
+            $end = $request->end_date ?? date('Y-m-d', strtotime('+1 day'));
+
+            $filter['startDateRange'] = $start;
+            $filter['endDateRange'] = $end;
+
+            $oldBalance = JournalItem::where('bank_id', $id)
+                ->where('head', '0')
+                ->whereHas('journalEntery', function ($q) use ($start, $request) {
+                    $q->where('date', '<', $start);
+
+                    if ($request->branch) {
+                        $q->where('branch_id', $request->branch);
+                    }
+                })
+                ->selectRaw('SUM(debit) as totalDebit, SUM(credit) as totalCredit')
+                ->first();
+
+            $openingBalance = ($oldBalance->totalDebit ?? 0) - ($oldBalance->totalCredit ?? 0);
+
+           $journalItems = JournalItem::with(['journalEntery', 'accounts'])->where('bank_id', $id)->where('head','0')
+            ->whereHas('journalEntery', function($q) use ($start, $end) {
+                $q->whereBetween('date', [$start, $end]);
+            });
+
+         if ($request->branch) {
+                $journalItems->whereHas('journalEntery', function($q) use ($request) {
+                    $q->where('branch_id', $request->branch);
+                });
+            }
+
+            $journalItems = $journalItems->orderBy('created_at', 'asc')->get();
+
+            $rows = collect();
+            $balance = $openingBalance;
+            $totalDebit = 0;
+            $totalCredit = 0;
+
+            $rows->push([
+                'journal' => '-',
+                'date' => $start,
+                'account' => '-',
+                'memo' => 'Opening Balance',
+                'detail' => '-',
+                'voucher' => '-',
+                'route' => Utility::VoucherRoute('JV'),
+                'debit' => '-',
+                'credit' => '-',
+                'balance' => $openingBalance,
+            ]);
+
+            foreach ($journalItems as $item) {
+                $journalEntry = $item->journalEntery;
+                if (!$journalEntry) continue;
+
+                $debit = $item->debit ?? 0;
+                $credit = $item->credit ?? 0;
+                $balance += ($debit - $credit);
+                $totalDebit += $debit;
+                $totalCredit += $credit;
+
+                $rows->push([
+                    'journal' => $journalEntry->id,
+                    'date' => $journalEntry->date,
+                    'account' => $item->accounts ? $item->accounts->name : '-',
+                    'memo' => $item->description ?? '-',
+                    'detail' => $journalEntry->reference,
+                    'voucher' => Utility::formatVoucherNumber($journalEntry->journal_id, $journalEntry->voucher_type),
+                    'route' => Utility::VoucherRoute($journalEntry->voucher_type),
+                    'debit' => $debit,
+                    'credit' => $credit,
+                    'balance' => $balance,
+                ]);
+            }
+            $rows->push([
+                'journal' => '-',
+                'date' => '',
+                'account' => '-',
+                'memo' => 'Closing Balance',
+                'detail' => '-',
+                'voucher' => '-',
+                'route' => Utility::VoucherRoute('JV'),
+                'debit' => $totalDebit,
+                'credit' => $totalCredit,
+                'balance' => $balance,
+            ]);
+
+            if ($request->has('export') && $request->export == '1') {
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\BankLedgerExport($rows, $filter['startDateRange'], $filter['endDateRange'], $branches[$request->branch]), 'bank_ledger.xlsx');
+            }
+
+            
+
+            return view('bankAccount.statement', compact('bankAccount', 'rows', 'filter', 'branches', 'totalDebit', 'totalCredit', 'balance'));
+        } else {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+    }
+
     public function destroy(BankAccount $bankAccount)
     {
         if (\Auth::user()->can('delete bank account')) {
@@ -197,9 +314,11 @@ class BankAccountController extends Controller
                 $invoicePayment = InvoicePayment::where('account_id', $bankAccount->id)->first();
                 $transaction = Transaction::where('account', $bankAccount->id)->first();
                 $payment = Payment::where('account_id', $bankAccount->id)->first();
+                $journalItem = JournalItem::where('bank_id', $bankAccount->id)->first();
+                $studentrecipt = StudentReceipt::where('bank_id', $bankAccount->id)->first();
                 $billPayment = BillPayment::first();
 
-                if (!empty($revenue) && !empty($invoicePayment) && !empty($transaction) && !empty($payment) && !empty($billPayment)) {
+                if (!empty($revenue) && !empty($invoicePayment) && !empty($transaction) && !empty($payment) && !empty($journalItem) && !empty($studentrecipt) && !empty($billPayment)) {
                     return redirect()->route('bank-account.index')->with('error', __('Please delete related record of this account.'));
                 } else {
                     $bankAccount->delete();

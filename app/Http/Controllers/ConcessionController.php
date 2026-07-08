@@ -50,7 +50,7 @@ class ConcessionController extends Controller
         if (!empty($request->end_date)) {
             $query->whereDate('end_date', '<', $request->end_date);
         }
-        if (empty($request->start_date) || empty($request->end_date)) {
+        if (empty($request->start_date) && empty($request->end_date)) {
             $currentYear = date('Y');
             $currentMonth = date('m');
             $dateFrom = ($currentMonth >= 7) ? "$currentYear-07-01" : date('Y-07-01', strtotime('-1 year'));

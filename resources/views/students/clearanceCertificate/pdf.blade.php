@@ -19,9 +19,9 @@
                     The Lynx School
                 </div>
 
-                <div style="font-size:12px; margin-top:5px;">
-                    I-8/4 DAYCARE BRANCH ISLAMABAD
-                </div>
+                 <div style="font-size:12px; margin-top:5px;">
+                        {{isset(request()->branches) ? $branches[request()->branches] : ''}}
+                    </div>
 
                 <img src="{{ public_path('assets/images/lynx2.jpg') }}" style="width:70px; position:absolute; right:0; top:0;">
             </div>

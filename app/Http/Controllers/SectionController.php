@@ -95,11 +95,11 @@ class SectionController extends Controller
     public function show(Request $request, $id)
     {
         $studentEnrollments = \App\Models\StudentEnrollments::findOrFail($id);
-
+        
         $classsections = \App\Models\ClassSection::where('created_by', Auth::user()->creatorId())
-            ->where('class_id', $studentEnrollments->class_id)
-            ->pluck('section_id');
-
+        ->where('class_id', $studentEnrollments->class_id)
+        ->pluck('section_id');
+        
         $sections = \App\Models\Section::whereIn('id', $classsections)->get();
         $sectionHistory = \App\Models\SectionHistory::where('student_id', $studentEnrollments->regId)->get()->sortByDesc('date');
         // dd($id);
@@ -180,81 +180,81 @@ class SectionController extends Controller
     }
     // section chanfge 
     public function changeSection(Request $request, $id)
-    {
-        $validator = \Validator::make(
-            $request->all(),
-            [
-                'date' => 'required|date',
-                'section' => 'required|exists:sections,id',
-            ]
-        );
+{
+    $validator = \Validator::make(
+        $request->all(),
+        [
+            'date' => 'required|date',
+            'section' => 'required|exists:sections,id',
+        ]
+    );
 
-        if ($validator->fails()) {
-            return redirect()->back()->with('error', $validator->messages()->first());
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $studentEnrollments = \App\Models\StudentEnrollments::where('regId', $id)->firstOrFail();
-
-            // Save section history
-            $sectionHistory = new \App\Models\SectionHistory();
-            $sectionHistory->student_id = $id;
-            $sectionHistory->section_id = $request->section;
-            $sectionHistory->class_id = $studentEnrollments->class_id;
-            $sectionHistory->previous_section_id = $studentEnrollments->section_id;
-            $sectionHistory->date = $request->date;
-            $sectionHistory->changed_by = Auth::id();
-            $sectionHistory->owned_by = Auth::user()->ownedId();
-            $sectionHistory->created_by = Auth::user()->creatorId();
-            $sectionHistory->save();
-
-            // Update enrollment
-            $studentEnrollments->section_id = $request->section;
-            $studentEnrollments->save();
-
-            // Save student history
-            $studentHistory = new \App\Models\StudentHistory();
-            $studentHistory->reg_id = $id;
-            $studentHistory->student_id = $studentEnrollments->enrollId;
-            $studentHistory->event_type = 'section';
-            $studentHistory->from_session_id = $studentEnrollments->session_id;
-            $studentHistory->from_class_id = $studentEnrollments->class_id;
-            $studentHistory->from_section_id = $sectionHistory->previous_section_id;
-            $studentHistory->from_branch_id = $studentEnrollments->branch_id;
-            $studentHistory->to_session_id = $studentEnrollments->session_id;
-            $studentHistory->to_class_id = $studentEnrollments->class_id;
-            $studentHistory->to_section_id = $sectionHistory->section_id;
-            $studentHistory->to_branch_id = $studentEnrollments->branch_id;
-            $studentHistory->effective_date = $request->date;
-            $studentHistory->remarks = 'Section changed from '
-                . optional($sectionHistory->previousSection)->name
-                . ' to '
-                . optional($sectionHistory->section)->name
-                . ' on '
-                . $request->date;
-            $studentHistory->user_id = Auth::id();
-            $studentHistory->owned_by = Auth::user()->ownedId();
-            $studentHistory->created_by = Auth::user()->creatorId();
-            $studentHistory->save();
-
-            DB::commit();
-
-            return redirect()->back()->with('success', 'Section has been changed successfully.');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            \Log::error('Section Change Error: ' . $e->getMessage(), [
-                'student_id' => $id,
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return redirect()->back()->with('error', 'Something went wrong. Please try again.');
-        }
+    if ($validator->fails()) {
+        return redirect()->back()->with('error', $validator->messages()->first());
     }
-    public function bulksectionindex(Request $request)
+
+    DB::beginTransaction();
+
+    try {
+        $studentEnrollments = \App\Models\StudentEnrollments::where('regId', $id)->firstOrFail();
+
+        // Save section history
+        $sectionHistory = new \App\Models\SectionHistory();
+        $sectionHistory->student_id = $id;
+        $sectionHistory->section_id = $request->section;
+        $sectionHistory->class_id = $studentEnrollments->class_id;
+        $sectionHistory->previous_section_id = $studentEnrollments->section_id;
+        $sectionHistory->date = $request->date;
+        $sectionHistory->changed_by = Auth::id();
+        $sectionHistory->owned_by = Auth::user()->ownedId();
+        $sectionHistory->created_by = Auth::user()->creatorId();
+        $sectionHistory->save();
+
+        // Update enrollment
+        $studentEnrollments->section_id = $request->section;
+        $studentEnrollments->save();
+
+        // Save student history
+        $studentHistory = new \App\Models\StudentHistory();
+        $studentHistory->reg_id = $id;
+        $studentHistory->student_id = $studentEnrollments->enrollId;
+        $studentHistory->event_type = 'section';
+        $studentHistory->from_session_id = $studentEnrollments->session_id;
+        $studentHistory->from_class_id = $studentEnrollments->class_id;
+        $studentHistory->from_section_id = $sectionHistory->previous_section_id;
+        $studentHistory->from_branch_id = $studentEnrollments->branch_id;
+        $studentHistory->to_session_id = $studentEnrollments->session_id;
+        $studentHistory->to_class_id = $studentEnrollments->class_id;
+        $studentHistory->to_section_id = $sectionHistory->section_id;
+        $studentHistory->to_branch_id = $studentEnrollments->branch_id;
+        $studentHistory->effective_date = $request->date;
+        $studentHistory->remarks = 'Section changed from ' 
+            . optional($sectionHistory->previousSection)->name 
+            . ' to ' 
+            . optional($sectionHistory->section)->name 
+            . ' on ' 
+            . $request->date;
+        $studentHistory->user_id = Auth::id();
+        $studentHistory->owned_by = Auth::user()->ownedId();
+        $studentHistory->created_by = Auth::user()->creatorId();
+        $studentHistory->save();
+
+        DB::commit();
+
+        return redirect()->back()->with('success', 'Section has been changed successfully.');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        \Log::error('Section Change Error: ' . $e->getMessage(), [
+            'student_id' => $id,
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return redirect()->back()->with('error', 'Something went wrong. Please try again.');
+    }
+}
+	 public function bulksectionindex(Request $request)
     {
         if (\Auth::user()->type == 'company') {
             $branches = User::where('type', 'branch')

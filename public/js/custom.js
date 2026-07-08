@@ -85,21 +85,179 @@ function show_toastr(type, message) {
     $('#liveToast .toast-body').html(message);
 }
 
+function closeActiveBootstrapModal() {
+    var $modal = $('.modal.show').last();
+    if ($modal.length && window.bootstrap) {
+        var instance = bootstrap.Modal.getInstance($modal[0]) || new bootstrap.Modal($modal[0]);
+        instance.hide();
+    } else {
+        $('.modal.show').modal('hide');
+    }
+}
+
+function ajaxModalForm(options) {
+    var settings = $.extend({
+        formSelector: '.ajax-modal-form',
+        submitText: 'Processing...',
+        onSuccess: null,
+        onError: null,
+        closeOnSuccess: true,
+        showToast: true
+    }, options || {});
+
+    $(document).off('submit.ajaxModalForm', settings.formSelector).on('submit.ajaxModalForm', settings.formSelector, function (e) {
+        e.preventDefault();
+
+        var $form = $(this);
+        var requestKey = ($form.attr('method') || 'POST') + ':' + ($form.attr('action') || '');
+        window.ajaxModalFormLocks = window.ajaxModalFormLocks || {};
+
+        if (window.ajaxModalFormLocks[requestKey]) {
+            if (typeof show_toastr === 'function') {
+                show_toastr('error', 'Request already processing. Please wait.', 'error');
+            }
+            return false;
+        }
+
+        if ($form.data('processing')) {
+            return false;
+        }
+
+        if (this.checkValidity && !this.checkValidity()) {
+            this.reportValidity();
+            return false;
+        }
+
+        var formData = new FormData(this);
+        var $submit = $form.find('[type="submit"]');
+        var originalText = $submit.val() || $submit.text();
+        var unlockTimer = null;
+
+        function unlockSubmit() {
+            $form.data('processing', false);
+            $form.find('[type="submit"]').prop('disabled', false);
+            if ($submit.is('input')) {
+                $submit.val(originalText);
+            } else {
+                $submit.text(originalText);
+            }
+        }
+
+        $form.data('processing', true);
+        window.ajaxModalFormLocks[requestKey] = true;
+        $form.find('[type="submit"]').prop('disabled', true);
+        if ($submit.is('input')) {
+            $submit.val(settings.submitText);
+        } else {
+            $submit.text(settings.submitText);
+        }
+
+        unlockTimer = setTimeout(function () {
+            if ($form.data('processing')) {
+                if ($submit.is('input')) {
+                    $submit.val('Still processing...');
+                } else {
+                    $submit.text('Still processing...');
+                }
+            }
+        }, 5000);
+
+        $.ajax({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                'Accept': 'application/json'
+            },
+            url: $form.attr('action'),
+            type: $form.attr('method') || 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                if (response && response.success === false) {
+                    handleAjaxModalFormError($form, { responseJSON: response }, settings);
+                    return;
+                }
+
+                if (typeof settings.onSuccess === 'function') {
+                    settings.onSuccess(response, $form);
+                }
+
+                if (settings.closeOnSuccess) {
+                    closeActiveBootstrapModal();
+                }
+
+                if (settings.showToast && response && response.message && typeof show_toastr === 'function') {
+                    show_toastr('success', response.message, 'success');
+                }
+            },
+            error: function (xhr) {
+                handleAjaxModalFormError($form, xhr, settings);
+            },
+            complete: function () {
+                clearTimeout(unlockTimer);
+                delete window.ajaxModalFormLocks[requestKey];
+                unlockSubmit();
+            }
+        });
+    });
+}
+
+function handleAjaxModalFormError($form, xhr, settings) {
+    var message = 'Something went wrong. Please check the form and try again.';
+
+    if (xhr.responseJSON) {
+        if (xhr.responseJSON.message) {
+            message = xhr.responseJSON.message;
+        }
+        if (xhr.responseJSON.errors) {
+            message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+        }
+    }
+
+    if (typeof settings.onError === 'function') {
+        settings.onError(message, xhr, $form);
+        return;
+    }
+
+    if (typeof show_toastr === 'function') {
+        show_toastr('error', $('<div>').html(message).text(), 'error');
+    } else if (window.Swal) {
+        Swal.fire({ icon: 'error', title: 'Error', html: message });
+    } else {
+        alert($('<div>').html(message).text());
+    }
+}
+
 $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true"], div[data-ajax-popup="true"]', function () {
 
     var data = {};
-    var title1 = $(this).data("bs-toggle");
-    var title2 = $(this).data("bs-original-title");
-    var title3 = $(this).data("original-title");
-    var title = (title1 != undefined) ? title1 : title2;
-    var title = (title != undefined) ? title : title3;
+    var title = $(this).data("title");
 
-    $('.modal-dialog').removeClass('modal-xl');
-    var size = ($(this).data('size') == '') ? 'md' : $(this).data('size');
+    if (title == undefined || title === '') {
+        title = $(this).data("bs-title");
+    }
+
+    if (title == undefined || title === '') {
+        title = $(this).data("bs-original-title");
+    }
+
+    if (title == undefined || title === '') {
+        title = $(this).data("original-title");
+    }
+
+    if (title == undefined || title === '') {
+        var toggleTitle = $(this).data("bs-toggle");
+        title = (toggleTitle != undefined && toggleTitle !== 'tooltip') ? toggleTitle : '';
+    }
+
+    $('#commonModal .modal-dialog').removeClass('modal-sm modal-md modal-lg modal-xl modal-fullscreen');
+    var rawSize = $(this).data('size');
+    var size = (!rawSize) ? 'md' : String(rawSize);
+    var modalSizeClass = size.indexOf('modal-') === 0 ? size : 'modal-' + size;
 
     var url = $(this).data('url');
     $("#commonModal .modal-title").html(title);
-    $("#commonModal .modal-dialog").addClass('modal-' + size);
+    $("#commonModal .modal-dialog").addClass(modalSizeClass);
 
     if ($('#vc_name_hidden').length > 0) {
         data['vc_name'] = $('#vc_name_hidden').val();
@@ -388,6 +546,92 @@ function deleteAjax(url, data, cb) {
     });
 }
 
+
+function ajaxDeleteForm(options) {
+    var settings = $.extend({
+        selector: '.ajax-delete',
+        formIdAttribute: 'form-id',
+        confirmAttribute: 'confirm',
+        defaultConfirm: 'Are you sure?',
+        processingClass: 'disabled',
+        showToast: true,
+        onSuccess: null,
+        onError: null
+    }, options || {});
+
+    $(document).off('click.ajaxDeleteForm', settings.selector).on('click.ajaxDeleteForm', settings.selector, function (e) {
+        e.preventDefault();
+
+        var $button = $(this);
+        var formId = $button.data(settings.formIdAttribute);
+        var $form = formId ? $('#' + formId) : $button.closest('form');
+        var confirmMessage = $button.data(settings.confirmAttribute) || settings.defaultConfirm;
+
+        if (!$form.length) {
+            if (typeof show_toastr === 'function') {
+                show_toastr('error', 'Delete form not found.', 'error');
+            }
+            return false;
+        }
+
+        if (confirmMessage && !confirm(confirmMessage)) {
+            return false;
+        }
+
+        if ($button.data('processing')) {
+            return false;
+        }
+
+        $button.data('processing', true).addClass(settings.processingClass);
+
+        $.ajax({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                'Accept': 'application/json'
+            },
+            url: $form.attr('action'),
+            type: $form.attr('method') || 'POST',
+            data: $form.serialize(),
+            dataType: 'json',
+            success: function (response) {
+                if (response && response.success === false) {
+                    handleAjaxDeleteFormError(response.message, response, $button, settings);
+                    return;
+                }
+
+                if (typeof settings.onSuccess === 'function') {
+                    settings.onSuccess(response, $button, $form);
+                }
+
+                if (settings.showToast && response && response.message && typeof show_toastr === 'function') {
+                    show_toastr('success', response.message, 'success');
+                }
+            },
+            error: function (xhr) {
+                var response = xhr.responseJSON || {};
+                handleAjaxDeleteFormError(response.message || 'Something went wrong.', response, $button, settings);
+            },
+            complete: function () {
+                $button.data('processing', false).removeClass(settings.processingClass);
+            }
+        });
+    });
+}
+
+function handleAjaxDeleteFormError(message, response, $button, settings) {
+    if (typeof settings.onError === 'function') {
+        settings.onError(message, response, $button);
+        return;
+    }
+
+    if (typeof show_toastr === 'function') {
+        show_toastr('error', message || 'Something went wrong.', 'error');
+    } else {
+        alert(message || 'Something went wrong.');
+    }
+}
+
+
 // Google calendar
 $(document).on('click', '.local_calender .fc-daygrid-event, .fc-timegrid-event', function (e) {
     // if (!$(this).hasClass('project')) {
@@ -494,12 +738,14 @@ $(document).on('click', 'a[data-ajax-popup-over="true"], button[data-ajax-popup-
         id = $(validate).val();
     }
     var title_over = $(this).data('title');
-    $('#commonModalOver .modal-dialog').removeClass('modal-lg');
-    var size_over = ($(this).data('size') == '') ? 'md' : $(this).data('size');
+    $('#commonModalOver .modal-dialog').removeClass('modal-sm modal-md modal-lg modal-xl modal-fullscreen');
+    var rawSizeOver = $(this).data('size');
+    var size_over = (!rawSizeOver) ? 'md' : String(rawSizeOver);
+    var modalSizeOverClass = size_over.indexOf('modal-') === 0 ? size_over : 'modal-' + size_over;
 
     var url = $(this).data('url');
     $("#commonModalOver .modal-title").html(title_over);
-    $("#commonModalOver .modal-dialog").addClass('modal-' + size_over);
+    $("#commonModalOver .modal-dialog").addClass(modalSizeOverClass);
     $.ajax({
         url: url + '?id=' + id,
         success: function (data) {

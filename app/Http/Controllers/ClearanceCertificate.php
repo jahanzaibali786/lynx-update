@@ -33,7 +33,7 @@ class ClearanceCertificate extends Controller
         $branches->prepend(\Auth::user()->name, \Auth::user()->id);
         $branches->prepend('Select Branch', '');
     } else {
-        $branches = User::where('id', \Auth::user()->ownedId())
+        $branches = User::where('id', \Auth::user()->id)
             ->get()->pluck('name', 'id');
 
         $branches->prepend('Select Branch', '');
@@ -49,7 +49,7 @@ class ClearanceCertificate extends Controller
 
     if ($request->class) {
         $students = StudentRegistration::where('class_id', $request->class)
-            ->where('student_status', 'Enrolled')
+            // ->where('student_status', 'Enrolled')
             ->get()
             ->mapWithKeys(function ($student) {
                 return [
@@ -62,10 +62,10 @@ class ClearanceCertificate extends Controller
 
     $lastchallan = Challans::where('student_id', $request->student)
         ->whereNotIn('challan_type', ['Registration', 'withdrawal', 'transfer'])
-        ->where('status', 'paid')
+		->where('status', 'paid')
         ->latest()
         ->first();
-
+	
     $admissionChallan = Challans::where('student_id', $request->student)
         ->whereIn('challan_type', ['Admission', 'readmission'])
         ->latest()

@@ -38,29 +38,40 @@
 
         $(document).ready(function() {
             $('.selectbox').select2();
-            //     callback();
-            //     function callback() {
-            //         var start_date = $(".startDate").val();
-            //         var end_date = $(".endDate").val();
-            //         var branch = $(".account").val();
-
-            //         $('.start_date').val(start_date);
-            //         $('.end_date').val(end_date);
-            //         $('.branch1').val(branch);
-            //     }
         });
+
+        function exportToExcel() {
+            $('#export_start_date').val($('.startDate').val());
+            $('#export_end_date').val($('.endDate').val());
+            $('#export_account').val($('select[name="account"]').val());
+            $('#export_branch').val($('select[name="branch"]').val());
+            $('#ledger_export_form').submit();
+        }
     </script>
 @endpush
 
 @section('action-btn')
     <div class="float-end" style='display:flex; gap:5px;'>
        
+        <a href="#" class="btn btn-sm btn-outline-success" onclick="exportToExcel()"
+            data-bs-title="{{ __('Export') }}">
+            <span class="btn-inner--icon">Export Excel</span>
+        </a>
+
         <a href="#" class="btn btn-sm btn-outline-primary" onclick="saveAsPDF()"
             data-bs-title="{{ __('Download') }}" data-bs-title="{{ __('Download') }}">
             <span class="btn-inner--icon">Pdf / Print</span>
         </a>
 
     </div>
+
+    <form method="POST" action="{{ route('ledger.export') }}" id="ledger_export_form" style="display:none;">
+        @csrf
+        <input type="hidden" name="start_date" id="export_start_date">
+        <input type="hidden" name="end_date" id="export_end_date">
+        <input type="hidden" name="account" id="export_account">
+        <input type="hidden" name="branch" id="export_branch">
+    </form>
 @endsection
 
 @section('content')
@@ -76,6 +87,8 @@
                                 <div class="row">
                                     <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                                         <div class="btn-box">
+                                            {{ Form::label('branch', __('Branch'), ['class' => 'form-label']) }}
+                                            {{ Form::select('branch', $branches, isset($_GET['branch']) ? $_GET['branch'] : '', ['class' => 'form-control selectbox']) }}
                                         </div>
                                     </div>
                                     <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">

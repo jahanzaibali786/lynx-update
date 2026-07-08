@@ -6,11 +6,84 @@
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('Salary Attendance') }}</li>
 @endsection
+@push('css-page')
+    <style>
+        .attendance-summary-badges .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 30px;
+            font-size: 12.5px;
+            line-height: 1.2;
+            padding: 7px 12px;
+            font-weight: 600;
+            border-radius: 999px;
+            letter-spacing: 0;
+        }
+
+        .attendance-summary-badges .badge-count {
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        .probation-capsule {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 6px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: #16a34a;
+            color: #fff;
+            border: 1px solid #15803d;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1;
+            text-transform: uppercase;
+            box-shadow: 0 1px 4px rgba(22, 163, 74, 0.35);
+        }
+    </style>
+@endpush
 @push('script-page')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        let attendanceActionProcessing = false;
+
+        function startAttendanceAction(button, title) {
+            if (attendanceActionProcessing) {
+                return false;
+            }
+
+            attendanceActionProcessing = true;
+            $('.attendance-action-btn').addClass('disabled').attr('aria-disabled', 'true');
+            $(button).data('original-html', $(button).html()).html('<span class="spinner-border spinner-border-sm me-1"></span> Processing...');
+
+            Swal.fire({
+                title: title || 'Processing...',
+                text: 'Please wait.',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => Swal.showLoading(),
+            });
+
+            return true;
+        }
+
+        function stopAttendanceAction() {
+            attendanceActionProcessing = false;
+            $('.attendance-action-btn').each(function() {
+                $(this).removeClass('disabled').removeAttr('aria-disabled');
+                if ($(this).data('original-html')) {
+                    $(this).html($(this).data('original-html'));
+                    $(this).removeData('original-html');
+                }
+            });
+        }
+
         document.getElementById('generate-btn').addEventListener('click', function(event) {
             event.preventDefault();
+            if (!startAttendanceAction(this, 'Generating attendance...')) {
+                return;
+            }
             var form = document.getElementById('employee_submit');
             var formData = new FormData(form);
             $.ajax({
@@ -57,20 +130,28 @@
                         title: 'Request Failed',
                         text: error || 'Check console for details.'
                     });
+                },
+                complete: function() {
+                    stopAttendanceAction();
                 }
             });
         });
 
 
         // Check/uncheck all checkboxes
-        document.getElementById('check-all').addEventListener('change', function(event) {
-            var checkboxes = document.querySelectorAll('.row-checkbox');
-            checkboxes.forEach(function(checkbox) {
-                checkbox.checked = event.target.checked;
+        if (document.getElementById('check-all')) {
+            document.getElementById('check-all').addEventListener('change', function(event) {
+                var checkboxes = document.querySelectorAll('.row-checkbox');
+                checkboxes.forEach(function(checkbox) {
+                    checkbox.checked = event.target.checked;
+                });
             });
-        });
+        }
         document.getElementById('finalize-btn').addEventListener('click', function(event) {
             event.preventDefault();
+            if (attendanceActionProcessing) {
+                return;
+            }
             var checkedRows = [];
             var checkboxes = document.querySelectorAll('.row-checkbox:checked');
             checkboxes.forEach(function(checkbox) {
@@ -78,6 +159,9 @@
             });
 
             if (checkedRows.length > 0) {
+                if (!startAttendanceAction(this, 'Finalizing attendance...')) {
+                    return;
+                }
                 $.ajax({
                     headers: {
                         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -107,6 +191,16 @@
                                 confirmButtonText: 'OK',
                             });
                         }
+                    },
+                    error: function(xhr, status, error) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Request Failed',
+                            text: error || 'Check console for details.',
+                        });
+                    },
+                    complete: function() {
+                        stopAttendanceAction();
                     }
                 });
             } else {
@@ -123,6 +217,9 @@
 
         document.getElementById('delete-btn').addEventListener('click', function(event) {
             event.preventDefault();
+            if (attendanceActionProcessing) {
+                return;
+            }
             var checkedRows = [];
             var checkboxes = document.querySelectorAll('.row-checkbox:checked');
             checkboxes.forEach(function(checkbox) {
@@ -131,6 +228,9 @@
 
             if (checkedRows.length > 0) {
                 if (confirm('Are you sure you want to delete the selected entries?')) {
+                    if (!startAttendanceAction(this, 'Deleting attendance...')) {
+                        return;
+                    }
                     $.ajax({
                         headers: {
                             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -162,6 +262,16 @@
                                     window.location.reload();
                                 });
                             }
+                        },
+                        error: function(xhr, status, error) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Request Failed',
+                                text: error || 'Check console for details.',
+                            });
+                        },
+                        complete: function() {
+                            stopAttendanceAction();
                         }
                     });
                 }
@@ -175,6 +285,24 @@
                 });
             }
         });
+
+        function salaryAttendanceExport() {
+            var form = document.getElementById('employee_submit');
+            var formData = new FormData(form);
+            var reportType = document.getElementById('attendance_export_report_type').value || 'summary';
+            var exportType = document.getElementById('attendance_export_type').value || 'xlsx';
+
+            formData.set('report_type', reportType);
+            formData.set('export_type', exportType);
+
+            var exportUrl = "{{ route('salary_attendance_export') }}?" + new URLSearchParams(formData).toString();
+            if (exportType === 'pdf') {
+                window.open(exportUrl, '_blank');
+                return;
+            }
+
+            window.location.href = exportUrl;
+        }
     </script>
 
     <script>
@@ -213,7 +341,34 @@
         });
     </script>
 @endpush
+@section('action-btn')
+    <div class="float-end d-flex align-items-center gap-2">
+        <select id="attendance_export_report_type" class="form-select" style="width: 170px;">
+            <option value="summary">{{ __('Summary') }}</option>
+            <option value="details">{{ __('Details') }}</option>
+        </select>
+        <select id="attendance_export_type" class="form-select" style="width: 170px;">
+            <option value="xlsx">{{ __('Excel Sheet') }}</option>
+            <option value="pdf">{{ __('PDF / Print') }}</option>
+        </select>
+        <a href="#" class="btn btn-sm btn-outline-secondary"
+            onclick="salaryAttendanceExport(); return false;"
+            data-bs-title="Export">
+            <span class="btn-inner--icon">{{ __('Export') }}</span>
+        </a>
+    </div>
+@endsection
 @section('content')
+    @php
+        $attendanceTotal = $datas->count();
+        $attendanceGenerated = $datas->where('accountant_finalize', 0)->where('adm_final', 0)->where('sal_final', 0)->where('gm_final', 0)->count();
+        $attendanceFinalized = $datas->where('accountant_finalize', 1)->count();
+        $attendanceAdminForwarded = $datas->where('adm_final', 1)->count();
+        $attendanceSalaryFinal = $datas->where('sal_final', 1)->count();
+        $attendanceGmFinal = $datas->where('gm_final', 1)->count();
+        $selectedBranch = request('branches');
+        $showBranchColumn = empty($selectedBranch) || $selectedBranch === 'all';
+    @endphp
 
     <div class="row">
         <div class="col-sm-12">
@@ -242,33 +397,35 @@
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
-                                    {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}
-                                    {{ Form::date('date', $date ?? isset($_GET['date']) ? date('Y-m-d', strtotime($_GET['date'])) : now()->format('Y-m-d'), ['class' => 'form-control']) }}
+                                    {{ Form::label('date', __('Month'), ['class' => 'form-label']) }}
+                                    {{ Form::input('month', 'date', isset($_GET['date']) ? date('Y-m', strtotime($_GET['date'])) : (!empty($date) ? date('Y-m', strtotime($date)) : now()->format('Y-m')), ['class' => 'form-control']) }}
                                 </div>
                             </div>
-                            <div class="col-auto float-end ms-2 mt-4">
-                                <a id="generate-btn" href="#" class="btn mx-1 btn-sm btn-outline-success"
-                                    data-bs-title="Generate">
-                                    <span class="btn-inner--icon">Generate</span>
-                                </a>
-                                <a id="finalize-btn" href="#" class="btn mx-1 btn-sm btn-outline-danger"
-                                    data-bs-title="Finalize / FWD to Admin">
-                                    <span class="btn-inner--icon">Finalize / FWD to Admin</span>
-                                </a>
-                                <a id="delete-btn" href="#" class="btn mx-1 btn-sm btn-outline-danger"
-                                    data-bs-title="Delete">
-                                    <span class="btn-inner--icon">Delete</span>
-                                </a>
-                                <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
-                                    onclick="document.getElementById('employee_submit').submit(); return false;"
-                                    data-bs-toggle="{{ __('Apply') }}">
-                                    <span class="btn-inner--icon">Search</span>
-                                </a>
-                                {{-- <a href="{{ route('emp-month-sal-attendance.index') }}"
-                                    class="btn mx-1 btn-sm btn-outline-danger" 
-                                    data-bs-title="{{ __('Reset') }}">
-                                    <span class="btn-inner--icon">Clear</span>
-                                </a> --}}
+                            <div class="col-12 mt-4">
+                                <div class="d-flex flex-wrap align-items-center justify-content-end gap-1">
+                                        <a href="#" class="btn btn-sm btn-outline-primary"
+                                            onclick="document.getElementById('employee_submit').submit(); return false;"
+                                            data-bs-toggle="{{ __('Apply') }}">
+                                            <span class="btn-inner--icon">Search</span>
+                                        </a>
+                                        <a id="finalize-btn" href="#" class="btn btn-sm btn-outline-danger attendance-action-btn"
+                                            data-bs-title="Finalize / FWD to HR">
+                                            <span class="btn-inner--icon">Finalize / FWD to HR</span>
+                                        </a>
+                                        <a id="delete-btn" href="#" class="btn btn-sm btn-outline-danger attendance-action-btn"
+                                            data-bs-title="Delete">
+                                            <span class="btn-inner--icon">Delete</span>
+                                        </a>
+                                        <a id="generate-btn" href="#" class="btn btn-sm btn-outline-success attendance-action-btn"
+                                            data-bs-title="Generate">
+                                            <span class="btn-inner--icon">Generate</span>
+                                        </a>
+                                        {{-- <a href="{{ route('emp-month-sal-attendance.index') }}"
+                                            class="btn btn-sm btn-outline-danger"
+                                            data-bs-title="{{ __('Reset') }}">
+                                            <span class="btn-inner--icon">Clear</span>
+                                        </a> --}}
+                                </div>
                             </div>
                         </div>
                         {{ Form::close() }}
@@ -279,31 +436,86 @@
     </div>
 
     @if ($datas->isNotEmpty())
-        <div class="table-responsive">
-            <table class="">
+        <div class="card mt-3">
+            <div class="card-header">
+                <div class="d-flex flex-wrap align-items-center gap-2 attendance-summary-badges">
+                    <span class="badge bg-secondary">{{ __('Total Rows') }} <span class="badge-count">{{ $attendanceTotal }}</span></span>
+                    <span class="badge bg-light text-dark">{{ __('Generated') }} <span class="badge-count">{{ $attendanceGenerated }}</span></span>
+                    <span class="badge bg-info">{{ __('Fwd to HR') }} <span class="badge-count">{{ $attendanceFinalized }}</span></span>
+                    <span class="badge bg-warning text-dark">{{ __('Finalized') }} <span class="badge-count">{{ $attendanceAdminForwarded }}</span></span>
+                    <span class="badge bg-primary">{{ __('Salary Final') }} <span class="badge-count">{{ $attendanceSalaryFinal }}</span></span>
+                    <span class="badge bg-success">{{ __('HR Final') }} <span class="badge-count">{{ $attendanceGmFinal }}</span></span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="">
                 <thead>
                     <tr class="table_heads">
                         <th>{{ __('Sr. No') }}</th>
+                        @if ($showBranchColumn)
+                            <th>{{ __('Branch') }}</th>
+                        @endif
                         <th>{{ __('Name') }}</th>
                         <th>{{ __('Sal. Month') }}</th>
+                        <th>{{ __('Employee Working Days') }}</th>
+                        <th>{{ __('Holidays') }}</th>
                         <th>{{ __('WorkingDays') }}</th>
                         <th style="width: 50px;">{{ __('Absents') }}</th>
                         <th>{{ __('Total Annual') }}</th>
-                        <th>{{ __('Bal.Annual') }}</th>
+                        <th>{{ __('Bal. Annual') }}</th>
                         <th>{{ __('Total Casual') }}</th>
                         <th>{{ __('Bal. Casual') }}</th>
                         <th>{{ __('Leave') }}</th>
                         <th>{{ __('MonthDays') }}</th>
+                        <th>{{ __('Status') }}</th>
                         <th>{{ __('Finalize') }}</th>
                         <th>{{ __('AdmFinal') }}</th>
                         <th>{{ __('SalFinal') }}</th>
-                        <th>{{ __('GmFinal') }}</th>
+                        <th>{{ __('HR Final') }}</th>
                         {{-- <th>{{__('lock')}}</th> --}}
                         <th><input type="checkbox" id="check-all"></th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($datas as $data)
+                        @php
+                            $attendanceWorkingDays = (float) ($data->working_days ?? 0);
+                            $attendanceLeaveDays = (float) ($data->leave ?? 0);
+                            $attendanceAbsentDays = (float) ($data->absents ?? 0);
+                            $attendanceEmployeeMonthDays = $attendanceWorkingDays + $attendanceAbsentDays;
+                            $attendanceMonthDays = $attendanceEmployeeMonthDays > 0 && $attendanceEmployeeMonthDays < 24
+                                ? $attendanceEmployeeMonthDays
+                                : (float) ($data->month_days ?? $attendanceEmployeeMonthDays);
+                            $attendanceHolidays = 0;
+
+                            if (!($attendanceEmployeeMonthDays > 0 && $attendanceEmployeeMonthDays < 24) && !empty($data->for_month_of)) {
+                                $attendanceMonth = \Carbon\Carbon::parse($data->for_month_of);
+
+                                for ($day = $attendanceMonth->copy()->startOfMonth(); $day->lte($attendanceMonth->copy()->endOfMonth()); $day->addDay()) {
+                                    if ($day->isSunday()) {
+                                        $attendanceHolidays++;
+                                    }
+                                }
+
+                                $attendanceHolidays = min($attendanceHolidays, (int) $attendanceMonthDays);
+                            }
+
+                            $attendanceWorkingDays = max(0, $attendanceMonthDays - $attendanceHolidays);
+                            $attendanceEmployeeWorkingDays = $attendanceWorkingDays + $attendanceHolidays - $attendanceAbsentDays;
+                            $attendanceMonthNumber = !empty($data->for_month_of)
+                                ? \Carbon\Carbon::parse($data->for_month_of)->month
+                                : null;
+                            $employee = $data->employee;
+                            $departmentName = strtolower(optional(optional($employee)->department)->name ?? '');
+                            $probationEnd = !empty(optional($employee)->probation_end)
+                                ? \Carbon\Carbon::parse($employee->probation_end)
+                                : null;
+                            $showProbationBadge = in_array($attendanceMonthNumber, [6, 7])
+                                && str_contains($departmentName, 'academic')
+                                && $probationEnd
+                                && $probationEnd->gt(\Carbon\Carbon::parse($data->for_month_of)->endOfMonth());
+                        @endphp
                         <tr
                             style="color:
                     @if (isset($data->gm_final) && trim(strtolower($data->gm_final)) == 1) green
@@ -316,9 +528,19 @@
                     @else
                         black @endif">
                             <td>{{ $loop->iteration }}</td>
-                            <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
-                            <td>{{ !empty($data) ? date('M-y', strtotime($data->for_month_of)) : '' }}</td>
-                            <td>{{ !empty($data) ? $data->working_days : '' }}</td>
+                            @if ($showBranchColumn)
+                                <td class="font-style">{{ optional(optional($data->employee)->user)->name ?? '' }}</td>
+                            @endif
+                            <td class="font-style">
+                                {{ !empty($data) ? $data->employee->name : '' }}
+                                @if ($showProbationBadge)
+                                    <span class="probation-capsule">{{ __('Probation') }}</span>
+                                @endif
+                            </td>
+                            <td>{{ !empty($data) ? date('F-Y', strtotime($data->for_month_of)) : '' }}</td>
+                            <td>{{ number_format($attendanceEmployeeWorkingDays, 0) }}</td>
+                            <td>{{ number_format($attendanceHolidays, 0) }}</td>
+                            <td>{{ number_format($attendanceWorkingDays, 0) }}</td>
                             <td><input type="text" style="width: 50px;"
                                     value="{{ !empty($data) ? $data->absents : '' }}" readonly>
                             </td>
@@ -329,7 +551,20 @@
                             <td><input type="text" style="width: 50px;" value="{{ !empty($data) ? $data->leave : '' }}"
                                     readonly>
                             </td>
-                            <td>{{ !empty($data) ? $data->month_days : '' }}</td>
+                            <td>{{ number_format($attendanceMonthDays, 0) }}</td>
+                            <td>
+                                @if (!empty($data) && $data->gm_final == 1)
+                                    <span class="badge bg-success">{{ __('HR Final') }}</span>
+                                @elseif (!empty($data) && $data->sal_final == 1)
+                                    <span class="badge bg-primary">{{ __('Salary Final') }}</span>
+                                @elseif (!empty($data) && $data->adm_final == 1)
+                                    <span class="badge bg-warning text-dark">{{ __('Finalized') }}</span>
+                                @elseif (!empty($data) && $data->accountant_finalize == 1)
+                                    <span class="badge bg-info">{{ __('Fwd to HR') }}</span>
+                                @else
+                                    <span class="badge bg-light text-dark">{{ __('Generated') }}</span>
+                                @endif
+                            </td>
                             <td><input type="checkbox" name="finalized"
                                     {{ !empty($data) && $data->accountant_finalize == 1 ? 'checked' : '' }} disabled></td>
                             <td><input type="checkbox" name="admfinal"
@@ -359,7 +594,9 @@
                         </tr>
                     @endforeach
                 </tbody>
-            </table>
+                    </table>
+                </div>
+            </div>
         </div>
         {{-- @if ($datas->hasPages())
             <div class="pagination">

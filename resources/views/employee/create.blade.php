@@ -134,6 +134,10 @@
                                         <input type="radio" id="g_adhoc" value="Adhoc" name="category" class="custom-control-input">
                                         <label class="custom-control-label" for="g_adhoc">{{__('Adhoc')}}</label>
                                     </div>
+									<div class="custom-control custom-radio custom-control-inline">
+                                        <input type="radio" id="g_visiting" value="Visiting" name="category" class="custom-control-input">
+                                        <label class="custom-control-label" for="g_visiting">{{__('Visiting')}}</label>
+                                    </div>
                                 </div>
                             </div>
                         </div>

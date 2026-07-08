@@ -5,23 +5,23 @@
             <td rowspan="3" style="text-align: center;">
                 <img src="{{ public_path('assets/images/lynx2.jpg') }}" alt="School Logo" width="75px" height="75px" style="width: 50px; height: 50px;">
             </td> --}}
-            <td colspan="30"
+            <td colspan="31"
                 style="text-align: center; font-family: 'Edwardian Script ITC'; font-weight: 800; font-size: 35rem;">
                 The Lynx School
             </td>
         </tr>
         <tr>
-            <td colspan="30" style="text-align: center; font-weight: 600; font-size: 15rem;">
+            <td colspan="31" style="text-align: center; font-weight: 600; font-size: 15rem;">
                 <span>{{ __('Salary History Report') }}</span>
             </td>
         </tr>
         <tr>
-            <td colspan="30" style="text-align: center; font-weight: 600; font-size: 15rem;">
+            <td colspan="31" style="text-align: center; font-weight: 600; font-size: 15rem;">
                 <span>{{ \Carbon\Carbon::now()->format('F Y') }}</span>
             </td>
         </tr>
         <tr>
-            <td colspan="30" style="text-align: center;">
+            <td colspan="31" style="text-align: center;">
             </td>
         </tr>
         <tr
@@ -55,13 +55,16 @@
                 {{ __('Earned Basic') }}</th>
             <th
                 style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 70px; background-color:gray;">
-                {{ __('Conv') }}</th>
+                {{ __('Other') }}</th>
             <th
                 style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 70px; background-color:gray;">
                 {{ __('Salary') }}</th>
             <th
                 style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 70px; background-color:gray;">
-                {{ __('others.') }}</th>
+                {{ __('Other Allowance') }}</th>
+            <th
+                style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 90px; background-color:gray;">
+                {{ __('Drns & Misc') }}</th>
             <th
                 style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 70px; background-color:gray;">
                 {{ __('stop_sal') }}</th>
@@ -82,7 +85,7 @@
                 {{ __('Loan E.s') }}</th>
             <th
                 style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 70px; background-color:gray;">
-                {{ __('Others') }}</th>
+                {{ __('Other Allowance') }}</th>
             <th
                 style="font-size: 15rem; font-weight: 800; border: 2px solid black; border-collapse: collapse; width: 80px; background-color:gray;">
                 {{ __('Stop_sal') }}</th>
@@ -153,9 +156,11 @@
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->other) ? @$salary->other : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
+                        {{ (@$salary->drns ?? 0) + (@$salary->misc ?? 0) }}</td>
+                    <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->stop_sal) ? @$salary->stop_sal : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
-                        {{ !empty(@$salary->gross) ? @$salary->gross : '0' }}</td>
+                        {{ ((float) (@$salary->gross ?? 0)) + ((float) (@$salary->stop_sal ?? 0)) }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->emp_sec) ? @$salary->emp_sec : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
@@ -167,20 +172,19 @@
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->other) ? @$salary->other : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
-                        {{ !empty(@$salary->stop_sal) ? @$salary->stop_sal : '0' }}</td>
+                        0</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$payscale->pessi) ? @$payscale->pessi : '0' }}</td>
                     <td style="border: 2px solid black; border-collapse: collapse;">
                         {{ !empty(@$salary->loan_adj) ? @$salary->loan_adj : '0' }}</td>
                     @php
                         $total_deduction =
-                            @$salary->gross -
+                            (((float) (@$salary->gross ?? 0)) + ((float) (@$salary->stop_sal ?? 0))) -
                             (@$salary->emp_sec +
                                 @$salary->it +
                                 @$payscale->eobi +
                                 @$salary->loan +
                                 @$salary->other +
-                                @$salary->stop_sal +
                                 @$salary->loan_adj +
                                 @$payscale->pessi);
                     @endphp

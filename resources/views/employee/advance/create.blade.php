@@ -1,222 +1,195 @@
 <script>
-function branchemployees(id) {
-    // remember previous selection so we can restore if still available
-    var prevVal = $('#employee_id').val();
+    function branchemployees(id) {
+        var prevVal = $('#employee_id').val();
 
-    function isResigned(emp) {
-        if (!emp) return false;
-        if ('resigned' in emp) {
-            var v = emp.resigned;
-            return v === 1 || v === '1' || v === true || v === 'true';
+        function isResigned(emp) {
+            if (!emp) return false;
+            if ('resigned' in emp) {
+                var v = emp.resigned;
+                return v === 1 || v === '1' || v === true || v === 'true';
+            }
+            if ('is_resigned' in emp) {
+                var v2 = emp.is_resigned;
+                return v2 === 1 || v2 === '1' || v2 === true || v2 === 'true';
+            }
+            if ('is_active' in emp) {
+                var a = emp.is_active;
+                return a === 0 || a === '0' || a === false || a === 'false';
+            }
+            if ('status' in emp) {
+                var s = String(emp.status).toLowerCase();
+                return s === 'resigned' || s === 'left' || s === 'inactive' || s === 'terminated';
+            }
+            return false;
         }
-        if ('is_resigned' in emp) {
-            var v2 = emp.is_resigned;
-            return v2 === 1 || v2 === '1' || v2 === true || v2 === 'true';
-        }
-        if ('is_active' in emp) {
-            var a = emp.is_active;
-            return a === 0 || a === '0' || a === false || a === 'false';
-        }
-        if ('status' in emp) {
-            var s = String(emp.status).toLowerCase();
-            return s === 'resigned' || s === 'left' || s === 'inactive' || s === 'terminated';
-        }
-        // fallback: assume active if we can't detect a resigned flag
-        return false;
+
+        $.ajax({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            url: "{{ route('branch.employees') }}",
+            type: "POST",
+            data: { id: id },
+            dataType: 'json',
+            success: function(result) {
+                if (result.status === 'success') {
+                    var $employee = $('#employee_id');
+
+                    if ($employee[0] && $employee[0].customSelectInstance) {
+                        try {
+                            $employee[0].customSelectInstance.destroy();
+                        } catch (e) {}
+                        delete $employee[0].customSelectInstance;
+                    }
+                    if ($employee.next('.custom-select-wrapper').length) {
+                        $employee.next('.custom-select-wrapper').remove();
+                    }
+                    $employee.removeClass('custom-select');
+
+                    $employee.empty().append($('<option>', { value: '', text: 'Select Employee' }));
+                    var added = 0;
+                    for (var j = 0; j < result.employee.length; j++) {
+                        var emp = result.employee[j];
+                        if (!isResigned(emp)) {
+                            $employee.append($('<option>', {
+                                value: emp.id,
+                                text: emp.name
+                            }));
+                            added++;
+                        }
+                    }
+
+                    if (added === 0) {
+                        $employee.append($('<option>', { value: '', text: 'No active employees', disabled: true }));
+                    }
+
+                    $employee.addClass('custom-select').show();
+                    if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
+                        window.CustomSelect.create($employee[0]);
+                    }
+
+                    if (prevVal && $employee.find('option[value="' + prevVal + '"]').length) {
+                        $employee.val(prevVal);
+                        if ($employee[0] && $employee[0].customSelectInstance && typeof $employee[0].customSelectInstance.refresh === 'function') {
+                            $employee[0].customSelectInstance.refresh();
+                        }
+                    }
+                    $employee.trigger('change');
+                }
+            }
+        });
     }
 
-    $.ajax({
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        },
-        url: "{{ route('branch.employees') }}",
-        type: "POST",
-        data: { id: id },
-        dataType: 'json',
-        success: function(result) {
-            if (result.status === 'success') {
-                var $empSelect = $('#employee_id');
+    $(document).ready(function() {
+        var allowedAdvanceMonth = '';
+        var allowedAdvanceText = '';
+        var advanceExistsMessage = '';
 
-                // destroy previous custom-select instance if present
-                if ($empSelect[0] && $empSelect[0].customSelectInstance) {
-                    try { $empSelect[0].customSelectInstance.destroy(); } catch (e) {}
-                    delete $empSelect[0].customSelectInstance;
-                }
-                if ($empSelect.next('.custom-select-wrapper').length) {
-                    $empSelect.next('.custom-select-wrapper').remove();
-                }
-                $empSelect.removeClass('custom-select');
+        function formatMonthValue(date) {
+            var month = String(date.getMonth() + 1).padStart(2, '0');
+            return date.getFullYear() + '-' + month;
+        }
 
-                // populate options with only non-resigned employees
-                $empSelect.empty();
-                $empSelect.append($('<option>', { value: '', text: 'Select Employee' }));
+        function setAdvanceMonth(monthValue, monthText) {
+            allowedAdvanceMonth = monthValue || formatMonthValue(new Date());
+            allowedAdvanceText = monthText || allowedAdvanceMonth;
+            $('#advance_date').attr('min', allowedAdvanceMonth).attr('max', allowedAdvanceMonth).val(allowedAdvanceMonth);
+            $('#advance_month_help').text('Allowed month: ' + allowedAdvanceText);
+            $('#advance_date_error').text('');
+        }
 
-                var added = 0;
-                for (var j = 0; j < result.employee.length; j++) {
-                    var emp = result.employee[j];
-                    if (!isResigned(emp)) {
-                        $empSelect.append($('<option>', {
-                            value: emp.id,
-                            text: emp.name
-                        }));
-                        added++;
-                    }
-                }
+        function validateAdvanceMonth(showMessage) {
+            var selectedMonth = $('#advance_date').val();
+            var message = '';
 
-                if (added === 0) {
-                    // show a disabled placeholder if no active employees
-                    $empSelect.append($('<option>', { value: '', text: 'No active employees', disabled: true }));
-                }
-
-                // re-init custom select for this element only
-                $empSelect.addClass('custom-select');
-                $empSelect.show();
-                if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
-                    window.CustomSelect.create($empSelect[0]);
-                }
-
-                // Restore previous selection if still present and not resigned
-                if (prevVal && $empSelect.find('option[value="' + prevVal + '"]').length) {
-                    $empSelect.val(prevVal);
-                    if ($empSelect[0] && $empSelect[0].customSelectInstance && typeof $empSelect[0].customSelectInstance.refresh === 'function') {
-                        $empSelect[0].customSelectInstance.refresh();
-                    }
-                }
-            } else {
-                console.warn('branchemployees returned status:', result.status);
+            if (allowedAdvanceMonth && selectedMonth && selectedMonth !== allowedAdvanceMonth) {
+                message = 'Advance month must be ' + allowedAdvanceText + '.';
+            } else if (advanceExistsMessage) {
+                message = advanceExistsMessage;
             }
-        },
-        error: function(xhr, status, err) {
-            console.error('AJAX error in branchemployees:', err);
-        }
-    });
-}function branchemployees(id) {
-    // remember previous selection so we can restore if still available
-    var prevVal = $('#employee_id').val();
 
-    function isResigned(emp) {
-        if (!emp) return false;
-        if ('resigned' in emp) {
-            var v = emp.resigned;
-            return v === 1 || v === '1' || v === true || v === 'true';
-        }
-        if ('is_resigned' in emp) {
-            var v2 = emp.is_resigned;
-            return v2 === 1 || v2 === '1' || v2 === true || v2 === 'true';
-        }
-        if ('is_active' in emp) {
-            var a = emp.is_active;
-            return a === 0 || a === '0' || a === false || a === 'false';
-        }
-        if ('status' in emp) {
-            var s = String(emp.status).toLowerCase();
-            return s === 'resigned' || s === 'left' || s === 'inactive' || s === 'terminated';
-        }
-        // fallback: assume active if we can't detect a resigned flag
-        return false;
-    }
+            $('#advance_date_error').text(message);
+            $('#submit_btn').prop('disabled', !!message);
 
-    $.ajax({
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        },
-        url: "{{ route('branch.employees') }}",
-        type: "POST",
-        data: { id: id },
-        dataType: 'json',
-        success: function(result) {
-            if (result.status === 'success') {
-                var $empSelect = $('#employee_id');
-
-                // destroy previous custom-select instance if present
-                if ($empSelect[0] && $empSelect[0].customSelectInstance) {
-                    try { $empSelect[0].customSelectInstance.destroy(); } catch (e) {}
-                    delete $empSelect[0].customSelectInstance;
-                }
-                if ($empSelect.next('.custom-select-wrapper').length) {
-                    $empSelect.next('.custom-select-wrapper').remove();
-                }
-                $empSelect.removeClass('custom-select');
-
-                // populate options with only non-resigned employees
-                $empSelect.empty();
-                $empSelect.append($('<option>', { value: '', text: 'Select Employee' }));
-
-                var added = 0;
-                for (var j = 0; j < result.employee.length; j++) {
-                    var emp = result.employee[j];
-                    if (!isResigned(emp)) {
-                        $empSelect.append($('<option>', {
-                            value: emp.id,
-                            text: emp.name
-                        }));
-                        added++;
-                    }
-                }
-
-                if (added === 0) {
-                    // show a disabled placeholder if no active employees
-                    $empSelect.append($('<option>', { value: '', text: 'No active employees', disabled: true }));
-                }
-
-                // re-init custom select for this element only
-                $empSelect.addClass('custom-select');
-                $empSelect.show();
-                if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
-                    window.CustomSelect.create($empSelect[0]);
-                }
-
-                // Restore previous selection if still present and not resigned
-                if (prevVal && $empSelect.find('option[value="' + prevVal + '"]').length) {
-                    $empSelect.val(prevVal);
-                    if ($empSelect[0] && $empSelect[0].customSelectInstance && typeof $empSelect[0].customSelectInstance.refresh === 'function') {
-                        $empSelect[0].customSelectInstance.refresh();
-                    }
-                }
-            } else {
-                console.warn('branchemployees returned status:', result.status);
+            if (message && showMessage) {
+                show_toastr('error', message, 'error');
             }
-        },
-        error: function(xhr, status, err) {
-            console.error('AJAX error in branchemployees:', err);
+
+            return !message;
         }
+
+        $('#employee_id').on('change', function() {
+            var employeeId = $(this).val();
+            $('#submit_btn').prop('disabled', false);
+            $('#advance_month_help').text('');
+            $('#advance_date_error').text('');
+            advanceExistsMessage = '';
+
+            if (!employeeId) {
+                $('#advance_date').val('').removeAttr('min').removeAttr('max');
+                return;
+            }
+
+            $.ajax({
+                url: '{{ url('employee-advance-employee-month') }}/' + employeeId,
+                type: 'GET',
+                success: function(response) {
+                    setAdvanceMonth(response.allowed_advance_month, response.allowed_advance_text);
+                    advanceExistsMessage = response.advance_exists_message || '';
+                    validateAdvanceMonth(false);
+                },
+                error: function() {
+                    $('#advance_date').val('').removeAttr('min').removeAttr('max');
+                    $('#advance_date_error').text('Unable to fetch last salary month.');
+                    $('#submit_btn').prop('disabled', false);
+                }
+            });
+        });
+
+        $('#advance_date').on('change', function() {
+            validateAdvanceMonth(true);
+        });
+
+        $('#advance_create_form').on('submit', function(event) {
+            if (!validateAdvanceMonth(true)) {
+                event.preventDefault();
+            }
+        });
     });
-}
 </script>
-{{Form::open(array('url' => 'employee-advance', 'method' => 'post'))}}
+{{ Form::open(['url' => 'employee-advance', 'method' => 'post', 'id' => 'advance_create_form']) }}
 <div class="modal-body">
     <div class="row">
-    <div class="form-group col-md-6">
+        <div class="form-group col-md-6">
             {{ Form::label('branches', __('Branch'), ['class' => 'form-label']) }}
             {{ Form::select('branches', $branches, null, ['class' => 'form-control select', 'onchange' => 'branchemployees(this.value)']) }}
         </div>
         @if(\Auth::user()->type != 'Employee')
-        <div class="form-group col-md-6">
-            {{Form::label('employee_id', __('Employee'), ['class' => 'form-label'])}}<span style="color: red">
-                *</span>
-            {{Form::select('employee_id', $employee,null, array('class' => 'form-control select custom-select', 'required' => 'required', 'id' => 'employee_id', 'placeholder' => __('Select Employee')))}}
-        </div>
+            <div class="form-group col-md-6">
+                {{ Form::label('employee_id', __('Employee'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
+                {{ Form::select('employee_id', $employee, null, ['class' => 'form-control select custom-select', 'required' => 'required', 'id' => 'employee_id', 'placeholder' => __('Select Employee')]) }}
+            </div>
         @endif
         <div class="form-group col-md-6">
-            {{ Form::label('amount', __('Advnace Amount'), ['class' => 'form-label amount_label']) }}
-            {{ Form::number('amount', null, array('class' => 'form-control ', 'required' => 'required', 'step' => '0.01','id'=>'loan_amount')) }}
+            {{ Form::label('amount', __('Advance Amount'), ['class' => 'form-label amount_label']) }}
+            {{ Form::number('amount', null, ['class' => 'form-control', 'required' => 'required', 'step' => '0.01', 'min' => '0.01', 'id' => 'advance_amount']) }}
         </div>
         <div class="form-group col-md-6">
-            {{ Form::label('date', __('Advnace date'), ['class' => 'form-label amount_label']) }}
-            {{ Form::date('date', null, array('class' => 'form-control ', 'required' => 'required')) }}
+            {{ Form::label('date', __('Advance Month'), ['class' => 'form-label amount_label']) }}
+            {{ Form::month('date', null, ['class' => 'form-control', 'required' => 'required', 'id' => 'advance_date']) }}
+            <small class="text-muted" id="advance_month_help"></small>
+            <span class="text-danger d-block" id="advance_date_error"></span>
         </div>
         <div class="col-md-12">
             <div class="form-group">
                 {{ Form::label('reason', __('Reason')) }}
-                {{ Form::textarea('reason', null, array('class' => 'form-control ', 'required' => 'required', 'rows' => 3)) }}
+                {{ Form::textarea('reason', null, ['class' => 'form-control', 'required' => 'required', 'rows' => 3]) }}
             </div>
         </div>
-
     </div>
 </div>
 <div class="modal-footer">
-    <input type="button" value="{{__('Cancel')}}" class="btn  btn-outline-light" data-bs-dismiss="modal">
-    <input type="submit" id="submit_btn" value="{{__('Create')}}" class="btn  btn-outline-primary">
+    <input type="button" value="{{ __('Cancel') }}" class="btn btn-outline-light" data-bs-dismiss="modal">
+    <input type="submit" id="submit_btn" value="{{ __('Create') }}" class="btn btn-outline-primary">
 </div>
 {{ Form::close() }}
-

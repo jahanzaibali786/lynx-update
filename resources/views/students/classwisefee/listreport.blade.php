@@ -21,7 +21,7 @@
             <thead>
                 <tr style="background-color:grey; font-size:0.6rem;">
                     <th style="width:5%;">{{ __('Sr No') }}</th>
-                    <th style="width:10%;">{{ __('Session') }}</th>
+					<th style="width:10%;">{{ __('Session') }}</th>
                     <th style="width:10%;">{{ __('Class') }}</th>
                     @foreach ($heads as $head)
                         <th style="width:10%;">{{ $head->fee_head }}</th>
@@ -31,13 +31,13 @@
             <tbody>
                 @foreach($students as $session => $value)
                 <tr  style="font-size:0.8rem;">
-                    <td colspan="{{count($heads) + 3}}" > <strong>Session: {{ optional($value->first()->session)->year ?? '-' }}</strong> </td>
+                    <td colspan="{{count($heads) + 2}}" > <strong>{{ @$value[0]->session->year }}</strong> </td>
                     
                 </tr>
                 @foreach ($value->groupBy('class.name') as $className => $groupedStudents)
                     <tr style="font-size:0.8rem;">
                         <td>{{ $i }}</td>
-                        <td>{{ optional($groupedStudents->first()->session)->year ?? '-' }}</td>
+						<td>{{ optional($groupedStudents->first()->session)->year ?? '-' }}</td>
                         <td>{{ $className }}</td>
                         @foreach ($heads as $head)
                             @php

@@ -23,7 +23,8 @@ use App\Models\ExperienceCertificate;
 use App\Models\FeeHead;
 use App\Models\JoiningLetter;
 use App\Models\EmpExperience;
-use App\Models\EmployeeReportExport;
+use App\Exports\EmployeeReportExport;
+use App\Models\EmployeeEmergencyContact;
 use App\Models\Leave;
 use App\Models\LeaveType;
 use App\Models\NOC;
@@ -58,27 +59,29 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
-        // dd('');
+        // dd($request->all());
         if (\Auth::user()->can('manage employee')) {
+            $query = Employee::with(['ownedBranch', 'department', 'designation', 'employee_payscale_details', 'employee_monthly_salaries', 'latestEducation']);
+
             if (\Auth::user()->type == 'Employee') {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = Employee::where('user_id', '=', Auth::user()->id);
+                $query->where('user_id', '=', Auth::user()->id);
             } else if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', '=', 'branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $query = Employee::where('created_by', \Auth::user()->creatorId());
+                $query->where('created_by', \Auth::user()->creatorId());
             } else {
                 // dd(\Auth::user()->ownedId());
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $query = Employee::where('owned_by', \Auth::user()->ownedId());
+                $query->where('owned_by', \Auth::user()->ownedId());
             }
             $departments = Department::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
             $departments->prepend('All', 'all');
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
             $designations->prepend('All', 'all');
-            if (!empty($request->branches)) {
+            if (!empty($request->branches) && $request->branches != null) {
                 $query->where('owned_by', '=', $request->branches);
             }
             if (!empty($request->ter_status)) {
@@ -168,8 +171,11 @@ class EmployeeController extends Controller
                 $dompdf->render();
                 return $dompdf->stream('employee_directory.pdf', ['Attachment' => false]);
             }
+  			if (empty($request->sort)) {
+                $query->orderBy('name', 'asc');
+            }
 
-            $employees = $query->orderBy('id', 'Desc')->get();
+            $employees = $query->get();
             return view('employee.index', compact('employees', 'branches', 'departments', 'designations'));
 
         } else {
@@ -346,24 +352,29 @@ class EmployeeController extends Controller
                 }
                 if ($employee) {
                     $employee = Employee::where('id', $employee->id)->first();
-                    $today = now();
-                    $joiningDate = \Carbon\Carbon::parse($employee->joining_date);
-                    $emp_probation_endDate = \Carbon\Carbon::parse($employee->probation_end);
-                    $annualTotal = null;
-                    $casualTotal = 0;
-                    if ($joiningDate->year < $today->year) {
-                        $annualTotal = 12 * 2.5;
-                        $casualTotal = 12 * 0.80;
-                    } elseif ($emp_probation_endDate->year < $today->year) {
-                        $annualTotal = 12 * 2.5;
-                        $casualTotal = 12 * 0.80;
-                    } else {
-                        $remainingMonths = 12 - $emp_probation_endDate->month + 1;
-                        if ($emp_probation_endDate->lessThanOrEqualTo($today)) {
-                            $annualTotal = $remainingMonths * 2.5;
+                    if($employee->category == 'Regular'){
+                        $today = now();
+                        $joiningDate = \Carbon\Carbon::parse($employee->joining_date);
+                        $emp_probation_endDate = \Carbon\Carbon::parse($employee->probation_end);
+                        $annualTotal = null;
+                        $casualTotal = 0;
+                        if ($joiningDate->year < $today->year) {
+                            $annualTotal = 12 * 2.5;
+                            $casualTotal = 12 * 0.80;
+                        } elseif ($emp_probation_endDate->year < $today->year) {
+                            $annualTotal = 12 * 2.5;
+                            $casualTotal = 12 * 0.80;
+                        } else {
+                            $remainingMonths = 12 - $emp_probation_endDate->month + 1;
+                            if ($emp_probation_endDate->lessThanOrEqualTo($today)) {
+                                $annualTotal = $remainingMonths * 2.5;
+                            }
+                            $remainingCasualMonths = 12 - $today->month + 1;
+                            $casualTotal = $remainingCasualMonths * 0.80;
                         }
-                        $remainingCasualMonths = 12 - $today->month + 1;
-                        $casualTotal = $remainingCasualMonths * 0.80;
+                    }else{
+                        $casualTotal = 0;
+                        $annualTotal = 0;
                     }
                     EmployeeLeaves::create([
                         'employee_id' => $employee->id,
@@ -462,47 +473,47 @@ class EmployeeController extends Controller
                     if (!empty($document)) {
 
 
-                        $filenameWithExt = $request->file('document')[$key]->getClientOriginalName();
-                        $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
-                        $extension = $request->file('document')[$key]->getClientOriginalExtension();
-                        $fileNameToStore = $filename . '_' . time() . '.' . $extension;
+$filenameWithExt = $request->file('document')[$key]->getClientOriginalName();
+$filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
+$extension = $request->file('document')[$key]->getClientOriginalExtension();
+$fileNameToStore = $filename . '_' . time() . '.' . $extension;
 
-                        // Directory inside storage/app/
-                        $dir = 'uploads/document/';
+// Directory inside storage/app/
+$dir = 'uploads/document/';
 
-                        // Full file path for deletion (check old file with same original name)
-                        $oldFilePath = storage_path('app/' . $dir . $filenameWithExt);
-                        if (File::exists($oldFilePath)) {
-                            File::delete($oldFilePath);
-                        }
+// Full file path for deletion (check old file with same original name)
+$oldFilePath = storage_path('app/' . $dir . $filenameWithExt);
+if (File::exists($oldFilePath)) {
+    File::delete($oldFilePath);
+}
 
-                        // Create directory if not exists
-                        if (!Storage::exists($dir)) {
-                            Storage::makeDirectory($dir, 0777, true, true);
-                        }
+// Create directory if not exists
+if (!Storage::exists($dir)) {
+    Storage::makeDirectory($dir, 0777, true, true);
+}
 
-                        // Store the file
-                        $path = $request->file('document')[$key]->storeAs($dir, $fileNameToStore);
+// Store the file
+$path = $request->file('document')[$key]->storeAs($dir, $fileNameToStore);
 
-                        // If upload successful
-                        if ($path) {
-                            $employee_document = EmployeeDocument::where('employee_id', $employee->employee_id)
-                                ->where('document_id', $key)
-                                ->first();
+// If upload successful
+if ($path) {
+    $employee_document = EmployeeDocument::where('employee_id', $employee->employee_id)
+        ->where('document_id', $key)
+        ->first();
 
-                            if ($employee_document) {
-                                $employee_document->document_value = $fileNameToStore;
-                                $employee_document->save();
-                            } else {
-                                EmployeeDocument::create([
-                                    'employee_id' => $employee->employee_id,
-                                    'document_id' => $key,
-                                    'document_value' => $fileNameToStore,
-                                ]);
-                            }
-                        } else {
-                            return redirect()->back()->with('error', __('File upload failed.'));
-                        }
+    if ($employee_document) {
+        $employee_document->document_value = $fileNameToStore;
+        $employee_document->save();
+    } else {
+        EmployeeDocument::create([
+            'employee_id' => $employee->employee_id,
+            'document_id' => $key,
+            'document_value' => $fileNameToStore,
+        ]);
+    }
+} else {
+    return redirect()->back()->with('error', __('File upload failed.'));
+}
 
                     }
                 }
@@ -557,7 +568,7 @@ class EmployeeController extends Controller
 
     }
 
-    public function show($id, Request $request)
+    public function show($id, Request $request )
     {
 
         if (\Auth::user()->can('view employee')) {
@@ -599,14 +610,13 @@ class EmployeeController extends Controller
             $resignation = Resignation::where('employee_id', $empId)->first();
             $isResigned = !is_null($resignation);
             $employeesId = \Auth::user()->employeeIdFormat(!empty($employee) ? $employee->employee_id : '');
-            $branches_school = SchoolDetails::where('branch_id', $employee->created_by)->first();
+            $branches_school = SchoolDetails::where('branch_id', $employee->owned_by)->first();
             $emp_exp = EmpExperience::where('emp_id', $empId)->get();
             $emp_edu = EmpEducation::where('emp_id', $empId)->get();
             $emp_fac = EmpFacility::where('emp_id', $empId)->get();
-            $emp_child = EmpChildrens::with('student')->where('emp_id', $empId)->get();
             // dd($emp_child);
-            if ($request->print) {
-                $bodyHtml = view('employee.printProfile', compact('employee', 'emp_child', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'))->render();
+            if($request->print){
+                $bodyHtml = view('employee.printProfile', compact('employee', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'))->render();
 
                 $finalHtml = '<html><head><style>body { font-family: sans-serif; font-size: 12px; }</style></head><body>' . $bodyHtml . '</body></html>';
 
@@ -619,7 +629,7 @@ class EmployeeController extends Controller
                 $dompdf->render();
                 return $dompdf->stream('employee_profile.pdf', ['Attachment' => false]);
             }
-            return view('employee.show', compact('employee', 'emp_child', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'));
+              return view('employee.show', compact('employee', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -641,42 +651,42 @@ class EmployeeController extends Controller
     }
 
     public function employee_exp_info(Request $request, $id)
-    {
-        $validator = \Validator::make(
-            $request->all(),
-            [
-                'exp_organization' => 'required',
-                'exp_from' => 'required|date',
-                'exp_to' => 'required|date|after:exp_from',
-            ]
-        );
-
-        if ($validator->fails()) {
-            $messages = $validator->getMessageBag();
-            return redirect()->back()->withInput()->with('error', $messages->first());
-        }
-
-        // Check if we're updating an existing record
-        if ($request->input('experience_id')) {
-            $emp_exp = EmpExperience::find($request->input('experience_id'));
-            if (!$emp_exp) {
-                return redirect()->back()->with('error', 'Experience record not found.');
-            }
-        } else {
-            // Creating new record
-            $emp_exp = new EmpExperience();
-            $emp_exp->emp_id = $id;
-        }
-
-        $emp_exp->organization = $request->input('exp_organization');
-        $emp_exp->designation = $request->input('exp_designation');
-        $emp_exp->from = $request->input('exp_from');
-        $emp_exp->to = $request->input('exp_to');
-        $emp_exp->reason = $request->input('reason_of_leaving');
-        $emp_exp->save();
-
-        return redirect()->back()->with('success', 'Experience saved successfully.');
+{
+    $validator = \Validator::make(
+        $request->all(),
+        [
+            'exp_organization' => 'required',
+            'exp_from' => 'required|date',
+            'exp_to' => 'required|date|after:exp_from',
+        ]
+    );
+    
+    if ($validator->fails()) {
+        $messages = $validator->getMessageBag();
+        return redirect()->back()->withInput()->with('error', $messages->first());
     }
+
+    // Check if we're updating an existing record
+    if ($request->input('experience_id')) {
+        $emp_exp = EmpExperience::find($request->input('experience_id'));
+        if (!$emp_exp) {
+            return redirect()->back()->with('error', 'Experience record not found.');
+        }
+    } else {
+        // Creating new record
+        $emp_exp = new EmpExperience();
+        $emp_exp->emp_id = $id;
+    }
+
+    $emp_exp->organization = $request->input('exp_organization');
+    $emp_exp->designation = $request->input('exp_designation');
+    $emp_exp->from = $request->input('exp_from');
+    $emp_exp->to = $request->input('exp_to');
+    $emp_exp->reason = $request->input('reason_of_leaving');
+    $emp_exp->save();
+    
+    return redirect()->back()->with('success', 'Experience saved successfully.');
+}
 
     public function employee_edu_info(Request $request, $id)
     {
@@ -702,7 +712,23 @@ class EmployeeController extends Controller
         //     $messages = $validator->getMessageBag();
         //     return redirect()->back()->withInput()->with('error', $messages->first());
         // }
-
+		$rules = ['degree_level' => 'required'];
+		
+		if ($request->degree_level !== 'illiterate') {
+		    $rules += [
+		        'institute_name' => 'required',
+		        'adm_date' => 'required|digits:4|integer',
+		        'passing_year' => 'required|digits:4|integer',
+		        'grade' => 'required',
+		    ];
+		}
+		
+		$validator = \Validator::make($request->all(), $rules);
+		
+		if ($validator->fails()) {
+		    return redirect()->back()
+		        ->with('error', $validator->errors()->first());
+		}
         // Check if updating or creating
         if ($request->filled('education_id')) {
             $emp_edu = \App\Models\EmpEducation::find($request->input('education_id'));
@@ -799,16 +825,16 @@ class EmployeeController extends Controller
     {
         // dd($request->all());
         $validatedData = $request->validate([
-            'profile_img' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'profile_img' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:1024',
             // 'salute' => 'nullable|string',
-            // 'name' => 'required|string',
+            'name' => 'required|string',
             // 'f_name' => 'nullable|string',
-            // 'cnic' => 'nullable|string',
+            'cnic' => 'nullable|string',
             // 'dob' => 'nullable|date',
-            // 'gender' => 'nullable|string',
+            'gender' => 'nullable|string',
             // 'religion' => 'nullable|string',
             // 'blood_group' => 'nullable|string',
-            // 'phone' => 'nullable|string',
+            'phone' => 'nullable|string',
             // 'email' => 'nullable|email',
             // 'eobi' => 'nullable|string',
             // 'ssc' => 'nullable|string',
@@ -820,22 +846,27 @@ class EmployeeController extends Controller
         ]);
         $validatedData = $request->all();
         $employee = Employee::findOrFail($id);
+
         if ($request->hasFile('profile_img')) {
-            $filenameWithExt = $request->file('profile_img')->getClientOriginalName();
-            $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
-            $extension = $request->file('profile_img')->getClientOriginalExtension();
+
+            // 🔹 Delete old image (if exists)
+            if (!empty($employee->profile_img)) {
+                $oldPath = storage_path('emp_profile_images/' . $employee->profile_img);
+
+                if (File::exists($oldPath)) {
+                    File::delete($oldPath);
+                }
+            }
+
+            // 🔹 Store new image
+            $file = $request->file('profile_img');
+            $filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+            $extension = $file->getClientOriginalExtension();
             $fileNameToStore = $filename . '_' . time() . '.' . $extension;
-            $dir = storage_path('emp_profile_images/');
-            $image_path = $dir . $filenameWithExt;
 
-            if (File::exists($image_path)) {
-                File::delete($image_path);
-            }
+            $file->storeAs('emp_profile_images', $fileNameToStore);
 
-            if (!file_exists($dir)) {
-                mkdir($dir, 0777, true);
-            }
-            $path = $request->file('profile_img')->storeAs('emp_profile_images/', $fileNameToStore);
+            // 🔹 Save in DB
             $employee->profile_img = $fileNameToStore;
         }
 
@@ -848,21 +879,24 @@ class EmployeeController extends Controller
         $employee->religion = $validatedData['religion'];
         $employee->blood_group = $validatedData['blood_group'];
         $employee->phone = $validatedData['phone'];
+        $employee->category = $validatedData['category'];
         $employee->email = $validatedData['email'];
-        $employee->eobi_id = $validatedData['eobi'];
-        $employee->ssc_id = $validatedData['ssc'];
+        $employee->eobi_id = $validatedData['eobi_id'];
+        $employee->ssc_id = $validatedData['ssc_id'];
         $employee->present_address = $validatedData['present_address'];
         $employee->address = $validatedData['address'];
-        $employee->branch_id = $validatedData['branch_id'];
-        $employee->department_id = $validatedData['department_id'];
-        $employee->designation_id = $validatedData['designation_id'];
+        // $employee->branch_id = $validatedData['branch_id'];
+        if (Auth::user()->type == 'company') {
+            $employee->department_id = $validatedData['department_id'];
+            $employee->designation_id = $validatedData['designation_id'];
+        }
+        
         $employee->save();
         return redirect()->back()->with('success', 'Employee Info updated successfully.');
     }
 
     public function json(Request $request)
     {
-        // dd('hi');
         $designations = Designation::where('department_id', $request->department_id)->get()->pluck('name', 'id')->toArray();
 
         return response()->json($designations);
@@ -908,7 +942,26 @@ class EmployeeController extends Controller
         }
     }
 
+public function employeedesiganddeprtment(Request $request)
+    {
+        $employees = Employee::where('department_id', $request->department_id)
+            ->where('designation_id', $request->designation_id);
 
+        if (!empty($request->branch_id)) {
+            $employees->where('branch_id', $request->branch_id);
+        }
+
+        $employees = $employees->get()
+            ->mapWithKeys(function ($employee) {
+                $employeeNumber = !empty($employee->employee_id) ? \Auth::user()->employeeIdFormat($employee->employee_id) : '';
+                $label = trim($employeeNumber . ' - ' . $employee->name, ' -');
+
+                return [$employee->id => $label];
+            })
+            ->toArray();
+
+        return response()->json($employees);
+    }
     public function profileShow($id)
     {
         if (\Auth::user()->can('show employee profile')) {
@@ -939,26 +992,7 @@ class EmployeeController extends Controller
 
         return response()->json($employees);
     }
-    public function employeedesiganddeprtment(Request $request)
-    {
-        $employees = Employee::where('department_id', $request->department_id)
-            ->where('designation_id', $request->designation_id);
 
-        if (!empty($request->branch_id)) {
-            $employees->where('branch_id', $request->branch_id);
-        }
-
-        $employees = $employees->get()
-            ->mapWithKeys(function ($employee) {
-                $employeeNumber = !empty($employee->employee_id) ? \Auth::user()->employeeIdFormat($employee->employee_id) : '';
-                $label = trim($employeeNumber . ' - ' . $employee->name, ' -');
-
-                return [$employee->id => $label];
-            })
-            ->toArray();
-
-        return response()->json($employees);
-    }
     public function getdepartment(Request $request)
     {
         if (Auth::user()->type == 'company') {
@@ -1336,21 +1370,27 @@ class EmployeeController extends Controller
 
         $annualTotal = 0;
         $casualTotal = 0;
-        if ($joiningDate->year < $today->year || $probationEndDate->year < $today->year) {
-            $annualTotal = 12 * 2.5;
-            $casualTotal = 12 * 0.8;
-        } elseif ($today->greaterThanOrEqualTo($probationEndDate)) {
-            $remainingAnnualMonths = 12 - $probationEndDate->month + 1;
-            $annualTotal = $remainingAnnualMonths * 2.5;
+        if($employee->category == 'Regular'){
+            if ($joiningDate->year < $today->year || $probationEndDate->year < $today->year) {
+                $annualTotal = 12 * 2.5;
+                $casualTotal = 12 * 0.8;
+            } elseif ($today->greaterThanOrEqualTo($probationEndDate)) {
+                $remainingAnnualMonths = 12 - $probationEndDate->month + 1;
+                $annualTotal = $remainingAnnualMonths * 2.5;
 
-            $remainingCasualMonths = 12 - $today->month + 1;
-            $casualTotal = $remainingCasualMonths * 0.8;
-        } else {
-            $remainingCasualMonths = 12 - $today->month + 1;
-            $casualTotal = $remainingCasualMonths * 0.8;
+                $remainingCasualMonths = 12 - $today->month + 1;
+                $casualTotal = $remainingCasualMonths * 0.8;
+            } else {
+                $remainingCasualMonths = 12 - $today->month + 1;
+                $casualTotal = $remainingCasualMonths * 0.8;
 
-            return redirect()->route('employee.index')->with('error', __('Employee probation not ended yet. Only casual leaves considered.'));
+                return redirect()->route('employee.index')->with('error', __('Employee probation not ended yet. Only casual leaves considered.'));
+            }
         }
+        else{
+                $casualTotal = 0;
+                $annualTotal = 0;
+            }
         $emp_leave = EmployeeLeaves::firstOrNew(['employee_id' => $employee->id]);
         $emp_leave->annual_total = $annualTotal;
         $emp_leave->casual_total = $casualTotal;
@@ -1438,16 +1478,21 @@ class EmployeeController extends Controller
 
             $annualTotal = 0;
             $casualTotal = 0;
-            $remainingCasualMonths = 12 - $today->month;
-            $casualTotal = $remainingCasualMonths * 0.8;
-            $remainingAnnualMonths = 12 - $today->month;
-            $annualTotal = $remainingAnnualMonths * 2.5;
+            if($emp->category == 'Regular'){
+                $remainingCasualMonths = 12 - $today->month ;
+                $casualTotal = $remainingCasualMonths * 0.8;
+                $remainingAnnualMonths = 12 - $today->month;
+                $annualTotal = $remainingAnnualMonths * 2.5;
+            }else{
+                $casualTotal = 0;
+                $annualTotal = 0;
+            }
             if (!$already_assigned) {
                 $emp_leave = EmployeeLeaves::firstOrNew(['employee_id' => $emp->id]);
                 $emp_leave->annual_total = $annualTotal;
                 $emp_leave->casual_total = $casualTotal;
                 $emp_leave->save();
-            } else {
+            }else{
                 $emp_leave = EmployeeLeaves::where('employee_id', $emp->id)->first();
                 $emp_leave->annual_total = $annualTotal;
                 $emp_leave->casual_total = $casualTotal;
@@ -1481,7 +1526,7 @@ class EmployeeController extends Controller
         return response()->json(['amount' => 0], 200);
     }
 
-    public function destroyEmployeeExperience($id)
+     public function destroyEmployeeExperience($id)
     {
         $exp = \App\Models\EmpExperience::findOrFail($id);
         $exp->delete();
@@ -1494,7 +1539,7 @@ class EmployeeController extends Controller
         $edu->delete();
         return redirect()->back()->with('success', 'Education deleted successfully.');
     }
-
+    
     public function destroyEmployeeFacility($id)
     {
         $fac = \App\Models\EmpFacility::findOrFail($id);
@@ -1502,5 +1547,74 @@ class EmployeeController extends Controller
         return redirect()->back()->with('success', 'Facility deleted successfully.');
     }
 
+    public function saveEmergencyContacts(Request $request, $id)
+    {
+        // check / validation  if empty then error return
+        $validator = \Validator::make(
+            $request->all(),
+            [
+                 'contacts' => 'required|array',
+                'contacts.*.contact_name' => 'nullable|string',
+                'contacts.*.relationship' => 'nullable|string',
+                'contacts.*.phone' => 'nullable|string',
+            ],
+            [
+                'contacts.required' => 'At least one contact is required.',
+            ]
+        );
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
 
+            return response()->json([
+                'status' => false,
+                'message' => $messages->first()
+            ]);
+        }   
+
+        foreach ($request->contacts as $contact) {
+
+            if (!empty($contact['contact_name']) || !empty($contact['phone'])) {
+
+                EmployeeEmergencyContact::create([
+                    'employee_id'   => $id,
+                    'contact_name'  => $contact['contact_name'] ?? null,
+                    'relationship'  => $contact['relationship'] ?? null,
+                    'phone'         => $contact['phone'] ?? null,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Contacts saved successfully'
+        ]);
+    }
+
+    public function getEmergencyContacts($id)
+    {
+        return EmployeeEmergencyContact::where('employee_id', $id)->get();
+    }
+
+    public function deleteEmergencyContact($id)
+    {
+        EmployeeEmergencyContact::findOrFail($id)->delete();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Deleted successfully'
+        ]);
+    }
+
+    public function EmployeeChildrenCnic(Request $request)
+    {
+        $emp=Employee::find($request->employee_id);
+    
+        $registrations = StudentRegistration::with('session', 'class', 'branches','fee_structure')->where(function ($q) use ($emp) {
+            $q->where('fathercnic', $emp->cnic)
+            ->orWhere('mothercnic', $emp->cnic);
+        })->get();
+        $pattern = '%TUITION%';
+        $head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($pattern)])->first();
+        return response()->json(['siblings' => $registrations,'head' => $head ]);
+    }
 }

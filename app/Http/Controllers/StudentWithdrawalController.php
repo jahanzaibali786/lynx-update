@@ -50,8 +50,9 @@ class StudentWithdrawalController extends Controller
         if (!empty($request->branches)) {
             $query->where('owned_by', '=', $request->branches);
         }
-        if (!empty($request->status)) {
-            $query->where('status', '=', $request->status);
+        $statusFilter = $request->status ?? 'pending';
+        if (!empty($statusFilter)) {
+            $query->where('status', '=', $statusFilter);
         }
         // if (!empty($request->start_date)) {
         //     $query->whereDate('withdraw_date', '>', $request->start_date);
@@ -77,6 +78,7 @@ class StudentWithdrawalController extends Controller
         $status = [
             '' => 'All',
             'Draft' => 'Draft',
+            'pending' => 'Pending',
             'Approved' => 'Approved',
             'Rejected' => 'Rejected',
             'Roll Back' => 'Roll Back',

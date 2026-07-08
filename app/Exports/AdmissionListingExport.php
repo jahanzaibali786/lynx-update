@@ -80,7 +80,7 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
             $classes->prepend('All Classes', 'all');
         }
 
-        $classIds = $classes->keys()->filter(fn($id) => $id != 'all')->values();
+        $classIds = $classes->keys()->filter(fn ($id) => $id != 'all')->values();
 
         $sections = DB::table('class_sections')
             ->join('sections', 'class_sections.section_id', '=', 'sections.id')
@@ -149,9 +149,9 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
             ->keyBy('student_id');
 
         $heads = $challans
-            ->flatMap(fn($challan) => $challan->heads)
-            ->filter(fn($head) => !empty($head->feehead))
-            ->map(fn($head) => (object) [
+            ->flatMap(fn ($challan) => $challan->heads)
+            ->filter(fn ($head) => !empty($head->feehead))
+            ->map(fn ($head) => (object) [
                 'id' => $head->head_id,
                 'fee_head' => $head->feehead->fee_head,
             ])
@@ -218,11 +218,11 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
 
         $student = [];
         $report_name = $this->report_name;
-        $fromDate = $request->input('date_from');
-        $toDate = $request->input('date_to');
+	 	$date_from = $request->input('date_from');
+        $date_to = $request->input('date_to');
         $is_signature = false;
+        $is_period = true;
         $is_branch = true;
-
         return view('student.exports.admission_listing', compact(
             'studentData',
             'student',
@@ -237,275 +237,276 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
             'branches',
             'request',
             'report_name',
+			'date_to',
+            'date_from',
             'is_signature',
-            'fromDate',
-            'toDate',
+            'is_period',
             'is_branch'
         ))->with([
-                    'branchName' => $this->branchName,
-                    'params' => $this->params,
-                ]);
+            'branchName' => $this->branchName,
+            'params' => $this->params,
+        ]);
     }
 
-    public function registerEvents(): array
-    {
-        return [
-            AfterSheet::class => function (AfterSheet $event) {
-                $sheet = $event->sheet->getDelegate();
+  public function registerEvents(): array
+{
+    return [
+        AfterSheet::class => function (AfterSheet $event) {
+            $sheet = $event->sheet->getDelegate();
 
-                $highestRow = $sheet->getHighestRow();
-                $highestColumn = $sheet->getHighestColumn();
-                $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
+            $highestRow = $sheet->getHighestRow();
+            $highestColumn = $sheet->getHighestColumn();
+            $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
 
-                $headerRow = 9;
-                $firstDataRow = 10;
+            $headerRow = 9;
+            $firstDataRow = 10;
 
-                $sheet->setShowGridlines(false);
+            $sheet->setShowGridlines(false);
 
-                // Freeze column heading row
-                $sheet->freezePane('A10');
+            // Freeze column heading row
+            $sheet->freezePane('A10');
 
-                $sheet->getPageSetup()
-                    ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
-                    ->setPaperSize(PageSetup::PAPERSIZE_A4)
-                    ->setFitToPage(true)
-                    ->setFitToWidth(1)
-                    ->setFitToHeight(0)
-                    ->setRowsToRepeatAtTopByStartAndEnd($headerRow, $headerRow);
+            $sheet->getPageSetup()
+                ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
+                ->setPaperSize(PageSetup::PAPERSIZE_A4)
+                ->setFitToPage(true)
+                ->setFitToWidth(1)
+                ->setFitToHeight(0)
+                ->setRowsToRepeatAtTopByStartAndEnd($headerRow, $headerRow);
 
-                $sheet->getPageMargins()->setTop(0.5);
-                $sheet->getPageMargins()->setBottom(0.5);
-                $sheet->getPageMargins()->setLeft(0.3);
-                $sheet->getPageMargins()->setRight(0.3);
+            $sheet->getPageMargins()->setTop(0.5);
+            $sheet->getPageMargins()->setBottom(0.5);
+            $sheet->getPageMargins()->setLeft(0.3);
+            $sheet->getPageMargins()->setRight(0.3);
 
-                // School name
-                $sheet->getStyle('A1')->applyFromArray([
-                    'font' => [
-                        'bold' => true,
-                        'size' => 28,
-                        'name' => 'Edwardian Script ITC',
+            // School name
+            $sheet->getStyle('A1')->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'size' => 28,
+                    'name' => 'Edwardian Script ITC',
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_LEFT,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ]);
+
+            // Column heading row
+            $sheet->getStyle("A{$headerRow}:{$highestColumn}{$headerRow}")->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'size' => 8,
+                    'name' => 'Calibri',
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                    'wrapText' => true,
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['argb' => 'FF000000'],
                     ],
-                    'alignment' => [
-                        'horizontal' => Alignment::HORIZONTAL_LEFT,
-                        'vertical' => Alignment::VERTICAL_CENTER,
-                    ],
-                ]);
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['argb' => 'FFBFBFBF'],
+                ],
+            ]);
 
-                // Column heading row
-                $sheet->getStyle("A{$headerRow}:{$highestColumn}{$headerRow}")->applyFromArray([
-                    'font' => [
-                        'bold' => true,
-                        'size' => 8,
-                        'name' => 'Calibri',
-                    ],
-                    'alignment' => [
-                        'horizontal' => Alignment::HORIZONTAL_CENTER,
-                        'vertical' => Alignment::VERTICAL_CENTER,
-                        'wrapText' => true,
-                    ],
-                    'borders' => [
-                        'allBorders' => [
-                            'borderStyle' => Border::BORDER_THIN,
-                            'color' => ['argb' => 'FF000000'],
+            // All data font
+            $sheet->getStyle("A{$firstDataRow}:{$highestColumn}{$highestRow}")->applyFromArray([
+                'font' => [
+                    'size' => 8,
+                    'name' => 'Calibri',
+                ],
+                'alignment' => [
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ]);
+
+            // Basic alignment
+            $sheet->getStyle("A{$firstDataRow}:G{$highestRow}")
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $sheet->getStyle("H{$firstDataRow}:H{$highestRow}")
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+                ->setWrapText(true);
+
+            // Amount columns
+            if ($highestColumnIndex > 8) {
+                $amountStartColumn = Coordinate::stringFromColumnIndex(9);
+                $amountEndColumn = Coordinate::stringFromColumnIndex($highestColumnIndex - 1);
+
+                $sheet->getStyle("{$amountStartColumn}{$firstDataRow}:{$amountEndColumn}{$highestRow}")
+                    ->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+                $sheet->getStyle("{$amountStartColumn}{$firstDataRow}:{$amountEndColumn}{$highestRow}")
+                    ->getNumberFormat()
+                    ->setFormatCode('#,##0.00');
+            }
+
+            // Status column
+            $sheet->getStyle("{$highestColumn}{$firstDataRow}:{$highestColumn}{$highestRow}")
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            // Column widths
+            foreach (range(1, $highestColumnIndex) as $columnIndex) {
+                $column = Coordinate::stringFromColumnIndex($columnIndex);
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+            }
+
+            $sheet->getColumnDimension('A')->setWidth(7);
+            $sheet->getColumnDimension('B')->setWidth(8);
+            $sheet->getColumnDimension('C')->setWidth(12);
+            $sheet->getColumnDimension('D')->setWidth(12);
+            $sheet->getColumnDimension('E')->setWidth(14);
+            $sheet->getColumnDimension('F')->setWidth(15);
+            $sheet->getColumnDimension('G')->setWidth(14);
+            $sheet->getColumnDimension('H')->setWidth(25);
+
+            // Style branch name / branch total / grand total rows
+            for ($row = $firstDataRow; $row <= $highestRow; $row++) {
+                $rowValues = [];
+
+                for ($col = 1; $col <= $highestColumnIndex; $col++) {
+                    $columnLetter = Coordinate::stringFromColumnIndex($col);
+                    $rowValues[$col] = trim((string) $sheet->getCell("{$columnLetter}{$row}")->getValue());
+                }
+
+                $rowText = strtolower(implode(' ', array_filter($rowValues)));
+
+                $firstCell = trim($rowValues[1] ?? '');
+                $nonEmptyCells = array_filter($rowValues, fn ($value) => trim((string) $value) !== '');
+
+                $isBranchTotalRow = str_contains($rowText, 'branch total');
+                $isGrandTotalRow = str_contains($rowText, 'grand total');
+
+                /*
+                 * Branch name row detection:
+                 * - first cell has branch name
+                 * - only one cell has value
+                 * - not total rows
+                 * This works even if you removed "Branch:" text.
+                 */
+                $isBranchNameRow = !empty($firstCell)
+                    && count($nonEmptyCells) === 1
+                    && !$isBranchTotalRow
+                    && !$isGrandTotalRow
+                    && $row > $headerRow;
+
+                if ($isBranchNameRow) {
+                    $sheet->getStyle("A{$row}:{$highestColumn}{$row}")->applyFromArray([
+                        'font' => [
+                            'bold' => true,
+                            'size' => 9,
+                            'name' => 'Calibri',
                         ],
-                    ],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'startColor' => ['argb' => 'FFBFBFBF'],
-                    ],
-                ]);
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['argb' => 'FFD9D9D9'],
+                        ],
+                        'alignment' => [
+                            'horizontal' => Alignment::HORIZONTAL_LEFT,
+                            'vertical' => Alignment::VERTICAL_CENTER,
+                        ],
+                        'borders' => [
+                            'allBorders' => [
+                                'borderStyle' => Border::BORDER_THIN,
+                                'color' => ['argb' => 'FF000000'],
+                            ],
+                        ],
+                    ]);
 
-                // All data font
-                $sheet->getStyle("A{$firstDataRow}:{$highestColumn}{$highestRow}")->applyFromArray([
-                    'font' => [
-                        'size' => 8,
-                        'name' => 'Calibri',
-                    ],
-                    'alignment' => [
-                        'vertical' => Alignment::VERTICAL_CENTER,
-                    ],
-                ]);
-
-                // Basic alignment
-                $sheet->getStyle("A{$firstDataRow}:G{$highestRow}")
-                    ->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-                $sheet->getStyle("H{$firstDataRow}:H{$highestRow}")
-                    ->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_LEFT)
-                    ->setWrapText(true);
-
-                // Amount columns
-                if ($highestColumnIndex > 8) {
-                    $amountStartColumn = Coordinate::stringFromColumnIndex(9);
-                    $amountEndColumn = Coordinate::stringFromColumnIndex($highestColumnIndex - 1);
-
-                    $sheet->getStyle("{$amountStartColumn}{$firstDataRow}:{$amountEndColumn}{$highestRow}")
-                        ->getAlignment()
-                        ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-
-                    $sheet->getStyle("{$amountStartColumn}{$firstDataRow}:{$amountEndColumn}{$highestRow}")
-                        ->getNumberFormat()
-                        ->setFormatCode('#,##0.00');
+                    $sheet->getRowDimension($row)->setRowHeight(20);
                 }
 
-                // Status column
-                $sheet->getStyle("{$highestColumn}{$firstDataRow}:{$highestColumn}{$highestRow}")
-                    ->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-                // Column widths
-                foreach (range(1, $highestColumnIndex) as $columnIndex) {
-                    $column = Coordinate::stringFromColumnIndex($columnIndex);
-                    $sheet->getColumnDimension($column)->setAutoSize(true);
+                if ($isBranchTotalRow || $isGrandTotalRow) {
+                    $sheet->getStyle("A{$row}:{$highestColumn}{$row}")->applyFromArray([
+                        'font' => [
+                            'bold' => true,
+                            'size' => 8,
+                            'name' => 'Calibri',
+                        ],
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['argb' => 'FFBFBFBF'],
+                        ],
+                        'alignment' => [
+                            'horizontal' => Alignment::HORIZONTAL_RIGHT,
+                            'vertical' => Alignment::VERTICAL_CENTER,
+                        ],
+                        'borders' => [
+                            'allBorders' => [
+                                'borderStyle' => Border::BORDER_THIN,
+                                'color' => ['argb' => 'FF000000'],
+                            ],
+                        ],
+                    ]);
                 }
 
-                $sheet->getColumnDimension('A')->setWidth(7);
-                $sheet->getColumnDimension('B')->setWidth(8);
-                $sheet->getColumnDimension('C')->setWidth(12);
-                $sheet->getColumnDimension('D')->setWidth(12);
-                $sheet->getColumnDimension('E')->setWidth(14);
-                $sheet->getColumnDimension('F')->setWidth(15);
-                $sheet->getColumnDimension('G')->setWidth(14);
-                $sheet->getColumnDimension('H')->setWidth(25);
-
-                // Style branch name / branch total / grand total rows
-                for ($row = $firstDataRow; $row <= $highestRow; $row++) {
-                    $rowValues = [];
-
-                    for ($col = 1; $col <= $highestColumnIndex; $col++) {
-                        $columnLetter = Coordinate::stringFromColumnIndex($col);
-                        $rowValues[$col] = trim((string) $sheet->getCell("{$columnLetter}{$row}")->getValue());
-                    }
-
-                    $rowText = strtolower(implode(' ', array_filter($rowValues)));
-
-                    $firstCell = trim($rowValues[1] ?? '');
-                    $nonEmptyCells = array_filter($rowValues, fn($value) => trim((string) $value) !== '');
-
-                    $isBranchTotalRow = str_contains($rowText, 'branch total');
-                    $isGrandTotalRow = str_contains($rowText, 'grand total');
-
-                    /*
-                     * Branch name row detection:
-                     * - first cell has branch name
-                     * - only one cell has value
-                     * - not total rows
-                     * This works even if you removed "Branch:" text.
-                     */
-                    $isBranchNameRow = !empty($firstCell)
-                        && count($nonEmptyCells) === 1
-                        && !$isBranchTotalRow
-                        && !$isGrandTotalRow
-                        && $row > $headerRow;
-
-                    if ($isBranchNameRow) {
-                        $sheet->getStyle("A{$row}:{$highestColumn}{$row}")->applyFromArray([
-                            'font' => [
-                                'bold' => true,
-                                'size' => 9,
-                                'name' => 'Calibri',
+                if ($isGrandTotalRow) {
+                    $sheet->getStyle("A{$row}:{$highestColumn}{$row}")->applyFromArray([
+                        'borders' => [
+                            'top' => [
+                                'borderStyle' => Border::BORDER_DOUBLE,
+                                'color' => ['argb' => 'FF000000'],
                             ],
-                            'fill' => [
-                                'fillType' => Fill::FILL_SOLID,
-                                'startColor' => ['argb' => 'FFD9D9D9'],
+                            'bottom' => [
+                                'borderStyle' => Border::BORDER_DOUBLE,
+                                'color' => ['argb' => 'FF000000'],
                             ],
-                            'alignment' => [
-                                'horizontal' => Alignment::HORIZONTAL_LEFT,
-                                'vertical' => Alignment::VERTICAL_CENTER,
-                            ],
-                            'borders' => [
-                                'allBorders' => [
-                                    'borderStyle' => Border::BORDER_THIN,
-                                    'color' => ['argb' => 'FF000000'],
-                                ],
-                            ],
-                        ]);
-
-                        $sheet->getRowDimension($row)->setRowHeight(20);
-                    }
-
-                    if ($isBranchTotalRow || $isGrandTotalRow) {
-                        $sheet->getStyle("A{$row}:{$highestColumn}{$row}")->applyFromArray([
-                            'font' => [
-                                'bold' => true,
-                                'size' => 8,
-                                'name' => 'Calibri',
-                            ],
-                            'fill' => [
-                                'fillType' => Fill::FILL_SOLID,
-                                'startColor' => ['argb' => 'FFBFBFBF'],
-                            ],
-                            'alignment' => [
-                                'horizontal' => Alignment::HORIZONTAL_RIGHT,
-                                'vertical' => Alignment::VERTICAL_CENTER,
-                            ],
-                            'borders' => [
-                                'allBorders' => [
-                                    'borderStyle' => Border::BORDER_THIN,
-                                    'color' => ['argb' => 'FF000000'],
-                                ],
-                            ],
-                        ]);
-                    }
-
-                    if ($isGrandTotalRow) {
-                        $sheet->getStyle("A{$row}:{$highestColumn}{$row}")->applyFromArray([
-                            'borders' => [
-                                'top' => [
-                                    'borderStyle' => Border::BORDER_DOUBLE,
-                                    'color' => ['argb' => 'FF000000'],
-                                ],
-                                'bottom' => [
-                                    'borderStyle' => Border::BORDER_DOUBLE,
-                                    'color' => ['argb' => 'FF000000'],
-                                ],
-                            ],
-                        ]);
-                    }
+                        ],
+                    ]);
                 }
+            }
 
-                // Logo
-                $logoPath = public_path('assets/images/lynx2.jpg');
+            // Logo
+            $logoPath = public_path('assets/images/lynx2.jpg');
 
-                if (file_exists($logoPath)) {
-                    $logoColumnIndex = max(1, $highestColumnIndex - 1);
-                    $logoColumn = Coordinate::stringFromColumnIndex($logoColumnIndex);
+            if (file_exists($logoPath)) {
+                $logoColumnIndex = max(1, $highestColumnIndex - 1);
+                $logoColumn = Coordinate::stringFromColumnIndex($logoColumnIndex);
 
-                    $drawing = new Drawing();
-                    $drawing->setName('Logo');
-                    $drawing->setDescription('School Logo');
-                    $drawing->setPath($logoPath);
-                    $drawing->setHeight(75);
-                    $drawing->setOffsetX(10);
-                    $drawing->setOffsetY(10);
-                    $drawing->setCoordinates($logoColumn . '1');
-                    $drawing->setWorksheet($sheet);
-                }
+                $drawing = new Drawing();
+                $drawing->setName('Logo');
+                $drawing->setDescription('School Logo');
+                $drawing->setPath($logoPath);
+                $drawing->setHeight(75);
+                $drawing->setOffsetX(10);
+                $drawing->setOffsetY(10);
+                $drawing->setCoordinates($logoColumn . '1');
+                $drawing->setWorksheet($sheet);
+            }
 
-                // Signature line
-                $lastDataRow = $sheet->getHighestRow();
-                $sigLineRow = $lastDataRow + 2;
-                $highestColumnLetter = $sheet->getHighestColumn();
+            // Signature line
+            $lastDataRow = $sheet->getHighestRow();
+            $sigLineRow = $lastDataRow + 2;
+            $highestColumnLetter = $sheet->getHighestColumn();
 
-                $sheet->mergeCells("A{$sigLineRow}:{$highestColumnLetter}{$sigLineRow}");
+            $sheet->mergeCells("A{$sigLineRow}:{$highestColumnLetter}{$sigLineRow}");
 
-                $signatureLine = new RichText();
-                $signatureLine->createText('________________________');
-                $signatureLine->createText(str_repeat(' ', $highestColumnIndex * 3));
-                $signatureLine->createText('________________________');
+            $signatureLine = new RichText();
+            $signatureLine->createText('________________________');
+            $signatureLine->createText(str_repeat(' ', $highestColumnIndex * 3));
+            $signatureLine->createText('________________________');
 
-                $sheet->setCellValue("A{$sigLineRow}", $signatureLine);
+            $sheet->setCellValue("A{$sigLineRow}", $signatureLine);
 
-                $sheet->getStyle("A{$sigLineRow}")
-                    ->getFont()
-                    ->setBold(true);
+            $sheet->getStyle("A{$sigLineRow}")
+                ->getFont()
+                ->setBold(true);
 
-                $sheet->getStyle("A{$sigLineRow}")
-                    ->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_DISTRIBUTED);
-            },
-        ];
-    }
+            $sheet->getStyle("A{$sigLineRow}")
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_DISTRIBUTED);
+        },
+    ];
+}
 }

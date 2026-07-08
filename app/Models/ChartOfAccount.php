@@ -9,7 +9,7 @@ class ChartOfAccount extends Model
     protected $fillable = [
         'name',
         'code',
-        'category',
+		'category',
         'type',
         'sub_type',
         'is_enabled',
