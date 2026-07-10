@@ -33,7 +33,7 @@ class StudentWithdrawalController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index(Request $request)
+   public function index(Request $request)
     {
         // dd($request->all());
         // if(\Auth::user()->can('manage session'))
@@ -50,7 +50,7 @@ class StudentWithdrawalController extends Controller
         if (!empty($request->branches)) {
             $query->where('owned_by', '=', $request->branches);
         }
-        $statusFilter = $request->status ?? 'pending';
+        $statusFilter = $request->status ?? 'draft';
         if (!empty($statusFilter)) {
             $query->where('status', '=', $statusFilter);
         }
@@ -61,19 +61,26 @@ class StudentWithdrawalController extends Controller
         //     $query->whereDate('withdraw_date', '<', $request->end_date);
         // }
         if (!empty($request->start_date) && !empty($request->end_date)) {
-            $query->whereBetween('withdraw_date', [$request->start_date, $request->end_date]);
-        }
-        if (empty($request->start_date) || empty($request->end_date)) {
-            $currentYear = date('Y');
-            $currentMonth = date('m');
-            $dateFrom = ($currentMonth >= 7) ? "$currentYear-07-01" : date('Y-07-01', strtotime('-1 year'));
-            $dateTo = ($currentMonth >= 7) ? date('Y-06-30', strtotime('+1 year')) : "$currentYear-06-30";
-            $query->whereBetween('withdraw_date', [$request->start_date, $request->end_date]);
-        } else {
             $dateFrom = $request->start_date;
-            $dateTo = $request->end_date;
-            $query->whereBetween('withdraw_date', [$request->start_date, $request->end_date]);
+            $dateTo   = $request->end_date;
+        
+        } else {
+        
+            $currentYear  = date('Y');
+            $currentMonth = date('m');
+        
+            if ($currentMonth >= 7) {
+                // Current academic session: July -> June
+                $dateFrom = "$currentYear-07-01";
+                $dateTo   = date('Y-06-30', strtotime('+1 year'));
+            } else {
+                // Previous July -> Current June
+                $dateFrom = date('Y-07-01', strtotime('-1 year'));
+                $dateTo   = "$currentYear-06-30";
+            }
         }
+        
+        $query->whereBetween('withdraw_date', [$dateFrom, $dateTo]);
         $studentwithdrawal = $query->orderBy('id', 'Desc')->get();
         $status = [
             '' => 'All',

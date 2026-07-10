@@ -253,6 +253,13 @@ public function sibling_students(Request $request)
         }
         $branches->prepend('Select Branch', '');
 
+        // Full branch lookup (all branches across company) for employee branch name display
+        $branchLookup = User::where('type', 'branch')
+            ->where('created_by', $user->creatorId())
+            ->get()
+            ->pluck('name', 'id');
+        $branchLookup->prepend(User::find($user->creatorId())->name ?? '', $user->creatorId());
+
         // Base query with eager loads
         $baseQuery = StudentRegistration::with([
             'concession.policy',
@@ -261,7 +268,7 @@ public function sibling_students(Request $request)
             'class',
             'enrollment',
             'fee_structure',
-        ]);
+        ])->where('active_status', 1)->where('student_status', 'Enrolled');
 
         if ($isCompany) {
             $baseQuery->where('created_by', $ownerId);
@@ -328,15 +335,15 @@ public function sibling_students(Request $request)
         $groupedStudents = $students->groupBy('owned_by');
 
         if ($request->has('export') && $request->export === 'excel') {
-            return Excel::download(new StaffChildExport($branches, $students, $groupedStudents), 'StaffChildReport.xlsx');
+            return Excel::download(new StaffChildExport($branches, $students, $groupedStudents, $branchLookup), 'StaffChildReport.xlsx');
         }
 
         if ($request->has('print') && $request->print == 'pdf') {
             $report_name = 'Staff Child Report';
-            return Excel::download(new StaffChildExport($branches, $groupedStudents, $report_name, $request->all()), 'StaffChildReport.pdf', \Maatwebsite\Excel\Excel::MPDF);
+            return Excel::download(new StaffChildExport($branches, $groupedStudents, $report_name, $request->all(), $branchLookup), 'StaffChildReport.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
 
-        return view('studentReports.report2.staff_child', compact('branches', 'students', 'groupedStudents'));
+        return view('studentReports.report2.staff_child', compact('branches', 'students', 'groupedStudents', 'branchLookup'));
     }
     public function student_data_analysis(Request $request)
     {

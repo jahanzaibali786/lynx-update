@@ -38,24 +38,56 @@
 
             @foreach ($students as $index => $student)
                 @php
-                    $feeStructure = $student->fee_structure->where('head_id', $head->id ?? 0)->first();
-                    $amount = (float) ($feeStructure->amount ?? 0);
-                    $discountPct = 0;
-                    $policyName = '';
-                    if ($student->concession) {
-                        $policyHead = $student->concession->policy_head->where('head_id', $head->id ?? 0)->first();
-                        $discountPct = (float) ($policyHead->percentage ?? 0);
-                        $policyName = $student->concession->policy->title ?? '';
-                    }
-                    $payable = $amount - ($amount * $discountPct / 100);
-                    $employee = $student->employee ?? null;
-                @endphp
+                                $headId = $head->id ?? 0;
+
+                                $feeStructure = $student->fee_structure
+                                    ->where('head_id', $headId)
+                                    ->first();
+
+                                $amount = (float) ($feeStructure->amount ?? 0);
+
+                                $discountPct = 0;
+                                $policyName = '';
+
+                                $concession = \App\Models\Concession::with('concession')->where('student_id', $student->id)
+                                    ->where('end_date', '>=', date('Y-m-d'))
+                                    ->orderBy('id', 'desc')
+                                    ->where('active_status', '!=', 0)
+                                    ->where('status', 'Approved')
+                                    ->first();
+                                if (!$concession) {
+                                    $concession = \App\Models\Concession::with('concession')->where('student_id', $student->id)
+                                        ->orderBy('id', 'desc')
+                                        ->whereNull('end_date')
+                                        ->where('active_status', '!=', 0)
+                                        ->where('status', 'Approved')
+                                        ->first();
+                                }
+                                if ($concession) {
+                                    $policyHead = $concession
+                                                    ->concession
+                                                    ->policy_head()
+                                                    ->where('head_id', $headId)
+                                                    ->latest('id')
+                                                    ->first();
+
+                                                // dd($policyHead);
+
+                                    $discountPct = (float) ($policyHead->percentage ?? 0);
+                                    $discAmnt = ($amount * $discountPct) / 100;
+                                    $policyName = $concession->concession->title ?? '';
+                                }
+
+                                $payable = $amount - ($amount * $discountPct / 100);
+
+                                $employee = $student->employee ?? null;
+                            @endphp
                 <tr>
                     <td>{{ $sr++ }}</td>
                     <td>{{ $bsr++ }}</td>
                     <td>{{ $branches[$branchId] ?? '' }}</td>
                     <td>{{ $employee->employee_id ?? '' }}</td>
-                    <td>{{ !empty($employee->owned_by) ? ($branches[$employee->owned_by] ?? '') : '' }}</td>
+                    <td>{{ !empty($employee->owned_by) ? ($branchLookup[$employee->owned_by] ?? '') : '' }}</td>
                     <td>{{ $employee->name ?? '' }}</td>
                     <td>{{ $student->roll_no ?? '' }}</td>
                     <td>{{ $student->stdname ?? '' }}</td>
@@ -63,7 +95,7 @@
                     <td>{{ $student->class->name ?? '' }}</td>
                     <td>{{ $student->enrollment ? date('d-M-Y', strtotime($student->enrollment->adm_date)) : '' }}</td>
                     <td>{{ number_format($amount, 0) }}</td>
-                    <td>{{ $discountPct }}%</td>
+                        <td>{{ number_format($discAmnt, 0) }}</td>
                     <td>{{ number_format($payable, 0) }}</td>
                     <td>{{ $policyName }}</td>
                 </tr>

@@ -17,18 +17,21 @@ use Illuminate\Contracts\View\View;
 class StaffChildExport implements FromView, WithEvents
 {
     protected $branches;
+    protected $branchLookup;
     protected $groupedStudents;
     protected $students;
 
-    public function __construct($branches, $students, $groupedStudents = null)
+    public function __construct($branches, $students, $groupedStudents = null, $branchLookup = null)
     {
         $this->branches = $branches;
-        if ($groupedStudents && func_num_args() === 3) {
-            // First call: ($branches, $students, $groupedStudents) from excel
+        $this->branchLookup = $branchLookup;
+        $argCount = func_num_args();
+        if ($groupedStudents && $argCount === 3) {
+            // Excel: ($branches, $students, $groupedStudents)
             $this->students = $students;
             $this->groupedStudents = $groupedStudents;
-        } elseif ($groupedStudents && func_num_args() > 3) {
-            // PDF call: ($branches, $groupedStudents, $report_name, $request)
+        } elseif ($groupedStudents && $argCount > 3) {
+            // PDF: ($branches, $groupedStudents, $report_name, $request, $branchLookup)
             $this->groupedStudents = $students;
             $this->students = $students->flatten(1);
         } else {
@@ -46,6 +49,7 @@ class StaffChildExport implements FromView, WithEvents
         $branch = 'All Branches';
         return view('student.exports.staff_child', [
             'branches' => $this->branches,
+            'branchLookup' => $this->branchLookup ?? $this->branches,
             'groupedStudents' => $this->groupedStudents,
             'is_signature' => $is_signature,
             'is_period' => $is_period,
