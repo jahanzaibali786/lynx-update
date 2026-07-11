@@ -95,12 +95,10 @@ class EmployeeController extends Controller
             if (!empty($request->designation_id) && $request->designation_id != 'all') {
                 $query->where('designation_id', $request->designation_id);
             }
-            if (!empty($request->sort)) {
-                if ($request->sort == 'asc') {
-                    $query->orderBy('name', 'asc');
-                } else if ($request->sort == 'desc') {
-                    $query->orderBy('name', 'desc');
-                }
+            if ($request->sort == 'desc') {
+                $query->orderBy('name', 'desc');
+            } else {
+                $query->orderBy('name', 'asc');
             }
             if ($request->has('export') && $request->export == 'excel') {
                 $employees = $query->get();
@@ -170,10 +168,6 @@ class EmployeeController extends Controller
                 $dompdf->setPaper('A2', 'landscape');
                 $dompdf->render();
                 return $dompdf->stream('employee_directory.pdf', ['Attachment' => false]);
-            }
-
-            if (empty($request->sort)) {
-                $query->orderBy('name', 'asc');
             }
 
             $employees = $query->get();

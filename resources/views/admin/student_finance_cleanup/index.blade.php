@@ -60,6 +60,13 @@
         <div class="alert alert-danger mt-3">{{ session('error') }}</div>
     @endif
 
+    @php
+        $isChallanMode = ($mode ?? 'receipt') === 'challan';
+        $baseLabel = $isChallanMode ? __('Challans') : __('Receipts');
+        $remainingLabel = $isChallanMode ? __('Remaining Challans') : __('Remaining Receipts');
+        $deletedLabel = $isChallanMode ? __('Deleted Challans') : __('Deleted Receipts');
+    @endphp
+
     <div class="card mt-3">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
@@ -68,10 +75,17 @@
                     {{ __('Use this when server terminal/artisan access is not available.') }}
                 </small>
             </div>
-            <span class="badge bg-info">{{ __('Admission Protected') }}</span>
+            <span class="badge bg-info">{{ __('Admission & Registration Protected') }}</span>
         </div>
         <div class="card-body">
             <form method="GET" action="{{ route('student-finance-cleanup.index') }}" class="row g-3 align-items-end mb-3">
+                <div class="col-md-2">
+                    <label class="form-label">{{ __('Cleanup Base') }}</label>
+                    <select name="mode" class="form-control">
+                        <option value="receipt" {{ !$isChallanMode ? 'selected' : '' }}>{{ __('Receipt Base') }}</option>
+                        <option value="challan" {{ $isChallanMode ? 'selected' : '' }}>{{ __('Challan Base') }}</option>
+                    </select>
+                </div>
                 <div class="col-md-3">
                     <label class="form-label">{{ __('From Date') }}</label>
                     <input type="date" name="from" class="form-control" value="{{ $preview['from'] }}">
@@ -87,16 +101,16 @@
 
             <div class="cleanup-summary mb-3">
                 <div class="cleanup-stat">
-                    <div class="cleanup-stat-label">{{ __('Preview Receipts') }}</div>
-                    <div class="cleanup-stat-value">{{ number_format($preview['total_receipts']) }}</div>
+                    <div class="cleanup-stat-label">{{ $isChallanMode ? __('Preview Challans') : __('Preview Receipts') }}</div>
+                    <div class="cleanup-stat-value">{{ number_format($isChallanMode ? $preview['total_challans'] : $preview['total_receipts']) }}</div>
                 </div>
                 <div class="cleanup-stat">
-                    <div class="cleanup-stat-label">{{ __('Receipt Vouchers') }}</div>
+                    <div class="cleanup-stat-label">{{ $isChallanMode ? __('All Vouchers') : __('Receipt Vouchers') }}</div>
                     <div class="cleanup-stat-value">{{ number_format($preview['total_vouchers']) }}</div>
                 </div>
                 <div class="cleanup-stat">
-                    <div class="cleanup-stat-label">{{ __('Linked Challans') }}</div>
-                    <div class="cleanup-stat-value">{{ number_format($preview['total_challans']) }}</div>
+                    <div class="cleanup-stat-label">{{ $isChallanMode ? __('Linked Receipts') : __('Linked Challans') }}</div>
+                    <div class="cleanup-stat-value">{{ number_format($isChallanMode ? $preview['total_receipts'] : $preview['total_challans']) }}</div>
                 </div>
                 <div class="cleanup-stat">
                     <div class="cleanup-stat-label">{{ __('Default Chunk') }}</div>
@@ -109,18 +123,18 @@
                     <thead>
                         <tr>
                             <th>{{ __('Year') }}</th>
-                            <th class="text-end">{{ __('Receipts') }}</th>
-                            <th class="text-end">{{ __('Receipt Vouchers') }}</th>
-                            <th class="text-end">{{ __('Linked Challans') }}</th>
+                            <th class="text-end">{{ $isChallanMode ? __('Challans') : __('Receipts') }}</th>
+                            <th class="text-end">{{ $isChallanMode ? __('Linked Receipts') : __('Receipt Vouchers') }}</th>
+                            <th class="text-end">{{ $isChallanMode ? __('All Vouchers') : __('Linked Challans') }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($preview['rows'] as $row)
                             <tr>
                                 <td>{{ $row->year }}</td>
-                                <td class="text-end">{{ number_format($row->receipts) }}</td>
-                                <td class="text-end">{{ number_format($row->receipt_vouchers) }}</td>
-                                <td class="text-end">{{ number_format($row->challans) }}</td>
+                                <td class="text-end">{{ number_format($isChallanMode ? $row->challans : $row->receipts) }}</td>
+                                <td class="text-end">{{ number_format($isChallanMode ? $row->receipts : $row->receipt_vouchers) }}</td>
+                                <td class="text-end">{{ number_format($isChallanMode ? (($row->receipt_vouchers ?? 0) + ($row->challan_vouchers ?? 0)) : $row->challans) }}</td>
                             </tr>
                         @empty
                             <tr>
@@ -135,6 +149,7 @@
                 @csrf
                 <input type="hidden" name="from" value="{{ $preview['from'] }}">
                 <input type="hidden" name="to" value="{{ $preview['to'] }}">
+                <input type="hidden" name="mode" value="{{ $isChallanMode ? 'challan' : 'receipt' }}">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3">
                         <label class="form-label">{{ __('Chunk Size') }}</label>
@@ -144,7 +159,7 @@
                         <div class="form-check mt-4">
                             <input class="form-check-input" type="checkbox" name="confirm_backup" value="1" id="confirmBackup">
                             <label class="form-check-label" for="confirmBackup">
-                                {{ __('I have taken a full database backup and understand this will delete old finance data.') }}
+                            {{ __('I have taken a full database backup and understand this will delete old finance data.') }}
                             </label>
                         </div>
                     </div>
@@ -185,11 +200,11 @@
                     <div class="cleanup-stat-value" id="progressValue">0%</div>
                 </div>
                 <div class="cleanup-stat">
-                    <div class="cleanup-stat-label">{{ __('Deleted Receipts') }}</div>
+                    <div class="cleanup-stat-label" id="deletedBaseLabel">{{ $deletedLabel }}</div>
                     <div class="cleanup-stat-value" id="deletedReceipts">0</div>
                 </div>
                 <div class="cleanup-stat">
-                    <div class="cleanup-stat-label">{{ __('Remaining Receipts') }}</div>
+                    <div class="cleanup-stat-label" id="remainingBaseLabel">{{ $remainingLabel }}</div>
                     <div class="cleanup-stat-value" id="remainingReceipts">0</div>
                 </div>
                 <div class="cleanup-stat">
@@ -213,7 +228,7 @@
                 Configure the server cron to run <code>php artisan schedule:run</code> every minute.
             </div>
             <div class="alert alert-info">
-                Admission challans and their receipts are protected and excluded from this cleanup.
+                Admission and Registration challans and their receipts are protected and excluded from this cleanup.
             </div>
 
             <div class="row">
@@ -229,6 +244,8 @@
                                 <tr><th>Challan Heads</th><td id="challanHeads">0</td></tr>
                                 <tr><th>Challan Journals</th><td id="challanJournals">0</td></tr>
                                 <tr><th>Challan Journal Items</th><td id="challanJournalItems">0</td></tr>
+                                <tr><th>Security Adjustments</th><td id="challanSecAdjustments">0</td></tr>
+                                <tr><th>Employee Child Adjustments</th><td id="employeeChildAdjustments">0</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -239,7 +256,7 @@
                         <table class="table table-bordered align-middle">
                             <tbody>
                                 <tr><th>Chunk Size</th><td id="chunkSize">0</td></tr>
-                                <tr><th>Last Receipt ID</th><td id="lastReceiptId">0</td></tr>
+                                <tr><th id="lastCursorLabel">{{ $isChallanMode ? 'Last Challan ID' : 'Last Receipt ID' }}</th><td id="lastReceiptId">0</td></tr>
                                 <tr><th>Next Run</th><td id="nextRun">-</td></tr>
                                 <tr><th>Locked At</th><td id="lockedAt">-</td></tr>
                                 <tr><th>Last Activity</th><td id="lastActivity">-</td></tr>
@@ -257,7 +274,7 @@
                         <tr>
                             <th>Year</th>
                             <th>State</th>
-                            <th class="text-end">Receipts Remaining</th>
+                            <th class="text-end" id="yearRemainingLabel">{{ $isChallanMode ? 'Challans Remaining' : 'Receipts Remaining' }}</th>
                         </tr>
                     </thead>
                     <tbody id="yearRows"></tbody>
@@ -298,10 +315,18 @@
 
                 text('dateRange', data.from_date + ' to ' + data.to_date);
                 text('progressValue', data.percentage + '%');
-                text('deletedReceipts', number(data.deleted_receipts));
-                text('remainingReceipts', number(data.remaining_receipts));
+                const isChallan = data.cleanup_type === 'challan';
+                const deletedBase = isChallan ? (data.deleted_challans || data.totals.challans || 0) : data.deleted_receipts;
+                const remainingBase = isChallan ? (data.remaining_challans || data.remaining_receipts || 0) : data.remaining_receipts;
+                const targetBase = isChallan ? (data.target_challans || data.target_receipts || 0) : data.target_receipts;
+                text('deletedBaseLabel', isChallan ? 'Deleted Challans' : 'Deleted Receipts');
+                text('remainingBaseLabel', isChallan ? 'Remaining Challans' : 'Remaining Receipts');
+                text('lastCursorLabel', isChallan ? 'Last Challan ID' : 'Last Receipt ID');
+                text('yearRemainingLabel', isChallan ? 'Challans Remaining' : 'Receipts Remaining');
+                text('deletedReceipts', number(deletedBase));
+                text('remainingReceipts', number(remainingBase));
                 text('currentYear', data.current_year);
-                text('progressText', number(data.deleted_receipts) + ' of ' + number(data.target_receipts) + ' receipts deleted');
+                text('progressText', number(deletedBase) + ' of ' + number(targetBase) + ' ' + (isChallan ? 'challans' : 'receipts') + ' deleted');
 
                 const progressBar = document.getElementById('progressBar');
                 progressBar.style.width = data.percentage + '%';
@@ -314,8 +339,10 @@
                 text('challanHeads', number(data.totals.challan_heads));
                 text('challanJournals', number(data.totals.challan_journals));
                 text('challanJournalItems', number(data.totals.challan_journal_items));
+                text('challanSecAdjustments', number(data.totals.challan_sec_adjustments || 0));
+                text('employeeChildAdjustments', number(data.totals.employee_child_adjustments || 0));
                 text('chunkSize', number(data.chunk_size));
-                text('lastReceiptId', number(data.last_receipt_id));
+                text('lastReceiptId', number(isChallan ? data.last_challan_id : data.last_receipt_id));
                 text('nextRun', data.execute_after || '-');
                 text('lockedAt', data.locked_at || '-');
                 text('lastActivity', data.updated_at || '-');

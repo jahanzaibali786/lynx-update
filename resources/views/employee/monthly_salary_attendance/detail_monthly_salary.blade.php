@@ -1,6 +1,7 @@
 {{ Form::model($employeesalary, ['route' => ['emp-month-sal-attendance.update', $employeesalary->id], 'method' => 'PUT']) }}
 @php
     $salaryEditable = $salaryEditable ?? false;
+    $lastPayscaleDetail = @$employeesalary->employee->employee_payscale_details->last();
     $salaryTotalDeductions =
         (float) ($employeesalary->loan ?? 0) +
         (float) ($employeesalary->emp_sec_loan ?? 0) +
@@ -20,25 +21,21 @@
         </div>
     @endif
     <div class="row">
-        <div class="col-md-3"><b>Emp Code</b> : {{@$employeesalary->employee->id}} </div>
+        <div class="col-md-3"><b>Emp No</b> : {{@$employeesalary->employee->employee_id}} </div>
         <div class="col-md-3"><b>Name</b> : {{@$employeesalary->employee->name}}</div>
         <div class="col-md-3"><b>Father Name</b> : {{@$employeesalary->employee->f_name}}</div>
         <div class="col-md-3"><b>Dept.</b>: {{@$employeesalary->employee->department->name}}</div>
         <div class="col-md-3"><b>Branch</b>:
-            {{!empty(\Auth::user()->getBranch(@$employeesalary->employee->branch_id ))?\Auth::user()->getBranch(@$employeesalary->employee->branch_id )->name:''}}
+            {{ optional($employeesalary->employee->userbranch)->name }}
         </div>
         <div class="col-md-3"><b>Area</b>: {{@$employeesalary->employee->area}}</div>
-        <div class="col-md-3"><b>Date</b>: {{@$employeesalary->salary_date}}</div>
-        <div class="col-md-3"><b>Paid Through</b>: {{!empty($lastPayscaleDetail) ? $lastPayscaleDetail->paymode : 'HBL'}}
-        </div>
-        <div class="col-md-3"><b>Bank</b>:
-            {{!empty($employeesalary->bank) ? $employeesalary->bank : 'HBL HEAD OFFICE MAIN'}}</div>
-        <div class="col-md-3"><b>Cheque</b>: {{!empty($employeesalary->cheque) ? $employeesalary->cheque : ''}}</div>
+        <div class="col-md-3"><b>Salary Month</b>: {{ !empty($employeesalary->salary_date) ? date('M-Y', strtotime($employeesalary->salary_date)) : '-' }}</div>
+        <div class="col-md-3"><b>Paid Date</b>: {{ !empty($employeesalary->paid_date) ? date('d-M-Y', strtotime($employeesalary->paid_date)) : '-' }}</div>
+        <div class="col-md-3"><b>Status</b>: {{ ucwords(str_replace('_', ' ', $employeesalary->status ?? 'unpaid')) }}</div>
+        <div class="col-md-3"><b>Paid Through</b>: {{ $employeesalary->paymode ?: (!empty($lastPayscaleDetail) ? $lastPayscaleDetail->paymode : '-') }}</div>
+        <div class="col-md-3"><b>Account No</b>: {{ $employeesalary->account_number ?: (!empty($lastPayscaleDetail) ? $lastPayscaleDetail->account_number : '-') }}</div>
     </div>
     <hr>
-    @php
-    $lastPayscaleDetail = @$employeesalary->employee->employee_payscale_details->last();
-    @endphp
     <div class="scale_heads_row row">
         @if (@$lastPayscaleDetail && isset($lastPayscaleDetail->pay_scale_id))
         @php

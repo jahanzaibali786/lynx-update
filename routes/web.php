@@ -2383,6 +2383,12 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::delete('/emp-month-sal-attendance/bulk-delete', [EmployeeMonthlySalaryAttendance::class, 'destroy'])->name('emp-month-sal-attendance.bulkDelete');
             Route::resource('/emp-month-sal-attendance', EmployeeMonthlySalaryAttendance::class);
             Route::post('salary/payment', [EmployeeMonthlySalaryAttendance::class, 'payment'])->name('salary.payments');
+            Route::post('salary/forward-to-accounts', [EmployeeMonthlySalaryAttendance::class, 'forwardToAccounts'])->name('salary.forward_accounts');
+            Route::get('accounting-salary', [EmployeeMonthlySalaryAttendance::class, 'accountingSalary'])->name('accounting.salary.index');
+            Route::post('accounting-salary/approve', [EmployeeMonthlySalaryAttendance::class, 'accountingSalaryApprove'])->name('accounting.salary.approve');
+            Route::post('accounting-salary/return', [EmployeeMonthlySalaryAttendance::class, 'accountingSalaryReturn'])->name('accounting.salary.return');
+            Route::get('accounting-salary/pay-modal', [EmployeeMonthlySalaryAttendance::class, 'accountingSalaryPayModal'])->name('accounting.salary.pay.modal');
+            Route::post('accounting-salary/pay', [EmployeeMonthlySalaryAttendance::class, 'accountingSalaryPay'])->name('accounting.salary.pay');
             Route::post('salary/{id}/payment', [EmployeeMonthlySalaryAttendance::class, 'createPayment'])->name('salary.payment');
             Route::post('/finalize-salary', [EmployeeSalaryDetail::class, 'finalize_salary'])->name('finalize_salary');
             Route::resource('/emp-concession-order', EmployeeConcessionOrder::class);

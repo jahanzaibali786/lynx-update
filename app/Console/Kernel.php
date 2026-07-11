@@ -25,6 +25,11 @@ class Kernel extends ConsoleKernel
         //     ->withoutOverlapping(10)
         //     ->onOneServer();
 
+        // $schedule->command('student-finance:cleanup-challans --process')
+        //     ->everyTwoMinutes()
+        //     ->withoutOverlapping(10)
+        //     ->onOneServer();
+
     }
 
 

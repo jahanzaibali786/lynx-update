@@ -58,6 +58,7 @@ class CleanupStudentFinanceData extends Command
 
         $executeAfter = now()->addMinutes(2);
         $runId = DB::table('student_finance_cleanup_runs')->insertGetId([
+            'cleanup_type' => 'receipt',
             'from_date' => $from->toDateString(),
             'to_date' => $to->toDateString(),
             'current_year' => (int) $from->format('Y'),
@@ -88,7 +89,7 @@ class CleanupStudentFinanceData extends Command
     private function showPreview(Carbon $from, Carbon $to)
     {
         $this->info("Cleanup preview: {$from->toDateString()} through {$to->toDateString()}");
-        $this->line('Admission challans and their receipts are excluded.');
+        $this->line('Admission and Registration challans and their receipts are excluded.');
 
         $rows = DB::table('student_receipts as sr')
             ->join('challans as c', 'c.id', '=', 'sr.challan_id')
@@ -97,7 +98,7 @@ class CleanupStudentFinanceData extends Command
             ->selectRaw('COUNT(DISTINCT sr.voucher_id) AS receipt_vouchers')
             ->selectRaw('COUNT(DISTINCT sr.challan_id) AS challans')
             ->whereBetween('sr.recipt_date', [$from->toDateString(), $to->toDateString()])
-            ->whereRaw('LOWER(COALESCE(c.challan_type, "")) != ?', ['admission'])
+            ->whereRaw('LOWER(COALESCE(c.challan_type, "")) NOT IN (?, ?)', ['admission', 'registration'])
             ->groupByRaw('YEAR(recipt_date)')
             ->orderBy('year')
             ->get()
@@ -129,6 +130,10 @@ class CleanupStudentFinanceData extends Command
     private function processNextChunk()
     {
         DB::table('student_finance_cleanup_runs')
+            ->where(function ($query) {
+                $query->where('cleanup_type', 'receipt')
+                    ->orWhereNull('cleanup_type');
+            })
             ->where('status', 'running')
             ->where('locked_at', '<', now()->subMinutes(15))
             ->update([
@@ -141,6 +146,10 @@ class CleanupStudentFinanceData extends Command
 
         $run = DB::transaction(function () {
             $run = DB::table('student_finance_cleanup_runs')
+                ->where(function ($query) {
+                    $query->where('cleanup_type', 'receipt')
+                        ->orWhereNull('cleanup_type');
+                })
                 ->where('status', 'scheduled')
                 ->where('execute_after', '<=', now())
                 ->orderBy('id')
@@ -207,7 +216,7 @@ class CleanupStudentFinanceData extends Command
             ->select(['sr.id', 'sr.voucher_id', 'sr.challan_id'])
             ->whereBetween('sr.recipt_date', [$yearFrom, $yearTo])
             ->where('sr.id', '>', $run->last_receipt_id)
-            ->whereRaw('LOWER(COALESCE(c.challan_type, "")) != ?', ['admission'])
+            ->whereRaw('LOWER(COALESCE(c.challan_type, "")) NOT IN (?, ?)', ['admission', 'registration'])
             ->orderBy('sr.id')
             ->limit((int) $run->chunk_size)
             ->get();
@@ -274,7 +283,7 @@ class CleanupStudentFinanceData extends Command
 
             $challanIds = DB::table('challans')
                 ->whereIn('id', $candidateChallanIds)
-                ->whereRaw('LOWER(COALESCE(challan_type, "")) != ?', ['admission'])
+                ->whereRaw('LOWER(COALESCE(challan_type, "")) NOT IN (?, ?)', ['admission', 'registration'])
                 ->whereNotExists(function ($query) {
                     $query->selectRaw('1')
                         ->from('student_receipts')

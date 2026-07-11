@@ -373,8 +373,9 @@ class EmployeeSalaryDetail extends Controller
                     continue;
                 }
 
-                if (trim(strtolower($salary->status ?? 'unpaid')) === 'paid') {
-                    $errors[] = __('Paid salary cannot be finalized/unfinalized for employee ID: ' . $salaryatt->employee_id);
+                $salaryStatus = trim(strtolower($salary->status ?? 'unpaid'));
+                if (in_array($salaryStatus, ['paid', 'fwd_to_account', 'account_approved'], true)) {
+                    $errors[] = __('Paid, forwarded or accounts approved salary cannot be finalized/unfinalized for employee ID: ' . $salaryatt->employee_id);
                     continue;
                 }
 

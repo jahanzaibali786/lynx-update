@@ -1528,6 +1528,7 @@
                                     Request::segment(1) == 'proposal' ||
                                     Request::segment(1) == 'bank-account' ||
                                     Request::segment(1) == 'bank-transfer' ||
+                                    Request::segment(1) == 'accounting-salary' ||
                                     Request::segment(1) == 'invoice' ||
                                     Request::segment(1) == 'revenue' ||
                                     Request::segment(1) == 'credit-note' ||
@@ -1589,6 +1590,16 @@
                                             </ul>
                                         </li>
                                     @endif
+                                    <li id="accounting-hrm-id" class="dash-item dash-hasmenu ">
+                                        <a class="dash-link {{ Request::segment(1) == 'accounting-salary' ? 'active dash-trigger' : '' }}"
+                                            href="#accounting-hrm">{{ __('HRM') }}</a>
+                                        <ul id="accounting-hrm" class="dash-submenu">
+                                            <li class="dash-item ">
+                                                <a class="dash-link {{ Request::segment(1) == 'accounting-salary' ? ' active' : '' }}"
+                                                    href="{{ route('accounting.salary.index') }}">{{ __('Salary') }}</a>
+                                            </li>
+                                        </ul>
+                                    </li>
                                     {{-- @if (Gate::check('manage customer') || Gate::check('manage proposal') || Gate::check('manage invoice') || Gate::check('manage revenue') || Gate::check('manage credit note'))
                                             <li class="dash-item dash-hasmenu ">
                                                 <a class="dash-link {{ Request::segment(1) == 'customer' || Request::segment(1) == 'proposal' || Request::segment(1) == 'invoice' || Request::segment(1) == 'revenue' || Request::segment(1) == 'credit-note' ? 'active dash-trigger' : '' }}"
