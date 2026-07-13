@@ -23,6 +23,8 @@ class JournalItem extends Model
         'branch_id',
         'debit',
         'credit',
+        'added_by',
+        'added_at',
         'created_at',
         'updated_at',
     ];

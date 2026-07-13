@@ -161,6 +161,45 @@
                                     </small>
                                 </div>
                             </div>
+                            <div class="row mt-3">
+                                <div class="col-md-3">
+                                    <small><strong>{{ __('Status') }} :</strong>
+                                        {{ $journalEntry->status ?? __('Draft') }}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small><strong>{{ __('Payment Mode') }} :</strong>
+                                        {{ $journalEntry->payment_mode ?? ($journalEntry->mode ?? '-') }}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small><strong>{{ __('Bank Account') }} :</strong>
+                                        {{ optional($journalEntry->bank)->bank_name ?? '-' }}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small><strong>{{ __('Transaction No') }} :</strong>
+                                        {{ $journalEntry->transaction_no ?? '-' }}</small>
+                                </div>
+                                <div class="col-md-3 mt-1">
+                                    <small><strong>{{ __('Cheque No') }} :</strong>
+                                        {{ $journalEntry->cheque_no ?? '-' }}</small>
+                                </div>
+                                <div class="col-md-3 mt-1">
+                                    <small><strong>{{ __('Cheque Date') }} :</strong>
+                                        {{ !empty($journalEntry->cheque_date) ? \Auth::user()->dateFormat($journalEntry->cheque_date) : '-' }}</small>
+                                </div>
+                                <div class="col-md-3 mt-1">
+                                    <small><strong>{{ __('Approved At') }} :</strong>
+                                        {{ !empty($journalEntry->approved_at) ? \Auth::user()->dateFormat($journalEntry->approved_at) : '-' }}</small>
+                                </div>
+                                <div class="col-md-3 mt-1">
+                                    <small><strong>{{ __('Attachment') }} :</strong>
+                                        @if (!empty($journalEntry->attachment))
+                                            <a href="{{ asset($journalEntry->attachment) }}" target="_blank">{{ __('View') }}</a>
+                                        @else
+                                            -
+                                        @endif
+                                    </small>
+                                </div>
+                            </div>
 
                             <div class="row mt-4">
                                 <div class="col-md-12">

@@ -803,6 +803,7 @@ class Utility extends Model
             '2' => 'Inventory Asset',
             '3' => 'Non-current Asset',
             '4' => 'Receivables',
+            '5' => 'Bank',
         ],
         'liabilities' => [
             '1' => 'Current Liabilities',
@@ -823,6 +824,7 @@ class Utility extends Model
         'expenses' => [
             '1' => 'Payroll Expenses',
             '2' => 'General and Administrative expenses',
+            '3' => 'Head & Press',
         ],
 
     ];

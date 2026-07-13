@@ -51,7 +51,7 @@ class ProductServiceCategoryController extends Controller
                 $request->all(), [
                     'name' => 'required|max:200',
                     'type' => 'required',
-                    'color' => 'required',
+                    // 'color' => 'required',
                 ]
             );
             if ($validator->fails()) {
@@ -108,7 +108,7 @@ class ProductServiceCategoryController extends Controller
                     $request->all(), [
                         'name' => 'required|max:200',
                         'type' => 'required',
-                        'color' => 'required',
+                        // 'color' => 'required',
                     ]
                 );
                 if ($validator->fails()) {
@@ -226,6 +226,14 @@ class ProductServiceCategoryController extends Controller
                 ->where('type', $types->id)
                 ->where('created_by', \Auth::user()->creatorId())->get()
                 ->pluck('code_name', 'id');
+        } elseif ($request->type == 'head & press') {
+            $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->where('name', 'Head & Press')->first();
+            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
+                ->where('type', $types->id)
+                ->where('created_by', \Auth::user()->creatorId())->get()
+                ->pluck('code_name', 'id');
+        } elseif ($request->type == 'voucher') {
+            $chart_accounts = [];
         } else {
             $chart_accounts = 0;
         }

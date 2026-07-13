@@ -26,7 +26,7 @@
         <div class="form-group col-md-4">
             {{ Form::label('account_number', __('Bank A/C'), ['class' => 'form-label']) }}
             {{ Form::hidden('employee_id', $employee->id) }}
-            {{ Form::text('account_number', $hasPayscale ? $lastPayscaleDetail->account_number : '', ['class' => 'form-control', 'required']) }}
+            {{ Form::text('account_number', $hasPayscale ? $lastPayscaleDetail->account_number : '', ['class' => 'form-control', 'id' => 'account_number']) }}
         </div>
 
         <div class="form-group col-md-4">
@@ -279,6 +279,7 @@
 
     $(document).ready(function() {
         initializeSalarySelectSearch();
+        toggleBankAccountRequirement();
 
         // Initialize event handlers once
         initializeEventHandlers();
@@ -289,6 +290,7 @@
             }
 
             initializeSalarySelectSearch(this);
+            toggleBankAccountRequirement(this);
 
             if ($(this).data('salaryScaleHeadsLoaded')) {
                 return;
@@ -335,6 +337,23 @@
                 this.customSelectInstance = window.CustomSelect.create(this);
             }
         });
+    }
+
+    function toggleBankAccountRequirement(scope) {
+        const container = scope ? $(scope) : $(document);
+        const paymode = (container.find('select[name="paymode"]').val() || '').trim();
+        const isBankPaymode = ['Bank Deposit HBL', 'Bank Deposit AF', 'Bank'].includes(paymode);
+        const accountInput = container.find('input[name="account_number"]');
+
+        accountInput.prop('required', isBankPaymode);
+        accountInput.closest('.form-group').find('.bank-ac-required-mark').remove();
+
+        if (isBankPaymode) {
+            accountInput.closest('.form-group').find('label').append('<span class="text-danger bank-ac-required-mark"> *</span>');
+            accountInput.prop('readonly', false).removeClass('bg-light');
+        } else {
+            accountInput.prop('readonly', false).removeClass('is-invalid');
+        }
     }
 
     // Main initialization function
@@ -425,6 +444,10 @@
             }
         });
 
+        $(document).on('change.salaryFormGlobal', 'select[name="paymode"]', function() {
+            toggleBankAccountRequirement($(this).closest('form'));
+        });
+
         document.removeEventListener('invalid', handleSalaryDropdownInvalid, true);
         document.addEventListener('invalid', handleSalaryDropdownInvalid, true);
         //tax 
@@ -478,6 +501,7 @@
     function validateRequiredSalaryDropdowns(scope) {
         const container = scope && $(scope).length ? $(scope) : getCurrentModal();
         let invalidSelect = null;
+        toggleBankAccountRequirement(container);
 
         container.find('select[required], select[required="required"]').each(function() {
             const select = $(this);
@@ -489,6 +513,16 @@
 
         if (invalidSelect) {
             showSalaryDropdownError(invalidSelect);
+            return false;
+        }
+
+        const paymode = (container.find('select[name="paymode"]').val() || '').trim();
+        const bankAccount = container.find('input[name="account_number"]');
+        if (['Bank Deposit HBL', 'Bank Deposit AF', 'Bank'].includes(paymode) && !bankAccount.val()) {
+            if (typeof show_toastr === 'function') {
+                show_toastr('error', 'Please enter Bank A/C for bank paymode.', 'error');
+            }
+            bankAccount.addClass('is-invalid').focus();
             return false;
         }
 

@@ -116,7 +116,89 @@
                 renderHiddenInputs();
                 updateTotals();
             }
+            toggleChequeFields();
+            toggleHeaderPartyFields();
         });
+
+        function toggleChequeFields() {
+            var mode = ($('#payment_mode').val() || '').toLowerCase();
+            var isCheque = mode === 'chq' || mode === 'check' || mode === 'cheque';
+            $('.cheque-field-wrap').toggle(isCheque);
+            $('.cheque-field-wrap :input').prop('disabled', !isCheque);
+            if (!isCheque) {
+                $('.cheque-field-wrap :input').val('');
+            }
+        }
+
+        function toggleHeaderPartyFields() {
+            var partyType = $('#user_type').val() || '';
+            $('.party-select-wrap').each(function() {
+                var isActive = $(this).data('party') === partyType;
+                $(this).toggle(isActive);
+                $(this).find('select').prop('disabled', !isActive);
+                if (!isActive) {
+                    $(this).find('select').val('');
+                }
+            });
+            $('#user_id').val($('.party-select-wrap:visible select').val() || '');
+        }
+
+        $(document).on('change', '#payment_mode', toggleChequeFields);
+        $(document).on('change', '#user_type', toggleHeaderPartyFields);
+        $(document).on('change', '.party-id-select', function() {
+            $('#user_id').val($(this).val() || '');
+        });
+
+        function setHeaderPartyOptions(selector, placeholder, rows) {
+            var select = $(selector);
+            destroyCustomSelect(select[0]);
+
+            var opts = '<option value="">' + placeholder + '</option>';
+            $.each(rows || [], function(_, row) {
+                opts += '<option value="' + row.id + '">' + row.name + '</option>';
+            });
+
+            select.html(opts).val('');
+            if (typeof CustomSelect !== 'undefined') {
+                select[0].customSelectInstance = CustomSelect.create(select[0]);
+            }
+        }
+
+        function clearHeaderPartySelection() {
+            $('#user_type').val('');
+            $('#user_id').val('');
+            $('.party-id-select').val('');
+            toggleHeaderPartyFields();
+        }
+
+        function loadHeaderPartyData(branchId) {
+            setHeaderPartyOptions('select[name="customer_user_id"]', 'Select Customer', []);
+            setHeaderPartyOptions('select[name="vendor_user_id"]', 'Select Vendor', []);
+            setHeaderPartyOptions('select[name="employee_user_id"]', 'Select Employee', []);
+            setHeaderPartyOptions('select[name="student_user_id"]', 'Select Student', []);
+
+            if (!branchId) {
+                return;
+            }
+
+            $.ajax({
+                url: '{{ route('getVoucherParties') }}',
+                type: 'GET',
+                data: {
+                    branch_id: branchId
+                },
+                success: function(r) {
+                    setHeaderPartyOptions('select[name="customer_user_id"]', 'Select Customer', r.customers);
+                    setHeaderPartyOptions('select[name="vendor_user_id"]', 'Select Vendor', r.vendors);
+                    setHeaderPartyOptions('select[name="employee_user_id"]', 'Select Employee', r.employees);
+                    setHeaderPartyOptions('select[name="student_user_id"]', 'Select Student', r.students);
+                    toggleHeaderPartyFields();
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load party data', 'error');
+                }
+            });
+        }
 
         // ─── Voucher number ───────────────────────────────────────────────────────────
         $(document).on('change', '#voucher_type, #branches', function() {
@@ -139,6 +221,7 @@
             $('#journal-number').text(labels[vt] || 'Journal Number');
             $('#journal-number-inp').val('');
             if (!vt) return;
+            toggleHeaderPartyFields();
             $.ajax({
                 url: '{{ route('getVoucherNumber') }}',
                 type: 'GET',
@@ -179,6 +262,12 @@
                 '</select>' +
                 '<div class="path-pill" id="path-pill-' + rid + '"></div>' +
                 '<div id="catcell-' + rid + '" class="catcell-wrap"></div>' +
+                '</td>' +
+
+                // Type column (using datalist)
+                '<td class="col-type">' +
+                '<input type="text" class="form-control form-control-sm row-types" list="type-options" data-rid="' + rid +
+                '" placeholder="Type" value="' + ($('#voucher_type').val() || 'jv').toUpperCase() + '">' +
                 '</td>' +
 
                 // ② Debit
@@ -304,6 +393,8 @@
 
         $(document).on('change', '#branches', function() {
             var selectedBranch = $(this).val();
+            clearHeaderPartySelection();
+            loadHeaderPartyData(selectedBranch);
             $('.hr-branch, .stu-branch, .inv-branch').each(function() {
                 $(this).val(selectedBranch);
                 refreshCustomSelect(this);
@@ -561,7 +652,7 @@
                 lineMemo,
                 userType,
                 userId,
-                types: ($('#voucher_type').val() || 'jv').toUpperCase(),
+                types: ($('.row-types[data-rid="' + rid + '"]').val() || ($('#voucher_type').val() || 'jv').toUpperCase()).toUpperCase(),
                 debit,
                 credit,
                 desc
@@ -587,6 +678,7 @@
                 '<span class="text-muted">—</span>';
             return '<tr data-entry-id="' + e.id + '" class="confirmed-row">' +
                 '<td>' + (badges[e.cat] || '') + '<code class="account-path">' + e.path + '</code>' + meta + '</td>' +
+                '<td>' + (e.types || '—') + '</td>' +
                 '<td class="text-right">' + dr + '</td>' +
                 '<td class="text-right">' + cr + '</td>' +
                 '<td style="font-size:13px;color:#6c757d;">' + (e.desc || '—') + '</td>' +
@@ -763,28 +855,33 @@
             var drVal = entry.debit || '';
             var crVal = entry.credit || '';
             var descVal = entry.desc || '';
+            var typeVal = entry.types || '';
 
-            // td index: 0=account, 1=debit, 2=credit, 3=desc, 4=actions
+            // td index: 0=account, 1=type, 2=debit, 3=credit, 4=desc, 5=actions
             // Whichever has a value is enabled; the other is disabled.
             // Both enable again once the filled one is cleared.
             var drDisabled = (drVal === '' && crVal !== '') ? 'disabled' : '';
             var crDisabled = (crVal === '' && drVal !== '') ? 'disabled' : '';
 
             tr.find('td').eq(1).html(
+                '<input type="text" class="form-control form-control-sm edit-types" list="type-options" ' +
+                'value="' + typeVal + '" placeholder="Type" data-id="' + id + '">'
+            );
+            tr.find('td').eq(2).html(
                 '<input type="number" class="form-control form-control-sm edit-debit" ' +
                 'value="' + drVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 drDisabled + ' style="width:90px;">'
             );
-            tr.find('td').eq(2).html(
+            tr.find('td').eq(3).html(
                 '<input type="number" class="form-control form-control-sm edit-credit" ' +
                 'value="' + crVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 crDisabled + ' style="width:90px;">'
             );
-            tr.find('td').eq(3).html(
+            tr.find('td').eq(4).html(
                 '<input type="text" class="form-control form-control-sm edit-desc" ' +
                 'value="' + $('<div>').text(descVal).html() + '" placeholder="Description" data-id="' + id + '">'
             );
-            tr.find('td').eq(4).html(
+            tr.find('td').eq(5).html(
                 '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id +
                 '" title="Save"><i class="ti ti-check"></i></a>' +
                 '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id +
@@ -819,6 +916,7 @@
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var tr = $('tr[data-entry-id="' + id + '"]');
+            var typeVal = (tr.find('.edit-types').val() || '').trim().toUpperCase();
             var debit = parseFloat(tr.find('.edit-debit').val()) || 0;
             var credit = parseFloat(tr.find('.edit-credit').val()) || 0;
             var desc = (tr.find('.edit-desc').val() || '').trim();
@@ -829,6 +927,7 @@
             var entry = journalEntries.find(function(e) {
                 return e.id === id;
             });
+            entry.types = typeVal;
             entry.debit = debit;
             entry.credit = credit;
             entry.desc = desc;
@@ -861,6 +960,7 @@
                     'error');
                 return;
             }
+            toggleHeaderPartyFields();
             $.ajax({
                 url: $(this).attr('action'),
                 type: 'POST',
@@ -1044,12 +1144,16 @@
         $displayVoucherNumber = $voucherNumber ?? \Auth::user()->journalNumberFormat($journalId);
         $transactionDate = $journalEntry->date ?? now()->toDateString();
         $voucherAmount = $isEdit ? max($journalEntry->totalDebit(), $journalEntry->totalCredit()) : 0;
+        $selectedPaymentMode = $journalEntry->payment_mode ?? ($journalEntry->mode ?? '');
+        $selectedPartyType = $journalEntry->user_type ?? '';
+        $selectedPartyId = $journalEntry->user_id ?? '';
     @endphp
-    {{ Form::open(['url' => $isEdit ? route('journal-entry.update', $journalEntry->id) : url('journal-entry'), 'class' => 'w-100', 'id' => 'journal-form']) }}
+    {{ Form::open(['url' => $isEdit ? route('journal-entry.update', $journalEntry->id) : url('journal-entry'), 'class' => 'w-100', 'id' => 'journal-form', 'files' => true]) }}
     @if ($isEdit)
         @method('PUT')
     @endif
     <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
+    <input type="hidden" name="is_system_generated" value="{{ $journalEntry->is_system_generated ?? 0 }}">
     <div id="hidden-inputs"></div>
 
     {{-- ── Header card ────────────────────────────────────────────────────────── --}}
@@ -1081,11 +1185,23 @@
                                 ) }}
                             </div>
                         </div>
+                        
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
                                 {{ Form::label('journal_number', __('Journal Number'), ['class' => 'form-label', 'id' => 'journal-number']) }}
                                 <input type="text" class="form-control" id="journal-number-inp"
                                     value="{{ $displayVoucherNumber }}" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-4">
+                            <div class="form-group">
+                                {{ Form::label('category_type_id', __('Voucher Category Type'), ['class' => 'form-label']) }}
+                                {{ Form::select(
+                                    'category_type_id',
+                                    $voucherCategoryTypes,
+                                    $journalEntry->category_type_id ?? null,
+                                    ['class' => 'form-control', 'id' => 'category_type_id'],
+                                ) }}
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-4">
@@ -1096,18 +1212,19 @@
                         </div>
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
-                                {{ Form::label('mode', __('Payment Mode'), ['class' => 'form-label']) }}
+                                {{ Form::label('payment_mode', __('Payment Mode'), ['class' => 'form-label']) }}
                                 {{ Form::select(
-                                    'mode',
+                                    'payment_mode',
                                     [
+                                        '' => 'Select Payment Mode',
                                         'dd' => 'DD',
                                         'cd' => 'CD',
                                         'bank-transfer' => 'Bank Transfer',
                                         'chq' => 'Cheque',
                                         'others' => 'Others',
                                     ],
-                                    null,
-                                    ['class' => 'form-control'],
+                                    $selectedPaymentMode,
+                                    ['class' => 'form-control', 'id' => 'payment_mode'],
                                 ) }}
                             </div>
                         </div>
@@ -1126,7 +1243,79 @@
                                 {{ Form::text('reference', $journalEntry->reference ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
-                        <div class="col-lg-8 col-md-6">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                {{ Form::label('transaction_no', __('Transaction No'), ['class' => 'form-label']) }}
+                                {{ Form::text('transaction_no', $journalEntry->transaction_no ?? '', ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                {{ Form::label('user_type', __('Party Type'), ['class' => 'form-label']) }}
+                                {{ Form::select(
+                                    'user_type',
+                                    [
+                                        '' => 'Select Party Type',
+                                        'Customer' => 'Customer',
+                                        'Vender' => 'Vendor',
+                                        'Employee' => 'Employee',
+                                        'Student' => 'Student',
+                                    ],
+                                    $selectedPartyType,
+                                    ['class' => 'form-control', 'id' => 'user_type'],
+                                ) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6 party-select-wrap" data-party="Customer">
+                            <div class="form-group">
+                                {{ Form::label('customer_user_id', __('Customer'), ['class' => 'form-label']) }}
+                                {{ Form::select('customer_user_id', $customers ?? [], $selectedPartyType == 'Customer' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6 party-select-wrap" data-party="Vender">
+                            <div class="form-group">
+                                {{ Form::label('vendor_user_id', __('Vendor'), ['class' => 'form-label']) }}
+                                {{ Form::select('vendor_user_id', $vendors ?? [], in_array($selectedPartyType, ['Vender', 'Vendor']) ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6 party-select-wrap" data-party="Employee">
+                            <div class="form-group">
+                                {{ Form::label('employee_user_id', __('Employee'), ['class' => 'form-label']) }}
+                                {{ Form::select('employee_user_id', $employees ?? [], $selectedPartyType == 'Employee' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6 party-select-wrap" data-party="Student">
+                            <div class="form-group">
+                                {{ Form::label('student_user_id', __('Student'), ['class' => 'form-label']) }}
+                                {{ Form::select('student_user_id', $students ?? [], $selectedPartyType == 'Student' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <input type="hidden" name="user_id" id="user_id" value="{{ $selectedPartyId }}">
+                        <div class="col-lg-4 col-md-6 cheque-field-wrap">
+                            <div class="form-group">
+                                {{ Form::label('cheque_no', __('Cheque No'), ['class' => 'form-label']) }}
+                                {{ Form::text('cheque_no', $journalEntry->cheque_no ?? '', ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6 cheque-field-wrap">
+                            <div class="form-group">
+                                {{ Form::label('cheque_date', __('Cheque Date'), ['class' => 'form-label']) }}
+                                {{ Form::date('cheque_date', $journalEntry->cheque_date ?? null, ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                {{ Form::label('attachment', __('Attachment'), ['class' => 'form-label']) }}
+                                {{ Form::file('attachment', ['class' => 'form-control']) }}
+                                @if ($isEdit && !empty($journalEntry->attachment))
+                                    <a href="{{ asset($journalEntry->attachment) }}" target="_blank" class="d-inline-block mt-1">
+                                        {{ __('View Attachment') }}
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="col-lg-12 col-md-12">
                             <div class="form-group">
                                 {{ Form::label('narration', __('Narration'), ['class' => 'form-label']) }}
                                 {{ Form::textarea('narration', $journalEntry->description ?? '', ['class' => 'form-control', 'rows' => '2']) }}
@@ -1150,6 +1339,7 @@
                         <thead>
                             <tr>
                                 <th class="col-account">{{ __('Account') }}</th>
+                                <th class="col-type">{{ __('Type') }}</th>
                                 <th class="col-debit text-right">{{ __('Debit') }}</th>
                                 <th class="col-credit text-right">{{ __('Credit') }}</th>
                                 <th class="col-desc">{{ __('Description') }}</th>
@@ -1158,7 +1348,7 @@
                         </thead>
                         <tbody id="inline-entry-tbody">
                             <tr id="empty-row">
-                                <td colspan="5" class="text-center text-muted py-4" style="font-size:13px;">
+                                <td colspan="6" class="text-center text-muted py-4" style="font-size:13px;">
                                     Click <strong>+ Add Account Line</strong> below to start adding entries.
                                 </td>
                             </tr>
@@ -1174,7 +1364,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="2"></td>
+                                <td colspan="3"></td>
                                 <td class="text-right">
                                     <strong>{{ __('Total Credit') }} ({{ \Auth::user()->currencySymbol() }})</strong>
                                 </td>
@@ -1182,7 +1372,7 @@
                                 <td></td>
                             </tr>
                             <tr>
-                                <td colspan="2"></td>
+                                <td colspan="3"></td>
                                 <td class="text-right">
                                     <strong>{{ __('Total Debit') }} ({{ \Auth::user()->currencySymbol() }})</strong>
                                 </td>
@@ -1201,6 +1391,20 @@
             class="btn btn-light">
         <input type="submit" value="{{ $isEdit ? __('Update') : __('Save') }}" class="btn btn-outline-primary">
     </div>
+
+    <datalist id="type-options">
+        <option value="JV">
+        <option value="CPV">
+        <option value="BPV">
+        <option value="CRV">
+        <option value="BRV">
+        <option value="Expense">
+        <option value="Purchase">
+        <option value="Salary">
+        <option value="Payment">
+        <option value="Challan">
+        <option value="Challan Payment">
+    </datalist>
 
     {{ Form::close() }}
 @endsection

@@ -84,10 +84,10 @@ class EmployeeSalaryDetail extends Controller
             if (!empty($request->designation_id) && $request->designation_id != 'all') {
                 $query->where('designation_id', '=', $request->designation_id);
             }
-            if (!empty($request->status)) {
-                $query->where('is_res_ter', '=', $request->status);
-            }else
-            {
+            $employeeStatus = $request->input('status', '0');
+            if (in_array((string) $employeeStatus, ['0', '1'], true)) {
+                $query->where('is_res_ter', '=', $employeeStatus);
+            } elseif ($employeeStatus !== 'all') {
                 $query->where('is_res_ter', '=', 0);
             }
             $heads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
@@ -133,7 +133,7 @@ class EmployeeSalaryDetail extends Controller
         try {
             $request->validate([
                 'paymode' => 'required|string',
-                'account_number' => 'required|string',
+                'account_number' => 'nullable|string',
                 'accounts' => 'required|integer',
                 'department_id' => 'required|integer',
                 'pay_scale' => 'required|integer',
@@ -738,7 +738,12 @@ class EmployeeSalaryDetail extends Controller
                     return strtolower(
                         (optional(optional($salary->employee)->user)->name ?? '') . '|' .
                         (optional($salary->employee)->name ?? '')
-                    );
+            );
+
+            $bankPaymodes = ['Bank Deposit HBL', 'Bank Deposit AF', 'Bank'];
+            if (in_array($request->paymode, $bankPaymodes, true) && empty($request->account_number)) {
+                return redirect()->back()->with('error', __('Bank A/C is required for bank paymode.'));
+            }
                 })
                 ->values();
         }

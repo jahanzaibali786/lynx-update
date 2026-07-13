@@ -70,6 +70,7 @@
                             <tr>
                                 <th>#</th>
                                 <th> {{__('Journal ID')}}</th>
+                                <th> {{__('Category Type')}}</th>
                                 <th> {{__('Date')}}</th>
                                 <th> {{__('Amount')}}</th>
                                 <th class="wrap-td"> {{__('Description')}}</th>
@@ -83,6 +84,7 @@
                                     <td class="Id">
                                         <a href="{{ route('journal-entry.show',$journalEntry->id) }}" class="btn btnpurchase1 btn-outline-primary">{{ AUth::user()->journalNumberFormat($journalEntry->journal_id) }}</a>
                                     </td>
+                                    <td>{{ !empty($journalEntry->categoryType) ? $journalEntry->categoryType->name : '-' }}</td>
                                     <td>{{ Auth::user()->dateFormat($journalEntry->date) }}</td>
                                     <td>
                                         {{ \Auth::user()->priceFormat($journalEntry->totalCredit())}}
@@ -91,10 +93,11 @@
                                      <td>
                                                 <div class="action-btn ms-2">
                                         @can('edit journal entry')
-                                            
+                                            @if($journalEntry->is_system_generated == 0)
                                                 <a title="{{__('Edit Journal')}}" href="{{ route('journal-entry.edit',[$journalEntry->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center"  data-bs-title="{{__('Edit')}}" data-bs-title="{{__('Edit')}}">
                                                    <span class="btn-inner--icon"> <i class="ti ti-pencil"></i> </span>
                                                 </a>
+                                            @endif
                                         @endcan
                                         @can('delete journal entry')
                                                     {!! Form::open(['method' => 'DELETE', 'route' => array('journal-entry.destroy', $journalEntry->id),'id'=>'delete-form-'.$journalEntry->id]) !!}

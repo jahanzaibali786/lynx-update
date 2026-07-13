@@ -20,6 +20,20 @@ class JournalEntry extends Model
         'category',
         'owned_by',
         'created_by',
+        'added_by',
+        'added_at',
+        'updated_by',
+        'approved_by',
+        'approved_at',
+        'is_system_generated',
+        'attachment',
+        'status',
+        'payment_mode',
+        'cheque_no',
+        'cheque_date',
+        'transaction_no',
+        'reversed_entry_id',
+        'reversed_timestamp',
         'created_at',
         'updated_at',
     ];
@@ -83,5 +97,9 @@ class JournalEntry extends Model
     public function branch()
     {
         return $this->hasOne('App\Models\User', 'id', 'owned_by');
+    }
+    public function categoryType()
+    {
+        return $this->belongsTo('App\Models\ProductServiceCategory', 'category_type_id');
     }
 }

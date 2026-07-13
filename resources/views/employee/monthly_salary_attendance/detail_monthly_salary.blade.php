@@ -13,6 +13,7 @@
         (float) ($employeesalary->tra_course ?? 0) +
         (float) ($employeesalary->sal_advance ?? 0);
     $calculatedNetPay = max(0, (float) ($employeesalary->gross ?? 0) + (float) ($employeesalary->stop_sal ?? 0) - $salaryTotalDeductions);
+    $employeeIsResigned = !empty(optional($employeesalary->employee)->is_res_ter) || !empty(optional($employeesalary->employee)->is_resigned);
 @endphp
 <div class="modal-body">
     @if (!$salaryEditable)
@@ -32,6 +33,13 @@
         <div class="col-md-3"><b>Salary Month</b>: {{ !empty($employeesalary->salary_date) ? date('M-Y', strtotime($employeesalary->salary_date)) : '-' }}</div>
         <div class="col-md-3"><b>Paid Date</b>: {{ !empty($employeesalary->paid_date) ? date('d-M-Y', strtotime($employeesalary->paid_date)) : '-' }}</div>
         <div class="col-md-3"><b>Status</b>: {{ ucwords(str_replace('_', ' ', $employeesalary->status ?? 'unpaid')) }}</div>
+        <div class="col-md-3"><b>Employee Status</b>:
+            @if ($employeeIsResigned)
+                <span class="badge bg-danger">{{ __('Resign') }}</span>
+            @else
+                <span class="badge bg-success">{{ __('Active') }}</span>
+            @endif
+        </div>
         <div class="col-md-3"><b>Paid Through</b>: {{ $employeesalary->paymode ?: (!empty($lastPayscaleDetail) ? $lastPayscaleDetail->paymode : '-') }}</div>
         <div class="col-md-3"><b>Account No</b>: {{ $employeesalary->account_number ?: (!empty($lastPayscaleDetail) ? $lastPayscaleDetail->account_number : '-') }}</div>
     </div>
@@ -142,7 +150,7 @@
         <div class="form-group col-md-6">
             {!! Form::label('other_dedu_payable_account', __('Deduction Payable Account'), ['class' => 'form-label'])
             !!}
-            {{ Form::text('other_dedu_payable_account',  !empty($lastPayscaleDetail->other_dedu_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->other_dedu_payable_account)->first()->name : '', ['class' => 'form-control']) }}
+            {{ Form::text('other_dedu_payable_account',  !empty($lastPayscaleDetail->other_dedu_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->other_dedu_payable_account)->first()->name : '', ['class' => 'form-control conditional-account-field', 'data-amount-field' => 'other_deduction']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance', __('Advance'), ['class' => 'form-label']) !!}
@@ -150,7 +158,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance_payable_account', __('Advance Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::text('advance_payable_account',  !empty($lastPayscaleDetail->advance_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->advance_payable_account )->first()->name: '',  ['class' => 'form-control']) }}
+            {{ Form::text('advance_payable_account',  !empty($lastPayscaleDetail->advance_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->advance_payable_account )->first()->name: '',  ['class' => 'form-control conditional-account-field', 'data-amount-field' => 'advance']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('stop_sal', __('Stop Salary'), ['class' => 'form-label']) !!}
@@ -225,6 +233,7 @@
         const deductionFields = ['itax', 'other_deduction', 'advance'];
         const grossElement = form.querySelector('input[name="gross"]');
         const netElement = form.querySelector('input[name="net"]');
+        const originalConditionalAccountValues = {};
         const initialGross = @json((float) ($employeesalary->gross ?? 0));
         const fixedDeductions = @json(
             (float) ($employeesalary->loan ?? 0) +
@@ -239,6 +248,28 @@
             return total + (parseFloat(form.querySelector(`input[name="${fieldName}"]`)?.value) || 0);
         }, 0);
         const baseGross = initialGross - initialEditableEarnings;
+
+        form.querySelectorAll('.conditional-account-field').forEach(field => {
+            originalConditionalAccountValues[field.name] = field.value || '';
+        });
+
+        function toggleConditionalAccounts() {
+            form.querySelectorAll('.conditional-account-field').forEach(field => {
+                const amountFieldName = field.dataset.amountField;
+                const amount = parseFloat(form.querySelector(`input[name="${amountFieldName}"]`)?.value) || 0;
+                const shouldRequire = amount > 0;
+
+                field.required = shouldRequire;
+                field.readOnly = !shouldRequire;
+                field.classList.toggle('bg-light', !shouldRequire);
+
+                if (!shouldRequire) {
+                    field.value = '';
+                } else if (!field.value && originalConditionalAccountValues[field.name]) {
+                    field.value = originalConditionalAccountValues[field.name];
+                }
+            });
+        }
 
         function recalculateSalary() {
             const editableEarnings = earningFields.reduce((total, fieldName) => {
@@ -256,12 +287,15 @@
             if (netElement) {
                 netElement.value = net.toFixed(2);
             }
+
+            toggleConditionalAccounts();
         }
 
         earningFields.concat(deductionFields).forEach(fieldName => {
             form.querySelector(`input[name="${fieldName}"]`)?.addEventListener('input', recalculateSalary);
         });
 
+        toggleConditionalAccounts();
         recalculateSalary();
     })();
 </script>
