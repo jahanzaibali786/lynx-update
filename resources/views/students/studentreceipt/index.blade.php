@@ -440,6 +440,7 @@
             totalAmount: 0,
             concession: 0,
             paidAmount: 0,
+            lateFeeAmount: 0,
         };
 
         // ── PHP-side auth flag passed to JS ───────────────────────────────
@@ -619,7 +620,8 @@
             // 50% rule — late fee stops accumulating once student pays ≥ 50% of total payable
             // Check if THIS receipt will bring them to the 50% threshold
             // (NOT whether they're already at 50% — late fee keeps growing until they cross 50%)
-            const totalPayable = currentChallanMeta.totalAmount - currentChallanMeta.concession;
+            const baseTotal = currentChallanMeta.totalAmount - (currentChallanMeta.lateFeeAmount || 0);
+            const totalPayable = baseTotal - currentChallanMeta.concession;
             if (totalPayable <= 0) return 0;
 
             const alreadyPaid = currentChallanMeta.paidAmount;
@@ -734,6 +736,7 @@
                             concession: parseFloat(detail.concession_amount) || 0,
                             paidAmount: parseFloat(detail.paid_amount) || 0,
                             dailyLateFee: parseFloat(response.daily_late_fee) || 120,
+                            lateFeeAmount: parseFloat(response.challan_late_fee) || 0,
                         };
                         // DEBUG — open browser console to see what fields your API returns
                         console.log('[LateFee] challan detail keys:', Object.keys(detail));
@@ -864,7 +867,8 @@
                 dueDate: '',
                 totalAmount: 0,
                 concession: 0,
-                paidAmount: 0
+                paidAmount: 0,
+                lateFeeAmount: 0,
             };
         }
 

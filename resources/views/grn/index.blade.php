@@ -11,7 +11,7 @@
 
 @section('action-btn')
     <div class="float-end">
-        <a href="{{ route('grn.create') }}" class="btn mx-1 btn-sm btn-outline-primary">
+        <a href="#" data-url="{{ route('grn.create') }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Create GRN') }}" class="btn mx-1 btn-sm btn-outline-primary">
             <span class="btn-inner--icon">{{ __('Create') }}</span>
         </a>
     </div>
@@ -101,8 +101,8 @@
                             <i class="ti ti-eye"></i>
                         </a>
                         @if ($grn->status == 0)
-                            <a href="{{ route('grn.edit', $grn->id) }}"
-                                class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Edit') }}">
+                            <a href="#" data-url="{{ route('grn.edit', $grn->id) }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Edit GRN') }}"
+                                class="mx-1 btn btn-sm btn-outline-info align-items-center">
                                 <i class="ti ti-pencil"></i>
                             </a>
                             <a href="{{ route('grn.fw_to_ho', $grn->id) }}"

@@ -146,7 +146,12 @@
                                             </p>
                                             <div class="timeline-action">
                                                 @if($purchase->status == 6 && \Auth::user()->type == 'company' && !$purchase->grn_converted)
-                                                    <a href="{{ route('purchase.convert_to_grn', $purchase->id) }}" class="btn mx-1 btn-sm btn-outline-primary">
+                                                    <a href="#"
+                                                        data-url="{{ route('purchase.convert_to_grn', $purchase->id) }}"
+                                                        data-size="modal-fullscreen"
+                                                        data-ajax-popup="true"
+                                                        data-bs-title="{{ __('Convert to GRN') }}"
+                                                        class="btn mx-1 btn-sm btn-outline-primary">
                                                         <span class="btn-inner--icon"><i class="ti ti-file-import mr-2"></i></span>{{__('Convert to GRN')}}
                                                     </a>
                                                 @endif

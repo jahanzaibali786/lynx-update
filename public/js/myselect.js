@@ -163,8 +163,8 @@
             // Move up the DOM tree
             parent = parent.parentElement;
 
-            // Limit how far we look up (e.g., stop at form level)
-            if (parent && (parent.tagName === 'FORM' || parent.tagName === 'BODY')) {
+            // Limit how far we look up (stop at table row, form, or body)
+            if (parent && (parent.tagName === 'TR' || parent.tagName === 'TABLE' || parent.tagName === 'FORM' || parent.tagName === 'BODY')) {
                 break;
             }
         }
@@ -235,15 +235,13 @@
 
             this.displayText = document.createElement('span');
 
-            // Get placeholder text - look for label first
-            let placeholderText = 'Select .....';
-            const labelText = findNearestLabel(this.originalSelect);
-
-            if (labelText) {
-                placeholderText = `Select ${labelText}`;
-            } else if (this.originalSelect.getAttribute('placeholder')) {
-                // Fallback to explicitly set placeholder
-                placeholderText = this.originalSelect.getAttribute('placeholder');
+            // Get placeholder text - explicit placeholder attribute takes priority
+            let placeholderText = this.originalSelect.getAttribute('placeholder') || 'Select .....';
+            if (!this.originalSelect.getAttribute('placeholder')) {
+                const labelText = findNearestLabel(this.originalSelect);
+                if (labelText) {
+                    placeholderText = `Select ${labelText}`;
+                }
             }
 
             this.displayText.textContent = placeholderText;

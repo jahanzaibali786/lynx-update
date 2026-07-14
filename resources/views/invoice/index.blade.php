@@ -67,8 +67,7 @@ function copyToClipboard(element) {
     </a> --}}
 
     @can('create invoice')
-    <a href="{{ route('invoice.create', 0) }}" class="btn mx-1 btn-sm btn-outline-primary" 
-        data-bs-title="{{__('Create')}}">
+    <a href="#" data-url="{{ route('invoice.create', 0) }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Create Invoice') }}" class="btn mx-1 btn-sm btn-outline-primary">
         <span class="btn-inner--icon">Create</span>
     </a>
     @endcan
@@ -198,8 +197,10 @@ function copyToClipboard(element) {
 
             <div class="action-btn ms-2">
                     @php $invoiceID= Crypt::encrypt($invoice->id); @endphp
-                        <a href="{{ route('invoice.edit', \Crypt::encrypt($invoice->id)) }}"
-                            class="mx-3 btn btn-sm btn-outline-primary align-items-center"  title="Edit "
+                        <a href="#"
+                            data-url="{{ route('invoice.edit', \Crypt::encrypt($invoice->id)) }}"
+                            data-size="modal-fullscreen" data-ajax-popup="true"
+                            class="mx-3 btn btn-sm btn-outline-primary align-items-center"
                             data-bs-title="{{ __('Edit') }}">
                             <i class="ti ti-pencil text-white"></i>
                         </a>

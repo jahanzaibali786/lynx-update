@@ -473,12 +473,14 @@ class PurchaseController extends Controller
             $venders->prepend('Select Vender', '');
 
             $warehouse = warehouse::where('owned_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            // $warehouse->prepend('Select Warehouse', '');
 
             $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
                 ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
-            // $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->where('type','!=', 'service')->get()->pluck('name', 'id');
             $product_services->prepend('Select Item', '');
+
+            if (request()->ajax()) {
+                return view('purchase.create', compact('venders', 'purchase_number', 'product_services', 'customFields', 'vendorId', 'warehouse'))->renderSections()['content'] ?? '';
+            }
 
             return view('purchase.create', compact('venders', 'purchase_number', 'product_services', 'customFields', 'vendorId', 'warehouse'));
         } else {
@@ -504,13 +506,15 @@ class PurchaseController extends Controller
                         'vender_id' => 'required',
                         'warehouse_id' => 'required',
                         'purchase_date' => 'required',
-                        // 'category_id' => 'required',
                         'items' => 'required',
                     ]
                 );
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
 
+                    if ($request->ajax()) {
+                        return response()->json(['success' => false, 'message' => $messages->first()]);
+                    }
                     return redirect()->back()->with('error', $messages->first());
                 }
                 $purchase = new Purchase();
@@ -519,7 +523,7 @@ class PurchaseController extends Controller
                 $purchase->warehouse_id = $request->warehouse_id;
                 $purchase->purchase_date = $request->purchase_date;
                 $purchase->purchase_number = !empty($request->purchase_number) ? $request->purchase_number : 0;
-                $purchase->status = 0;
+                $purchase->status = \Auth::user()->type == 'company' ? 5 : 0;
                 //            $purchase->discount_apply = isset($request->discount_apply) ? 1 : 0;
                 $purchase->category_id = $request->category_id;
                 $purchase->created_by = \Auth::user()->creatorId();
@@ -531,11 +535,9 @@ class PurchaseController extends Controller
                     $purchaseProduct->purchase_id = $purchase->id;
                     $purchaseProduct->product_id = $products[$i]['item'];
                     $purchaseProduct->quantity = $products[$i]['quantity'] ?? 0;
-                    $purchaseProduct->tax = $products[$i]['tax'] ?? 0;
-                    //                $purchaseProduct->discount    = isset($products[$i]['discount']) ? $products[$i]['discount'] : 0;
                     $purchaseProduct->discount = $products[$i]['discount'] ?? 0;
-                    $purchaseProduct->price = $products[$i]['price'];
-                    $purchaseProduct->description = $products[$i]['description'];
+                    $purchaseProduct->price = $products[$i]['price'] ?? 0;
+                    $purchaseProduct->description = $products[$i]['description'] ?? '';
                     $purchaseProduct->save();
 
                     $newitems[$i]['prod_id'] = $purchaseProduct->id;
@@ -555,11 +557,6 @@ class PurchaseController extends Controller
                 $data['vender_account'] = $ven->account_id;
                 $data['items'] = $newitems;
 
-                foreach ($newitems as $item) {
-                    if ($item instanceof \Closure) {
-                        dd('Closure found in item');
-                    }
-                }
                 $dataret = Utility::purchasejv($data);
 
                 // dd($purchase,'egwd');
@@ -567,13 +564,21 @@ class PurchaseController extends Controller
                 $purchase->save();
 
                 DB::commit();
-                return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))->with('success', __('Purchase successfully created.'));
+                if ($request->ajax()) {
+                    return response()->json(['success' => true, 'message' => \Auth::user()->type == 'company' ? __('Purchase successfully created and forwarded to Head Office.') : __('Purchase successfully created.')]);
+                }
+                return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))->with('success', \Auth::user()->type == 'company' ? __('Purchase successfully created and forwarded to Head Office.') : __('Purchase successfully created.'));
             } catch (\Exception $e) {
                 DB::rollback();
-                // dd($e);
-                return redirect()->back()->with('error', $e);
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage()]);
+                }
+                return redirect()->back()->with('error', $e->getMessage());
             }
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
@@ -613,14 +618,16 @@ class PurchaseController extends Controller
 
             $idwww = Crypt::decrypt($idsd);
             $purchase = Purchase::find($idwww);
-            // $category = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())->where('type', 'expense')->get()->pluck('name', 'id');
-            // $category->prepend('Select Category', '');
             $warehouse = warehouse::where('owned_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
             $purchase_number = \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
             $venders = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
                 ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
+
+            if (request()->ajax()) {
+                return view('purchase.edit', compact('venders', 'product_services', 'purchase', 'warehouse', 'purchase_number'))->renderSections()['content'] ?? '';
+            }
 
             return view('purchase.edit', compact('venders', 'product_services', 'purchase', 'warehouse', 'purchase_number', ));
         } else {
@@ -648,6 +655,9 @@ class PurchaseController extends Controller
                     );
                     if ($validator->fails()) {
                         $messages = $validator->getMessageBag();
+                        if ($request->ajax()) {
+                            return response()->json(['success' => false, 'message' => $messages->first()]);
+                        }
                         return redirect()->route('purchase.index')->with('error', $messages->first());
                     }
                     $purchase->vender_id = $request->vender_id;
@@ -660,30 +670,35 @@ class PurchaseController extends Controller
 
                     if (!$voucher) {
                         DB::rollback();
+                        if ($request->ajax()) {
+                            return response()->json(['success' => false, 'message' => __('Purchase voucher not found. Please check the purchase entry.')]);
+                        }
                         return redirect()->back()->with('error', __('Purchase voucher not found. Please check the purchase entry.'));
                     }
 
-                    $total_tax = 0;
                     $total_pay = 0;
+                    // collect existing product IDs to detect removals
+                    $existingIds = PurchaseProduct::where('purchase_id', $purchase->id)->pluck('id')->toArray();
+                    $submittedIds = [];
                     // update only if amount not pay on purchase order
-                    if ($purchase->status == 0 || $purchase->status == 1) {
+                    if ($purchase->status == 0 || $purchase->status == 1 || ($purchase->status == 5 && \Auth::user()->type == 'company')) {
                         for ($i = 0; $i < count($products); $i++) {
                             $purchaseProduct = PurchaseProduct::find($products[$i]['id']);
 
                             if ($purchaseProduct == null) {
                                 $purchaseProduct = new PurchaseProduct();
                                 $purchaseProduct->purchase_id = $purchase->id;
-                                $purchaseProduct->quantity = $products[$i]['quantity'];
+                                $purchaseProduct->quantity = $products[$i]['quantity'] ?? 1;
                                 // new item quantity added in product (Removed for record-only)
                                 $old_qty = 0;
                                 if (isset($products[$i]['item'])) {
                                     $purchaseProduct->product_id = $products[$i]['item'];
                                 }
-                                $purchaseProduct->tax = $products[$i]['tax'];
-                                $purchaseProduct->discount = $products[$i]['discount'];
-                                $purchaseProduct->price = $products[$i]['price'];
-                                $purchaseProduct->description = $products[$i]['description'];
+                                $purchaseProduct->discount = $products[$i]['discount'] ?? 0;
+                                $purchaseProduct->price = $products[$i]['price'] ?? 0;
+                                $purchaseProduct->description = $products[$i]['description'] ?? '';
                                 $purchaseProduct->save();
+                                $submittedIds[] = $purchaseProduct->id;
 
                                 $product = ProductService::where('id', $purchaseProduct->product_id)->first();
                                 // new item added in Voucher
@@ -692,31 +707,13 @@ class PurchaseController extends Controller
                                 $journalItem->account = @$product->sale_chartaccount_id;
                                 $journalItem->entry_id = @$purchaseProduct->id;
                                 $journalItem->types = 'Purchase';
-                                $journalItem->description = $product->name;
-                                $journalItem->head_ids = $product->id;
+$journalItem->description = $product->name ?? '';
+                                 $journalItem->head_ids = $product->id ?? null;
                                 $journalItem->branch_id = $purchase->created_by;
                                 $journalItem->credit = 0;
-                                $journalItem->debit = ($products[$i]['quantity'] * $products[$i]['price']) - $products[$i]['discount'];
+                                $journalItem->debit = (($products[$i]['quantity'] ?? 0) * ($products[$i]['price'] ?? 0)) - ($products[$i]['discount'] ?? 0);
                                 $journalItem->save();
-                                $total_pay += ($products[$i]['price'] * $products[$i]['quantity']) - ($products[$i]['discount']);
-                                // new item if has tax then added in Voucher
-                                $taxes = Tax::where('id',$product->tax_id)->first();
-                                $total_tax += $products[$i]['itemTaxPrice'];
-                                if($taxes && !empty($taxes->account_expance)){
-                                    $journalItem = new JournalItem();
-                                    $journalItem->journal = $voucher->id;
-                                    $journalItem->account = $taxes->account_expance;
-                                    $journalItem->types =  'Purchase';
-                                    $journalItem->description = 'Tax on '.$product->id;
-                                    $journalItem->head_ids = $product->id;
-                                    $journalItem->branch_id = $purchase->created_by;
-                                    $journalItem->debit = $products[$i]['itemTaxPrice'];
-                                    $journalItem->credit = 0;
-                                    $journalItem->save();
-                                } else {
-                                    DB::rollback();
-                                    return redirect()->back()->with('error', __('Tax account not configured properly for the product tax.'));
-                                }
+                                $total_pay += (($products[$i]['price'] ?? 0) * ($products[$i]['quantity'] ?? 0)) - ($products[$i]['discount'] ?? 0);
 
                             } else {
                                 $old_qty = $purchaseProduct->quantity;
@@ -725,55 +722,39 @@ class PurchaseController extends Controller
                                     $purchaseProduct->product_id = $products[$i]['item'];
                                 }
 
-                                $purchaseProduct->quantity = $products[$i]['quantity'];
-                                $purchaseProduct->tax = $products[$i]['tax'];
-                                $purchaseProduct->discount = $products[$i]['discount'];
-                                $purchaseProduct->price = $products[$i]['price'];
-                                $purchaseProduct->description = $products[$i]['description'];
+                                $purchaseProduct->quantity = $products[$i]['quantity'] ?? 1;
+                                $purchaseProduct->discount = $products[$i]['discount'] ?? 0;
+                                $purchaseProduct->price = $products[$i]['price'] ?? 0;
+                                $purchaseProduct->description = $products[$i]['description'] ?? '';
                                 $purchaseProduct->save();
 
                                 $product = ProductService::where('id', $purchaseProduct->product_id)->first();
                                 // already Voucher item update its values
                                 $jouitem = JournalItem::where('journal', $voucher->id)->where('entry_id', $purchaseProduct->id)->where('types', 'Purchase')->first();
-                                $jouitem->account = @$product->sale_chartaccount_id;
-                                $jouitem->debit = ($products[$i]['price'] * $products[$i]['quantity']) - ($products[$i]['discount']);
-                                $jouitem->save();
-                                $total_pay += ($products[$i]['price'] * $products[$i]['quantity']) - ($products[$i]['discount']);
-                                // already Voucher item tax update its values
-                                $taxes = Tax::where('id',$product->tax_id)->first();
-                                $total_tax += $products[$i]['itemTaxPrice'];
-                                if($taxes && !empty($taxes->account_expance)){
-                                    $jotax = JournalItem::where('journal', $voucher->id)
-                                        ->where('account',$taxes->account_expance)
-                                        ->where('description','Tax on '.$product->id)
-                                        ->where('head_ids',$product->id)
-                                        ->where('types','Purchase')
-                                        ->first();
-                                    if($jotax){
-                                        $jotax->debit = $products[$i]['itemTaxPrice'];
-                                        $jotax->save();
-                                    } else {
-                                        $journalItem = new JournalItem();
-                                        $journalItem->journal = $voucher->id;
-                                        $journalItem->account = $taxes->account_expance;
-                                        $journalItem->types =  'Purchase';
-                                        $journalItem->description = 'Tax on '.$product->id;
-                                        $journalItem->head_ids = $product->id;
-                                        $journalItem->branch_id = $purchase->created_by;
-                                        $journalItem->debit = $products[$i]['itemTaxPrice'];
-                                        $journalItem->credit = 0;
-                                        $journalItem->save();
-                                    }
-                                } else {
-                                    DB::rollback();
-                                    return redirect()->back()->with('error', __('Tax account not configured properly for the product tax.'));
+                                if (!$jouitem) {
+                                    $jouitem = new JournalItem();
+                                    $jouitem->journal = $voucher->id;
+                                    $jouitem->entry_id = $purchaseProduct->id;
+                                    $jouitem->types = 'Purchase';
+                                    $jouitem->description = $product->name ?? '';
+                                    $jouitem->head_ids = $product->id ?? null;
                                 }
+                                $jouitem->account = @$product->sale_chartaccount_id;
+                                $jouitem->debit = (($products[$i]['price'] ?? 0) * ($products[$i]['quantity'] ?? 0)) - ($products[$i]['discount'] ?? 0);
+                                $jouitem->save();
+                                $total_pay += (($products[$i]['price'] ?? 0) * ($products[$i]['quantity'] ?? 0)) - ($products[$i]['discount'] ?? 0);
+                                $submittedIds[] = $purchaseProduct->id;
+
                             }
-
-
 
                             // Stock updates removed
 
+                        }
+                        // delete items that were removed from the form
+                        $removedIds = array_diff($existingIds, $submittedIds);
+                        if (!empty($removedIds)) {
+                            JournalItem::whereIn('entry_id', $removedIds)->where('journal', $voucher->id)->where('types', 'Purchase')->delete();
+                            PurchaseProduct::whereIn('id', $removedIds)->delete();
                         }
                         $ven = Vender::find($request->vender_id);
                         if ($ven === null || empty($ven->account_id)) {
@@ -798,46 +779,53 @@ class PurchaseController extends Controller
                             }
                             if ($account) {
                                 $item_last = JournalItem::where('journal', $voucher->id)->where('account', $account->id)->first();
-                                $item_last->credit = ($total_pay + $total_tax);
+                                $item_last->credit = $total_pay;
                                 $item_last->save();
                             }
                         } else {
                             $item_last = JournalItem::where('journal', $voucher->id)->where('account', $ven->account_id)->first();
-                            $item_last->credit = ($total_pay + $total_tax);
+                            $item_last->credit = $total_pay;
                             $item_last->save();
                         }
 
                     } else {
+                        if ($request->ajax()) {
+                            return response()->json(['success' => false, 'message' => __('Purchase items cant change')]);
+                        }
                         return redirect()->route('purchase.index')->with('error', __('Purchase items cant change'));
                     }
 
-                    // $data['id'] =$purchaseProduct->id;
-                    // $data['no'] =$purchaseProduct->purchase_id;
-                    // $data['date'] =$purchase->purchase_date;
-                    // $data['reference'] =$purchaseProduct->purchase_date;
-                    // $data['category'] = 'Purchase';
-                    // $data['owned_by'] =$purchase->created_by;
-                    // $data['created_by'] =$purchase->created_by;
-                    // $data['items'] =$newitems;
-                    // $dataret  = Utility::purchasejv($data);
-
                     DB::commit();
+                    \DB::commit();
+                    if ($request->ajax()) {
+                        return response()->json(['success' => true, 'message' => __('Purchase successfully updated.')]);
+                    }
                     return redirect()->route('purchase.index')->with('success', __('Purchase successfully updated.'));
                 } catch (\Exception $e) {
                     DB::rollback();
-                    dd($e);
-                    return redirect()->back()->with('error', $e);
+                    if ($request->ajax()) {
+                        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+                    }
+                    return redirect()->back()->with('error', $e->getMessage());
                 }
             } else {
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+                }
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         } }
         catch (\Exception $e) {
             DB::rollback();
-            dd($e);
-            return redirect()->back()->with('error', $e);
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()]);
+            }
+            return redirect()->back()->with('error', $e->getMessage());
         }
     }
 
@@ -1613,47 +1601,203 @@ class PurchaseController extends Controller
 
     public function convertToGrn($id)
     {
-        $purchase = Purchase::with('items')->findOrFail($id);
+        $purchase = Purchase::with('items.products')->findOrFail($id);
 
         if ($purchase->status != 6 || \Auth::user()->type != 'company') {
-            return redirect()->back()->with('error', __('Permission denied.'));
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        if ($purchase->created_by != \Auth::user()->creatorId()) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        if ($purchase->grn_converted) {
+            return response()->json(['error' => __('Already converted to GRN.')], 422);
+        }
+
+        $viewData = $this->purchaseGrnFormData($purchase);
+        $view = view('purchase.convert_to_grn', $viewData);
+
+        if (request()->ajax()) {
+            return $view->renderSections()['content'] ?? '';
+        }
+
+        return $view;
+    }
+
+    public function storeConvertedGrn(Request $request, $id)
+    {
+        $purchase = Purchase::with('items')->findOrFail($id);
+
+        if ($purchase->status != 6 || \Auth::user()->type != 'company' || $purchase->created_by != \Auth::user()->creatorId()) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 401);
+        }
+
+        if ($purchase->grn_converted) {
+            return response()->json(['success' => false, 'message' => __('Already converted to GRN.')], 422);
         }
 
         $user = \Auth::user();
+        $validator = \Validator::make($request->all(), [
+            'vendor_id' => 'required|integer|exists:venders,id',
+            'warehouse_id' => 'required|integer',
+            'grn_date' => 'required|date',
+            'reference_no' => 'required|string|max:191',
+            'purchase_order_id' => 'required|string|max:191',
+            'remarks' => 'nullable|string',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|integer|exists:product_services,id',
+            'items.*.condition' => 'required|in:new,used,damaged',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.price' => 'nullable|numeric|min:0',
+            'items.*.description' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->getMessageBag()->first()], 422);
+        }
 
         DB::beginTransaction();
         try {
             $grn = \App\Models\Grn::create([
-                'grn_no' => ((int) \App\Models\Grn::where('created_by', $user->creatorId())->max('grn_no')) + 1,
-                'vendor_id' => $purchase->vender_id,
-                'warehouse_id' => $purchase->warehouse_id,
-                'grn_date' => now()->format('Y-m-d'),
-                'reference_no' => $user->purchaseNumberFormat($purchase->purchase_id),
-                'remarks' => __('Auto-generated from Purchase') . ' ' . $user->purchaseNumberFormat($purchase->purchase_id),
-                'status' => 0,
+                'grn_no' => $this->nextPurchaseGrnNumber($user->creatorId()),
+                'vendor_id' => $request->vendor_id,
+                'warehouse_id' => $request->warehouse_id,
+                'grn_date' => $request->grn_date,
+                'reference_no' => $request->reference_no,
+                'purchase_order_id' => $request->purchase_order_id,
+                'remarks' => $request->remarks,
+                'status' => $user->type == 'company' ? 5 : 0,
                 'owned_by' => $user->creatorId(),
                 'created_by' => $user->creatorId(),
             ]);
 
+            foreach ($request->items as $item) {
+                \App\Models\GrnItem::create([
+                    'grn_id' => $grn->id,
+                    'product_id' => $item['product_id'],
+                    'condition' => $item['condition'],
+                    'quantity' => (float) $item['quantity'],
+                    'price' => (float) ($item['price'] ?? 0),
+                    'description' => $item['description'] ?? null,
+                ]);
+
+                $product = ProductService::find($item['product_id']);
+                if ($product && $product->type != 'service' && (float) ($item['price'] ?? 0) > 0 && (float) $product->purchase_price != (float) $item['price']) {
+                    $product->purchase_price = (float) $item['price'];
+                    $product->save();
+                }
+            }
+
             $purchase->grn_converted = 1;
             $purchase->save();
 
-            foreach ($purchase->items as $item) {
-                \App\Models\GrnItem::create([
-                    'grn_id' => $grn->id,
-                    'product_id' => $item->product_id,
-                    'condition' => 'new',
-                    'quantity' => (float) $item->quantity,
-                    'price' => (float) $item->price,
-                    'description' => $item->description,
-                ]);
-            }
-
             DB::commit();
-            return redirect()->route('grn.show', $grn->id)->with('success', __('GRN created successfully from Purchase.'));
+            return response()->json([
+                'success' => true,
+                'message' => __('GRN created successfully from Purchase.'),
+                'redirect_url' => route('grn.show', $grn->id),
+            ]);
         } catch (\Throwable $e) {
             DB::rollBack();
-            return redirect()->back()->with('error', $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
+    }
+
+    private function purchaseGrnFormData(Purchase $purchase)
+    {
+        $user = \Auth::user();
+
+        $vendors = Vender::where('created_by', $user->creatorId())
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->prepend('Select Vendor', '');
+
+        $warehouseRecords = warehouse::where('owned_by', $user->creatorId())
+            ->orderBy('name')
+            ->get(['id', 'name', 'owned_by']);
+        $warehouses = $warehouseRecords->pluck('name', 'id')->prepend('Select Store', '');
+        $nextGrnNumber = $this->nextPurchaseGrnNumber($user->creatorId());
+
+        $products = ProductService::select('id', 'sku', 'name', 'purchase_price', 'purchase_description', 'description')
+            ->where('created_by', $user->creatorId())
+            ->where('type', '!=', 'service')
+            ->where('type', '!=', 'grn')
+            ->orderBy('name')
+            ->get();
+
+        $productOptions = $products->mapWithKeys(function ($product) {
+            return [$product->id => trim(($product->sku ? $product->sku . ' - ' : '') . $product->name)];
+        })->prepend('Select Product', '');
+
+        $productMeta = $products->mapWithKeys(function ($product) {
+            return [
+                $product->id => [
+                    'price' => (float) $product->purchase_price,
+                    'description' => $product->purchase_description ?: $product->description,
+                ],
+            ];
+        });
+
+        $vendorAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.parent')
+            ->where('parent', 0)
+            ->where('created_by', $user->creatorId())
+            ->orderBy('code')
+            ->get();
+
+        $vendorSubAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_account_parents.account')
+            ->leftJoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id')
+            ->where('chart_of_accounts.parent', '!=', 0)
+            ->where('chart_of_accounts.created_by', $user->creatorId())
+            ->orderBy('chart_of_accounts.code')
+            ->get();
+
+        $initialItems = $purchase->items->map(function ($item) {
+            return [
+                'product_id' => $item->product_id,
+                'condition' => 'new',
+                'quantity' => (float) $item->quantity,
+                'price' => (float) ($item->price ?? 0),
+                'description' => $item->description ?? '',
+                'source' => __('Purchase'),
+            ];
+        })->values();
+
+        $formDefaults = [
+            'vendor_id' => $purchase->vender_id,
+            'warehouse_id' => $purchase->warehouse_id,
+            'grn_date' => date('Y-m-d'),
+            'reference_no' => $user->purchaseNumberFormat($purchase->purchase_id),
+            'purchase_order_id' => $user->purchaseNumberFormat($purchase->purchase_id),
+            'remarks' => __('Converted from Purchase') . ' ' . $user->purchaseNumberFormat($purchase->purchase_id),
+        ];
+
+        $submitLabel = __('Convert');
+        $cancelUrl = route('purchase.show', Crypt::encrypt($purchase->id));
+        $showPurchaseLink = false;
+        $showAddVendorLink = false;
+
+        return compact(
+            'purchase',
+            'vendors',
+            'warehouses',
+            'warehouseRecords',
+            'productOptions',
+            'productMeta',
+            'nextGrnNumber',
+            'vendorAccounts',
+            'vendorSubAccounts',
+            'initialItems',
+            'formDefaults',
+            'submitLabel',
+            'cancelUrl',
+            'showPurchaseLink',
+            'showAddVendorLink'
+        );
+    }
+
+    private function nextPurchaseGrnNumber($creatorId)
+    {
+        return ((int) \App\Models\Grn::where('created_by', $creatorId)->max('grn_no')) + 1;
     }
 }

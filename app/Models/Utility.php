@@ -6954,7 +6954,6 @@ class Utility extends Model
         $journal->save();
 
         $payable = 0;
-        $tax = 0;
 
         for ($i = 0; $i < count($data['items']); $i++) {
             $product = ProductService::where('id', $data['items'][$i]['item'])->first();
@@ -6970,22 +6969,6 @@ class Utility extends Model
             $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['discount'];
             $journalItem->save();
             $payable += ((floatval($data['items'][$i]['quantity']) * floatval($data['items'][$i]['price'])) - $data['items'][$i]['discount']);
-            $tax += floatval($data['items'][$i]['itemTaxPrice']);
-
-            $taxes = Tax::where('id', $product->tax_id)->first();
-            if ($taxes) {
-                $journalItem = new JournalItem;
-                $journalItem->journal = $journal->id;
-                $journalItem->account = @$taxes->account_expance ?? 0;
-                $journalItem->types = @$data['category'];
-                $journalItem->description = 'Tax on '.$product->id;
-                $journalItem->head_ids = $product->id;
-                $journalItem->branch_id = $data['owned_by'];
-                $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['discount'];
-                $journalItem->credit = 0;
-                // dd($journalItem,$taxes);
-                $journalItem->save();
-            }
         }
 
         if (! empty($data['vender_account'])) {
@@ -6995,7 +6978,7 @@ class Utility extends Model
             $journalItem->account = $data['vender_account'];
             $journalItem->description = 'payable of study pack';
             $journalItem->debit = 0;
-            $journalItem->credit = $payable + $tax;
+            $journalItem->credit = $payable;
             $journalItem->branch_id = $data['owned_by'];
             $journalItem->save();
         } else {
@@ -7022,7 +7005,7 @@ class Utility extends Model
                 $journalItem->account = @$account->id;
                 $journalItem->description = 'payable study pack';
                 $journalItem->debit = 0;
-                $journalItem->credit = $payable + $tax;
+                $journalItem->credit = $payable;
                 $journalItem->branch_id = $data['owned_by'];
                 $journalItem->save();
             }

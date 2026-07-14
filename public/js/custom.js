@@ -123,7 +123,7 @@ function ajaxModalForm(options) {
             return false;
         }
 
-        if (this.checkValidity && !this.checkValidity()) {
+        if (this.hasAttribute('data-validate') && this.checkValidity && !this.checkValidity()) {
             this.reportValidity();
             return false;
         }
@@ -272,13 +272,11 @@ $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true
         url: url,
         data: data,
         success: function (data) {
-            $('#commonModal .body').html(data);
+            injectContentWithScripts('#commonModal .body', data);
             $("#commonModal").modal('show');
-            // daterange_set();
             taskCheckbox();
             common_bind("#commonModal");
             commonLoader();
-
         },
         error: function (data) {
             data = data.responseJSON;
@@ -286,6 +284,36 @@ $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true
         }
     });
 
+});
+
+function injectContentWithScripts(target, html) {
+    document.querySelectorAll('script[data-injected-by]').forEach(function(el) { el.remove(); });
+    var temp = document.createElement('div');
+    temp.innerHTML = html;
+    var scripts = temp.querySelectorAll('script');
+    var scriptArr = [];
+    for (var i = 0; i < scripts.length; i++) { scriptArr.push(scripts[i]); }
+    for (var i = 0; i < scriptArr.length; i++) { scriptArr[i].remove(); }
+    var $target = (typeof target === 'string') ? $(target) : target;
+    $target.html(temp.innerHTML);
+    for (var i = 0; i < scriptArr.length; i++) {
+        var old = scriptArr[i];
+        try {
+            var s = document.createElement('script');
+            for (var j = 0; j < old.attributes.length; j++) {
+                s.setAttribute(old.attributes[j].name, old.attributes[j].value);
+            }
+            s.textContent = old.textContent;
+            s.setAttribute('data-injected-by', '1');
+            document.body.appendChild(s);
+        } catch (e) {
+            console.warn('injectContentWithScripts script exec error:', e);
+        }
+    }
+}
+
+$(document).on('hidden.bs.modal', '#commonModal', function () {
+    $('#commonModal .body').empty();
 });
 
 
@@ -749,7 +777,7 @@ $(document).on('click', 'a[data-ajax-popup-over="true"], button[data-ajax-popup-
     $.ajax({
         url: url + '?id=' + id,
         success: function (data) {
-            $('#commonModalOver .modal-body').html(data);
+            injectContentWithScripts('#commonModalOver .modal-body', data);
             $("#commonModalOver").modal('show');
             taskCheckbox();
         },

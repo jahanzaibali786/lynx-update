@@ -47,7 +47,7 @@ $('#finalizeForm').on('submit', function(e) {
                                     <h6 class="text-primary my-3">{{ __('Create Purchase') }}</h6>
                                     <p class="text-muted text-sm mb-3"><i class="ti ti-clock mr-2"></i>{{ __('Created on ') }}{{ \Auth::user()->dateFormat($branchPurchase->purchase_date) }}</p>
                                     <div class="timeline-action">
-                                        @if(\Auth::user()->type == 'company' && Gate::check('edit purchase') && $branchPurchase->status == 0 || \Auth::user()->type == 'branch' && $branchPurchase->branch_id == \Auth::user()->id && $branchPurchase->status == 0)
+                                        @if(\Auth::user()->type == 'company' && Gate::check('edit purchase') && in_array($branchPurchase->status, [0, 5]) || \Auth::user()->type == 'branch' && $branchPurchase->branch_id == \Auth::user()->id && $branchPurchase->status == 0)
                                                 <a href="{{ route('branchpurchase.edit', Crypt::encrypt($branchPurchase->id)) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{ __('Edit') }}">
                                                     <span class="btn-inner--icon"><i class="ti ti-pencil mr-2"></i></span>{{ __('Edit') }}
                                                 </a>
@@ -145,7 +145,12 @@ $('#finalizeForm').on('submit', function(e) {
                                     </p>
                                     <div class="timeline-action">
                                         @if($branchPurchase->status == 6 && \Auth::user()->type == 'company' && !$branchPurchase->invoice_converted)
-                                            <a href="{{ route('branchpurchase.convert_to_invoice', $branchPurchase->id) }}" class="btn mx-1 btn-sm btn-outline-primary">
+                                            <a href="#"
+                                                data-url="{{ route('branchpurchase.convert_to_invoice', $branchPurchase->id) }}"
+                                                data-size="modal-fullscreen"
+                                                data-ajax-popup="true"
+                                                data-bs-title="{{ __('Convert to Invoice') }}"
+                                                class="btn mx-1 btn-sm btn-outline-primary">
                                                 <span class="btn-inner--icon"><i class="ti ti-file-import mr-2"></i></span>{{ __('Convert to Invoice') }}
                                             </a>
                                         @endif

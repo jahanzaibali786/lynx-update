@@ -6,6 +6,7 @@ use App\Models\Grn;
 use App\Models\GrnItem;
 use App\Models\ChartOfAccount;
 use App\Models\ProductService;
+use App\Models\Purchase;
 use App\Models\StockReport;
 use App\Models\Utility;
 use App\Models\Vender;
@@ -48,9 +49,14 @@ class GrnController extends Controller
         return view('grn.index', compact('grns', 'warehouses', 'vendors'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('grn.create', $this->formData());
+        $viewData = $this->formData();
+        if ($request->ajax()) {
+            $html = view('grn.create', $viewData)->renderSections()['content'] ?? '';
+            return response('<div class="modal-body">' . $html . '</div>');
+        }
+        return view('grn.create', $viewData);
     }
 
     public function store(Request $request)
@@ -78,21 +84,35 @@ class GrnController extends Controller
             $this->storeItems($grn, $data['items']);
 
             DB::commit();
+            if ($request->ajax()) {
+                return response()->json(['success' => true, 'message' => __('GRN successfully created.'), 'id' => $grn->id]);
+            }
             return redirect()->route('grn.show', $grn->id)->with('success', __('GRN successfully created.'));
         } catch (\Throwable $e) {
             DB::rollBack();
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
     }
 
-    public function edit(Grn $grn)
+    public function edit(Request $request, Grn $grn)
     {
         $this->authorizeGrn($grn);
         if ($grn->status >= 5) {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Finalized GRN cannot be edited.')], 422);
+            }
             return redirect()->route('grn.show', $grn->id)->with('error', __('Finalized GRN cannot be edited.'));
         }
 
-        return view('grn.edit', array_merge($this->formData(), compact('grn')));
+        $viewData = array_merge($this->formData(), compact('grn'));
+        if ($request->ajax()) {
+            $html = view('grn.edit', $viewData)->renderSections()['content'] ?? '';
+            return response('<div class="modal-body">' . $html . '</div>');
+        }
+        return view('grn.edit', $viewData);
     }
 
     public function show(Grn $grn)
@@ -129,9 +149,15 @@ class GrnController extends Controller
             $this->storeItems($grn, $data['items']);
 
             DB::commit();
+            if ($request->ajax()) {
+                return response()->json(['success' => true, 'message' => __('GRN successfully updated.'), 'id' => $grn->id]);
+            }
             return redirect()->route('grn.show', $grn->id)->with('success', __('GRN successfully updated.'));
         } catch (\Throwable $e) {
             DB::rollBack();
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
     }
@@ -246,15 +272,16 @@ class GrnController extends Controller
         $warehouses = $warehouseRecords->pluck('name', 'id')->prepend('Select Store', '');
         $nextGrnNumber = $this->nextGrnNumber($user->creatorId());
 
-        $products = ProductService::select('id', 'sku', 'name', 'purchase_price', 'purchase_description', 'description')
-            ->where('created_by', $user->creatorId())
-            ->where('type', '!=', 'service')
-            ->orderBy('name')
-            ->get();
+    $products = ProductService::select('id', 'sku', 'name', 'purchase_price', 'purchase_description', 'description')
+        ->where('created_by', $user->creatorId())
+        ->where('type', '!=', 'service')
+        ->where('type', '!=', 'grn')
+        ->orderBy('name')
+        ->get();
 
-        $productOptions = $products->mapWithKeys(function ($product) {
-            return [$product->id => trim(($product->sku ? $product->sku . ' - ' : '') . $product->name)];
-        })->prepend('Select Item', '');
+    $productOptions = $products->mapWithKeys(function ($product) {
+        return [$product->id => trim(($product->sku ? $product->sku . ' - ' : '') . $product->name)];
+    })->prepend('Select Product', '');
 
         $productMeta = $products->mapWithKeys(function ($product) {
             return [
@@ -390,6 +417,44 @@ class GrnController extends Controller
         }
 
         $product->save();
+    }
+
+    public function draftPurchases()
+    {
+        $user = \Auth::user();
+        $purchases = Purchase::with('vender')
+            ->where('created_by', $user->creatorId())
+            ->where('grn_converted', 0)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('grn.draft_purchases', compact('purchases'));
+    }
+
+    public function purchaseItems($id)
+    {
+        $purchase = Purchase::with('items.products')->findOrFail($id);
+        $items = $purchase->items->map(function ($item) {
+            $product = $item->products;
+            return [
+                'product_id' => $item->product_id,
+                'product_name' => $product ? ($product->sku . ' - ' . $product->name) : '',
+                'quantity' => (float) $item->quantity,
+                'price' => (float) ($item->price ?? 0),
+                'description' => $item->description ?? '',
+            ];
+        });
+
+        return response()->json($items);
+    }
+
+    public function addVendorForm()
+    {
+        $data = $this->formData();
+        return view('grn.add_vendor', [
+            'vendorAccounts' => $data['vendorAccounts'],
+            'vendorSubAccounts' => $data['vendorSubAccounts'],
+        ]);
     }
 
     private function authorizeGrn(Grn $grn)

@@ -694,10 +694,15 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
 			Route::get('grn/{grn}/fw-to-ho', [GrnController::class, 'fwToHo'])->name('grn.fw_to_ho');
             Route::get('grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
             Route::get('grn/{grn}/reject', [GrnController::class, 'reject'])->name('grn.reject');
+            Route::get('grn/draft-purchases', [GrnController::class, 'draftPurchases'])->name('grn.draft_purchases');
+            Route::get('grn/purchase-items/{id}', [GrnController::class, 'purchaseItems'])->name('grn.purchase_items');
+            Route::get('grn/add-vendor-form', [GrnController::class, 'addVendorForm'])->name('grn.add_vendor_form');
 			Route::resource('grn', GrnController::class);
 
 
 
+            Route::get('invoice/draft-branch-purchases', [InvoiceController::class, 'draftBranchPurchases'])->name('invoice.draft_branch_purchases');
+            Route::get('invoice/branch-purchase-items/{id}', [InvoiceController::class, 'branchPurchaseItems'])->name('invoice.branch_purchase_items');
             Route::resource('invoice', InvoiceController::class);
             Route::get('invoice/create/{cid}', [InvoiceController::class, 'create'])->name('invoice.create');
             Route::post('company_contract', [InvoiceController::class, 'companycontract'])->name('company_contract');
@@ -1900,6 +1905,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('purchase/{id}/finalize', [PurchaseController::class, 'finalize'])->name('purchase.finalize');
             Route::get('purchase/{id}/reject', [PurchaseController::class, 'reject'])->name('purchase.reject');
             Route::get('purchase/{id}/convert-to-grn', [PurchaseController::class, 'convertToGrn'])->name('purchase.convert_to_grn');
+            Route::post('purchase/{id}/convert-to-grn', [PurchaseController::class, 'storeConvertedGrn'])->name('purchase.convert_to_grn.store');
 
             Route::resource('branchpurchase', \App\Http\Controllers\BranchPurchaseController::class);
             Route::get('branchpurchase/create/{cid}', [\App\Http\Controllers\BranchPurchaseController::class, 'create'])->name('branchpurchase.create');
@@ -1909,6 +1915,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::post('branchpurchase/{id}/finalize', [\App\Http\Controllers\BranchPurchaseController::class, 'finalize'])->name('branchpurchase.finalize');
             Route::get('branchpurchase/{id}/reject', [\App\Http\Controllers\BranchPurchaseController::class, 'reject'])->name('branchpurchase.reject');
             Route::get('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'convertToInvoice'])->name('branchpurchase.convert_to_invoice');
+            Route::post('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'storeConvertedInvoice'])->name('branchpurchase.convert_to_invoice.store');
 
         }
 

@@ -509,7 +509,11 @@ class StudentReceipt extends Controller
 
         // 50% exemption check with THIS receipt excluded.
         // challan->paid_amount still includes oldReceiptAmount at this point.
-        $netPayable = (float) $challan->total_amount - (float) ($challan->concession_amount ?? 0);
+        $existingLateFeeTotal = (float) ChallanHead::where('challan_id', $challan->id)
+            ->whereHas('feeHead', fn($q) => $q->where('fee_head', 'LIKE', '%LATE FEE%'))
+            ->sum('price');
+        $baseTotal = (float) $challan->total_amount - $existingLateFeeTotal;
+        $netPayable = $baseTotal - (float) ($challan->concession_amount ?? 0);
         $paidExcludingThis = max(0.0, (float) $challan->paid_amount - $oldReceiptAmount);
 
         if ($netPayable > 0 && $paidExcludingThis >= ($netPayable * 0.5)) {
@@ -567,8 +571,12 @@ class StudentReceipt extends Controller
             return;
         }
 
-        // 50% rule (standard check – used by paidchallan path)
-        $totalPayable = (float) $challan->total_amount - (float) ($challan->concession_amount ?? 0);
+        // 50% rule — exclude existing late fee from total
+        $existingLateFeeTotal = (float) ChallanHead::where('challan_id', $challan->id)
+            ->whereHas('feeHead', fn($q) => $q->where('fee_head', 'LIKE', '%LATE FEE%'))
+            ->sum('price');
+        $baseTotal = (float) $challan->total_amount - $existingLateFeeTotal;
+        $totalPayable = $baseTotal - (float) ($challan->concession_amount ?? 0);
         $alreadyPaid = (float) ($challan->paid_amount ?? 0);
 
         if ($totalPayable > 0 && $alreadyPaid >= ($totalPayable * 0.5)) {

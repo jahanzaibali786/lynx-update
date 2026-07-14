@@ -7,8 +7,8 @@
     <li class="breadcrumb-item"><a href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a></li>
     <li class="breadcrumb-item">{{ __('Branch Purchase Edit') }}</li>
 @endsection
-@push('script-page')
-<style>
+@section('content')
+    <style>
 #items-table-wrap { overflow-x: auto; }
 #items-table { min-width: 800px; }
 .col-quantity, .col-price, .col-discount { width: 110px; }
@@ -47,7 +47,8 @@ function formatAmount(value) {
 }
 
 function appendHidden(wrapper, name, value) {
-    wrapper.append($('<input>', { type: 'hidden', name: name, value: value || '' }));
+    var v = (value === 0 || value === '0') ? '0' : (value || '');
+    wrapper.append($('<input>', { type: 'hidden', name: name, value: v }));
 }
 
 function getProductName(productId) {
@@ -348,12 +349,16 @@ $(document).on('click', '#remove', function() {
     $('#branch-box').removeClass('d-none').addClass('d-block');
     $('#branch_detail').removeClass('d-block').addClass('d-none');
 });
-</script>
-@endpush
 
-@section('content')
+$(document).ready(function() {
+    if (typeof ajaxModalForm !== 'undefined') {
+        ajaxModalForm({ formSelector: '.branchpurchase-ajax-form', submitText: '{{ __("Updating...") }}', onSuccess: function (r) { $.ajax({ url: window.location.href, cache: false, dataType: 'html', success: function(html) { var el = new DOMParser().parseFromString(html, 'text/html').getElementById('content-area'); if (el) { document.getElementById('content-area').innerHTML = el.innerHTML; try { common_bind(); commonLoader(); } catch(e){} } else { location.reload(); } }, error: function() { location.reload(); } }); } });
+    }
+});
+</script>
+
     <div class="row">
-        {{ Form::model($branchPurchase, ['route' => ['branchpurchase.update', $branchPurchase->id], 'method' => 'PUT', 'class' => 'w-100', 'id' => 'branchpurchase-form']) }}
+        {{ Form::model($branchPurchase, ['route' => ['branchpurchase.update', $branchPurchase->id], 'method' => 'PUT', 'class' => 'w-100 branchpurchase-ajax-form', 'id' => 'branchpurchase-form', 'novalidate' => true]) }}
         <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
         <div id="hidden-inputs"></div>
         <div class="col-12">

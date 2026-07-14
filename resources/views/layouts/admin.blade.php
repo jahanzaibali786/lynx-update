@@ -403,7 +403,9 @@
                         </div>
                     </div>
                 </div>
+                <div id="content-area">
                 @yield('content')
+                </div>
                 <!-- [ Main Content ] end -->
             </div>
         </div>

@@ -920,8 +920,12 @@ public function legacyShow($id, Request $request)
             return;
         }
 
-        // 50% payment exemption
-        $totalPayable = $challan->total_amount - ($challan->concession_amount ?? 0);
+        // 50% payment exemption — exclude existing late fee from total
+        $existingLateFeeTotal = ChallanHead::where('challan_id', $challan->id)
+            ->whereHas('feeHead', fn($q) => $q->where('fee_head', 'LIKE', '%LATE FEE%'))
+            ->sum('price');
+        $baseTotal = $challan->total_amount - $existingLateFeeTotal;
+        $totalPayable = $baseTotal - ($challan->concession_amount ?? 0);
 
         if ($totalPayable > 0) {
 
@@ -1836,8 +1840,18 @@ public function legacyShow($id, Request $request)
             ];
         }
 
+        // Calculate existing late fee total for 50% check exclusion
+        $lateFeeHead = FeeHead::where('fee_head', 'LIKE', '%LATE FEE%')->first();
+        $lateFeeAmount = 0;
+        if ($lateFeeHead) {
+            $lateFeeAmount = (float) ChallanHead::where('challan_id', $challandata->id)
+                ->where('head_id', $lateFeeHead->id)
+                ->sum('price');
+        }
+
         return response()->json([
             'challandetail' => $challandata,
+            'challan_late_fee' => $lateFeeAmount,
             'previousUnpaidChallans' => $previousUnpaidChallans,
             'headsData' => $headsData,
             'accounts' => $accountsFormatted,
@@ -3349,8 +3363,12 @@ public function paidchallan(Request $request)
                 $invoicePayment->save();
                 $invoicePayment->refresh(); // reload updated model
             }
+            $lateFeeTotal = ChallanHead::where('challan_id', $invoicePayment->id)
+                ->whereHas('feeHead', fn($q) => $q->where('fee_head', 'LIKE', '%LATE FEE%'))
+                ->sum('price');
+            $baseTotal = $invoicePayment->total_amount - $lateFeeTotal;
             $isfiftypercent = false;
-            if ($invoicePayment->paid_amount >= ($invoicePayment->total_amount - $invoicePayment->concession_amount) / 2) {
+            if ($invoicePayment->paid_amount >= ($baseTotal - $invoicePayment->concession_amount) / 2) {
                 $isfiftypercent = true;
             }
             if (!$isfiftypercent && $invoicePayment->student->register_option != 2) {
