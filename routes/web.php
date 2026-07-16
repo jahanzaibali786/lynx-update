@@ -937,6 +937,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
 
 			Route::get('voucher-create', [JournalEntryController::class, 'createVoucher'])->name('createVoucher');
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
+            Route::get('journal-entry/{journalEntry}/voucher-print', [JournalEntryController::class, 'voucherPrint'])->name('journal-entry.voucher-print');
             Route::resource('journal-entry', JournalEntryController::class);
 
 

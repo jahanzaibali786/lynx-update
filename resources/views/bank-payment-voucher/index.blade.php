@@ -95,6 +95,15 @@
                                             {{ !empty($journalEntry->description) ? $journalEntry->description : '-' }}</td>
                                         <td>
                                             <div class="action-btn ms-2">
+                                                @can('show journal entry')
+                                                    <a title="{{ __('Voucher Print') }}"
+                                                        href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}"
+                                                        target="_blank"
+                                                        class="mx-1 btn mx-1 btn-sm btn-outline-secondary align-items-center"
+                                                        data-bs-title="{{ __('Print') }}">
+                                                        <span class="btn-inner--icon"> <i class="ti ti-printer"></i> </span>
+                                                    </a>
+                                                @endcan
                                                 @can('edit journal entry')
                                                     <a data-title="{{ __('Edit Bank Payment Voucher') }}"
                                                         href="{{ route('bank-payment-voucher.edit', [$journalEntry->id]) }}"

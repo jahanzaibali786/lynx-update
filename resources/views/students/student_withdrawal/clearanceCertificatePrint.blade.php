@@ -276,7 +276,7 @@
                             </tr>
                             <tr>
                                 <td class="label">
-                                    @if($netBalance == 0)<strong>RECEIVABLE</strong>@elseif($netBalance > 0)<strong>PAYABLE</strong>@endif
+                                    @if($netBalance < 0)<strong>RECEIVABLE</strong>@elseif($netBalance > 0)<strong>PAYABLE</strong>@endif
                                 </td>
                             </tr>
                         </table>

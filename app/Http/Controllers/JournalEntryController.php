@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\VoucherPrintExport;
 use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
 use App\Models\Department;
@@ -217,6 +218,140 @@ class JournalEntryController extends Controller
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    public function voucherPrint(JournalEntry $journalEntry)
+    {
+        if (!\Auth::user()->can('show journal entry')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if ($journalEntry->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $journalEntry->load(['accounts.accounts', 'accounts.user', 'branch', 'bank']);
+        $accounts = $journalEntry->accounts;
+        $voucherType = strtoupper($journalEntry->voucher_type ?? 'JV');
+        $voucherNumber = $this->formatVoucherNumber($journalEntry->journal_id, $voucherType);
+        $totalDebit = $accounts->sum('debit');
+        $totalCredit = $accounts->sum('credit');
+        $voucherAmount = max($totalDebit, $totalCredit);
+        $paymentInfo = $this->voucherPaymentInfo($journalEntry, $accounts, $voucherType);
+        $payeeInfo = $this->voucherPayeeInfo($journalEntry, $accounts);
+        $amountWords = $this->amountToWords($voucherAmount);
+        $voucherLogo = $this->voucherLogo();
+        $watermarkLogo = $this->voucherWatermarkLogo();
+
+        $voucherTitleMap = [
+            'JV' => 'JOURNAL VOUCHER',
+            'BPV' => 'BANK PAYMENT VOUCHER',
+            'BRV' => 'BANK RECIPT VOUCHER',
+            'CPV' => 'CASH PAYMENT VOUCHER',
+            'CRV' => 'CASH RECIPT VOUCHER',
+        ];
+
+        $export = new VoucherPrintExport([
+            'voucher_type' => $voucherType,
+            'voucher_title' => $voucherTitleMap[$voucherType] ?? ($voucherType . ' VOUCHER'),
+            'voucher_number' => $voucherNumber,
+            'date' => \Carbon\Carbon::parse($journalEntry->date)->format('M,d Y D'),
+            'accounts' => $accounts->map(function ($account) {
+                return [
+                    'account_head' => trim((optional($account->accounts)->code ? optional($account->accounts)->code . ': ' : '') . (optional($account->accounts)->name ?? '')),
+                    'description' => $account->description ?: ($account->memo ?: ''),
+                    'debit' => (float) $account->debit > 0 ? number_format($account->debit, 2) : '',
+                    'credit' => (float) $account->credit > 0 ? number_format($account->credit, 2) : '',
+                ];
+            })->values()->all(),
+            'total_debit' => number_format($totalDebit, 2),
+            'total_credit' => number_format($totalCredit, 2),
+            'payee' => $payeeInfo,
+            'payment' => array_merge($paymentInfo, [
+                'payment_date' => !empty($paymentInfo['payment_date'])
+                    ? \Carbon\Carbon::parse($paymentInfo['payment_date'])->format('M,d Y D')
+                    : '',
+            ]),
+            'amount_words' => $amountWords,
+            'note' => $journalEntry->description ?? '',
+            'header_logo' => $voucherLogo,
+            'watermark_logo' => $watermarkLogo,
+        ]);
+
+        $bufferLevel = ob_get_level();
+        $previousErrorReporting = error_reporting();
+        error_reporting($previousErrorReporting & ~E_WARNING & ~E_NOTICE);
+
+        ob_start();
+        set_error_handler(function ($severity, $message, $file) {
+            if (
+                in_array($severity, [E_WARNING, E_NOTICE], true)
+                && str_contains($message, 'Undefined array key')
+            ) {
+                return true;
+            }
+
+            return false;
+        }, E_WARNING | E_NOTICE);
+
+        try {
+            $pdf = $this->renderVoucherPdf($export, $watermarkLogo);
+        } finally {
+            unset($export);
+            gc_collect_cycles();
+            restore_error_handler();
+            error_reporting($previousErrorReporting);
+
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
+        }
+
+        $fileName = $voucherNumber . '.pdf';
+        $disposition = response()->make('', 200)->headers->makeDisposition('inline', $fileName);
+
+        return response()->stream(function () use ($pdf) {
+            echo $pdf;
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Length' => strlen($pdf),
+            'Content-Disposition' => $disposition,
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
+            'Pragma' => 'public',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    private function renderVoucherPdf(VoucherPrintExport $export, string $watermarkLogo): string
+    {
+        $tempDir = storage_path('app/mpdf-tmp');
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0775, true);
+        }
+
+        $pdf = new \Mpdf\Mpdf([
+            'mode' => 'utf-8',
+            'format' => [210, 297],
+            'orientation' => 'P',
+            'tempDir' => $tempDir,
+            'margin_left' => 6.35,
+            'margin_right' => 6.35,
+            'margin_top' => 6.35,
+            'margin_bottom' => 6.35,
+        ]);
+        $pdf->SetDisplayMode('fullpage');
+        $pdf->shrink_tables_to_fit = 1;
+
+        if (!empty($watermarkLogo) && file_exists($watermarkLogo)) {
+            $pdf->SetWatermarkImage($watermarkLogo, 0.4, [85, 66], [62, 106]);
+            $pdf->showWatermarkImage = true;
+            $pdf->watermarkImgBehind = true;
+        }
+
+        $pdf->SetTitle('Voucher Print');
+        $pdf->WriteHTML($export->view()->render());
+
+        return $pdf->Output('', 'S');
     }
 
 
@@ -613,6 +748,137 @@ class JournalEntryController extends Controller
         $method = $methodMap[$type] ?? 'journalNumberFormat';
 
         return \Auth::user()->$method($number);
+    }
+
+    private function voucherPaymentInfo(JournalEntry $journalEntry, $accounts, string $voucherType): array
+    {
+        $modeMap = [
+            'dd' => 'DD',
+            'cd' => 'CD',
+            'bank-transfer' => 'Bank Transfer',
+            'chq' => 'CHQ',
+            'cheque' => 'CHQ',
+            'others' => 'Others',
+        ];
+        $mode = $journalEntry->mode ?? null;
+        $bankLine = $accounts->first(function ($item) use ($voucherType) {
+            if (!$item->accounts) {
+                return false;
+            }
+
+            $name = strtolower($item->accounts->name ?? '');
+            $code = strtolower($item->accounts->code ?? '');
+
+            return str_contains($name, 'bank')
+                || str_contains($name, 'hbl')
+                || str_contains($name, 'cash')
+                || str_contains($code, 'bank')
+                || in_array($voucherType, ['BPV', 'BRV']) && (($item->credit ?? 0) > 0 || ($item->debit ?? 0) > 0);
+        });
+
+        return [
+            'mode' => $mode ? ($modeMap[strtolower($mode)] ?? strtoupper($mode)) : '',
+            'reference' => $journalEntry->reference ?? '',
+            'payment_date' => $journalEntry->date,
+            'bank_name' => $bankLine && $bankLine->accounts ? $bankLine->accounts->name : '',
+            'invoice_no' => $journalEntry->reference_id ?: '',
+        ];
+    }
+
+    private function voucherPayeeInfo(JournalEntry $journalEntry, $accounts): array
+    {
+        $partyLine = $accounts->first(function ($item) {
+            return !empty($item->user) || !empty($item->user_type) || !empty($item->user_id);
+        });
+        $party = $partyLine ? $partyLine->user : null;
+
+        return [
+            'name' => $party->stdname ?? $party->name ?? '',
+            'account_no' => '',
+            'contact' => $party->phone ?? $party->contact ?? '',
+            'email' => $party->email ?? '',
+            'ntn_cnic' => $party->cnic ?? $party->father_cnic ?? '',
+        ];
+    }
+
+    private function voucherWatermarkLogo(): string
+    {
+        $paths = [
+            public_path('assets/images/lynx2-watermark.png'),
+            public_path('assets/images/lynx2.jpg'),
+        ];
+
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                return str_replace('\\', '/', $path);
+            }
+        }
+
+        return '';
+    }
+
+    private function voucherLogo(): string
+    {
+        $paths = [
+            public_path('assets/images/lynx2-header.png'),
+            public_path('assets/images/lynx2.jpg'),
+            storage_path('uploads/logo/thelynxschool.png'),
+            storage_path('uploads/logo/logo-dark.png'),
+            public_path('uploads/logo/logo-dark.png'),
+        ];
+
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                return str_replace('\\', '/', $path);
+            }
+        }
+
+        return '';
+    }
+
+    private function amountToWords($amount): string
+    {
+        $amount = (float) $amount;
+        $whole = (int) floor($amount);
+        $fraction = (int) round(($amount - $whole) * 100);
+        $words = $this->numberToWords($whole);
+
+        if ($fraction > 0) {
+            return $words . ' and ' . $this->numberToWords($fraction) . ' Paisa Only';
+        }
+
+        return $words . ' Only';
+    }
+
+    private function numberToWords(int $number): string
+    {
+        if ($number === 0) {
+            return 'Zero';
+        }
+
+        $ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        $tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+        $units = [
+            10000000 => 'Crore',
+            100000 => 'Lac',
+            1000 => 'Thousand',
+            100 => 'Hundred',
+        ];
+
+        foreach ($units as $value => $label) {
+            if ($number >= $value) {
+                $prefix = $this->numberToWords((int) floor($number / $value));
+                $remainder = $number % $value;
+
+                return trim($prefix . ' ' . $label . ' ' . ($remainder ? $this->numberToWords($remainder) : ''));
+            }
+        }
+
+        if ($number < 20) {
+            return $ones[$number];
+        }
+
+        return trim($tens[(int) floor($number / 10)] . ' ' . $ones[$number % 10]);
     }
 
     private function setModelValueIfColumn($model, $column, $value)

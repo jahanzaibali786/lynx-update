@@ -572,8 +572,7 @@ class StudentWithdrawalController extends Controller
             ->whereNotIn('challan_type', ['Transfer', 'Withdrawal'])
             ->wheredate('fee_month', '<=', date('Y-m-d', strtotime($studentwithdrawal->withdraw_date)))
             ->select(\DB::raw('SUM(total_amount - (paid_amount + concession_amount)) AS arrears_total'))->value('arrears_total');
-
-        $adj = ChallanSecAdjustment::where('roll_no', $student->roll_no)->sum('amount');
+            $adj = ChallanSecAdjustment::where('roll_no', $student->roll_no)->sum('amount');
         return response()->json([
             'error' => false,
             'admission_error' => $admissionError,
@@ -1145,6 +1144,7 @@ class StudentWithdrawalController extends Controller
         $totalPayables = $securityPayable;
         $totalReceivables = $arrearsTotal - $securityPayable;
         $netBalance = $arrearsTotal - $securityPayable;
+        $netBalance = $securityPayable - $arrearsTotal;
         // dd($securityDeposit,$adj, $securityPayable, $arrearsTotal );
         $lastReceiptAmount = 0;
         $lastReceiptDate = null;
