@@ -30,6 +30,7 @@ class ProductServiceCategory extends Model
         // 'equity' => 'Equity',
         'costs of good sold' => 'Costs of Goods Sold',
         'voucher' => 'Voucher',
+        'head imprest' => 'Head Imprest',
     ];
 
 

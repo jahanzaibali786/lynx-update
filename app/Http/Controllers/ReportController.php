@@ -4105,4 +4105,223 @@ class ReportController extends Controller
 
         return view('report.receivable_report_receipt', compact('filter', 'invoiceCustomers'));
     }
+
+    public function headImprestCashflow(Request $request)
+    {
+        if (\Auth::user()->can('loss & profit report') || \Auth::user()->can('manage journal entry')) {
+            $user = \Auth::user();
+            $creatorId = $user->creatorId();
+
+            // Handle date range - default to current month
+            if (!empty($request->from_date) && !empty($request->to_date)) {
+                $fromDate = $request->from_date;
+                $toDate = $request->to_date;
+            } else {
+                $fromDate = date('Y-m-01');
+                $toDate = date('Y-m-t');
+            }
+
+            // Determine selected branch / branches list
+            if ($user->type == 'company') {
+                $branches = \App\Models\User::where('type', '=', 'branch')->get()->pluck('name', 'id');
+                $branches->prepend('All Branches', '');
+                $selectedBranchId = $request->branch_id ?? '';
+            } else {
+                $branches = \App\Models\User::where('id', '=', $user->ownedId())->get()->pluck('name', 'id');
+                $selectedBranchId = $user->ownedId();
+            }
+
+            // Get target bank accounts
+            $bankQuery = \App\Models\BankAccount::where('type', 'head_imprest');
+            if (!empty($selectedBranchId)) {
+                $bankQuery->where('created_by', $selectedBranchId);
+            } else {
+                if ($user->type == 'branch') {
+                    $bankQuery->where('created_by', $user->id);
+                } else {
+                    $bankQuery->where('created_by', $creatorId);
+                }
+            }
+            $bankAccounts = $bankQuery->get();
+            $bankCoaIds = $bankAccounts->pluck('chart_account_id')->filter()->toArray();
+
+            // Calculate Beginning Cash Balance
+            // Formed by current balance - debits on/after $fromDate + credits on/after $fromDate
+            $beginningBalance = 0;
+            foreach ($bankAccounts as $bank) {
+                $currentBal = $bank->opening_balance;
+                
+                $afterTrans = \App\Models\JournalItem::where('account', $bank->chart_account_id)
+                    ->whereHas('journalEntery', function($q) {
+                        $q->where('status', 'Approved');
+                    })
+                    ->whereHas('journalEntery', function($q) use ($fromDate) {
+                        $q->where('date', '>=', $fromDate);
+                    })
+                    ->get();
+                
+                $debitsAfter = $afterTrans->sum('debit');
+                $creditsAfter = $afterTrans->sum('credit');
+                
+                $beginningBalance += ($currentBal - $debitsAfter + $creditsAfter);
+            }
+
+            // Fetch Inflows within Period (debits to bank account)
+            $inflowItems = [];
+            if (!empty($bankCoaIds)) {
+                $inflowItems = \App\Models\JournalItem::whereIn('account', $bankCoaIds)
+                    ->where('debit', '>', 0)
+                    ->whereHas('journalEntery', function($q) use ($fromDate, $toDate) {
+                        $q->where('status', 'Approved')
+                          ->where('date', '>=', $fromDate)
+                          ->where('date', '<=', $toDate);
+                    })
+                    ->with('journalEntery')
+                    ->get()
+                    ->map(function($item) {
+                        $voucherId = $item->journalEntery->journal_id ?? '';
+                        $desc = $item->journalEntery->description ?? '';
+                        $narration = $voucherId ? ($voucherId . ' - ' . $desc) : $desc;
+                        return [
+                            'date' => $item->journalEntery->date,
+                            'mode' => $item->journalEntery->payment_mode ?? '-',
+                            'narration' => $narration ?: '-',
+                            'amount' => $item->debit,
+                        ];
+                    })
+                    ->sortBy('date')
+                    ->values();
+            }
+            $totalInflows = collect($inflowItems)->sum('amount');
+
+            // Fetch Expense Accounts of subtype 'Head Imprest' (including recursive child accounts)
+            $allExpenseAccountIds = [];
+            $expenseType = \App\Models\ChartOfAccountType::where('created_by', $creatorId)
+                ->where('name', 'Expenses')
+                ->first();
+            if ($expenseType) {
+                $subType = \App\Models\ChartOfAccountSubType::where('created_by', $creatorId)
+                    ->where('type', $expenseType->id)
+                    ->where('name', 'Head Imprest')
+                    ->first();
+                if ($subType) {
+                    $directAccountIds = \App\Models\ChartOfAccount::where('created_by', $creatorId)
+                        ->where('type', $expenseType->id)
+                        ->where('sub_type', $subType->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allExpenseAccountIds = $directAccountIds;
+                    $currentParentIds = $directAccountIds;
+                    while (!empty($currentParentIds)) {
+                        $parentRecordIds = \App\Models\ChartOfAccountParent::whereIn('account', $currentParentIds)->pluck('id')->toArray();
+                        if (empty($parentRecordIds)) {
+                            break;
+                        }
+                        $childIds = \App\Models\ChartOfAccount::where('created_by', $creatorId)
+                            ->whereIn('parent', $parentRecordIds)
+                            ->pluck('id')
+                            ->toArray();
+                        
+                        $newChildIds = array_diff($childIds, $allExpenseAccountIds);
+                        if (empty($newChildIds)) {
+                            break;
+                        }
+                        $allExpenseAccountIds = array_merge($allExpenseAccountIds, $newChildIds);
+                        $currentParentIds = $newChildIds;
+                    }
+                }
+            }
+
+            // Fetch approved debits to these expense accounts during the period
+            // If branch is selected, filter by that branch's transactions (journal entry owned_by equals branch)
+            $outflows = [];
+            $totalOutflows = 0;
+            if (!empty($allExpenseAccountIds)) {
+                $outflowQuery = \App\Models\JournalItem::whereIn('account', $allExpenseAccountIds)
+                    ->where('debit', '>', 0)
+                    ->whereHas('journalEntery', function($q) use ($fromDate, $toDate, $selectedBranchId) {
+                        $q->where('status', 'Approved')
+                          ->where('date', '>=', $fromDate)
+                          ->where('date', '<=', $toDate);
+                        if (!empty($selectedBranchId)) {
+                            $q->where('owned_by', $selectedBranchId);
+                        }
+                    })
+                    ->with(['accounts', 'journalEntery']);
+
+                $outflowItems = $outflowQuery->get();
+
+                // Group by account
+                $grouped = $outflowItems->groupBy('account');
+                
+                // Fetch all unique accounts details
+                $accounts = \App\Models\ChartOfAccount::whereIn('id', $allExpenseAccountIds)->get()->keyBy('id');
+
+                foreach ($accounts as $accId => $acc) {
+                    $items = $grouped->get($accId) ?? collect();
+                    
+                    // Split into Day 1-15 and Day 16-31
+                    $firstHalf = 0;
+                    $secondHalf = 0;
+                    foreach ($items as $item) {
+                        $day = date('j', strtotime($item->journalEntery->date));
+                        if ($day <= 15) {
+                            $firstHalf += $item->debit;
+                        } else {
+                            $secondHalf += $item->debit;
+                        }
+                    }
+                    $total = $firstHalf + $secondHalf;
+                    $totalOutflows += $total;
+
+                    $outflows[] = [
+                        'account_name' => $acc->name,
+                        'code' => $acc->code,
+                        'first_half' => $firstHalf,
+                        'second_half' => $secondHalf,
+                        'total' => $total,
+                    ];
+                }
+            }
+
+            // Add average and percentage calculations
+            foreach ($outflows as &$row) {
+                $row['average'] = $row['total'] > 0 ? ($row['total'] / 25) : 0;
+                $row['percentage'] = $totalOutflows > 0 ? (($row['total'] / $totalOutflows) * 100) : 0;
+            }
+            unset($row);
+
+            // Sort outflows by code or name
+            usort($outflows, function($a, $b) {
+                return strcmp($a['code'], $b['code']);
+            });
+
+            $endingBalance = $beginningBalance + $totalInflows - $totalOutflows;
+
+            $branchName = 'All Branches';
+            if (!empty($selectedBranchId)) {
+                $bUser = \App\Models\User::find($selectedBranchId);
+                if ($bUser) {
+                    $branchName = $bUser->name;
+                }
+            }
+
+            return view('report.head_imprest_cashflow', compact(
+                'branches',
+                'selectedBranchId',
+                'fromDate',
+                'toDate',
+                'beginningBalance',
+                'inflowItems',
+                'totalInflows',
+                'outflows',
+                'totalOutflows',
+                'endingBalance',
+                'branchName'
+            ));
+        } else {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+    }
 }

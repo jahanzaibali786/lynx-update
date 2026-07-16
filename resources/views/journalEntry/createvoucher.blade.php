@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ isset($journalEntry) ? __('Voucher Edit') : __('Journal Entry Create') }}
+    {{ isset($journalEntry) ? __('Journal Voucher Edit') : __('Journal Voucher Create') }}
 @endsection
 
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('Double Entry') }}</li>
     <li class="breadcrumb-item">{{ __('Vouchers') }}</li>
-    <li class="breadcrumb-item">{{ __('Journal Entry') }}</li>
+    <li class="breadcrumb-item">{{ __('Journal Voucher') }}</li>
 @endsection
 
 @push('script-page')
@@ -76,7 +76,8 @@
 
         function cleanSelectLabel(value) {
             value = (value || '').trim();
-            if (!value || /^[-—\s]+$/.test(value) || /^[-—\s]*(select|branch|department|designation|employee|student|vendor)[-—\s]*$/i.test(value)) {
+            if (!value || /^[-—\s]+$/.test(value) ||
+                /^[-—\s]*(select|branch|department|designation|employee|student|vendor)[-—\s]*$/i.test(value)) {
                 return '';
             }
             return value;
@@ -143,9 +144,9 @@
             $('#user_id').val($('.party-select-wrap:visible select').val() || '');
         }
 
-        $(document).on('change', '#payment_mode', toggleChequeFields);
-        $(document).on('change', '#user_type', toggleHeaderPartyFields);
-        $(document).on('change', '.party-id-select', function() {
+        $(document).off('change', '#payment_mode').on('change', '#payment_mode', toggleChequeFields);
+        $(document).off('change', '#user_type').on('change', '#user_type', toggleHeaderPartyFields);
+        $(document).off('change', '.party-id-select').on('change', '.party-id-select', function() {
             $('#user_id').val($(this).val() || '');
         });
 
@@ -201,7 +202,7 @@
         }
 
         // ─── Voucher number ───────────────────────────────────────────────────────────
-        $(document).on('change', '#voucher_type, #branches', function() {
+        $(document).off('change', '#voucher_type, #branches').on('change', '#voucher_type, #branches', function() {
             var currentType = ($('#voucher_type').val() || 'jv').toUpperCase();
             journalEntries.forEach(function(entry) {
                 entry.types = currentType;
@@ -239,7 +240,8 @@
         }
 
         // ─── Add line button ──────────────────────────────────────────────────────────
-        $(document).on('click', '#addAccountBtn', function() {
+        $(document).off('click', '#addAccountBtn').on('click', '#addAccountBtn', function(e) {
+            e.preventDefault();
             var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
             if (openRows >= MAX_OPEN_ROWS) {
                 show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS +
@@ -268,6 +270,18 @@
                 '<td class="col-type">' +
                 '<input type="text" class="form-control form-control-sm row-types" list="type-options" data-rid="' + rid +
                 '" placeholder="Type" value="' + ($('#voucher_type').val() || 'jv').toUpperCase() + '">' +
+                '</td>' +
+
+                // Ref No
+                '<td class="col-ref">' +
+                '<input type="text" class="form-control form-control-sm row-ref" data-rid="' + rid +
+                '" placeholder="Ref No">' +
+                '</td>' +
+
+                // Date
+                '<td class="col-tradate">' +
+                '<input type="date" class="form-control form-control-sm row-tradate" data-rid="' + rid +
+                '" value="' + ($('input[name="date"]').val() || '') + '">' +
                 '</td>' +
 
                 // ② Debit
@@ -306,7 +320,7 @@
         }
 
         // ─── Account change → render category fields ──────────────────────────────────
-        $(document).on('change', '.row-account', function() {
+        $(document).off('change', '.row-account').on('change', '.row-account', function() {
             var rid = $(this).data('rid');
             var opt = $(this).find('option:selected');
             var cat = opt.data('category') || 'general';
@@ -391,7 +405,7 @@
             }
         }
 
-        $(document).on('change', '#branches', function() {
+        $(document).off('change', '#branches').on('change', '#branches', function() {
             var selectedBranch = $(this).val();
             clearHeaderPartySelection();
             loadHeaderPartyData(selectedBranch);
@@ -407,12 +421,12 @@
             });
         });
 
-        $(document).on('change', '.hr-branch', function() {
+        $(document).off('change', '.hr-branch').on('change', '.hr-branch', function() {
             var rid = $(this).data('rid');
             $('.hr-desig[data-rid="' + rid + '"]').trigger('change');
         });
 
-        $(document).on('change', '.hr-dept', function() {
+        $(document).off('change', '.hr-dept').on('change', '.hr-dept', function() {
             var rid = $(this).data('rid');
             var deptId = $(this).val();
 
@@ -449,7 +463,7 @@
             });
         });
 
-        $(document).on('change', '.hr-desig', function() {
+        $(document).off('change', '.hr-desig').on('change', '.hr-desig', function() {
             var rid = $(this).data('rid');
             var deptId = $('.hr-dept[data-rid="' + rid + '"]').val();
             var desigId = $(this).val();
@@ -484,7 +498,7 @@
             });
         });
 
-        $(document).on('change', '.stu-branch', function() {
+        $(document).off('change', '.stu-branch').on('change', '.stu-branch', function() {
             var rid = $(this).data('rid'),
                 bid = $(this).val();
 
@@ -514,7 +528,7 @@
             });
         });
 
-        $(document).on('change', '.inv-branch', function() {
+        $(document).off('change', '.inv-branch').on('change', '.inv-branch', function() {
             var rid = $(this).data('rid'),
                 bid = $(this).val();
 
@@ -544,7 +558,7 @@
             });
         });
         // ─── Debit / Credit mutual exclusion ─────────────────────────────────────────
-        $(document).on('input', '.row-debit', function() {
+        $(document).off('input', '.row-debit').on('input', '.row-debit', function() {
             var rid = $(this).data('rid');
             if (parseFloat($(this).val()) > 0) {
                 $('.row-credit[data-rid="' + rid + '"]').val('').prop('disabled', true);
@@ -552,7 +566,7 @@
                 $('.row-credit[data-rid="' + rid + '"]').prop('disabled', false);
             }
         });
-        $(document).on('input', '.row-credit', function() {
+        $(document).off('input', '.row-credit').on('input', '.row-credit', function() {
             var rid = $(this).data('rid');
             if (parseFloat($(this).val()) > 0) {
                 $('.row-debit[data-rid="' + rid + '"]').val('').prop('disabled', true);
@@ -562,7 +576,7 @@
         });
 
         // ─── Confirm row ──────────────────────────────────────────────────────────────
-        $(document).on('click', '.confirm-row-btn', function() {
+        $(document).off('click', '.confirm-row-btn').on('click', '.confirm-row-btn', function() {
             var rid = $(this).data('rid');
             var tr = $('tr[data-row-id="' + rid + '"]');
             var cat = tr.attr('data-cat') || 'general';
@@ -572,6 +586,8 @@
             var path = accOpt.data('path') || accOpt.text();
             var debit = parseFloat($('.row-debit[data-rid="' + rid + '"]').val()) || 0;
             var credit = parseFloat($('.row-credit[data-rid="' + rid + '"]').val()) || 0;
+            var refNo = ($('.row-ref[data-rid="' + rid + '"]').val() || '').trim();
+            var traDate = $('.row-tradate[data-rid="' + rid + '"]').val() || null;
             var desc = ($('.row-desc[data-rid="' + rid + '"]').val() || '').trim();
 
             if (!accId) {
@@ -596,10 +612,7 @@
                     employee_id: $('.hr-emp[data-rid="' + rid + '"]').val(),
                     employee_name: $('.hr-emp[data-rid="' + rid + '"] option:selected').text(),
                 };
-                metaLabel = [meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]
-                    .filter(function(v) {
-                        return v && !v.startsWith('—');
-                    }).join(' › ');
+                metaLabel = joinMemoParts([meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]);
             } else if (cat === 'student') {
                 meta = {
                     branch_id: $('.stu-branch[data-rid="' + rid + '"]').val(),
@@ -607,10 +620,7 @@
                     student_id: $('.stu-student[data-rid="' + rid + '"]').val(),
                     student_name: $('.stu-student[data-rid="' + rid + '"] option:selected').text(),
                 };
-                metaLabel = [meta.branch_name, meta.student_name]
-                    .filter(function(v) {
-                        return v && !v.startsWith('—');
-                    }).join(' › ');
+                metaLabel = joinMemoParts([meta.branch_name, meta.student_name]);
             } else if (cat === 'inventory') {
                 meta = {
                     branch_id: $('.inv-branch[data-rid="' + rid + '"]').val(),
@@ -618,29 +628,20 @@
                     vendor_id: $('.inv-vendor[data-rid="' + rid + '"]').val(),
                     vendor_name: $('.inv-vendor[data-rid="' + rid + '"] option:selected').text(),
                 };
-                metaLabel = [meta.branch_name, meta.vendor_name]
-                    .filter(function(v) {
-                        return v && !v.startsWith('—');
-                    }).join(' › ');
+                metaLabel = joinMemoParts([meta.branch_name, meta.vendor_name]);
             }
 
-            var userType = '',
-                userId = '';
+            var userType = '', userId = '';
             if (cat === 'hr') {
-                metaLabel = joinMemoParts([meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]);
                 userType = meta.employee_id ? 'Employee' : '';
                 userId = meta.employee_id || '';
             } else if (cat === 'student') {
-                metaLabel = joinMemoParts([meta.branch_name, meta.student_name]);
                 userType = meta.student_id ? 'Student' : '';
                 userId = meta.student_id || '';
             } else if (cat === 'inventory') {
-                metaLabel = joinMemoParts([meta.branch_name, meta.vendor_name]);
-                userType = meta.vendor_id ? 'Vender' : '';
+                userType = meta.vendor_id ? 'Vendor' : '';
                 userId = meta.vendor_id || '';
             }
-
-            var lineMemo = metaLabel ? '→ ' + metaLabel : '';
 
             var entry = {
                 id: Date.now(),
@@ -649,10 +650,12 @@
                 cat,
                 meta,
                 metaLabel,
-                lineMemo,
+                lineMemo: metaLabel ? '→ ' + metaLabel : '',
                 userType,
                 userId,
                 types: ($('.row-types[data-rid="' + rid + '"]').val() || ($('#voucher_type').val() || 'jv').toUpperCase()).toUpperCase(),
+                ref_no: refNo,
+                tra_date: traDate,
                 debit,
                 credit,
                 desc
@@ -672,13 +675,13 @@
                 general: '<span class="cat-badge cat-general">General</span>'
             };
             var meta = e.metaLabel ? '<div class="entry-meta">&#8594; ' + e.metaLabel + '</div>' : '';
-            var dr = e.debit ? '<span class="text-danger fw-semibold">' + e.debit.toFixed(2) + '</span>' :
-                '<span class="text-muted">—</span>';
-            var cr = e.credit ? '<span class="text-primary fw-semibold">' + e.credit.toFixed(2) + '</span>' :
-                '<span class="text-muted">—</span>';
+            var dr = e.debit ? '<span class="text-danger fw-semibold">' + e.debit.toFixed(2) + '</span>' : '<span class="text-muted">—</span>';
+            var cr = e.credit ? '<span class="text-primary fw-semibold">' + e.credit.toFixed(2) + '</span>' : '<span class="text-muted">—</span>';
             return '<tr data-entry-id="' + e.id + '" class="confirmed-row">' +
                 '<td>' + (badges[e.cat] || '') + '<code class="account-path">' + e.path + '</code>' + meta + '</td>' +
                 '<td>' + (e.types || '—') + '</td>' +
+                '<td>' + (e.ref_no || '—') + '</td>' +
+                '<td>' + (e.tra_date || '—') + '</td>' +
                 '<td class="text-right">' + dr + '</td>' +
                 '<td class="text-right">' + cr + '</td>' +
                 '<td style="font-size:13px;color:#6c757d;">' + (e.desc || '—') + '</td>' +
@@ -692,13 +695,13 @@
         }
 
         // ─── Discard open row ─────────────────────────────────────────────────────────
-        $(document).on('click', '.discard-row-btn', function() {
+        $(document).off('click', '.discard-row-btn').on('click', '.discard-row-btn', function() {
             $('tr[data-row-id="' + $(this).data('rid') + '"]').remove();
             checkEmptyState();
         });
 
         // ─── Remove confirmed entry ───────────────────────────────────────────────────
-        $(document).on('click', '.remove-entry-btn', function(e) {
+        $(document).off('click', '.remove-entry-btn').on('click', '.remove-entry-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             if (!confirm('Remove this entry?')) return;
@@ -721,6 +724,8 @@
                 appendHidden(w, p + '[debit]', e.debit);
                 appendHidden(w, p + '[credit]', e.credit);
                 appendHidden(w, p + '[description]', e.desc);
+                appendHidden(w, p + '[ref_no]', e.ref_no);
+                appendHidden(w, p + '[tra_date]', e.tra_date);
                 appendHidden(w, p + '[category]', e.cat);
                 appendHidden(w, p + '[memo]', e.lineMemo);
                 appendHidden(w, p + '[user_type]', e.userType);
@@ -764,51 +769,53 @@
         // Escape → discard new row  OR  cancel edit
         // Backspace/Delete (on empty input) → cancel edit only (don't discard a new row mid-fill)
 
-        $(document).on('keydown', '.row-account, .row-debit, .row-credit, .row-desc, .catcell-wrap select', function(e) {
+        $(document).off('keydown', '.row-account, .row-debit, .row-credit, .row-desc, .catcell-wrap select').on('keydown',
+            '.row-account, .row-debit, .row-credit, .row-desc, .catcell-wrap select',
+            function(e) {
 
-            var rid = $(this).data('rid') || $(this).closest('[data-rid]').data('rid');
-            if (!rid) return;
+                var rid = $(this).data('rid') || $(this).closest('[data-rid]').data('rid');
+                if (!rid) return;
 
-            // SHIFT + ENTER => Confirm current row + add new row
-            if (e.key === 'Enter' && e.shiftKey) {
-                e.preventDefault();
+                // SHIFT + ENTER => Confirm current row + add new row
+                if (e.key === 'Enter' && e.shiftKey) {
+                    e.preventDefault();
 
-                var confirmBtn = $('.confirm-row-btn[data-rid="' + rid + '"]');
+                    var confirmBtn = $('.confirm-row-btn[data-rid="' + rid + '"]');
 
-                // Confirm current row first
-                confirmBtn.trigger('click');
+                    // Confirm current row first
+                    confirmBtn.trigger('click');
 
-                // Add new row after short delay
-                setTimeout(function() {
-                    var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
+                    // Add new row after short delay
+                    setTimeout(function() {
+                        var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
 
-                    if (openRows < MAX_OPEN_ROWS) {
-                        appendInlineRow();
+                        if (openRows < MAX_OPEN_ROWS) {
+                            appendInlineRow();
 
-                        // Focus first field of newly added row
-                        $('#inline-entry-tbody tr[data-row-id]:last')
-                            .find('.row-account')
-                            .focus();
-                    }
-                }, 100);
+                            // Focus first field of newly added row
+                            $('#inline-entry-tbody tr[data-row-id]:last')
+                                .find('.row-account')
+                                .focus();
+                        }
+                    }, 100);
 
-            }
+                }
 
-            // ENTER => Confirm row only
-            else if (e.key === 'Enter') {
-                e.preventDefault();
-                $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+                // ENTER => Confirm row only
+                else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
 
-            }
+                }
 
-            // ESC => Discard row
-            else if (e.key === 'Escape') {
-                e.preventDefault();
-                $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
-            }
-        });
+                // ESC => Discard row
+                else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
+                }
+            });
 
-        $(document).on('keydown', '.edit-debit, .edit-credit', function(e) {
+        $(document).off('keydown', '.edit-debit, .edit-credit').on('keydown', '.edit-debit, .edit-credit', function(e) {
             var id = $(this).data('id');
             if (!id) return;
 
@@ -827,7 +834,7 @@
             }
         });
 
-        $(document).on('keydown', '.edit-desc', function(e) {
+        $(document).off('keydown', '.edit-desc').on('keydown', '.edit-desc', function(e) {
             var id = $(this).data('id');
             if (!id) return;
 
@@ -841,7 +848,7 @@
         });
 
         // ─── Edit confirmed entry (make debit/credit editable inline) ────────────────
-        $(document).on('click', '.edit-entry-btn', function(e) {
+        $(document).off('click', '.edit-entry-btn').on('click', '.edit-entry-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var entry = journalEntries.find(function(e) {
@@ -851,13 +858,15 @@
 
             var tr = $('tr[data-entry-id="' + id + '"]');
 
-            // Replace debit/credit/description tds with editable inputs.
+            // Replace debit/credit/description/ref/date tds with editable inputs.
             var drVal = entry.debit || '';
             var crVal = entry.credit || '';
             var descVal = entry.desc || '';
             var typeVal = entry.types || '';
+            var refVal = entry.ref_no || '';
+            var dateVal = entry.tra_date || '';
 
-            // td index: 0=account, 1=type, 2=debit, 3=credit, 4=desc, 5=actions
+            // td index: 0=account, 1=type, 2=ref_no, 3=tra_date, 4=debit, 5=credit, 6=desc, 7=actions
             // Whichever has a value is enabled; the other is disabled.
             // Both enable again once the filled one is cleared.
             var drDisabled = (drVal === '' && crVal !== '') ? 'disabled' : '';
@@ -868,20 +877,28 @@
                 'value="' + typeVal + '" placeholder="Type" data-id="' + id + '">'
             );
             tr.find('td').eq(2).html(
+                '<input type="text" class="form-control form-control-sm edit-ref" ' +
+                'value="' + refVal + '" placeholder="Ref No" data-id="' + id + '">'
+            );
+            tr.find('td').eq(3).html(
+                '<input type="date" class="form-control form-control-sm edit-tradate" ' +
+                'value="' + dateVal + '" data-id="' + id + '">'
+            );
+            tr.find('td').eq(4).html(
                 '<input type="number" class="form-control form-control-sm edit-debit" ' +
                 'value="' + drVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 drDisabled + ' style="width:90px;">'
             );
-            tr.find('td').eq(3).html(
+            tr.find('td').eq(5).html(
                 '<input type="number" class="form-control form-control-sm edit-credit" ' +
                 'value="' + crVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 crDisabled + ' style="width:90px;">'
             );
-            tr.find('td').eq(4).html(
+            tr.find('td').eq(6).html(
                 '<input type="text" class="form-control form-control-sm edit-desc" ' +
                 'value="' + $('<div>').text(descVal).html() + '" placeholder="Description" data-id="' + id + '">'
             );
-            tr.find('td').eq(5).html(
+            tr.find('td').eq(7).html(
                 '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id +
                 '" title="Save"><i class="ti ti-check"></i></a>' +
                 '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id +
@@ -892,7 +909,7 @@
         // Debit/credit mutual exclusion in edit mode
         // — field with a value stays enabled and locks the other
         // — clearing the value re-enables both
-        $(document).on('input', '.edit-debit', function() {
+        $(document).off('input', '.edit-debit').on('input', '.edit-debit', function() {
             var val = $(this).val();
             var other = $(this).closest('tr').find('.edit-credit');
             if (val !== '' && parseFloat(val) >= 0) {
@@ -901,7 +918,7 @@
                 other.prop('disabled', false);
             }
         });
-        $(document).on('input', '.edit-credit', function() {
+        $(document).off('input', '.edit-credit').on('input', '.edit-credit', function() {
             var val = $(this).val();
             var other = $(this).closest('tr').find('.edit-debit');
             if (val !== '' && parseFloat(val) >= 0) {
@@ -912,11 +929,13 @@
         });
 
         // Save edit
-        $(document).on('click', '.save-edit-btn', function(e) {
+        $(document).off('click', '.save-edit-btn').on('click', '.save-edit-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var tr = $('tr[data-entry-id="' + id + '"]');
             var typeVal = (tr.find('.edit-types').val() || '').trim().toUpperCase();
+            var refVal = (tr.find('.edit-ref').val() || '').trim();
+            var dateVal = tr.find('.edit-tradate').val() || null;
             var debit = parseFloat(tr.find('.edit-debit').val()) || 0;
             var credit = parseFloat(tr.find('.edit-credit').val()) || 0;
             var desc = (tr.find('.edit-desc').val() || '').trim();
@@ -928,6 +947,8 @@
                 return e.id === id;
             });
             entry.types = typeVal;
+            entry.ref_no = refVal;
+            entry.tra_date = dateVal;
             entry.debit = debit;
             entry.credit = credit;
             entry.desc = desc;
@@ -937,7 +958,7 @@
         });
 
         // Cancel edit — just redraw the locked row as-is
-        $(document).on('click', '.cancel-edit-btn', function(e) {
+        $(document).off('click', '.cancel-edit-btn').on('click', '.cancel-edit-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var entry = journalEntries.find(function(e) {
@@ -946,41 +967,40 @@
             $('tr[data-entry-id="' + id + '"]').replaceWith(buildLockedRow(entry));
         });
 
-        // ─── Form submit ──────────────────────────────────────────────────────────────
-        $(document).on('submit', '#journal-form', function(e) {
-            e.preventDefault();
+        // ─── Pre-Submit Validation Check ──────────────────────────────────────────────
+        $(document).off('submit', '#journal-form').on('submit', '#journal-form', function(e) {
             var d = parseFloat($('.totalDebit').text()) || 0;
             var c = parseFloat($('.totalCredit').text()) || 0;
             if (journalEntries.length === 0) {
                 show_toastr('error', 'Please confirm at least one account entry.', 'error');
-                return;
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                return false;
             }
             if (d !== c) {
                 show_toastr('error', 'Total Debit (' + d.toFixed(2) + ') ≠ Total Credit (' + c.toFixed(2) + ').',
                     'error');
-                return;
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                return false;
             }
             toggleHeaderPartyFields();
-            $.ajax({
-                url: $(this).attr('action'),
-                type: 'POST',
-                data: new FormData(this),
-                processData: false,
-                contentType: false,
-                success: function(r) {
-                    if (r.status === 'success') {
-                        show_toastr('success', r.message, 'success');
-                        if (r.redirect) setTimeout(function() {
-                            window.location.href = r.redirect;
-                        }, 300);
-                    } else {
-                        show_toastr('error', r.message, 'error');
+        });
+
+        // ─── Initialize Global AJAX Handler ───────────────────────────────────────────
+        $(document).ready(function() {
+            if (typeof ajaxModalForm === 'function') {
+                ajaxModalForm({
+                    formSelector: '.ajax-modal-form',
+                    onSuccess: function(response) {
+                        if (response.redirect) {
+                            setTimeout(function() {
+                                window.location.href = response.redirect;
+                            }, 1000);
+                        }
                     }
-                },
-                error: function(xhr) {
-                    show_toastr('error', xhr.responseJSON?.message || 'Unexpected error.', 'error');
-                }
-            });
+                });
+            }
         });
     </script>
 
@@ -995,10 +1015,17 @@
             table-layout: auto;
         }
 
-        /* Column sizing */
         #inline-entry-table .col-debit,
         #inline-entry-table .col-credit {
             width: 100px;
+        }
+
+        #inline-entry-table .col-ref {
+            width: 100px;
+        }
+
+        #inline-entry-table .col-tradate {
+            width: 120px;
         }
 
         #inline-entry-table .col-desc {
@@ -1148,7 +1175,7 @@
         $selectedPartyType = $journalEntry->user_type ?? '';
         $selectedPartyId = $journalEntry->user_id ?? '';
     @endphp
-    {{ Form::open(['url' => $isEdit ? route('journal-entry.update', $journalEntry->id) : url('journal-entry'), 'class' => 'w-100', 'id' => 'journal-form', 'files' => true]) }}
+    {{ Form::open(['url' => $isEdit ? route('journal-entry.update', $journalEntry->id) : url('journal-entry'), 'class' => 'w-100 ajax-modal-form', 'id' => 'journal-form', 'files' => true]) }}
     @if ($isEdit)
         @method('PUT')
     @endif
@@ -1185,7 +1212,7 @@
                                 ) }}
                             </div>
                         </div>
-                        
+
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
                                 {{ Form::label('journal_number', __('Journal Number'), ['class' => 'form-label', 'id' => 'journal-number']) }}
@@ -1196,12 +1223,10 @@
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
                                 {{ Form::label('category_type_id', __('Voucher Category Type'), ['class' => 'form-label']) }}
-                                {{ Form::select(
-                                    'category_type_id',
-                                    $voucherCategoryTypes,
-                                    $journalEntry->category_type_id ?? null,
-                                    ['class' => 'form-control', 'id' => 'category_type_id'],
-                                ) }}
+                                {{ Form::select('category_type_id', $voucherCategoryTypes, $journalEntry->category_type_id ?? null, [
+                                    'class' => 'form-control',
+                                    'id' => 'category_type_id',
+                                ]) }}
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-4">
@@ -1303,13 +1328,14 @@
                                 {{ Form::date('cheque_date', $journalEntry->cheque_date ?? null, ['class' => 'form-control']) }}
                             </div>
                         </div>
-                        
+
                         <div class="col-lg-4 col-md-6">
                             <div class="form-group">
                                 {{ Form::label('attachment', __('Attachment'), ['class' => 'form-label']) }}
                                 {{ Form::file('attachment', ['class' => 'form-control']) }}
                                 @if ($isEdit && !empty($journalEntry->attachment))
-                                    <a href="{{ asset($journalEntry->attachment) }}" target="_blank" class="d-inline-block mt-1">
+                                    <a href="{{ asset($journalEntry->attachment) }}" target="_blank"
+                                        class="d-inline-block mt-1">
                                         {{ __('View Attachment') }}
                                     </a>
                                 @endif
@@ -1340,6 +1366,8 @@
                             <tr>
                                 <th class="col-account">{{ __('Account') }}</th>
                                 <th class="col-type">{{ __('Type') }}</th>
+                                <th class="col-ref">{{ __('Ref No') }}</th>
+                                <th class="col-tradate">{{ __('Date') }}</th>
                                 <th class="col-debit text-right">{{ __('Debit') }}</th>
                                 <th class="col-credit text-right">{{ __('Credit') }}</th>
                                 <th class="col-desc">{{ __('Description') }}</th>
@@ -1348,14 +1376,14 @@
                         </thead>
                         <tbody id="inline-entry-tbody">
                             <tr id="empty-row">
-                                <td colspan="6" class="text-center text-muted py-4" style="font-size:13px;">
+                                <td colspan="8" class="text-center text-muted py-4" style="font-size:13px;">
                                     Click <strong>+ Add Account Line</strong> below to start adding entries.
                                 </td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr class="add-row-footer">
-                                <td colspan="7">
+                                <td colspan="8">
                                     <button style="color: #fff !important;" type="button" id="addAccountBtn"
                                         class="btn btn-outline-primary btn-sm">
                                         <i class="ti ti-plus" style="color: #fff !important;"></i>
@@ -1364,7 +1392,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="3"></td>
+                                <td colspan="5"></td>
                                 <td class="text-right">
                                     <strong>{{ __('Total Credit') }} ({{ \Auth::user()->currencySymbol() }})</strong>
                                 </td>
@@ -1372,7 +1400,7 @@
                                 <td></td>
                             </tr>
                             <tr>
-                                <td colspan="3"></td>
+                                <td colspan="5"></td>
                                 <td class="text-right">
                                     <strong>{{ __('Total Debit') }} ({{ \Auth::user()->currencySymbol() }})</strong>
                                 </td>
@@ -1387,8 +1415,8 @@
     </div>
 
     <div class="modal-footer">
-        <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('journal-entry.index') }}';"
-            class="btn btn-light">
+        <input type="button" value="{{ __('Cancel') }}"
+            onclick="location.href = '{{ route('journal-entry.index') }}';" class="btn btn-light">
         <input type="submit" value="{{ $isEdit ? __('Update') : __('Save') }}" class="btn btn-outline-primary">
     </div>
 

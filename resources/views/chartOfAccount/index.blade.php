@@ -295,6 +295,7 @@
                                                         <a href="#"
                                                             class="mx-1 btn btn-sm align-items-center btn-outline-primary"
                                                             data-url="{{ route('chart-of-account.edit', $account->id) }}"
+                                                            data-size="lg"
                                                             data-ajax-popup="true" title="{{ __('Edit Account') }}"
                                                             data-bs-title="{{ __('Edit') }}"><span class="btn-inner--icon">
                                                                 <i class="ti ti-pencil"></i>

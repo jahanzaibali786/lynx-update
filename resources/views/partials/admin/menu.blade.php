@@ -1718,6 +1718,18 @@
                                                             <a class="dash-link {{ Request::route()->getName() == 'journal-entry.edit' || Request::route()->getName() == 'journal-entry.create' || Request::route()->getName() == 'journal-entry.index' || Request::route()->getName() == 'journal-entry.show' ? ' active' : '' }}"
                                                                 href="{{ route('journal-entry.index') }}">{{ __('JV') }}</a>
                                                         </li>
+                                                        <li class="dash-item ">
+                                                            <a class="dash-link {{ Request::route()->getName() == 'head-imprest-vouchers.index' ? ' active' : '' }}"
+                                                                href="{{ route('head-imprest-vouchers.index') }}">{{ __('Head Imprest Vouchers') }}</a>
+                                                        </li>
+                                                        <li class="dash-item ">
+                                                            <a class="dash-link {{ Request::route()->getName() == 'report.head-imprest.cashflow' ? ' active' : '' }}"
+                                                                href="{{ route('report.head-imprest.cashflow') }}">{{ __('Head Imprest Report') }}</a>
+                                                        </li>
+                                                        <li class="dash-item ">
+                                                            <a class="dash-link {{ Request::route()->getName() == 'student-incomes.index' ? ' active' : '' }}"
+                                                                href="{{ route('student-incomes.index') }}">{{ __('Student Incomes') }}</a>
+                                                        </li>
                                                     </ul>
                                                 </li>
 

@@ -191,10 +191,8 @@
 
 
     <!-- Vendor Scripts Start -->
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
-    {{-- /  fontawesome cdn/    --}}
-    {{-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/fontawesome.min.css" integrity="sha512-v8QQ0YQ3H4K6Ic3PJkym91KoeNT5S3PnDKvqnwqFD1oiqIl653crGZplPdU5KKtHjO0QKcQ2aUlQZYjHczkmGw==" crossorigin="anonymous" referrerpolicy="no-referrer" /> --}}
+    {{-- Removed stale Bootstrap 4 CDN and jQuery slim CDN (they loaded before jQuery, breaking $.fn.tooltip) --}}
+    {{-- The project uses local jQuery 3.5.1 + Bootstrap 5 bundle below --}}
     <script src="{{ asset('public/acron/jquery-3.5.1.min.js') }}"></script>
     <script src="{{ asset('public/acron/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('public/acron/OverlayScrollbars.min.js') }}"></script>
@@ -383,7 +381,7 @@
     <main>
         <div class="dash-container m-3">
             <div class="dash-content">
-                <div class="page-header">
+                <div class="page-header pe-4">
                     <div class="page-block">
                         <div class="row align-items-center">
                             <div class="col-auto">
@@ -514,7 +512,6 @@
         // });
         
     </script>
-
+    @stack('script-page')
 </body>
-
 </html>

@@ -302,10 +302,41 @@ class ChartOfAccountController extends Controller
 
     public function edit(ChartOfAccount $chartOfAccount)
     {
-        $types = ChartOfAccountType::get()->pluck('name', 'id');
-        $types->prepend('Select Account Type', 0);
+        if(\Auth::user()->can('edit chart of account'))
+        {
+            $types = ChartOfAccountType::where('created_by',\Auth::user()->creatorId())->get();
+            $account_type = [];
 
-        return view('chartOfAccount.edit', compact('chartOfAccount', 'types'));
+            foreach ($types as $type) {
+                $accountTypes = ChartOfAccountSubType::where('type', $type->id)->where('created_by',\Auth::user()->creatorId())->get();
+
+                $temp = [];
+                foreach($accountTypes as $accountType)
+                {
+                    $temp[$accountType->id] = $accountType->name;
+                }
+                $account_type[$type->name] = $temp;
+            }
+            $selectAcc = [
+                null => "Select",
+            ];
+            $account_type = array_merge($selectAcc, $account_type);
+
+            $parentAccounts = [];
+            if ($chartOfAccount->parent > 0 && $chartOfAccount->parentAccount) {
+                $parentAccounts = ChartOfAccount::where('sub_type', $chartOfAccount->sub_type)
+                    ->where('id', '!=', $chartOfAccount->id)
+                    ->get()
+                    ->pluck('name', 'id')
+                    ->toArray();
+            }
+
+            return view('chartOfAccount.edit', compact('chartOfAccount', 'account_type', 'parentAccounts'));
+        }
+        else
+        {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
     }
 
 public function updateCategory(Request $request)
@@ -320,12 +351,12 @@ public function updateCategory(Request $request)
     }
     public function update(Request $request, ChartOfAccount $chartOfAccount)
     {
-
         if(\Auth::user()->can('edit chart of account'))
         {
             $validator = \Validator::make(
                 $request->all(), [
                                    'name' => 'required',
+                                   'sub_type' => 'required',
                                ]
             );
             if($validator->fails())
@@ -335,11 +366,53 @@ public function updateCategory(Request $request)
                 return redirect()->back()->with('error', $messages->first());
             }
 
+            $type = ChartOfAccountSubType::where('id',$request->sub_type)->where('created_by', '=', \Auth::user()->creatorId())->first();
 
             $chartOfAccount->name        = $request->name;
             $chartOfAccount->code        = $request->code;
             $chartOfAccount->description = $request->description;
             $chartOfAccount->is_enabled  = isset($request->is_enabled) ? 1 : 0;
+            if ($type) {
+                $chartOfAccount->type     = $type->type;
+                $chartOfAccount->sub_type = $request->sub_type;
+            }
+
+            // Handle parent account change
+            // If parent = 0 (no sub-account) or not checked
+            if ($request->parent == 0 || !$request->has('parent') || $request->parent == null) {
+                $chartOfAccount->parent = 0;
+            } else {
+                // It is a sub-account
+                $parentAcc = ChartOfAccount::where('id',$request->parent)->where('created_by', '=', \Auth::user()->creatorId())->first();
+                if(!empty($parentAcc->name)){
+                    $existingparentAccount = ChartOfAccountParent::where('name',$parentAcc->name)->where('created_by',\Auth::user()->creatorId())->first();
+
+                    if ($existingparentAccount) {
+                        $parentAccount = $existingparentAccount;
+                        $parentAccount->name        = $parentAcc->name;
+                        $parentAccount->sub_type    = $request->sub_type;
+                        if ($type) {
+                            $parentAccount->type    = $type->type;
+                        }
+                        $parentAccount->account      = $request->parent;
+                        $parentAccount->created_by  = \Auth::user()->creatorId();
+                        $parentAccount->save();
+                    } else {
+                        $parentAccount              = new ChartOfAccountParent();
+                        $parentAccount->name        = $parentAcc->name;
+                        $parentAccount->sub_type    = $request->sub_type;
+                        if ($type) {
+                            $parentAccount->type    = $type->type;
+                        }
+                        $parentAccount->account      = $request->parent;
+                        $parentAccount->created_by  = \Auth::user()->creatorId();
+                        $parentAccount->save();
+                    }
+
+                    $chartOfAccount->parent = $parentAccount->id;
+                }
+            }
+
             $chartOfAccount->save();
 
             return redirect()->route('chart-of-account.index')->with('success', __('Account successfully updated.'));

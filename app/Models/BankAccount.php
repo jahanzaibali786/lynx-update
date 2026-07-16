@@ -10,6 +10,7 @@ class BankAccount extends Model
         'holder_name',
         'bank_name',
         'account_number',
+        'type',
         'chart_account_id',
         'opening_balance',
         'contact_number',

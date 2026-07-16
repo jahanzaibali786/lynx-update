@@ -21,6 +21,10 @@
             {{ Form::label('opening_balance', __('Opening Balance'),['class'=>'form-label']) }}
             {{ Form::number('opening_balance',null, array('class' => 'form-control','required'=>'required','step'=>'0.01')) }}
         </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('type', __('Type'),['class'=>'form-label']) }}
+            {{ Form::select('type', ['normal' => 'Normal', 'head_imprest' => 'Head Imprest'], $bankAccount->type, array('class' => 'form-control select','required'=>'required')) }}
+        </div>
         <div class="form-group  col-md-6">
             {{ Form::label('branches', __('Branch'), ['class' => 'form-label']) }}
             {{ Form::select('branches', $branches, $bankAccount->owned_by, ['class' => 'form-control select','required'=>'required','id'=>'branches']) }}

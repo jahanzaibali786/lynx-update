@@ -6,9 +6,12 @@ use App\Models\AdvanceTaxCollection;
 use App\Models\EmployeeMonthlySalary;
 use App\Models\EmployeePayscaleDetail;
 use App\Models\EmployeeScale;
+use App\Models\User;
 use App\Models\TaxSlab;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use App\Exports\RecentlyRevisedTaxesExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TaxSlabsController extends Controller
 {
@@ -72,10 +75,27 @@ class TaxSlabsController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index(Request $request)
     {
-        $tax_slabs = TaxSlab::all();
-        return view('tax_slabs.index', compact('tax_slabs'));
+        $currentCalYear = (int) date('Y');
+        $fromYear = $request->input('from_year', $currentCalYear - 1);
+        $toYear = $request->input('to_year', $currentCalYear);
+
+        $query = TaxSlab::query();
+
+        if (!empty($fromYear)) {
+            $query->where('year', '>=', $fromYear);
+        }
+        if (!empty($toYear)) {
+            $query->where('year', '<=', $toYear);
+        }
+
+        $tax_slabs = $query->orderBy('year', 'desc')->orderBy('no', 'asc')->get();
+
+        $yearsList = range($currentCalYear - 10, $currentCalYear + 5);
+        $years = array_combine($yearsList, $yearsList);
+
+        return view('tax_slabs.index', compact('tax_slabs', 'years', 'fromYear', 'toYear'));
     }
 
     /**
@@ -198,8 +218,18 @@ class TaxSlabsController extends Controller
 
     public function calculateTax(Request $request)
     {
-        $empScaleId = $request->empScaleId;
-        $currentPaymode = $this->getEmployeeScalePaymode($request->employee_id, $empScaleId);
+        $responseArray = $this->computeTaxForEmployee($request->employee_id, $request->empScaleId);
+        
+        if (isset($responseArray['error_code'])) {
+            return response()->json(['error' => $responseArray['error']], $responseArray['error_code']);
+        }
+
+        return response()->json($responseArray);
+    }
+
+    private function computeTaxForEmployee($employee_id, $empScaleId)
+    {
+        $currentPaymode = $this->getEmployeeScalePaymode($employee_id, $empScaleId);
         $isCurrentCashPaymode = $this->isCashPaymode($currentPaymode);
 
         // -----------------------------
@@ -210,7 +240,7 @@ class TaxSlabsController extends Controller
             ->first();
 
         if (!$empScale) {
-            return response()->json(['error' => 'Employee scale not found'], 404);
+            return ['error' => 'Employee scale not found', 'error_code' => 404];
         }
 
         // -----------------------------
@@ -235,7 +265,7 @@ class TaxSlabsController extends Controller
             ->first();
 
             $lastPayScale = EmployeeScale::with('employeeScaleHeads')->where('id', '<', $empScaleId)->orderBy('id', 'desc')->first();
-            $lastscale = EmployeeMonthlySalary::where('employee_id', $request->employee_id)
+            $lastscale = EmployeeMonthlySalary::where('employee_id', $employee_id)
                 ->orderBy('id', 'desc')
                 ->first();
 
@@ -252,7 +282,7 @@ class TaxSlabsController extends Controller
         // -----------------------------
         // 3. LAST SALARY / REJOIN CHECK
         // -----------------------------
-        $lastSalary = EmployeeMonthlySalary::where('employee_id', $request->employee_id)
+        $lastSalary = EmployeeMonthlySalary::where('employee_id', $employee_id)
             ->orderBy('salary_date', 'desc')
             ->first();
 
@@ -278,7 +308,7 @@ class TaxSlabsController extends Controller
         // remaining months till June
         $remainingMonths = ($currentMonth <= 6)
             ? (6 - $currentMonth + 1)
-            : (12 - $currentMonth + 6);
+            : (12 - $currentMonth + 7);
 
         // -----------------------------
         // 5. MODE SWITCH
@@ -288,6 +318,8 @@ class TaxSlabsController extends Controller
         $salaryTaxReceived = 0;
         $advanceTaxCollection = 0;
         $prevSalAmnt = 0;
+        $monthlySalaryHeads = [];
+        $monthlySalaryTot = [];
 
         if ($isRejoin) {
 
@@ -301,7 +333,7 @@ class TaxSlabsController extends Controller
             $fyStart = $currentMonth >= 7
                 ? Carbon::create(date('Y'), 7, 1)
                 : Carbon::create(date('Y') - 1, 7, 1);
-            $advanceTaxCollection = $this->approvedAdvanceTaxCollection($request->employee_id, $fyStart, Carbon::now());
+            $advanceTaxCollection = $this->approvedAdvanceTaxCollection($employee_id, $fyStart, Carbon::now());
             $prevSubmittedTax += $advanceTaxCollection;
 
         } else {
@@ -320,7 +352,7 @@ class TaxSlabsController extends Controller
 
             // previous salary
             $previousPaidSal = EmployeeMonthlySalary::with('scaleHeads.salaryHeads')
-                ->where('employee_id', $request->employee_id)
+                ->where('employee_id', $employee_id)
                 ->whereBetween('salary_date', [
                     $fyStart->startOfMonth(),
                     now()->subMonth()->endOfMonth()
@@ -330,13 +362,12 @@ class TaxSlabsController extends Controller
                         ->orWhereRaw('LOWER(TRIM(paymode)) != ?', ['cash']);
                 })
                 ->get();
-                // dd($previousPaidSal);
             $salaryTaxReceived = (float) $previousPaidSal->sum('it');
-            $advanceTaxCollection = $this->approvedAdvanceTaxCollection($request->employee_id, $fyStart, Carbon::now());
+            $advanceTaxCollection = $this->approvedAdvanceTaxCollection($employee_id, $fyStart, Carbon::now());
             $prevSubmittedTax = $salaryTaxReceived + $advanceTaxCollection;
 
             // last salary
-                $lastSalary = EmployeeMonthlySalary::with('scaleHeads')->where('employee_id', $request->employee_id)
+                $lastSalary = EmployeeMonthlySalary::with('scaleHeads')->where('employee_id', $employee_id)
                     ->orderBy('salary_date', 'desc')
                     ->first();
                 $missingMonths = 0;
@@ -374,7 +405,6 @@ class TaxSlabsController extends Controller
                 $monthlySalaryHeads[$month] = ($monthlySalaryHeads[$month] ?? 0) + $monthTotal;
                 $monthlySalaryTot[$month] = ($monthlySalaryTot[$month] ?? 0) + $prevSalAmnt;
             }
-            // dd($monthlySalaryHeads,$monthlySalaryTot);
             // projected future
             $futureMonths = $remainingMonths + $missingMonths;
 
@@ -406,7 +436,7 @@ class TaxSlabsController extends Controller
             ->first();
         if (!$taxSlabs) {
             if ($isCurrentCashPaymode) {
-                return response()->json([
+                return [
                     'mode' => 'CASH_EXEMPT',
                     'permonthtax' => 0,
                     'totaltax' => 0,
@@ -419,12 +449,10 @@ class TaxSlabsController extends Controller
                     'gapMonths' => $gapMonths,
                     'paymode' => $currentPaymode,
                     'message' => 'Cash paymode is exempt from upcoming tax. Previous collected tax is shown.',
-                ]);
+                ];
             }
 
-            return response()->json([
-                'error' => 'Tax slab not found for year ' . $currentYear
-            ], 404);
+            return ['error' => 'Tax slab not found for year ' . $currentYear, 'error_code' => 404];
         }
 
         // -----------------------------
@@ -436,13 +464,6 @@ class TaxSlabsController extends Controller
 
         $taxAmount = ($totalTax + $taxSlabs->fixed_tax_amount) - $prevSubmittedTax;
 
-        // $taxable = max($yearlySal - $taxSlabs->lower_limit, 0);
-
-        // $totalTax = ($taxable * $taxSlabs->prev_limit_percentage) / 100;
-        // $taxAmount = max(
-        //     ($totalTax + $taxSlabs->fixed_tax_amount) - $prevSubmittedTax,
-        //     0
-        // );
         // -----------------------------
         // 9. MONTHLY TAX
         // -----------------------------
@@ -458,7 +479,7 @@ class TaxSlabsController extends Controller
         // -----------------------------
         // 10. RESPONSE
         // -----------------------------
-        return response()->json([
+        return [
             'mode'          => $isCurrentCashPaymode ? 'CASH_EXEMPT' : ($isRejoin ? 'REJOIN' : 'CONTINUE'),
             'permonthtax'   => round($perMonTax),
             'totaltax'      => round($totalTax + $taxSlabs->fixed_tax_amount),
@@ -473,6 +494,155 @@ class TaxSlabsController extends Controller
             'message'       => $isCurrentCashPaymode ? 'Cash paymode is exempt from upcoming tax. Previous collected tax is shown.' : null,
             'monthlySalaryHeads' => $monthlySalaryHeads,
             'monthlySalaryTot' => $monthlySalaryTot,
-        ]);
+        ];
+    }
+
+    public function showRevisePage(Request $request)
+    {
+        $currentMonth = date('n');
+        
+        // Clear recently updated session if reset clicked
+        if ($request->input('clear_session') == 1) {
+            session()->forget('recently_updated_employees');
+        }
+
+        // Fetch branches based on user type (same logic as TransferController)
+        $branches = User::where('type', '=', 'branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+        $branches->prepend(__('Select Branch'), '');
+
+        $branchId = $request->input('branch_id');
+        
+        $currentYear = date('Y');
+        if ($currentMonth <= 6) {
+            $currentYear--;
+        }
+        $taxSlabExists = TaxSlab::where('year', $currentYear)->exists();
+
+        $recentlyUpdated = session('recently_updated_employees', []);
+
+        $taxableHeads = \DB::table('salary_heads')
+            ->whereRaw('LOWER(TRIM(head)) NOT IN (?, ?)', ['medical', 'medical allowance'])
+            ->orderBy('id')
+            ->pluck('head')
+            ->toArray();
+
+        return view('tax_slabs.revise', compact('branches', 'branchId', 'taxSlabExists', 'recentlyUpdated', 'taxableHeads'));
+    }
+
+    public function reviseEmployeeTaxes(Request $request)
+    {
+        if (date('m') != 7) {
+            return redirect()->back()->with('error', __('Tax revision is only allowed in July.'));
+        }
+
+        $currentYear = date('Y');
+        $taxSlabExists = TaxSlab::where('year', $currentYear)->exists();
+
+        if (!$taxSlabExists) {
+            return redirect()->back()->with('error', __('Tax slab for current year is not created yet.'));
+        }
+
+        $branchId = $request->input('branch_id');
+        $query = \App\Models\Employee::where('is_res_ter', 0);
+        if (!empty($branchId)) {
+            $query->where('owned_by', $branchId);
+        }
+        $employees = $query->get();
+        $updatedCount = 0;
+        $updatedEmployees = [];
+
+        foreach ($employees as $employee) {
+            $latestScaleDetail = \App\Models\EmployeePayscaleDetail::with(['scale.employeeScaleHeads.SalaryHeads'])
+                ->where('employee_id', $employee->id)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if (!$latestScaleDetail) {
+                continue; // Skip if employee doesn't have a scale detail
+            }
+
+            $taxResult = $this->computeTaxForEmployee($employee->id, $latestScaleDetail->pay_scale_id);
+
+            if (isset($taxResult['error_code'])) {
+                continue; // Skip if tax cannot be computed
+            }
+
+            $newTax = isset($taxResult['permonthtax']) ? (int) round($taxResult['permonthtax']) : 0;
+            $oldTax = isset($latestScaleDetail->itax) ? (int) round($latestScaleDetail->itax) : 0;
+
+            if ($newTax !== $oldTax) {
+                $oldNet = (int) round($latestScaleDetail->net);
+                $newNet = (int) round($latestScaleDetail->net + $oldTax - $newTax);
+
+                $newScaleDetail = $latestScaleDetail->replicate();
+                $newScaleDetail->itax = $newTax;
+                // net = old_net + old_itax - new_itax
+                $newScaleDetail->net = $newNet;
+                // effect_from will remain the same as the user requested: "dont change this data effect_from"
+                $newScaleDetail->created_at = \Carbon\Carbon::now();
+                $newScaleDetail->updated_at = \Carbon\Carbon::now();
+                $newScaleDetail->save();
+
+                 $headValues = [];
+                $gross = 0;
+                if ($latestScaleDetail->scale) {
+                    foreach ($latestScaleDetail->scale->employeeScaleHeads as $scaleHead) {
+                        if ($scaleHead->SalaryHeads && $this->isTaxableSalaryHead($scaleHead->SalaryHeads->head)) {
+                            $hName = $scaleHead->SalaryHeads->head;
+                            $val = (float) $scaleHead->head_value;
+                            $headValues[$hName] = $val;
+                            $gross += $val;
+                        }
+                    }
+                }
+
+                $otherIncome = (float) ($latestScaleDetail->other_add ?? 0);
+                $gross += $otherIncome;
+
+                $updatedEmployees[] = (object) [
+                    'id' => $employee->id,
+                    'name' => $employee->name,
+                    'employee_id' => $employee->employee_id,
+                    'branch_name' => optional($employee->branch)->name ?? '-',
+                    'payScale' => optional($latestScaleDetail->scale)->name ?? '-',
+                    'scale_no' => optional($latestScaleDetail->scale)->scale_no ?? '-',
+                    'heads' => $headValues,
+                    'other_income' => $otherIncome,
+                    'gross' => $gross,
+                    'oldTax' => $oldTax,
+                    'newTax' => $newTax,
+                    'taxChange' => $newTax - $oldTax,
+                    'oldNet' => $oldNet,
+                    'newNet' => $newNet,
+                    'netChange' => $newNet - $oldNet,
+                ];
+
+                $updatedCount++;
+            }
+        }
+
+        // Store standard session data so it can be downloaded via GET request
+        session(['recently_updated_employees' => $updatedEmployees]);
+
+        return redirect()->route('tax-slab.showRevisePage', ['branch_id' => $branchId])
+            ->with('success', __("Tax revised successfully. $updatedCount employee(s) scale histories updated."));
+    }
+
+    public function exportRecentlyRevised(Request $request)
+    {
+        $recentlyUpdated = session('recently_updated_employees', []);
+
+        if (empty($recentlyUpdated)) {
+            return redirect()->back()->with('error', __('No revised employees records found to export.'));
+        }
+
+        $taxableHeads = \DB::table('salary_heads')
+            ->whereRaw('LOWER(TRIM(head)) NOT IN (?, ?)', ['medical', 'medical allowance'])
+            ->orderBy('id')
+            ->pluck('head')
+            ->toArray();
+
+        return Excel::download(new RecentlyRevisedTaxesExport($recentlyUpdated, $taxableHeads), 'recently_revised_employees_tax.xlsx');
     }
 }

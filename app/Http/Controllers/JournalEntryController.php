@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
+use App\Models\ChartOfAccountType;
+use App\Models\ChartOfAccountSubType;
 use App\Models\Department;
 use App\Models\Designation;
 use App\Models\JournalEntry;
@@ -78,7 +80,7 @@ class JournalEntryController extends Controller
                     [
                         'date' => 'required',
                         'voucher_type' => 'nullable|in:jv,cpv,bpv,crv,brv,JV,CPV,BPV,CRV,BRV',
-                        'status' => 'nullable|in:Draft,Approved,Posted,Reversed',
+                        'status' => 'nullable|in:Draft,Submitted,Approved,Posted,Reversed',
                         'bank_id' => 'nullable|integer',
                         'payment_mode' => 'nullable|string|max:50',
                         'cheque_no' => 'nullable|string|max:100',
@@ -153,6 +155,7 @@ class JournalEntryController extends Controller
                 $this->setNullableModelValueIfColumn($journal, 'added_at', now());
                 $this->setModelValueIfColumn($journal, 'amount', $request->amount);
                 $this->setModelValueIfColumn($journal, 'category', 'manual');
+                $this->setModelValueIfColumn($journal, 'status', 'Draft');
                 $journal->category_type_id = $request->category_type_id;
                 $this->fillJournalEntryExtraFields($journal, $request);
                 $journal->created_at = $transactionDateTime;
@@ -175,6 +178,8 @@ class JournalEntryController extends Controller
                     $journalItem->credit = $credit;
                     $journalItem->types = $account['types'] ?? $voucherType;
                     $journalItem->branch_id = $account['branch_id'] ?? $ownedBy;
+                    $journalItem->ref_no = $account['ref_no'] ?? null;
+                    $journalItem->tra_date = $account['tra_date'] ?? null;
                     $journalItem->user_type = $account['user_type'] ?? null;
                     $journalItem->user_id = $account['user_id'] ?? null;
                     $this->setNullableModelValueIfColumn($journalItem, 'added_by', \Auth::id());
@@ -187,20 +192,22 @@ class JournalEntryController extends Controller
                     $journalItem->updated_at = $transactionDateTime;
                     $journalItem->save();
 
-                    $bankAccounts = BankAccount::where('chart_account_id', '=', $accountId)->get();
-                    if (!empty($bankAccounts)) {
-                        foreach ($bankAccounts as $bankAccount) {
-                            $old_balance = $bankAccount->opening_balance;
-                            $new_balance = null;
-                            if ($journalItem->debit > 0) {
-                                $new_balance = $old_balance - $journalItem->debit;
-                            }
-                            if ($journalItem->credit > 0) {
-                                $new_balance = $old_balance + $journalItem->credit;
-                            }
-                            if (isset($new_balance)) {
-                                $bankAccount->opening_balance = $new_balance;
-                                $bankAccount->save();
+                    if ($journal->status == 'Approved') {
+                        $bankAccounts = BankAccount::where('chart_account_id', '=', $accountId)->get();
+                        if (!empty($bankAccounts)) {
+                            foreach ($bankAccounts as $bankAccount) {
+                                $old_balance = $bankAccount->opening_balance;
+                                $new_balance = null;
+                                if ($journalItem->debit > 0) {
+                                    $new_balance = $old_balance + $journalItem->debit;
+                                }
+                                if ($journalItem->credit > 0) {
+                                    $new_balance = $old_balance - $journalItem->credit;
+                                }
+                                if (isset($new_balance)) {
+                                    $bankAccount->opening_balance = $new_balance;
+                                    $bankAccount->save();
+                                }
                             }
                         }
                     }
@@ -277,7 +284,7 @@ class JournalEntryController extends Controller
                         [
                             'date' => 'required',
                             'voucher_type' => 'nullable|in:jv,cpv,bpv,crv,brv,JV,CPV,BPV,CRV,BRV',
-                            'status' => 'nullable|in:Draft,Approved,Posted,Reversed',
+                            'status' => 'nullable|in:Draft,Submitted,Approved,Posted,Reversed',
                             'bank_id' => 'nullable|integer',
                             'payment_mode' => 'nullable|string|max:50',
                             'cheque_no' => 'nullable|string|max:100',
@@ -332,8 +339,15 @@ class JournalEntryController extends Controller
                     $journalEntry->updated_at = $transactionDateTime;
                     $journalEntry->save();
 
+                    $isApproved = $journalEntry->status == 'Approved';
+                    if ($isApproved) {
+                        foreach ($journalEntry->items as $item) {
+                            $this->reverseBankAccountBalance($item->account, $item->debit, $item->credit);
+                        }
+                    }
+
                     JournalItem::where('journal', $journalEntry->id)->delete();
-                    $this->saveVoucherItems($journalEntry, $accounts, $ownedBy, $voucherType, false);
+                    $this->saveVoucherItems($journalEntry, $accounts, $ownedBy, $voucherType, $isApproved);
 
                     \DB::commit();
                     return response()->json([
@@ -363,8 +377,12 @@ class JournalEntryController extends Controller
 
         if (\Auth::user()->can('delete journal entry')) {
             if ($journalEntry->created_by == \Auth::user()->creatorId()) {
+                if ($journalEntry->status == 'Approved') {
+                    foreach ($journalEntry->items as $item) {
+                        $this->reverseBankAccountBalance($item->account, $item->debit, $item->credit);
+                    }
+                }
                 $journalEntry->delete();
-
 
                 JournalItem::where('journal', '=', $journalEntry->id)->delete();
 
@@ -382,7 +400,7 @@ class JournalEntryController extends Controller
         return $this->voucherNumber('JV', \Auth::user()->ownedId());
     }
 
-    private function voucherNumber($voucherType = 'JV', $ownedBy = null)
+    public function voucherNumber($voucherType = 'JV', $ownedBy = null)
     {
         $latest = JournalEntry::where('owned_by', '=', $ownedBy ?: \Auth::user()->ownedId())
             ->where('voucher_type', $this->normalizeVoucherType($voucherType))
@@ -463,6 +481,8 @@ class JournalEntryController extends Controller
             $journalItem->credit = $credit;
             $journalItem->types = $account['types'] ?? $voucherType;
             $journalItem->branch_id = $account['branch_id'] ?? $ownedBy;
+            $journalItem->ref_no = $account['ref_no'] ?? null;
+            $journalItem->tra_date = $account['tra_date'] ?? null;
             $journalItem->user_type = $account['user_type'] ?? null;
             $journalItem->user_id = $account['user_id'] ?? null;
             $this->setNullableModelValueIfColumn($journalItem, 'added_by', \Auth::id());
@@ -475,13 +495,34 @@ class JournalEntryController extends Controller
             $journalItem->updated_at = $transactionDateTime;
             $journalItem->save();
 
-            if ($updateBankBalance) {
+            if ($updateBankBalance && $journal->status == 'Approved') {
                 $this->updateBankAccountBalance($accountId, $journalItem->debit, $journalItem->credit);
             }
         }
     }
 
-    private function updateBankAccountBalance($accountId, $debit, $credit)
+    public function updateBankAccountBalance($accountId, $debit, $credit)
+    {
+        $bankAccounts = BankAccount::where('chart_account_id', '=', $accountId)->get();
+        if (!empty($bankAccounts)) {
+            foreach ($bankAccounts as $bankAccount) {
+                $oldBalance = $bankAccount->opening_balance;
+                $newBalance = null;
+                if ($debit > 0) {
+                    $newBalance = $oldBalance + $debit;
+                }
+                if ($credit > 0) {
+                    $newBalance = $oldBalance - $credit;
+                }
+                if (isset($newBalance)) {
+                    $bankAccount->opening_balance = $newBalance;
+                    $bankAccount->save();
+                }
+            }
+        }
+    }
+
+    public function reverseBankAccountBalance($accountId, $debit, $credit)
     {
         $bankAccounts = BankAccount::where('chart_account_id', '=', $accountId)->get();
         if (!empty($bankAccounts)) {
@@ -904,5 +945,832 @@ class JournalEntryController extends Controller
             'employees' => $employees,
             'students' => $students,
         ]);
+    }
+
+    public function createExpenseVoucher()
+    {
+        if (\Auth::user()->can('create journal entry')) {
+            $user = \Auth::user();
+            $creatorId = $user->creatorId();
+            $ownedId = $user->ownedId();
+
+            // 1. Fetch only head_imprest bank accounts with balances
+            $bankAccounts = BankAccount::where('type', 'head_imprest')
+                ->where('created_by', $creatorId)
+                ->get()
+                ->mapWithKeys(function ($bank) {
+                    return [
+                        $bank->id => $bank->holder_name . ' - ' . $bank->bank_name . ' (' . __('Balance: ') . \Auth::user()->priceFormat($bank->opening_balance) . ')'
+                    ];
+                });
+
+            // 2. Fetch only Head Imprest subtype COA and its children
+            $expenseType = ChartOfAccountType::where('created_by', $creatorId)
+                ->where('name', 'Expenses')
+                ->first();
+            $chartAccounts = [];
+            if ($expenseType) {
+                $subType = ChartOfAccountSubType::where('created_by', $creatorId)
+                    ->where('type', $expenseType->id)
+                    ->where('name', 'Head Imprest')
+                    ->first();
+                
+                if ($subType) {
+                    $directAccountIds = ChartOfAccount::where('created_by', $creatorId)
+                        ->where('type', $expenseType->id)
+                        ->where('sub_type', $subType->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allAccountIds = $directAccountIds;
+                    $currentParentIds = $directAccountIds;
+                    while (!empty($currentParentIds)) {
+                        $parentRecordIds = \App\Models\ChartOfAccountParent::whereIn('account', $currentParentIds)->pluck('id')->toArray();
+                        if (empty($parentRecordIds)) {
+                            break;
+                        }
+                        $childIds = ChartOfAccount::where('created_by', $creatorId)
+                            ->whereIn('parent', $parentRecordIds)
+                            ->pluck('id')
+                            ->toArray();
+                        
+                        $newChildIds = array_diff($childIds, $allAccountIds);
+                        if (empty($newChildIds)) {
+                            break;
+                        }
+                        $allAccountIds = array_merge($allAccountIds, $newChildIds);
+                        $currentParentIds = $newChildIds;
+                    }
+
+                    $accountsList = ChartOfAccount::whereIn('id', $allAccountIds)->get();
+                    
+                    // Fetch parent mappings to resolve actual parent ChartOfAccount IDs
+                    $parentRecordIds = $accountsList->pluck('parent')->filter()->unique()->toArray();
+                    $parentRecords = \App\Models\ChartOfAccountParent::whereIn('id', $parentRecordIds)->get()->pluck('account', 'id')->toArray();
+
+                    // Group by actual parent ChartOfAccount ID
+                    $byParent = [];
+                    foreach ($accountsList as $acc) {
+                        $parentCoaId = 0;
+                        if ($acc->parent > 0 && isset($parentRecords[$acc->parent])) {
+                            $parentCoaId = $parentRecords[$acc->parent];
+                        }
+                        $byParent[$parentCoaId][] = $acc;
+                    }
+
+                    // Identify roots (items whose actual parent is not in allAccountIds or is 0)
+                    $allAccountIdsSet = array_flip($allAccountIds);
+                    $roots = [];
+                    foreach ($accountsList as $acc) {
+                        $parentCoaId = 0;
+                        if ($acc->parent > 0 && isset($parentRecords[$acc->parent])) {
+                            $parentCoaId = $parentRecords[$acc->parent];
+                        }
+                        if ($parentCoaId == 0 || !isset($allAccountIdsSet[$parentCoaId])) {
+                            $roots[] = $acc;
+                        }
+                    }
+
+                    // Traverse tree and indent child accounts using em-dash
+                    $treeOptions = [];
+                    $formatTree = function ($parentItems, $depth = 0) use (&$formatTree, $byParent, &$treeOptions) {
+                        foreach ($parentItems as $item) {
+                            $indent = str_repeat("—\u{00a0}", $depth); // UTF-8 em-dash + non-breaking space
+                            $treeOptions[$item->id] = $indent . $item->code . ' - ' . $item->name;
+                            
+                            if (isset($byParent[$item->id])) {
+                                $formatTree($byParent[$item->id], $depth + 1);
+                            }
+                        }
+                    };
+
+                    $formatTree($roots);
+                    $chartAccounts = $treeOptions;
+                }
+            }
+
+            // 3. Branches
+            if ($user->type == 'company') {
+                $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
+                $branches->prepend($user->name, $user->id);
+            } else {
+                $branches = User::where('id', '=', $ownedId)->get()->pluck('name', 'id');
+            }
+
+            // 4. Voucher category types
+            $voucherCategoryTypes = ProductServiceCategory::where('type', 'voucher')
+                ->where('created_by', $creatorId)
+                ->orderBy('name')
+                ->pluck('name', 'id');
+            $voucherCategoryTypes->prepend('Select Voucher Category Type', '');
+
+            // 5. Display Voucher Number
+            $voucherType = 'BPV';
+            $displayVoucherNumber = $user->BPVNumberFormat($this->voucherNumber($voucherType, $ownedId));
+
+            if (request()->ajax()) {
+                return view('journalEntry.createexpensevouchermodal', compact(
+                    'bankAccounts',
+                    'chartAccounts',
+                    'branches',
+                    'voucherCategoryTypes',
+                    'displayVoucherNumber'
+                ));
+            }
+
+            return view('journalEntry.createexpensevoucher', compact(
+                'bankAccounts',
+                'chartAccounts',
+                'branches',
+                'voucherCategoryTypes',
+                'displayVoucherNumber'
+            ));
+        } else {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+    }
+
+    public function storeExpenseVoucher(Request $request)
+    {
+        
+        if (\Auth::user()->can('create journal entry')) {
+            $validator = \Validator::make(
+                 $request->all(),
+                 [
+                     'date' => 'required|date',
+                     'bank_id' => 'required|integer',
+                     'expense_account_id' => 'required|integer',
+                     'amount' => 'required|numeric|min:0.01',
+                     'attachment' => 'required|file|max:2560',
+                     'description' => 'nullable|string',
+                     'payment_mode' => 'required|string|in:dd,cd,bank-transfer,chq,others',
+                 ]
+             );
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->getMessageBag()->first()
+                ], 422);
+            }
+
+            // Validate that bank_id is a head_imprest bank account
+            $bankAccount = BankAccount::where('id', $request->bank_id)
+                ->where('type', 'head_imprest')
+                ->first();
+            if (!$bankAccount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Selected bank account is invalid or not of type Head Imprest.')
+                ], 422);
+            }
+
+            // Validate that expense_account_id belongs to Head Imprest subtype or its children
+            $expenseType = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())
+                ->where('name', 'Expenses')
+                ->first();
+            $allowedExpenseAccount = false;
+            if ($expenseType) {
+                $subType = ChartOfAccountSubType::where('created_by', \Auth::user()->creatorId())
+                    ->where('type', $expenseType->id)
+                    ->where('name', 'Head Imprest')
+                    ->first();
+                if ($subType) {
+                    $directAccountIds = ChartOfAccount::where('created_by', \Auth::user()->creatorId())
+                        ->where('type', $expenseType->id)
+                        ->where('sub_type', $subType->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allAccountIds = $directAccountIds;
+                    $currentParentIds = $directAccountIds;
+                    while (!empty($currentParentIds)) {
+                        $parentRecordIds = \App\Models\ChartOfAccountParent::whereIn('account', $currentParentIds)->pluck('id')->toArray();
+                        if (empty($parentRecordIds)) {
+                            break;
+                        }
+                        $childIds = ChartOfAccount::where('created_by', \Auth::user()->creatorId())
+                            ->whereIn('parent', $parentRecordIds)
+                            ->pluck('id')
+                            ->toArray();
+                        
+                        $newChildIds = array_diff($childIds, $allAccountIds);
+                        if (empty($newChildIds)) {
+                            break;
+                        }
+                        $allAccountIds = array_merge($allAccountIds, $newChildIds);
+                        $currentParentIds = $newChildIds;
+                    }
+                    if (in_array($request->expense_account_id, $allAccountIds)) {
+                        $allowedExpenseAccount = true;
+                    }
+                }
+            }
+            if (!$allowedExpenseAccount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Selected expense account is invalid or not of type Head Imprest.')
+                ], 422);
+            }
+
+            \DB::beginTransaction();
+            try {
+                $attachment = $this->storeJournalAttachment($request);
+                $ownedBy = $request->branches ?: \Auth::user()->ownedId();
+                $voucherType = ($request->payment_mode === 'cd') ? 'CPV' : 'BPV';
+
+                // Look up matching Head Imprest category ID
+                $headPressCategory = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())
+                    ->where('type', 'voucher')
+                    ->where('name', 'Head Imprest')
+                    ->first();
+
+                $journal = new JournalEntry();
+                $journal->journal_id = $this->voucherNumber($voucherType, $ownedBy);
+                $journal->date = $request->date;
+                $journal->reference = $request->reference;
+                $journal->description = $request->description;
+                $journal->voucher_type = $voucherType;
+                $this->setModelValueIfColumn($journal, 'payment_mode', $request->payment_mode);
+                $this->setModelValueIfColumn($journal, 'amount', $request->amount);
+                $journal->category = 'Head Imprest';
+                $journal->category_type_id = $headPressCategory ? $headPressCategory->id : null;
+                $journal->attachment = $attachment;
+                $journal->created_by = \Auth::user()->creatorId();
+                $journal->owned_by = $ownedBy;
+                $this->setModelValueIfColumn($journal, 'status', 'Draft');
+                $this->setNullableModelValueIfColumn($journal, 'added_at', now());
+                $journal->added_by = \Auth::user()->id;
+                $journal->added_at  = now();
+                $transactionDateTime = \Carbon\Carbon::parse($request->date)->setTimeFrom(now());
+                $journal->created_at = $transactionDateTime;
+                $journal->updated_at = $transactionDateTime;
+                $journal->save();
+
+                // Debit Expense Account
+                $debitItem = new JournalItem();
+                $debitItem->journal = $journal->id;
+                $debitItem->account = $request->expense_account_id;
+                $debitItem->debit = $request->amount;
+                $debitItem->credit = 0;
+                $debitItem->description = $request->description;
+                $debitItem->branch_id = $journal->owned_by;
+                $debitItem->added_by = \Auth::user()->id;
+                $debitItem->created_at = $transactionDateTime;
+                $debitItem->updated_at = $transactionDateTime;
+                $debitItem->added_at = now();
+                $debitItem->save();
+                if ($journal->status == 'Approved') {
+                    $this->updateBankAccountBalance($debitItem->account, $debitItem->debit, $debitItem->credit);
+                }
+
+                // Credit Bank Account (linked chart account)
+                $creditItem = new JournalItem();
+                $creditItem->journal = $journal->id;
+                $creditItem->account = $bankAccount->chart_account_id;
+                $creditItem->debit = 0;
+                $creditItem->credit = $request->amount;
+                $creditItem->description = $request->description;
+                $creditItem->added_by = \Auth::user()->id;
+                $creditItem->branch_id = $journal->owned_by;
+                $creditItem->added_at = now();
+                $creditItem->save();
+                if ($journal->status == 'Approved') {
+                    $this->updateBankAccountBalance($creditItem->account, $creditItem->debit, $creditItem->credit);
+                }
+
+                \DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Expense Voucher successfully created.'),
+                    'redirect' => route('journal-entry.index')
+                ]);
+            } catch (\Exception $e) {
+                \DB::rollback();
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Something went wrong: ') . $e->getMessage()
+                ], 500);
+            }
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => __('Permission denied.')
+            ], 401);
+        }
+    }
+
+    public function editExpenseVoucher($id)
+    {
+        if (\Auth::user()->can('edit journal entry')) {
+            $journalEntry = JournalEntry::find($id);
+            if (!$journalEntry || $journalEntry->created_by != \Auth::user()->creatorId()) {
+                return response()->json(['error' => __('Voucher not found or permission denied.')], 404);
+            }
+            if ($journalEntry->status == 'Approved' || $journalEntry->status == 'Posted') {
+                return response()->json(['error' => __('Approved or Posted vouchers cannot be edited.')], 403);
+            }
+
+            $user = \Auth::user();
+            $creatorId = $user->creatorId();
+
+            if ($user->type == 'company') {
+                $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
+            } else {
+                $branches = User::where('id', '=', $user->ownedId())->get()->pluck('name', 'id');
+            }
+
+            $bankAccountQuery = BankAccount::query()->where('created_by', $creatorId)->where('type', 'head_imprest');
+            if (\Schema::hasColumn('bank_accounts', 'owned_by')) {
+                $bankAccountQuery->orWhere('owned_by', $user->ownedId())->where('type', 'head_imprest');
+            }
+            $bankAccounts = $bankAccountQuery->orderBy('bank_name')
+                ->get()
+                ->mapWithKeys(function ($bank) {
+                    $labelParts = array_filter([
+                        $bank->bank_name ?? null,
+                        $bank->holder_name ?? null,
+                        $bank->account_number ?? null,
+                        '(' . __('Bal') . ': ' . \Auth::user()->priceFormat($bank->opening_balance) . ')',
+                    ]);
+                    return [$bank->id => implode(' - ', $labelParts)];
+                });
+
+            $expenseType = ChartOfAccountType::where('created_by', $creatorId)
+                ->where('name', 'Expenses')
+                ->first();
+            $treeOptions = [];
+            if ($expenseType) {
+                $subType = ChartOfAccountSubType::where('created_by', $creatorId)
+                    ->where('type', $expenseType->id)
+                    ->where('name', 'Head Imprest')
+                    ->first();
+                if ($subType) {
+                    $directAccountIds = ChartOfAccount::where('created_by', $creatorId)
+                        ->where('type', $expenseType->id)
+                        ->where('sub_type', $subType->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allAccountIds = $directAccountIds;
+                    $currentParentIds = $directAccountIds;
+                    while (!empty($currentParentIds)) {
+                        $parentRecordIds = \App\Models\ChartOfAccountParent::whereIn('account', $currentParentIds)->pluck('id')->toArray();
+                        if (empty($parentRecordIds)) {
+                            break;
+                        }
+                        $childIds = ChartOfAccount::where('created_by', $creatorId)
+                            ->whereIn('parent', $parentRecordIds)
+                            ->pluck('id')
+                            ->toArray();
+                        
+                        $newChildIds = array_diff($childIds, $allAccountIds);
+                        if (empty($newChildIds)) {
+                            break;
+                        }
+                        $allAccountIds = array_merge($allAccountIds, $newChildIds);
+                        $currentParentIds = $newChildIds;
+                    }
+
+                    $accountsList = ChartOfAccount::whereIn('id', $allAccountIds)->get();
+                    $parentRecordIds = $accountsList->pluck('parent')->filter()->unique()->toArray();
+                    $parentRecords = \App\Models\ChartOfAccountParent::whereIn('id', $parentRecordIds)->get()->pluck('account', 'id')->toArray();
+
+                    $byParent = [];
+                    foreach ($accountsList as $acc) {
+                        $parentCoaId = 0;
+                        if ($acc->parent > 0 && isset($parentRecords[$acc->parent])) {
+                            $parentCoaId = $parentRecords[$acc->parent];
+                        }
+                        $byParent[$parentCoaId][] = $acc;
+                    }
+
+                    $allAccountIdsSet = array_flip($allAccountIds);
+                    $roots = [];
+                    foreach ($accountsList as $acc) {
+                        $parentCoaId = 0;
+                        if ($acc->parent > 0 && isset($parentRecords[$acc->parent])) {
+                            $parentCoaId = $parentRecords[$acc->parent];
+                        }
+                        if ($parentCoaId == 0 || !isset($allAccountIdsSet[$parentCoaId])) {
+                            $roots[] = $acc;
+                        }
+                    }
+
+                    $formatTree = function ($parentItems, $depth = 0) use (&$formatTree, $byParent, &$treeOptions) {
+                        foreach ($parentItems as $item) {
+                            $indent = str_repeat("—\u{00a0}", $depth);
+                            $treeOptions[$item->id] = $indent . $item->code . ' - ' . $item->name;
+                            if (isset($byParent[$item->id])) {
+                                $formatTree($byParent[$item->id], $depth + 1);
+                            }
+                        }
+                    };
+                    $formatTree($roots);
+                }
+            }
+
+            $debitItem = $journalEntry->items()->where('debit', '>', 0)->first();
+            $selectedExpenseAccountId = $debitItem ? $debitItem->account : null;
+
+            return view('journalEntry.editexpensevouchermodal', compact('journalEntry', 'branches', 'bankAccounts', 'treeOptions', 'selectedExpenseAccountId'));
+        } else {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+    }
+
+    public function updateExpenseVoucher(Request $request, $id)
+    {
+        if (\Auth::user()->can('edit journal entry')) {
+            $journal = JournalEntry::find($id);
+            if (!$journal || $journal->created_by != \Auth::user()->creatorId()) {
+                return response()->json(['success' => false, 'message' => __('Voucher not found or permission denied.')], 404);
+            }
+            if ($journal->status == 'Approved' || $journal->status == 'Posted') {
+                return response()->json(['success' => false, 'message' => __('Approved or Posted vouchers cannot be edited.')], 403);
+            }
+
+            $validator = \Validator::make(
+                 $request->all(),
+                 [
+                     'date' => 'required|date',
+                     'bank_id' => 'required|integer',
+                     'expense_account_id' => 'required|integer',
+                     'amount' => 'required|numeric|min:0.01',
+                     'attachment' => 'nullable|file|max:2560',
+                     'description' => 'nullable|string',
+                     'payment_mode' => 'required|string|in:dd,cd,bank-transfer,chq,others',
+                 ]
+             );
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->getMessageBag()->first()
+                ], 422);
+            }
+
+            $bankAccount = BankAccount::where('id', $request->bank_id)
+                ->where('type', 'head_imprest')
+                ->first();
+            if (!$bankAccount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Selected bank account is invalid or not of type Head Imprest.')
+                ], 422);
+            }
+
+            $expenseType = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())
+                ->where('name', 'Expenses')
+                ->first();
+            $allowedExpenseAccount = false;
+            if ($expenseType) {
+                $subType = ChartOfAccountSubType::where('created_by', \Auth::user()->creatorId())
+                    ->where('type', $expenseType->id)
+                    ->where('name', 'Head Imprest')
+                    ->first();
+                if ($subType) {
+                    $directAccountIds = ChartOfAccount::where('created_by', \Auth::user()->creatorId())
+                        ->where('type', $expenseType->id)
+                        ->where('sub_type', $subType->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allAccountIds = $directAccountIds;
+                    $currentParentIds = $directAccountIds;
+                    while (!empty($currentParentIds)) {
+                        $parentRecordIds = \App\Models\ChartOfAccountParent::whereIn('account', $currentParentIds)->pluck('id')->toArray();
+                        if (empty($parentRecordIds)) {
+                            break;
+                        }
+                        $childIds = ChartOfAccount::where('created_by', \Auth::user()->creatorId())
+                            ->whereIn('parent', $parentRecordIds)
+                            ->pluck('id')
+                            ->toArray();
+                        
+                        $newChildIds = array_diff($childIds, $allAccountIds);
+                        if (empty($newChildIds)) {
+                            break;
+                        }
+                        $allAccountIds = array_merge($allAccountIds, $newChildIds);
+                        $currentParentIds = $newChildIds;
+                    }
+                    if (in_array($request->expense_account_id, $allAccountIds)) {
+                        $allowedExpenseAccount = true;
+                    }
+                }
+            }
+            if (!$allowedExpenseAccount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Selected expense account is invalid or not of type Head Imprest.')
+                ], 422);
+            }
+
+            \DB::beginTransaction();
+            try {
+                if ($request->hasFile('attachment')) {
+                    $attachment = $this->storeJournalAttachment($request);
+                    $journal->attachment = $attachment;
+                }
+
+                $ownedBy = $request->branches ?: \Auth::user()->ownedId();
+                $voucherType = ($request->payment_mode === 'cd') ? 'CPV' : 'BPV';
+
+                if ($voucherType !== $journal->voucher_type || (int) $ownedBy !== (int) $journal->owned_by) {
+                    $journal->journal_id = $this->voucherNumber($voucherType, $ownedBy);
+                }
+
+                $journal->date = $request->date;
+                $journal->reference = $request->reference;
+                $journal->description = $request->description;
+                $journal->voucher_type = $voucherType;
+                $this->setModelValueIfColumn($journal, 'payment_mode', $request->payment_mode);
+                $this->setModelValueIfColumn($journal, 'amount', $request->amount);
+                $journal->owned_by = $ownedBy;
+                $journal->updated_by = \Auth::id();
+                $journal->updated_at = now();
+
+                $transactionDateTime = \Carbon\Carbon::parse($request->date)->setTimeFrom(now());
+                $journal->created_at = $transactionDateTime;
+                $journal->save();
+
+                JournalItem::where('journal', $journal->id)->delete();
+
+                $debitItem = new JournalItem();
+                $debitItem->journal = $journal->id;
+                $debitItem->account = $request->expense_account_id;
+                $debitItem->debit = $request->amount;
+                $debitItem->credit = 0;
+                $debitItem->description = $request->description;
+                $debitItem->branch_id = $journal->owned_by;
+                $debitItem->added_by = \Auth::user()->id;
+                $debitItem->updated_by = \Auth::user()->id;
+                $debitItem->created_at = $transactionDateTime;
+                $debitItem->updated_at = $transactionDateTime;
+                $debitItem->added_at = now();
+                $debitItem->save();
+
+                $creditItem = new JournalItem();
+                $creditItem->journal = $journal->id;
+                $creditItem->account = $bankAccount->chart_account_id;
+                $creditItem->debit = 0;
+                $creditItem->credit = $request->amount;
+                $creditItem->description = $request->description;
+                $creditItem->branch_id = $journal->owned_by;
+                $creditItem->added_by = \Auth::user()->id;
+                $creditItem->updated_by = \Auth::user()->id;
+                $creditItem->created_at = $transactionDateTime;
+                $creditItem->updated_at = $transactionDateTime;
+                $creditItem->added_at = now();
+                $creditItem->save();
+
+                \DB::commit();
+
+                return response()->json([
+                    'status' => 'success',
+                    'success' => true,
+                    'message' => __('Voucher successfully updated.'),
+                    'redirect' => route('head-imprest-vouchers.index')
+                ]);
+            } catch (\Exception $e) {
+                \DB::rollback();
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Something went wrong: ') . $e->getMessage()
+                ], 500);
+            }
+        } else {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+    }
+
+    public function headImprestVouchersIndex(Request $request)
+    {
+        if (\Auth::user()->can('manage journal entry')) {
+            $user = \Auth::user();
+            $creatorId = $user->creatorId();
+
+            $query = JournalEntry::query()
+                ->where('created_by', '=', $creatorId)
+                ->where('category', 'Head Imprest');
+
+            if ($user->type == 'branch') {
+                $query->where('owned_by', '=', $user->ownedId());
+            } else {
+                if (!empty($request->branch_id)) {
+                    $query->where('owned_by', '=', $request->branch_id);
+                }
+            }
+
+            if (!empty($request->from_date)) {
+                $query->where('date', '>=', $request->from_date);
+            }
+
+            if (!empty($request->to_date)) {
+                $query->where('date', '<=', $request->to_date);
+            }
+
+            if (!empty($request->expense_account_id)) {
+                $query->whereHas('items', function ($q) use ($request) {
+                    $q->where('account', $request->expense_account_id);
+                });
+            }
+
+            $journalEntries = $query->orderBy('id', 'desc')->get();
+
+            // Branches list for filters
+            if ($user->type == 'company') {
+                $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
+                $branches->prepend('All Branches', '');
+            } else {
+                $branches = User::where('id', '=', $user->ownedId())->get()->pluck('name', 'id');
+            }
+
+            // Fetch only Head Imprest subtype COA and its children for filters
+            $expenseType = ChartOfAccountType::where('created_by', $creatorId)
+                ->where('name', 'Expenses')
+                ->first();
+            $chartAccounts = [];
+            if ($expenseType) {
+                $subType = ChartOfAccountSubType::where('created_by', $creatorId)
+                    ->where('type', $expenseType->id)
+                    ->where('name', 'Head Imprest')
+                    ->first();
+                
+                if ($subType) {
+                    $directAccountIds = ChartOfAccount::where('created_by', $creatorId)
+                        ->where('type', $expenseType->id)
+                        ->where('sub_type', $subType->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $allAccountIds = $directAccountIds;
+                    $currentParentIds = $directAccountIds;
+                    while (!empty($currentParentIds)) {
+                        $parentRecordIds = \App\Models\ChartOfAccountParent::whereIn('account', $currentParentIds)->pluck('id')->toArray();
+                        if (empty($parentRecordIds)) {
+                            break;
+                        }
+                        $childIds = ChartOfAccount::where('created_by', $creatorId)
+                            ->whereIn('parent', $parentRecordIds)
+                            ->pluck('id')
+                            ->toArray();
+                        
+                        $newChildIds = array_diff($childIds, $allAccountIds);
+                        if (empty($newChildIds)) {
+                            break;
+                        }
+                        $allAccountIds = array_merge($allAccountIds, $newChildIds);
+                        $currentParentIds = $newChildIds;
+                    }
+
+                    $accountsList = ChartOfAccount::whereIn('id', $allAccountIds)->get();
+                    
+                    // Fetch parent mappings to resolve actual parent ChartOfAccount IDs
+                    $parentRecordIds = $accountsList->pluck('parent')->filter()->unique()->toArray();
+                    $parentRecords = \App\Models\ChartOfAccountParent::whereIn('id', $parentRecordIds)->get()->pluck('account', 'id')->toArray();
+
+                    // Group by actual parent ChartOfAccount ID
+                    $byParent = [];
+                    foreach ($accountsList as $acc) {
+                        $parentCoaId = 0;
+                        if ($acc->parent > 0 && isset($parentRecords[$acc->parent])) {
+                            $parentCoaId = $parentRecords[$acc->parent];
+                        }
+                        $byParent[$parentCoaId][] = $acc;
+                    }
+
+                    // Identify roots
+                    $allAccountIdsSet = array_flip($allAccountIds);
+                    $roots = [];
+                    foreach ($accountsList as $acc) {
+                        $parentCoaId = 0;
+                        if ($acc->parent > 0 && isset($parentRecords[$acc->parent])) {
+                            $parentCoaId = $parentRecords[$acc->parent];
+                        }
+                        if ($parentCoaId == 0 || !isset($allAccountIdsSet[$parentCoaId])) {
+                            $roots[] = $acc;
+                        }
+                    }
+
+                    // Traverse tree and indent child accounts using em-dash
+                    $treeOptions = [];
+                    $formatTree = function ($parentItems, $depth = 0) use (&$formatTree, $byParent, &$treeOptions) {
+                        foreach ($parentItems as $item) {
+                            $indent = str_repeat("—\u{00a0}", $depth); // UTF-8 em-dash + non-breaking space
+                            $treeOptions[$item->id] = $indent . $item->code . ' - ' . $item->name;
+                            
+                            if (isset($byParent[$item->id])) {
+                                $formatTree($byParent[$item->id], $depth + 1);
+                            }
+                        }
+                    };
+
+                    $formatTree($roots);
+                    $chartAccounts = $treeOptions;
+                }
+            }
+            $chartAccounts = ['' => __('All Expense Heads')] + $chartAccounts;
+
+            // Fetch Head Imprest bank accounts total balance
+            $bankQuery = BankAccount::where('type', 'head_imprest');
+            if ($user->type == 'branch') {
+                $bankQuery->where('created_by', $user->id);
+            } else {
+                $bankQuery->where('created_by', $creatorId);
+            }
+            $totalBankBalance = $bankQuery->sum('opening_balance');
+
+            return view('journalEntry.headimprestindex', compact('journalEntries', 'totalBankBalance', 'branches', 'chartAccounts'));
+        } else {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+    }
+
+    public function approveHeadImprestVoucher($id)
+    {
+        if (\Auth::user()->can('edit journal entry') && \Auth::user()->type == 'company') {
+            $journal = JournalEntry::find($id);
+            if ($journal && $journal->created_by == \Auth::user()->creatorId()) {
+                if ($journal->status == 'Approved') {
+                    return redirect()->back()->with('error', __('Voucher is already approved.'));
+                }
+
+                \DB::beginTransaction();
+                try {
+                    $journal->status = 'Approved';
+                    $this->setNullableModelValueIfColumn($journal, 'approved_by', \Auth::id());
+                    $this->setNullableModelValueIfColumn($journal, 'approved_at', now());
+                    $journal->save();
+
+                    // Update bank balances for all items in this voucher
+                    foreach ($journal->items as $item) {
+                        $this->updateBankAccountBalance($item->account, $item->debit, $item->credit);
+                    }
+
+                    \DB::commit();
+                    return redirect()->back()->with('success', __('Voucher successfully approved and bank balance updated.'));
+                } catch (\Exception $e) {
+                    \DB::rollback();
+                    return redirect()->back()->with('error', __('Something went wrong: ') . $e->getMessage());
+                }
+            }
+            return redirect()->back()->with('error', __('Voucher not found or permission denied.'));
+        }
+        return redirect()->back()->with('error', __('Permission denied.'));
+    }
+
+    public function approveJournalEntry($id)
+    {
+        if (\Auth::user()->can('edit journal entry') && \Auth::user()->type == 'company') {
+            $journal = JournalEntry::find($id);
+            if ($journal && $journal->created_by == \Auth::user()->creatorId()) {
+                if ($journal->status == 'Approved') {
+                    return redirect()->back()->with('error', __('Voucher is already approved.'));
+                }
+
+                \DB::beginTransaction();
+                try {
+                    $journal->status = 'Approved';
+                    $this->setNullableModelValueIfColumn($journal, 'approved_by', \Auth::id());
+                    $this->setNullableModelValueIfColumn($journal, 'approved_at', now());
+                    $journal->save();
+
+                    // Update bank balances for all items in this voucher
+                    foreach ($journal->items as $item) {
+                        $this->updateBankAccountBalance($item->account, $item->debit, $item->credit);
+                    }
+
+                    \DB::commit();
+                    return redirect()->back()->with('success', __('Journal Entry successfully approved and bank balance updated.'));
+                } catch (\Exception $e) {
+                    \DB::rollback();
+                    return redirect()->back()->with('error', __('Something went wrong: ') . $e->getMessage());
+                }
+            }
+            return redirect()->back()->with('error', __('Voucher not found or permission denied.'));
+        }
+        return redirect()->back()->with('error', __('Permission denied.'));
+    }
+
+    public function sendToHO($id)
+    {
+        if (\Auth::user()->can('edit journal entry')) {
+            $journal = JournalEntry::find($id);
+            if ($journal && $journal->created_by == \Auth::user()->creatorId()) {
+                if (in_array($journal->status, ['Approved', 'Posted', 'Reversed'])) {
+                    return redirect()->back()->with('error', __('Voucher is already approved, posted or reversed.'));
+                }
+
+                $journal->status = 'Submitted';
+                $journal->save();
+
+                return redirect()->back()->with('success', __('Voucher successfully sent to HO for approval.'));
+            }
+            return redirect()->back()->with('error', __('Voucher not found or permission denied.'));
+        }
+        return redirect()->back()->with('error', __('Permission denied.'));
     }
 }

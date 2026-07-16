@@ -340,6 +340,16 @@ function taskCheckbox() {
 
 function commonLoader() {
     $('[data-bs-toggle="tooltip"]').tooltip();
+
+    // Fix tooltips inside page-header action buttons:
+    // These sit in an overflow-constrained container, so force them to
+    // render on <body> with bottom placement to avoid misplacement.
+    document.querySelectorAll('.page-block .float-end [data-bs-toggle="tooltip"]').forEach(function(el) {
+        // Dispose any existing tooltip instance first
+        var existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) { existing.dispose(); }
+        new bootstrap.Tooltip(el, { container: 'body', placement: 'bottom' });
+    });
     if ($('[data-toggle="tags"]').length > 0) {
         $('[data-toggle="tags"]').tagsinput({ tagClass: "badge badge-primary" });
     }

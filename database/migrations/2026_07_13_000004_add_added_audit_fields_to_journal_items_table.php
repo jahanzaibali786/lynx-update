@@ -27,6 +27,18 @@ return new class extends Migration
             if (!Schema::hasColumn('journal_items', 'updated_by')) {
                 $table->unsignedBigInteger('updated_by')->nullable()->after('added_at');
             }
+            if (!Schema::hasColumn('journal_items', 'model_id')) {
+                $table->unsignedBigInteger('model_id')->nullable()->after('user_type');
+            }
+            if (!Schema::hasColumn('journal_items', 'model_type')) {
+                $table->string('model_type')->nullable()->after('model_id');
+            }
+            if (!Schema::hasColumn('journal_items', 'ref_no')) {
+                $table->string('ref_no')->nullable()->after('description');
+            }
+            if (!Schema::hasColumn('journal_items', 'tra_date')) {
+                $table->date('tra_date')->nullable()->after('ref_no');
+            }
         });
 
         if (Schema::hasColumn('journal_items', 'added_by') && !$this->indexExists('ji_added_by_idx')) {
@@ -53,6 +65,18 @@ return new class extends Migration
             }
             if (Schema::hasColumn('journal_items', 'updated_by')) {
                 $table->dropColumn('updated_by');
+            }
+            if (Schema::hasColumn('journal_items', 'model_id')) {
+                $table->dropColumn('model_id');
+            }
+            if (Schema::hasColumn('journal_items', 'model_type')) {
+                $table->dropColumn('model_type');
+            }
+             if (Schema::hasColumn('journal_items', 'ref_no')) {
+                $table->dropColumn('ref_no');
+            }
+            if (Schema::hasColumn('journal_items', 'tra_date')) {
+                $table->dropColumn('tra_date');
             }
         });
     }

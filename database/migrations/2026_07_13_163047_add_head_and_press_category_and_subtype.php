@@ -25,12 +25,12 @@ return new class extends Migration
             // Check if 'Head & Press' category already exists
             $categoryType = \DB::table('chart_of_account_types')
                 ->where('created_by', $companyId)
-                ->where('name', 'Head & Press')
+                ->where('name', 'Head Imprest')
                 ->first();
 
             if (!$categoryType) {
                 $categoryTypeId = \DB::table('chart_of_account_types')->insertGetId([
-                    'name' => 'Head & Press',
+                    'name' => 'Head Imprest',
                     'owned_by' => $ownedId,
                     'created_by' => $companyId,
                     'created_at' => now(),
@@ -43,12 +43,12 @@ return new class extends Migration
             // Insert 'Head & Press' subtype under 'Head & Press' category
             $subTypeExists = \DB::table('chart_of_account_sub_types')
                 ->where('type', $categoryTypeId)
-                ->where('name', 'Head & Press')
+                ->where('name', 'Head Imprest')
                 ->exists();
 
             if (!$subTypeExists) {
                 \DB::table('chart_of_account_sub_types')->insert([
-                    'name' => 'Head & Press',
+                    'name' => 'Head Imprest',
                     'type' => $categoryTypeId,
                     'created_by' => $companyId,
                     'created_at' => now(),
@@ -65,12 +65,12 @@ return new class extends Migration
             if ($expenseType) {
                 $expenseSubTypeExists = \DB::table('chart_of_account_sub_types')
                     ->where('type', $expenseType->id)
-                    ->where('name', 'Head & Press')
+                    ->where('name', 'Head Imprest')
                     ->exists();
 
                 if (!$expenseSubTypeExists) {
                     \DB::table('chart_of_account_sub_types')->insert([
-                        'name' => 'Head & Press',
+                        'name' => 'Head Imprest',
                         'type' => $expenseType->id,
                         'created_by' => $companyId,
                         'created_at' => now(),
@@ -88,7 +88,7 @@ return new class extends Migration
      */
     public function down()
     {
-        \DB::table('chart_of_account_sub_types')->where('name', 'Head & Press')->delete();
-        \DB::table('chart_of_account_types')->where('name', 'Head & Press')->delete();
+        \DB::table('chart_of_account_sub_types')->where('name', 'Head Imprest')->delete();
+        \DB::table('chart_of_account_types')->where('name', 'Head Imprest')->delete();
     }
 };

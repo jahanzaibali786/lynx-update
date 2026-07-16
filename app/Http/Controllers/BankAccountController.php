@@ -53,9 +53,15 @@ class BankAccountController extends Controller
     {
         if (\Auth::user()->can('create bank account')) {
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'account')->get();
-            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-                ->where('created_by', \Auth::user()->creatorId())->get()
-                ->pluck('code_name', 'id');
+            $assetsType = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->where('name', 'Assets')->first();
+            $chart_accounts = collect();
+            if ($assetsType) {
+                $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
+                    ->where('type', $assetsType->id)
+                    ->where('created_by', \Auth::user()->creatorId())
+                    ->get()
+                    ->pluck('code_name', 'id');
+            }
             $chart_accounts->prepend('Select Account', '');
             if(\Auth::user()->type == 'company' )
             {
@@ -85,6 +91,8 @@ class BankAccountController extends Controller
                     'holder_name' => 'required',
                     'bank_name' => 'required',
                     'account_number' => 'required',
+                    'chart_account_id' => 'required|unique:bank_accounts,chart_account_id,NULL,id,created_by,' . \Auth::user()->creatorId(),
+                    'type' => 'required|in:normal,head_imprest',
                     'opening_balance' => 'required',
                     'contact_number' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
                 ]
@@ -101,6 +109,7 @@ class BankAccountController extends Controller
             $account->holder_name = $request->holder_name;
             $account->bank_name = $request->bank_name;
             $account->account_number = $request->account_number;
+            $account->type = $request->type;
             $account->opening_balance = $request->opening_balance;
             $account->contact_number = $request->contact_number;
             $account->bank_address = $request->bank_address;
@@ -125,9 +134,15 @@ class BankAccountController extends Controller
     {
         if (\Auth::user()->can('edit bank account')) {
             if ($bankAccount->created_by == \Auth::user()->creatorId()) {
-                $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-                    ->where('created_by', \Auth::user()->creatorId())->get()
-                    ->pluck('code_name', 'id');
+                $assetsType = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->where('name', 'Assets')->first();
+                $chart_accounts = collect();
+                if ($assetsType) {
+                    $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
+                        ->where('type', $assetsType->id)
+                        ->where('created_by', \Auth::user()->creatorId())
+                        ->get()
+                        ->pluck('code_name', 'id');
+                }
                 $chart_accounts->prepend('Select Account', '');
 
                 $bankAccount->customField = CustomField::getData($bankAccount, 'account');
@@ -164,6 +179,8 @@ class BankAccountController extends Controller
                     'holder_name' => 'required',
                     'bank_name' => 'required',
                     'account_number' => 'required',
+                    'chart_account_id' => 'required|unique:bank_accounts,chart_account_id,' . $bankAccount->id . ',id,created_by,' . \Auth::user()->creatorId(),
+                    'type' => 'required|in:normal,head_imprest',
                     'opening_balance' => 'required',
                     'contact_number' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
                 ]
@@ -178,6 +195,7 @@ class BankAccountController extends Controller
             $bankAccount->holder_name = $request->holder_name;
             $bankAccount->bank_name = $request->bank_name;
             $bankAccount->account_number = $request->account_number;
+            $bankAccount->type = $request->type;
             $bankAccount->opening_balance = $request->opening_balance;
             $bankAccount->contact_number = $request->contact_number;
             $bankAccount->bank_address = $request->bank_address;

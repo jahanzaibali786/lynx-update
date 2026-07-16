@@ -118,7 +118,7 @@
 
         }
 
-        $(document).on('keyup', '.debit', function () {
+        $(document).off('keyup', '.debit').on('keyup', '.debit', function () {
             var el = $(this).parent().parent().parent().parent();
             var debit = $(this).val();
             var credit = 0;
@@ -145,7 +145,7 @@
             }
         })
 
-        $(document).on('keyup', '.credit', function () {
+        $(document).off('keyup', '.credit').on('keyup', '.credit', function () {
             var el = $(this).parent().parent().parent().parent();
             var credit = $(this).val();
             var debit = 0;
@@ -273,6 +273,8 @@
                             <thead>
                             <tr>
                                 <th>{{__('Account')}}</th>
+                                <th>{{__('Ref No')}}</th>
+                                <th>{{__('Date')}}</th>
                                 <th>{{__('Debit')}}</th>
                                 <th>{{__('Credit')}} </th>
                                 <th>{{__('Description')}}</th>
@@ -306,6 +308,16 @@
                                     </select>
                                 </td>
 
+                                <td>
+                                    <div class="form-group">
+                                        {{ Form::text('ref_no', null, array('class' => 'form-control','placeholder'=>__('Ref No'))) }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="form-group">
+                                        {{ Form::date('tra_date', null, array('class' => 'form-control')) }}
+                                    </div>
+                                </td>
 
                                 <td>
                                     <div class="form-group price-input">
@@ -332,11 +344,15 @@
                             <tr>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td></td>
                                 <td class="text-end"><strong>{{__('Total Credit')}} ({{\Auth::user()->currencySymbol()}})</strong></td>
                                 <td class="text-end totalCredit">0.00</td>
                             </tr>
                             <tr>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>

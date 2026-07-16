@@ -824,7 +824,7 @@ class Utility extends Model
         'expenses' => [
             '1' => 'Payroll Expenses',
             '2' => 'General and Administrative expenses',
-            '3' => 'Head & Press',
+            '3' => 'Head Imprest',
         ],
 
     ];

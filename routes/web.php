@@ -72,6 +72,7 @@ use App\Http\Controllers\AssetController;
 use App\Http\Controllers\CustomFieldController;
 use App\Http\Controllers\ChartOfAccountController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\StudentIncomeController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DealController;
 use App\Http\Controllers\StageController;
@@ -298,6 +299,9 @@ Route::get('/add-probation', function () {
     }
 });
 Route::post('/calculate-tax', [TaxSlabsController::class, 'calculateTax'])->name('calculate.tax');
+Route::get('/tax-slabs/revise-employee-taxes', [TaxSlabsController::class, 'showRevisePage'])->name('tax-slab.showRevisePage')->middleware(['auth', 'XSS']);
+Route::get('/tax-slabs/revise-employee-taxes/export', [TaxSlabsController::class, 'exportRecentlyRevised'])->name('tax-slab.exportRevised')->middleware(['auth', 'XSS']);
+Route::post('/tax-slabs/revise-employee-taxes', [TaxSlabsController::class, 'reviseEmployeeTaxes'])->name('tax-slab.reviseEmployeeTaxes')->middleware(['auth', 'XSS']);
 Route::resource('tax-slab',TaxSlabsController::class)->middleware(['auth', 'XSS']);
 
 Route::get('/test-roll', function () {
@@ -841,6 +845,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('report/profit-loss/{view?}', [ReportController::class, 'profitLoss'])->name('report.profit.loss');
 
             Route::get('report/ledger/{account?}', [ReportController::class, 'ledgerSummary'])->name('report.ledger');
+            Route::get('report/head-imprest-cashflow', [ReportController::class, 'headImprestCashflow'])->name('report.head-imprest.cashflow')->middleware(['auth', 'XSS']);
             Route::post('export/ledger', [ReportController::class, 'ledgerSummaryExport'])->name('ledger.export');
             Route::get('report/trial-balance', [ReportController::class, 'trialBalanceSummary'])->name('trial.balance');
 
@@ -933,6 +938,25 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
 
 			Route::get('voucher-create', [JournalEntryController::class, 'createVoucher'])->name('createVoucher');
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
+            Route::get('expense-voucher/create', [JournalEntryController::class, 'createExpenseVoucher'])->name('expense-voucher.create');
+            Route::post('expense-voucher/store', [JournalEntryController::class, 'storeExpenseVoucher'])->name('expense-voucher.store');
+            Route::get('expense-voucher/{id}/edit', [JournalEntryController::class, 'editExpenseVoucher'])->name('expense-voucher.edit');
+            Route::post('expense-voucher/{id}/update', [JournalEntryController::class, 'updateExpenseVoucher'])->name('expense-voucher.update');
+            Route::get('head-imprest-vouchers', [JournalEntryController::class, 'headImprestVouchersIndex'])->name('head-imprest-vouchers.index');
+            Route::post('head-imprest-vouchers/approve/{id}', [JournalEntryController::class, 'approveHeadImprestVoucher'])->name('head-imprest-vouchers.approve');
+            Route::post('head-imprest-vouchers/send-to-ho/{id}', [JournalEntryController::class, 'sendToHO'])->name('head-imprest-vouchers.send-to-ho');
+            Route::post('journal-entry/approve/{id}', [JournalEntryController::class, 'approveJournalEntry'])->name('journal-entry.approve');
+            Route::post('journal-entry/send-to-ho/{id}', [JournalEntryController::class, 'sendToHO'])->name('journal-entry.send-to-ho');
+            
+            Route::get('student-incomes', [StudentIncomeController::class, 'index'])->name('student-incomes.index');
+            Route::get('student-incomes/create', [StudentIncomeController::class, 'create'])->name('student-incomes.create');
+            Route::post('student-incomes/store', [StudentIncomeController::class, 'store'])->name('student-incomes.store');
+            Route::get('student-incomes/get-classes', [StudentIncomeController::class, 'getClasses'])->name('student-incomes.get-classes');
+            Route::get('student-incomes/get-students', [StudentIncomeController::class, 'getStudents'])->name('student-incomes.get-students');
+            Route::get('student-incomes/get-bank-accounts', [StudentIncomeController::class, 'getBankAccounts'])->name('student-incomes.get-bank-accounts');
+            Route::post('student-incomes/day-end', [StudentIncomeController::class, 'processDayEnd'])->name('student-incomes.day-end');
+            Route::delete('student-incomes/{id}', [StudentIncomeController::class, 'destroy'])->name('student-incomes.destroy');
+
             Route::resource('journal-entry', JournalEntryController::class);
 
 

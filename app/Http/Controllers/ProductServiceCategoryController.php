@@ -226,8 +226,8 @@ class ProductServiceCategoryController extends Controller
                 ->where('type', $types->id)
                 ->where('created_by', \Auth::user()->creatorId())->get()
                 ->pluck('code_name', 'id');
-        } elseif ($request->type == 'head & press') {
-            $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->where('name', 'Head & Press')->first();
+        } elseif ($request->type == 'head imprest') {
+            $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->where('name', 'Head Imprest')->first();
             $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
                 ->where('type', $types->id)
                 ->where('created_by', \Auth::user()->creatorId())->get()

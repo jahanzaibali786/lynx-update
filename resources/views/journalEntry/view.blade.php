@@ -152,7 +152,7 @@
                                         {{ $voucherNumber }}
                                     </small><br>
                                     <small>
-                                        <strong>{{ __('Voucher Ref') }} :</strong>
+                                        <strong>{{ __('Invoice No / Reference') }} :</strong>
                                         {{ $journalEntry->reference }}
                                     </small> <br>
                                     <small>
@@ -209,6 +209,8 @@
                                             <tr>
                                                 <th data-width="40" class="text-dark">#</th>
                                                 <th class="text-dark">{{ __('Account') }}</th>
+                                                <th class="text-dark">{{ __('Ref No') }}</th>
+                                                <th class="text-dark">{{ __('Date') }}</th>
                                                 <th class="text-dark wrap-td">{{ __('Memo') }}</th>
                                                 <th class="text-dark wrap-td">{{ __('Description') }}</th>
                                                 <th class="text-dark">{{ __('Debit') }}</th>
@@ -220,6 +222,12 @@
                                                 <tr>
                                                     <td>{{ $key + 1 }}</td>
                                                     <td>{{ !empty($account->accounts) ? $account->accounts->code . ' - ' . $account->accounts->name : '' }}
+                                                    </td>
+                                                    <td>
+                                                        {{ !empty($account->ref_no) ? $account->ref_no : '-' }}
+                                                    </td>
+                                                    <td>
+                                                        {{ !empty($account->tra_date) ? \Auth::user()->dateFormat($account->tra_date) : '-' }}
                                                     </td>
                                                     <td class="wrap-td">
                                                         {{ !empty($account->memo) ? $account->memo : '-' }}
@@ -246,7 +254,7 @@
                                             <tfoot>
 
                                                 <tr>
-                                                    <td colspan="3"></td>
+                                                    <td colspan="5"></td>
                                                     <td><b>{{ __('Total') }}</b></td>
                                                     <td><b>{{ \Auth::user()->priceFormat($journalEntry->totalDebit()) }}</b></td>
                                                     <td><b>{{ \Auth::user()->priceFormat($journalEntry->totalCredit()) }}</b></td>

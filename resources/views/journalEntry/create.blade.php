@@ -98,7 +98,7 @@
 
         }
 
-        $(document).on('keyup', '.debit', function () {
+        $(document).off('keyup', '.debit').on('keyup', '.debit', function () {
             var el = $(this).parent().parent().parent().parent();
             var debit = $(this).val();
             var credit = 0;
@@ -125,7 +125,7 @@
             }
         })
 
-        $(document).on('keyup', '.credit', function () {
+        $(document).off('keyup', '.credit').on('keyup', '.credit', function () {
             var el = $(this).parent().parent().parent().parent();
             var credit = $(this).val();
             var debit = 0;
@@ -155,55 +155,41 @@
             return parseFloat(text) || 0;
         }
 
-           // Form submission handler
-           $(document).on('submit', '#journal-form', function(e) {
-            e.preventDefault(); // Stop default form submission
+            // ─── Pre-Submit Validation Check ──────────────────────────────────────────────
+            $(document).off('submit', '#journal-form').on('submit', '#journal-form', function(e) {
+                let totalDebit = parseCleanNumber('.totalDebit');
+                let totalCredit = parseCleanNumber('.totalCredit');
 
-            let form = $(this);
-            let totalDebit = parseCleanNumber('.totalDebit');
-            let totalCredit = parseCleanNumber('.totalCredit');
-
-            if (totalDebit !== totalCredit) {
-                show_toastr('error', 'Total Debit and Total Credit must be equal', 'error');
-                return; // Don't proceed
-            }
-
-            let url = form.attr('action');
-            let method = form.attr('method') || 'POST';
-            let formData = new FormData(this);
-
-            $.ajax({
-                url: form.attr('action'),
-                type: form.attr('method'),
-                data: new FormData(this),
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    if (response.status === 'success') {
-                        show_toastr('success', response.message, 'success');
-                        if (response.redirect) {
-                            setTimeout(function() {
-                                location.reload();
-                                window.location.href = response.redirect;
-                            }, 300);
-                        }
-                    } else {
-                        show_toastr('error', response.message, 'error');
-                    }
-                },
-                error: function(xhr) {
-                    let msg = xhr.responseJSON?.message || 'Unexpected error occurred.';
-                    show_toastr('error', msg, 'error');
+                if (totalDebit !== totalCredit) {
+                    show_toastr('error', 'Total Debit and Total Credit must be equal', 'error');
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    return false;
                 }
             });
-        });
+
+            // ─── Initialize Global AJAX Handler ───────────────────────────────────────────
+            $(document).ready(function() {
+                if (typeof ajaxModalForm === 'function') {
+                    ajaxModalForm({
+                        formSelector: '.ajax-modal-form',
+                        onSuccess: function(response) {
+                            if (response.redirect) {
+                                setTimeout(function() {
+                                    window.location.href = response.redirect;
+                                }, 1000);
+                            }
+                        }
+                    });
+                }
+            });
     </script>
     
 @endpush
 
 @section('content')
 
-    {{ Form::open(array('url' => 'journal-entry','class'=>'w-100','id'=>'journal-form')) }}
+    {{ Form::open(array('url' => 'journal-entry','class'=>'w-100 ajax-modal-form','id'=>'journal-form')) }}
     <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
     <div class="row mt-4">
         <div class="col-xl-12">
@@ -258,6 +244,8 @@
                             <thead>
                             <tr>
                                 <th>{{__('Account')}}</th>
+                                <th>{{__('Ref No')}}</th>
+                                <th>{{__('Date')}}</th>
                                 <th>{{__('Debit')}}</th>
                                 <th>{{__('Credit')}} </th>
                                 <th>{{__('Description')}}</th>
@@ -280,6 +268,17 @@
                                             @endforeach
                                         @endforeach
                                     </select>
+                                </td>
+
+                                <td>
+                                    <div class="form-group">
+                                        {{ Form::text('ref_no','', array('class' => 'form-control','placeholder'=>__('Ref No'))) }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="form-group">
+                                        {{ Form::date('tra_date',date('Y-m-d'), array('class' => 'form-control')) }}
+                                    </div>
                                 </td>
 
                                 <td>
@@ -307,11 +306,15 @@
                             <tr>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td></td>
                                 <td class="text-end"><strong>{{__('Total Credit')}} ({{\Auth::user()->currencySymbol()}})</strong></td>
                                 <td class="text-end totalCredit">0.00</td>
                             </tr>
                             <tr>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>

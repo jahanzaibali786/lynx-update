@@ -135,10 +135,10 @@ class CashPaymentVoucherController extends Controller
                     {
                         $old_balance = $bankAccount->opening_balance;
                         if ($journalItem->debit > 0) {
-                            $new_balance = $old_balance - $journalItem->debit;
+                            $new_balance = $old_balance + $journalItem->debit;
                         }
                         if ($journalItem->credit > 0) {
-                            $new_balance = $old_balance + $journalItem->credit;
+                            $new_balance = $old_balance - $journalItem->credit;
                         }
                         if (isset($new_balance)) {
                             $bankAccount->opening_balance = $new_balance;
@@ -292,10 +292,10 @@ class CashPaymentVoucherController extends Controller
                         {
                             $old_balance = $bankAccount->opening_balance;
                             if ($journalItem->debit > 0) {
-                                $new_balance = $old_balance - $journalItem->debit;
+                                $new_balance = $old_balance + $journalItem->debit;
                             }
                             if ($journalItem->credit > 0) {
-                                $new_balance = $old_balance + $journalItem->credit;
+                                $new_balance = $old_balance - $journalItem->credit;
                             }
                             if (isset($new_balance)) {
                                 $bankAccount->opening_balance = $new_balance;
