@@ -548,7 +548,7 @@ class TaxSlabsController extends Controller
         if (!empty($branchId)) {
             $query->where('owned_by', $branchId);
         }
-        $employees = $query->get();
+        $employees = $query->with(['userbranch', 'department'])->get();
         $updatedCount = 0;
         $updatedEmployees = [];
 
@@ -604,7 +604,8 @@ class TaxSlabsController extends Controller
                     'id' => $employee->id,
                     'name' => $employee->name,
                     'employee_id' => $employee->employee_id,
-                    'branch_name' => optional($employee->branch)->name ?? '-',
+                    'branch_name' => optional($employee->userbranch)->name ?? '-',
+                    'department' => optional($employee->department)->name ?? '-',
                     'payScale' => optional($latestScaleDetail->scale)->name ?? '-',
                     'scale_no' => optional($latestScaleDetail->scale)->scale_no ?? '-',
                     'heads' => $headValues,
@@ -616,6 +617,7 @@ class TaxSlabsController extends Controller
                     'oldNet' => $oldNet,
                     'newNet' => $newNet,
                     'netChange' => $newNet - $oldNet,
+                    'date' => \Carbon\Carbon::now()->format('d-m-Y'),
                 ];
 
                 $updatedCount++;
@@ -624,6 +626,7 @@ class TaxSlabsController extends Controller
 
         // Store standard session data so it can be downloaded via GET request
         session(['recently_updated_employees' => $updatedEmployees]);
+        session(['recently_updated_branch_id' => $branchId]);
 
         return redirect()->route('tax-slab.showRevisePage', ['branch_id' => $branchId])
             ->with('success', __("Tax revised successfully. $updatedCount employee(s) scale histories updated."));
@@ -643,6 +646,15 @@ class TaxSlabsController extends Controller
             ->pluck('head')
             ->toArray();
 
-        return Excel::download(new RecentlyRevisedTaxesExport($recentlyUpdated, $taxableHeads), 'recently_revised_employees_tax.xlsx');
+        $branchId = session('recently_updated_branch_id');
+        $branchName = 'All Branches';
+        if (!empty($branchId)) {
+            $branch = \App\Models\User::find($branchId);
+            if ($branch) {
+                $branchName = $branch->name;
+            }
+        }
+
+        return Excel::download(new RecentlyRevisedTaxesExport($recentlyUpdated, $taxableHeads, $branchName), 'recently_revised_employees_tax.xlsx');
     }
 }

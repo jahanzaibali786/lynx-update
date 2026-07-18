@@ -2297,4 +2297,249 @@ class EmployeeSalaryDetail extends Controller
         return Excel::download(new AdvanceSheetExport($salaryHeads, $datas, $requestdata), 'advance_sheet.xlsx');
     }
 
+    public function last_salary_revision_report(Request $request)
+    {
+        if (\Auth::user()->can('manage employee')) {
+            $branches = collect();
+            $employees = collect();
+            $departments = collect();
+            $designations = collect();
+
+            if (\Auth::user()->type == 'Employee') {
+                $branches = User::where('id', \Auth::user()->ownedId())->pluck('name', 'id');
+                $branches->prepend('Select Branch', '');
+                $query = Employee::where('user_id', \Auth::user()->id);
+            } elseif (\Auth::user()->type == 'company') {
+                $branches = User::where('type', 'branch')->pluck('name', 'id');
+                $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+                $branches->prepend('Select Branch', '');
+                $employees = Employee::where('created_by', \Auth::user()->creatorId())
+                    ->pluck('name', 'id')
+                    ->prepend('Select Employee', '');
+                $departments = Department::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+                $departments->prepend('All', 'all');
+                $designations = Designation::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+                $designations->prepend('All', 'all');
+                $query = Employee::where('created_by', \Auth::user()->creatorId());
+            } else {
+                $branches = User::where('id', \Auth::user()->ownedId())->pluck('name', 'id');
+                $branches->prepend('Select Branch', '');
+                $employees = Employee::where('owned_by', \Auth::user()->ownedId())
+                    ->pluck('name', 'id')
+                    ->prepend('Select Employee', '');
+                $departments = Department::where('owned_by', \Auth::user()->ownedId())->pluck('name', 'id');
+                $departments->prepend('All', 'all');
+                $designations = Designation::where('owned_by', \Auth::user()->ownedId())->pluck('name', 'id');
+                $designations->prepend('All', 'all');
+                $query = Employee::where('owned_by', \Auth::user()->ownedId());
+            }
+
+            // Apply filters
+            $query->where('is_res_ter', 0); // Active employees only
+
+            if (!empty($request->branches)) {
+                $query->where('owned_by', $request->branches);
+            }
+            if (!empty($request->employee_id)) {
+                $query->where('id', $request->employee_id);
+            }
+            if (!empty($request->designation_id) && $request->designation_id != 'all') {
+                $query->where('designation_id', $request->designation_id);
+            }
+            if (!empty($request->department_id) && $request->department_id != 'all') {
+                $query->where('department_id', $request->department_id);
+            }
+
+            $employeesList = $query->with(['userbranch', 'department', 'designation'])->get();
+
+            $revisedData = [];
+            foreach ($employeesList as $employee) {
+                // Get last 2 payscale details ordered by id desc
+                $details = \App\Models\EmployeePayscaleDetail::with(['scale.employeeScaleHeads.SalaryHeads'])
+                    ->where('employee_id', $employee->id)
+                    ->orderBy('id', 'desc')
+                    ->take(2)
+                    ->get();
+                
+                if ($details->count() < 2) {
+                    continue; // Skip if they don't have at least 2 payscale detail entries
+                }
+                
+                $currentDetail = $details[0];
+                $previousDetail = $details[1];
+
+                $currentHeads = [];
+                $currentGross = 0;
+                if ($currentDetail->scale) {
+                    foreach ($currentDetail->scale->employeeScaleHeads as $scaleHead) {
+                        if ($scaleHead->SalaryHeads && $this->isLocalTaxableSalaryHead($scaleHead->SalaryHeads->head)) {
+                            $hName = $scaleHead->SalaryHeads->head;
+                            $val = (float) $scaleHead->head_value;
+                            $currentHeads[$hName] = $val;
+                            $currentGross += $val;
+                        }
+                    }
+                }
+                $currentOtherIncome = (float) ($currentDetail->other_add ?? 0);
+                $currentGross += $currentOtherIncome;
+
+                $revisedData[] = (object) [
+                    'id' => $employee->id,
+                    'name' => $employee->name,
+                    'employee_id' => $employee->employee_id,
+                    'branch_name' => optional($employee->userbranch)->name ?? '-',
+                    'department' => optional($employee->department)->name ?? '-',
+                    'payScale' => optional($currentDetail->scale)->name ?? '-',
+                    'scale_no' => optional($currentDetail->scale)->scale_no ?? '-',
+                    'heads' => $currentHeads,
+                    'other_income' => $currentOtherIncome,
+                    'gross' => $currentGross,
+                    'oldTax' => (int) round($previousDetail->itax),
+                    'newTax' => (int) round($currentDetail->itax),
+                    'taxChange' => (int) round($currentDetail->itax) - (int) round($previousDetail->itax),
+                    'oldNet' => (int) round($previousDetail->net),
+                    'newNet' => (int) round($currentDetail->net),
+                    'netChange' => (int) round($currentDetail->net) - (int) round($previousDetail->net),
+                    'date' => $currentDetail->created_at ? $currentDetail->created_at->format('d-m-Y') : '-',
+                ];
+            }
+
+            // Sort revisedData by branch_name asc, then name asc
+            usort($revisedData, function ($a, $b) {
+                $branchCompare = strcasecmp($a->branch_name, $b->branch_name);
+                if ($branchCompare !== 0) {
+                    return $branchCompare;
+                }
+                return strcasecmp($a->name, $b->name);
+            });
+
+            // Retrieve all unique taxable heads to render columns
+            $taxableHeads = \DB::table('salary_heads')
+                ->whereRaw('LOWER(TRIM(head)) NOT IN (?, ?)', ['medical', 'medical allowance'])
+                ->orderBy('id')
+                ->pluck('head')
+                ->toArray();
+
+            return view('employee.emp_salary_detail.last_revision_report', compact(
+                'branches', 'employees', 'departments', 'designations', 'revisedData', 'taxableHeads'
+            ));
+        } else {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+    }
+
+    public function export_last_salary_revision_report(Request $request)
+    {
+        if (\Auth::user()->can('manage employee')) {
+            if (\Auth::user()->type == 'Employee') {
+                $query = Employee::where('user_id', \Auth::user()->id);
+            } elseif (\Auth::user()->type == 'company') {
+                $query = Employee::where('created_by', \Auth::user()->creatorId());
+            } else {
+                $query = Employee::where('owned_by', \Auth::user()->ownedId());
+            }
+
+            // Apply filters
+            $query->where('is_res_ter', 0); // Active employees only
+
+            if (!empty($request->branches)) {
+                $query->where('owned_by', $request->branches);
+            }
+            if (!empty($request->employee_id)) {
+                $query->where('id', $request->employee_id);
+            }
+            if (!empty($request->designation_id) && $request->designation_id != 'all') {
+                $query->where('designation_id', $request->designation_id);
+            }
+            if (!empty($request->department_id) && $request->department_id != 'all') {
+                $query->where('department_id', $request->department_id);
+            }
+
+            $employeesList = $query->with(['userbranch', 'department', 'designation'])->get();
+
+            $revisedData = [];
+            foreach ($employeesList as $employee) {
+                $details = \App\Models\EmployeePayscaleDetail::with(['scale.employeeScaleHeads.SalaryHeads'])
+                    ->where('employee_id', $employee->id)
+                    ->orderBy('id', 'desc')
+                    ->take(2)
+                    ->get();
+                
+                if ($details->count() < 2) {
+                    continue;
+                }
+                
+                $currentDetail = $details[0];
+                $previousDetail = $details[1];
+
+                $currentHeads = [];
+                $currentGross = 0;
+                if ($currentDetail->scale) {
+                    foreach ($currentDetail->scale->employeeScaleHeads as $scaleHead) {
+                        if ($scaleHead->SalaryHeads && $this->isLocalTaxableSalaryHead($scaleHead->SalaryHeads->head)) {
+                            $hName = $scaleHead->SalaryHeads->head;
+                            $val = (float) $scaleHead->head_value;
+                            $currentHeads[$hName] = $val;
+                            $currentGross += $val;
+                        }
+                    }
+                }
+                $currentOtherIncome = (float) ($currentDetail->other_add ?? 0);
+                $currentGross += $currentOtherIncome;
+
+                $revisedData[] = [
+                    'id' => $employee->id,
+                    'name' => $employee->name,
+                    'employee_id' => $employee->employee_id,
+                    'branch_name' => optional($employee->userbranch)->name ?? '-',
+                    'department' => optional($employee->department)->name ?? '-',
+                    'payScale' => optional($currentDetail->scale)->name ?? '-',
+                    'scale_no' => optional($currentDetail->scale)->scale_no ?? '-',
+                    'heads' => $currentHeads,
+                    'other_income' => $currentOtherIncome,
+                    'gross' => $currentGross,
+                    'oldTax' => (int) round($previousDetail->itax),
+                    'newTax' => (int) round($currentDetail->itax),
+                    'taxChange' => (int) round($currentDetail->itax) - (int) round($previousDetail->itax),
+                    'oldNet' => (int) round($previousDetail->net),
+                    'newNet' => (int) round($currentDetail->net),
+                    'netChange' => (int) round($currentDetail->net) - (int) round($previousDetail->net),
+                    'date' => $currentDetail->created_at ? $currentDetail->created_at->format('d-m-Y') : '-',
+                ];
+            }
+
+            // Sort revisedData by branch_name asc, then name asc
+            usort($revisedData, function ($a, $b) {
+                $branchCompare = strcasecmp($a['branch_name'], $b['branch_name']);
+                if ($branchCompare !== 0) {
+                    return $branchCompare;
+                }
+                return strcasecmp($a['name'], $b['name']);
+            });
+
+            $taxableHeads = \DB::table('salary_heads')
+                ->whereRaw('LOWER(TRIM(head)) NOT IN (?, ?)', ['medical', 'medical allowance'])
+                ->orderBy('id')
+                ->pluck('head')
+                ->toArray();
+
+            $branchName = 'All Branches';
+            if (!empty($request->branches)) {
+                $branch = \App\Models\User::find($request->branches);
+                if ($branch) {
+                    $branchName = $branch->name;
+                }
+            }
+
+            return Excel::download(new \App\Exports\LastSalaryRevisionExport($revisedData, $taxableHeads, $branchName), 'last_salary_revision_report.xlsx');
+        } else {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+    }
+
+    private function isLocalTaxableSalaryHead($headName)
+    {
+        $normalized = strtolower(trim($headName));
+        return !in_array($normalized, ['medical', 'medical allowance']);
+    }
 }

@@ -12,7 +12,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
-class RecentlyRevisedTaxesExport implements FromView, WithEvents
+class LastSalaryRevisionExport implements FromView, WithEvents
 {
     protected $data;
     protected $taxableHeads;
@@ -27,12 +27,12 @@ class RecentlyRevisedTaxesExport implements FromView, WithEvents
 
     public function view(): View
     {
-        return view('employee.exports.tax_revision_export', [
+        return view('employee.exports.last_salary_revision_export', [
             'data' => $this->data,
             'taxableHeads' => $this->taxableHeads,
             'branchName' => $this->branchName,
             'is_branch' => true,
-            'report_name' => 'Tax Revision Report',
+            'report_name' => 'Last Salary Revision Report',
             'is_period' => true,
             'date_from' => date('Y-m-d'),
             'date_to' => date('Y-m-d'),

@@ -59,7 +59,7 @@
                 'required' => 'required',
             ]) }}
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-2">
             {{ Form::label('effect_from', __('Effect From'), ['class' => 'form-label']) }}
             {{ Form::date('effect_from', $hasPayscale ? $lastPayscaleDetail->effect_from : date('Y-m-d'), [
                 'class' => 'form-control',
@@ -67,6 +67,13 @@
                 'id' => 'effect_from',
                 'min' => $joiningDate,
                 ]) }}
+        </div>
+        <div class="form-group col-md-2">
+            {{ Form::label('company_doj_display', __('Date of Joining'), ['class' => 'form-label']) }}
+            {{ Form::text('company_doj_display', !empty($employee->company_doj) ? \Carbon\Carbon::parse($employee->company_doj)->format('d-M-Y') : '', [
+                'class' => 'form-control',
+                'disabled' => 'disabled',
+            ]) }}
         </div>
         
 

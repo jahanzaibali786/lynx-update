@@ -658,6 +658,21 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
         }
     );
 
+    Route::group(
+        [
+            'middleware' => [
+                'auth',
+                'XSS',
+                'revalidate',
+            ],
+        ],
+        function () {
+            Route::get('daily-closing/transfers', [App\Http\Controllers\DailyClosingController::class, 'getTransfers'])->name('daily-closing.transfers');
+            Route::post('daily-closing/{id}/approve', [App\Http\Controllers\DailyClosingController::class, 'approve'])->name('daily-closing.approve');
+            Route::resource('daily-closing', App\Http\Controllers\DailyClosingController::class);
+        }
+    );
+
     Route::resource('taxes', TaxController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('product-category', ProductServiceCategoryController::class)->middleware(['auth', 'XSS', 'revalidate']);
@@ -2383,6 +2398,8 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::post('/employee-child/{id}', [EmployeeController::class, 'employee_child'])->name('employee_child');
             Route::get('/salary-history/{id?}', [EmployeeSalaryDetail::class, 'salary_history'])->name('salary_history');
             Route::get('/salary-history-report/{id?}', [EmployeeSalaryDetail::class, 'salary_history_report'])->name('salary_history_report');
+            Route::get('/last-salary-revision-report', [EmployeeSalaryDetail::class, 'last_salary_revision_report'])->name('last_salary_revision_report');
+            Route::get('/last-salary-revision-report/export', [EmployeeSalaryDetail::class, 'export_last_salary_revision_report'])->name('last_salary_revision_report.export');
             Route::get('/salary_history_detail/{id}', [EmployeeSalaryDetail::class, 'salary_history_detail'])->name('salary_history_detail');
             Route::get('/deduction_sheet/{id?}', [EmployeeSalaryDetail::class, 'deduction_sheet'])->name('deduction_sheet');
             Route::get('/paymode_sheet/{id?}', [EmployeeSalaryDetail::class, 'paymode_sheet'])->name('paymode_sheet');

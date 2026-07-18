@@ -869,6 +869,25 @@
                                                 </a>
                                             @endif
                                         </li>
+                                        @if (\Auth::user()->type == 'company')
+                                            <li class="dash-item dash-hasmenu {{ Request::segment(1) == 'tax-slabs' || Request::segment(1) == 'last-salary-revision-report' ? 'active dash-trigger' : '' }}">
+                                                <a class="dash-link" href="#salary_revision_sub">{{ __('Salary Revision') }}</a>
+                                                <ul id="salary_revision_sub" class="dash-submenu">
+                                                    <li class="dash-item">
+                                                        <a href="{{ route('tax-slab.showRevisePage') }}"
+                                                           class="dash-link {{ Request::route()->getName() == 'tax-slab.showRevisePage' ? 'active' : '' }}">
+                                                            {{ __('Tax Revise') }}
+                                                        </a>
+                                                    </li>
+                                                    <li class="dash-item">
+                                                        <a href="{{ route('last_salary_revision_report') }}"
+                                                           class="dash-link {{ Request::route()->getName() == 'last_salary_revision_report' ? 'active' : '' }}">
+                                                            {{ __('Last Salary Revision') }}
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </li>
+                                        @endif
                                         {{-- @if (Gate::check('manage set salary') || Gate::check('manage pay slip'))
 
                     <li class="dash-item dash-hasmenu ">
@@ -1264,7 +1283,7 @@
                             </li>
                         @endif
                     @endif
-                    <!--------------------- End HRM ----------------------------------->
+
 
                     <!--------------------- HRM Employee Reports ----------------------------------->
 
@@ -1576,7 +1595,7 @@
 
                                     @if (Gate::check('manage bank account') || Gate::check('manage bank transfer'))
                                         <li id="banking-id" class="dash-item dash-hasmenu ">
-                                            <a  class="dash-link {{ Request::segment(1) == 'bank-account' || Request::segment(1) == 'bank-transfer' ? 'active dash-trigger' : '' }}"
+                                            <a  class="dash-link {{ Request::segment(1) == 'bank-account' || Request::segment(1) == 'bank-transfer' || Request::segment(1) == 'daily-closing' ? 'active dash-trigger' : '' }}"
                                                 href="#banking">{{ __('Banking') }}</a>
                                             <ul id="banking" class="dash-submenu">
                                                 <li class="dash-item ">
@@ -1586,6 +1605,10 @@
                                                 <li class="dash-item ">
                                                     <a class="dash-link {{ Request::route()->getName() == 'bank-transfer.index' || Request::route()->getName() == 'bank-transfer.create' || Request::route()->getName() == 'bank-transfer.edit' ? ' active' : '' }}"
                                                         href="{{ route('bank-transfer.index') }}">{{ __('Transfer') }}</a>
+                                                </li>
+                                                <li class="dash-item ">
+                                                    <a class="dash-link {{ Request::segment(1) == 'daily-closing' ? ' active' : '' }}"
+                                                        href="{{ route('daily-closing.index') }}">{{ __('Daily Closing') }}</a>
                                                 </li>
                                             </ul>
                                         </li>
