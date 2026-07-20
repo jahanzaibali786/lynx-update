@@ -87,6 +87,9 @@
                                 <th>#</th>
                                 <th> {{__('Journal ID')}}</th>
                                 <th> {{__('Date')}}</th>
+                                <th> {{__('Payee')}}</th>
+                                <th> {{__('Receiver')}}</th>
+                                <th> {{__('Payment Mode')}}</th>
                                 <th> {{__('Amount')}}</th>
                                 <th> {{__('Status')}}</th>
                                 <th> {{__('Approved By')}}</th>
@@ -99,9 +102,20 @@
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td class="Id">
-                                        <a href="{{ route('journal-entry.show',$journalEntry->id) }}" class="btn btnpurchase1 btn-outline-primary">{{ AUth::user()->journalNumberFormat($journalEntry->journal_id) }}</a>
+                                        <a href="{{ route('journal-entry.show',$journalEntry->id) }}" class="btn btnpurchase1 btn-outline-primary">{{ $journalEntry->getVoucherNumber() }}</a>
                                     </td>
                                     <td>{{ Auth::user()->dateFormat($journalEntry->date) }}</td>
+                                    <td>
+                                        <div><strong>{{ $journalEntry->payee_account_title ?? '-' }}</strong></div>
+                                        <small class="text-muted">{{ $journalEntry->payee_account_no ?? '' }}</small>
+                                    </td>
+                                    <td>{{ $journalEntry->receiver_name ?? '-' }}</td>
+                                    <td>
+                                        <div>{{ strtoupper($journalEntry->payment_mode ?? ($journalEntry->mode ?? '-')) }}</div>
+                                        @if(!empty($journalEntry->payment_date))
+                                            <small class="text-muted">{{ \Auth::user()->dateFormat($journalEntry->payment_date) }}</small>
+                                        @endif
+                                    </td>
                                     <td>
                                         {{ \Auth::user()->priceFormat($journalEntry->totalCredit())}}
                                     </td>
@@ -129,6 +143,11 @@
                                             <a title="{{__('View Details')}}" href="{{ route('journal-entry.show',[$journalEntry->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center">
                                                 <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                             </a>
+                                            @can('show journal entry')
+                                                <a title="{{ __('Voucher Print') }}" href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-secondary align-items-center" data-bs-title="{{ __('Print') }}">
+                                                    <span class="btn-inner--icon"> <i class="ti ti-printer"></i> </span>
+                                                </a>
+                                            @endcan
                                             @can('edit journal entry')
                                                 @if(!in_array($journalEntry->status, ['Approved', 'Posted']) && \Auth::user()->type == 'company')
                                                     {!! Form::open(['method' => 'POST', 'route' => array('head-imprest-vouchers.approve', $journalEntry->id), 'style'=>'display:inline-block;', 'id'=>'approve-head-form-'.$journalEntry->id]) !!}
@@ -145,10 +164,7 @@
                                                     {!! Form::close() !!}
                                                 @endif
                                                 @if(!in_array($journalEntry->status, ['Approved', 'Posted']))
-                                                    <a href="#" class="mx-1 btn btn-sm btn-outline-primary align-items-center" 
-                                                       data-url="{{ route('expense-voucher.edit', $journalEntry->id) }}" 
-                                                       data-ajax-popup="true" data-size="lg" data-bs-toggle="tooltip" 
-                                                       title="{{__('Edit')}}" data-title="{{__('Edit Expense Voucher')}}">
+                                                    <a title="{{__('Edit')}}" href="{{ route('journal-entry.edit',[$journalEntry->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center" data-bs-title="{{__('Edit')}}">
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
                                                 @endif

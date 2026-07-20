@@ -215,12 +215,91 @@
                             {{ Form::text('reference', '', array('class' => 'form-control')) }}
                         </div>
                     </div>
+                    <!-- Payee & Receiver details -->
+                    <div class="col-lg-12 col-md-12"><hr></div>
+                    
+                    <!-- Payment Date -->
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payment_date', __('Payment Date'), ['class' => 'form-label']) }}
+                            {{ Form::date('payment_date', null, ['class' => 'form-control']) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-8 col-md-6"></div>
+
+                    <!-- Payee Details -->
+                    <div class="col-lg-12 col-md-12">
+                        <h5 class="text-primary mt-2 mb-3">{{ __('Payee Details') }}</h5>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_account_title', __('Payee Account Title'), ['class' => 'form-label']) }}
+                            {{ Form::text('payee_account_title', '', ['class' => 'form-control', 'placeholder' => __('Enter Account Title')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_account_no', __('Payee Account No'), ['class' => 'form-label']) }}
+                            {{ Form::text('payee_account_no', '', ['class' => 'form-control', 'placeholder' => __('Enter Account Number')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_cnic', __('Payee CNIC'), ['class' => 'form-label']) }}
+                            {{ Form::text('payee_cnic', '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_contact', __('Payee Contact'), ['class' => 'form-label']) }}
+                            {{ Form::text('payee_contact', '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_email', __('Payee Email'), ['class' => 'form-label']) }}
+                            {{ Form::email('payee_email', '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6"></div>
+
+                    <!-- Receiver Details -->
+                    <div class="col-lg-12 col-md-12">
+                        <h5 class="text-primary mt-3 mb-3">{{ __('Receiver Details') }}</h5>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('receiver_name', __('Receiver Name'), ['class' => 'form-label']) }}
+                            {{ Form::text('receiver_name', '', ['class' => 'form-control', 'placeholder' => __('Enter Receiver Name')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('receiver_cnic', __('Receiver CNIC'), ['class' => 'form-label']) }}
+                            {{ Form::text('receiver_cnic', '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('receiver_contact', __('Receiver Contact'), ['class' => 'form-label']) }}
+                            {{ Form::text('receiver_contact', '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('receiver_email', __('Receiver Email'), ['class' => 'form-label']) }}
+                            {{ Form::email('receiver_email', '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-8 col-md-6"></div>
+                    <div class="col-lg-12 col-md-12"><hr></div>
+
                     <div class="col-lg-8 col-md-8">
                         <div class="form-group">
                             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}
                             {{ Form::textarea('description', '', array('class' => 'form-control','rows'=>'2')) }}
+                        </div>
                     </div>
-                </div>
             </div>
         </div>
             </div>

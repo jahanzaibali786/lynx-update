@@ -34,6 +34,9 @@
                 <li class="nav-item">
                     <a class="nav-link" id="pills-workspace-tab" data-bs-toggle="pill" href="#workspace" role="tab" aria-controls="pills-contact" aria-selected="false">{{__('WorkSpace')}}</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="pills-custom-permission-tab" data-bs-toggle="pill" href="#custom_permission" role="tab" aria-controls="pills-contact" aria-selected="false">{{__('Custom')}}</a>
+                </li>
             </ul>
             <div class="tab-content" id="pills-tabContent">
                 <div class="tab-pane fade active" id="staff" role="tabpanel" aria-labelledby="pills-home-tab">
@@ -1381,6 +1384,9 @@
                         </div>
                     </div>
                 </div>
+                <div class="tab-pane fade" id="custom_permission" role="tabpanel" aria-labelledby="pills-contact-tab">
+                    @include('role.partials.custom_permissions')
+                </div>
             </div>
         </div>
 
@@ -1416,6 +1422,9 @@
         // });
         $("#workspace_checkall").click(function(){
             $('.workspace_checkall').not(this).prop('checked', this.checked);
+        });
+        $("#custom_checkall").click(function(){
+            $('.custom_checkall').not(this).prop('checked', this.checked);
         });
         $(".ischeck").click(function(){
             var ischeck = $(this).data('id');

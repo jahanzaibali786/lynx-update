@@ -256,8 +256,11 @@
                                             </td>
                                             <td>{{ !empty($account->subType) ? $account->subType->name : '-' }}</td>
                                             <td>
-                                                {{ Form::select('category', $categories, !empty($account->category) ? $account->category : null, ['class' => 'form-control select', 'required' => 'required', 'data-id' => $account->id]) }}
-
+                                                @can('edit chart of account')
+                                                    {{ Form::select('category', $categories, !empty($account->category) ? $account->category : null, ['class' => 'form-control select', 'required' => 'required', 'data-id' => $account->id]) }}
+                                                @else
+                                                    {{ !empty($account->category) && isset($categories[$account->category]) ? $categories[$account->category] : '-' }}
+                                                @endcan
                                             </td>
                                             <td>{{ !empty($account->parentAccount) ? $account->parentAccount->name : '-' }}
                                             </td>

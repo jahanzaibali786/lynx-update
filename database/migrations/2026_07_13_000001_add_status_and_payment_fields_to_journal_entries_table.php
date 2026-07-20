@@ -54,6 +54,45 @@ return new class extends Migration
             if (!Schema::hasColumn('journal_entries', 'reversed_timestamp')) {
                 $table->timestamp('reversed_timestamp')->nullable()->after('reversed_entry_id');
             }
+            if (!Schema::hasColumn('journal_entries', 'voucher_series')) {
+            $table->string('voucher_series')->default('SYSTEM')->after('voucher_type');
+            }
+            if (!Schema::hasColumn('journal_entries', 'manual_series_no')) {
+            $table->integer('manual_series_no')->nullable()->after('voucher_series');
+            }
+            if (!Schema::hasColumn('journal_entries', 'manual_reference')) {
+            $table->string('manual_reference')->nullable()->after('manual_series_no');
+            }
+            if (!Schema::hasColumn('journal_entries', 'payee_account_title')) {
+                $table->string('payee_account_title')->nullable()->after('payment_mode');
+            }
+            if (!Schema::hasColumn('journal_entries', 'payee_account_no')) {
+                $table->string('payee_account_no')->nullable()->after('payee_account_title');
+            }
+            if (!Schema::hasColumn('journal_entries', 'payee_contact')) {
+                $table->string('payee_contact')->nullable()->after('payee_account_no');
+            }
+            if (!Schema::hasColumn('journal_entries', 'payee_email')) {
+                $table->string('payee_email')->nullable()->after('payee_contact');
+            }
+            if (!Schema::hasColumn('journal_entries', 'payee_cnic')) {
+                $table->string('payee_cnic')->nullable()->after('payee_email');
+            }
+            if (!Schema::hasColumn('journal_entries', 'receiver_name')) {
+                $table->string('receiver_name')->nullable()->after('payee_cnic');
+            }
+            if (!Schema::hasColumn('journal_entries', 'receiver_cnic')) {
+                $table->string('receiver_cnic')->nullable()->after('receiver_name');
+            }
+            if (!Schema::hasColumn('journal_entries', 'receiver_contact')) {
+                $table->string('receiver_contact')->nullable()->after('receiver_cnic');
+            }
+            if (!Schema::hasColumn('journal_entries', 'receiver_email')) {
+                $table->string('receiver_email')->nullable()->after('receiver_contact');
+            }
+            if (!Schema::hasColumn('journal_entries', 'payment_date')) {
+                $table->date('payment_date')->nullable()->after('receiver_email');
+            }
         });
     }
 
@@ -74,6 +113,19 @@ return new class extends Migration
             'transaction_no',
             'reversed_entry_id',
             'reversed_timestamp',
+            'voucher_series',
+            'manual_series_no',
+            'manual_reference',
+            'payee_account_title',
+            'payee_account_no',
+            'payee_contact',
+            'payee_email',
+            'payee_cnic',
+            'receiver_name',
+            'receiver_cnic',
+            'receiver_contact',
+            'receiver_email',
+            'payment_date',
         ];
 
         Schema::table('journal_entries', function (Blueprint $table) use ($columns) {

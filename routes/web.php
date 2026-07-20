@@ -42,6 +42,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\UserPermissionController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\SystemController;
 use App\Http\Controllers\ProductServiceController;
@@ -502,6 +503,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('/change/mode', [UserController::class, 'changeMode'])->name('change.mode');
 
     Route::resource('roles', RoleController::class)->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('user-permissions/edit', [UserPermissionController::class, 'edit'])->name('user.permissions.edit')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('user-permissions/update', [UserPermissionController::class, 'update'])->name('user.permissions.update')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('permissions', PermissionController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
@@ -950,7 +953,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::post('journal-entry/account/destroy', [JournalEntryController::class, 'accountDestroy'])->name('journal.account.destroy');
 			Route::get('get-voucher-number', [JournalEntryController::class, 'getVoucherNumber'])->name('getVoucherNumber');
 			Route::get('get-voucher-parties', [JournalEntryController::class, 'getVoucherParties'])->name('getVoucherParties');
-
+            Route::get('journal-entry/{journalEntry}/voucher-print', [JournalEntryController::class, 'voucherPrint'])->name('journal-entry.voucher-print');
 			Route::get('voucher-create', [JournalEntryController::class, 'createVoucher'])->name('createVoucher');
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
             Route::get('expense-voucher/create', [JournalEntryController::class, 'createExpenseVoucher'])->name('expense-voucher.create');

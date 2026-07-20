@@ -132,6 +132,16 @@
             </div>
         </div>
     </div>
+
+    <!-- Note Section -->
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <div class="form-group">
+                {{ Form::label('note', __('Note'), ['class' => 'form-label']) }}
+                {{ Form::textarea('note', null, ['class' => 'form-control', 'rows' => 3, 'placeholder' => __('Enter closing remarks or note...')]) }}
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="modal-footer">

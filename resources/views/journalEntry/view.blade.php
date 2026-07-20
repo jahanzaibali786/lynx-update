@@ -7,16 +7,7 @@
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item"><a href="{{ route('journal-entry.index') }}">{{ __('Journal Entry') }}</a></li>
     <li class="breadcrumb-item">
-        @php
-            $breadcrumbType = strtoupper($journalEntry->voucher_type ?? 'JV');
-            $breadcrumbMethod = [
-                'BRV' => 'BRVNumberFormat',
-                'BPV' => 'BPVNumberFormat',
-                'CRV' => 'CRVNumberFormat',
-                'CPV' => 'CPVNumberFormat',
-            ][$breadcrumbType] ?? 'journalNumberFormat';
-        @endphp
-        {{ Auth::user()->$breadcrumbMethod($journalEntry->journal_id) }}
+        {{ $journalEntry->getVoucherNumber() }}
     </li>
 @endsection
 @push('script-page')
@@ -96,12 +87,12 @@
 @section('action-btn')
  
     <div class="float-end" style='display:flex; gap:5px;'>
+        <a href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="btn btn-sm btn-primary"
+            title="{{ __('Voucher Print') }}" data-original-title="{{ __('Voucher Print') }}">
+            <span class="btn-inner--icon"><i class="ti ti-printer"></i> {{ __('Voucher Print') }}</span>
+        </a>
         <a href="#" class="btn btn-sm btn-primary" onclick="printDiv()"
             title="{{ __('Print') }}" data-original-title="{{ __('Print') }}">
-            <span class="btn-inner--icon">Pdf / Print</span>
-        </a>
-        <a href="#" class="btn btn-sm btn-primary" onclick="saveAsPDF()"
-            title="{{ __('Download') }}" data-original-title="{{ __('Download') }}">
             <span class="btn-inner--icon">Pdf / Print</span>
         </a>
 
@@ -110,13 +101,7 @@
 @section('content')
     @php
         $voucherType = strtoupper($journalEntry->voucher_type ?? 'JV');
-        $numberMethod = [
-            'BRV' => 'BRVNumberFormat',
-            'BPV' => 'BPVNumberFormat',
-            'CRV' => 'CRVNumberFormat',
-            'CPV' => 'CPVNumberFormat',
-        ][$voucherType] ?? 'journalNumberFormat';
-        $voucherNumber = \Auth::user()->$numberMethod($journalEntry->journal_id);
+        $voucherNumber = $journalEntry->getVoucherNumber();
     @endphp
     <div class="row" id="printableArea">
         <div class="col-12">
@@ -138,13 +123,13 @@
                             </div>
                             <div class="row">
                                 <div class="col-md-6">
-                                    {{-- <small class="font-style">
+                                    <small class="font-style">
                                         <strong>{{__('To')}} :</strong><br>
                                         {{!empty($settings['company_name'])?$settings['company_name']:''}}<br>
                                         {{!empty($settings['company_telephone'])?$settings['company_telephone']:''}}<br>
                                         {{!empty($settings['company_address'])?$settings['company_address']:''}}<br>
                                         {{!empty($settings['company_city'])?$settings['company_city']:'' .', '}}  {{!empty($settings['company_state'])?$settings['company_state']:'' .', '}}  {{!empty($settings['company_country'])?$settings['company_country']:'' .'.'}}
-                                    </small> --}}
+                                    </small>
                                 </div>
                                 <div class="col-md-6 text-end">
                                     <small>
@@ -198,6 +183,38 @@
                                             -
                                         @endif
                                     </small>
+                                </div>
+                            </div>
+
+                            <!-- Payee and Receiver Details -->
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <div class="card bg-light border-0">
+                                        <div class="card-body p-3">
+                                            <h6 class="text-primary font-weight-bold mb-2">{{ __('Payee Details') }}</h6>
+                                            <ul class="list-unstyled mb-0" style="font-size: 0.85rem; line-height: 1.6;">
+                                                <li><strong>{{ __('Account Title') }}:</strong> {{ $journalEntry->payee_account_title ?? '-' }}</li>
+                                                <li><strong>{{ __('Account No') }}:</strong> {{ $journalEntry->payee_account_no ?? '-' }}</li>
+                                                <li><strong>{{ __('CNIC') }}:</strong> {{ $journalEntry->payee_cnic ?? '-' }}</li>
+                                                <li><strong>{{ __('Contact') }}:</strong> {{ $journalEntry->payee_contact ?? '-' }}</li>
+                                                <li><strong>{{ __('Email') }}:</strong> {{ $journalEntry->payee_email ?? '-' }}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card bg-light border-0">
+                                        <div class="card-body p-3">
+                                            <h6 class="text-primary font-weight-bold mb-2">{{ __('Receiver Details') }}</h6>
+                                            <ul class="list-unstyled mb-0" style="font-size: 0.85rem; line-height: 1.6;">
+                                                <li><strong>{{ __('Name') }}:</strong> {{ $journalEntry->receiver_name ?? '-' }}</li>
+                                                <li><strong>{{ __('CNIC') }}:</strong> {{ $journalEntry->receiver_cnic ?? '-' }}</li>
+                                                <li><strong>{{ __('Contact') }}:</strong> {{ $journalEntry->receiver_contact ?? '-' }}</li>
+                                                <li><strong>{{ __('Email') }}:</strong> {{ $journalEntry->receiver_email ?? '-' }}</li>
+                                                <li><strong>{{ __('Payment Date') }}:</strong> {{ !empty($journalEntry->payment_date) ? \Auth::user()->dateFormat($journalEntry->payment_date) : '-' }}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 

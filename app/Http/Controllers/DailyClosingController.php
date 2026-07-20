@@ -127,6 +127,7 @@ class DailyClosingController extends Controller
             'deposit_date' => 'required|date',
             'issued_by_id' => 'required|integer',
             'received_by_id' => 'required|integer',
+            'note' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -168,7 +169,7 @@ class DailyClosingController extends Controller
         $denoms = [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
         $totalDeposited = 0;
         $data = $request->only([
-            'from_date', 'to_date', 'deposit_date', 'issued_by_id', 'received_by_id'
+            'from_date', 'to_date', 'deposit_date', 'issued_by_id', 'received_by_id', 'note'
         ]);
         $data['issued_by'] = $issuedEmployee ? $issuedEmployee->name : null;
         $data['received_by'] = $receivedEmployee ? $receivedEmployee->name : null;
@@ -180,12 +181,6 @@ class DailyClosingController extends Controller
         }
 
         $difference = $totalReceived - $totalDeposited;
-        if (abs($difference) >= 10) {
-            return response()->json([
-                'success' => false,
-                'error' => __('Difference in Income Deposited must be less than 10.')
-            ]);
-        }
 
         $data['total_income_received'] = $totalReceived;
         $data['total_income_deposited'] = $totalDeposited;
@@ -225,6 +220,7 @@ class DailyClosingController extends Controller
             'deposit_date' => 'required|date',
             'issued_by_id' => 'required|integer',
             'received_by_id' => 'required|integer',
+            'note' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -266,7 +262,7 @@ class DailyClosingController extends Controller
         $denoms = [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
         $totalDeposited = 0;
         $data = $request->only([
-            'from_date', 'to_date', 'deposit_date', 'issued_by_id', 'received_by_id'
+            'from_date', 'to_date', 'deposit_date', 'issued_by_id', 'received_by_id', 'note'
         ]);
         $data['issued_by'] = $issuedEmployee ? $issuedEmployee->name : null;
         $data['received_by'] = $receivedEmployee ? $receivedEmployee->name : null;
@@ -278,12 +274,6 @@ class DailyClosingController extends Controller
         }
 
         $difference = $totalReceived - $totalDeposited;
-        if (abs($difference) >= 10) {
-            return response()->json([
-                'success' => false,
-                'error' => __('Difference in Income Deposited must be less than 10.')
-            ]);
-        }
 
         $data['total_income_received'] = $totalReceived;
         $data['total_income_deposited'] = $totalDeposited;

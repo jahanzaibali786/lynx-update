@@ -107,6 +107,11 @@ class ChartOfAccountController extends Controller
 
     public function create()
     {
+        if(!\Auth::user()->can('create chart of account'))
+        {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
         $types = ChartOfAccountType::where('created_by',\Auth::user()->creatorId())->get();
         // $types->prepend('Select Account Type', 0);
         $account_type = [];
@@ -341,7 +346,12 @@ class ChartOfAccountController extends Controller
 
 public function updateCategory(Request $request)
     {
-        $account = ChartOfAccount::find($request->account_id);
+        if(!\Auth::user()->can('edit chart of account'))
+        {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        $account = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->find($request->account_id);
         if ($account) {
             $account->category = $request->category;
             $account->save();
@@ -440,7 +450,15 @@ public function updateCategory(Request $request)
 
     public function getSubType(Request $request)
     {
-        $types = ChartOfAccount::where('sub_type', $request->type)->get()->pluck('name', 'id');
+        if(!\Auth::user()->can('create chart of account') && !\Auth::user()->can('edit chart of account'))
+        {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $types = ChartOfAccount::where('sub_type', $request->type)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->get()
+            ->pluck('name', 'id');
         $types->prepend('Select an account', 0);
 
         return response()->json($types);

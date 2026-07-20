@@ -305,6 +305,24 @@
             </span>
         </div>
 
+        <!-- Note Section -->
+        <div style="margin-top: 20px; text-align: left;">
+            <strong>{{ __('Note') }}:</strong>
+            <div style="margin-top: 5px;">
+                @php
+                    $noteText = $dailyClosing->note ?? '';
+                    $noteLines = $noteText !== '' ? explode("\n", $noteText) : [];
+                    $displayLines = array_pad($noteLines, 5, '');
+                @endphp
+                @for ($k = 0; $k < 5; $k++)
+                    <div style="border-bottom: 1px solid #d3d3d3; margin-top: 5px; height: 26px; line-height: 26px; font-style: italic; color: #333; padding-left: 5px;">
+                        {{ $displayLines[$k] ?? '' }}
+                    </div>
+                @endfor
+            </div>
+        </div>
+       
+
         <!-- Signatures and Date -->
         <div class="signature-section">
             <div class="sig-box">

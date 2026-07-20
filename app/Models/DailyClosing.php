@@ -15,6 +15,7 @@ class DailyClosing extends Model
         'received_by',
         'issued_by_id',
         'received_by_id',
+        'note',
         'total_income_received',
         'total_income_deposited',
         'difference',

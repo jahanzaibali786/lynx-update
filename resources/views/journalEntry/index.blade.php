@@ -75,6 +75,9 @@
                                 <th> {{__('Journal ID')}}</th>
                                 <th> {{__('Category Type')}}</th>
                                 <th> {{__('Date')}}</th>
+                                <th> {{__('Payee')}}</th>
+                                <th> {{__('Receiver')}}</th>
+                                <th> {{__('Payment Mode')}}</th>
                                 <th> {{__('Amount')}}</th>
                                 <th class="wrap-td"> {{__('Description')}}</th>
                                 <th> {{__('Status')}}</th>
@@ -86,10 +89,21 @@
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td class="Id">
-                                        <a href="{{ route('journal-entry.show',$journalEntry->id) }}" class="btn btnpurchase1 btn-outline-primary">{{ AUth::user()->journalNumberFormat($journalEntry->journal_id) }}</a>
+                                        <a href="{{ route('journal-entry.show',$journalEntry->id) }}" class="btn btnpurchase1 btn-outline-primary">{{ $journalEntry->getVoucherNumber() }}</a>
                                     </td>
                                     <td>{{ !empty($journalEntry->categoryType) ? $journalEntry->categoryType->name : '-' }}</td>
                                     <td>{{ Auth::user()->dateFormat($journalEntry->date) }}</td>
+                                    <td>
+                                        <div><strong>{{ $journalEntry->payee_account_title ?? '-' }}</strong></div>
+                                        <small class="text-muted">{{ $journalEntry->payee_account_no ?? '' }}</small>
+                                    </td>
+                                    <td>{{ $journalEntry->receiver_name ?? '-' }}</td>
+                                    <td>
+                                        <div>{{ strtoupper($journalEntry->payment_mode ?? ($journalEntry->mode ?? '-')) }}</div>
+                                        @if(!empty($journalEntry->payment_date))
+                                            <small class="text-muted">{{ \Auth::user()->dateFormat($journalEntry->payment_date) }}</small>
+                                        @endif
+                                    </td>
                                     <td>
                                         {{ \Auth::user()->priceFormat($journalEntry->totalCredit())}}
                                     </td>
@@ -104,7 +118,12 @@
                                         @endif
                                     </td>
                                      <td>
-                                                <div class="action-btn ms-2" style="display: flex; gap: 5px;">
+                                                <div class="action-btn ms-2" style="display: flex; gap: 5px;">  
+                                                    @can('show journal entry')
+                                                <a title="{{ __('Voucher Print') }}" href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-secondary align-items-center" data-bs-title="{{ __('Print') }}">
+                                                   <span class="btn-inner--icon"> <i class="ti ti-printer"></i> </span>
+                                                </a>
+                                        @endcan
                                          @can('edit journal entry')
                                              @if($journalEntry->status != 'Approved' && \Auth::user()->type == 'company')
                                                  {!! Form::open(['method' => 'POST', 'route' => array('journal-entry.approve', $journalEntry->id), 'id'=>'approve-form-'.$journalEntry->id, 'style'=>'display:inline;']) !!}

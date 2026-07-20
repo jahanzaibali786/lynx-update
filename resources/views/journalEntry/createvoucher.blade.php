@@ -39,7 +39,7 @@
         // ─── State ────────────────────────────────────────────────────────────────────
         var journalEntries = @json($journalItems ?? []);
         var rowCounter = 0;
-        var MAX_OPEN_ROWS = 4;
+        var MAX_OPEN_ROWS = 10;
 
         // ─── Static data from Blade ───────────────────────────────────────────────────
         var BRANCHES = @json($branches);
@@ -106,8 +106,36 @@
             return (parseFloat(value) || 0).toFixed(2);
         }
 
+        function uniqueJournalEntries(entries) {
+            var seen = {};
+            return (entries || []).filter(function(entry) {
+                var key = [
+                    entry.account_id,
+                    entry.debit,
+                    entry.credit,
+                    entry.desc,
+                    entry.types,
+                    entry.userType,
+                    entry.userId,
+                    entry.ref_no,
+                    entry.tra_date,
+                    JSON.stringify(entry.meta || {})
+                ].join('|');
+
+                if (seen[key]) {
+                    return false;
+                }
+                seen[key] = true;
+                return true;
+            });
+        }
+
         $(function() {
-            if (journalEntries.length) {
+            journalEntries = uniqueJournalEntries(journalEntries);
+
+            if (journalEntries.length && !$('#inline-entry-tbody').data('existing-loaded')) {
+                $('#inline-entry-tbody').data('existing-loaded', true);
+                $('#inline-entry-tbody tr.confirmed-row').remove();
                 $('#empty-row').hide();
                 $.each(journalEntries, function(_, entry) {
                     entry.debit = parseFloat(entry.debit) || 0;
@@ -202,16 +230,16 @@
         }
 
         // ─── Voucher number ───────────────────────────────────────────────────────────
-        $(document).off('change', '#voucher_type, #branches').on('change', '#voucher_type, #branches', function() {
+        $(document).off('change', '#voucher_type, #branches, #voucher_series').on('change', '#voucher_type, #branches, #voucher_series', function() {
             var currentType = ($('#voucher_type').val() || 'jv').toUpperCase();
             journalEntries.forEach(function(entry) {
                 entry.types = currentType;
             });
             renderHiddenInputs();
-            getVoucherNumber($('#voucher_type').val(), $('#branches').val());
+            getVoucherNumber($('#voucher_type').val(), $('#branches').val(), $('#voucher_series').val());
         });
 
-        function getVoucherNumber(vt, bid) {
+        function getVoucherNumber(vt, bid, vs) {
             var labels = {
                 jv: 'Journal Number',
                 cpv: 'Cash Payment Voucher Number',
@@ -228,7 +256,8 @@
                 type: 'GET',
                 data: {
                     voucher_type: vt,
-                    branch_id: bid
+                    branch_id: bid,
+                    voucher_series: vs || 'SYSTEM'
                 },
                 success: function(r) {
                     $('#journal-number-inp').val(r.voucher_number);
@@ -239,9 +268,14 @@
             });
         }
 
+        @if(!isset($journalEntry))
+        getVoucherNumber($('#voucher_type').val(), $('#branches').val(), 'MANUAL');
+        @endif
+
         // ─── Add line button ──────────────────────────────────────────────────────────
         $(document).off('click', '#addAccountBtn').on('click', '#addAccountBtn', function(e) {
             e.preventDefault();
+            e.stopImmediatePropagation();
             var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
             if (openRows >= MAX_OPEN_ROWS) {
                 show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS +
@@ -576,9 +610,15 @@
         });
 
         // ─── Confirm row ──────────────────────────────────────────────────────────────
-        $(document).off('click', '.confirm-row-btn').on('click', '.confirm-row-btn', function() {
+        $(document).off('click', '.confirm-row-btn').on('click', '.confirm-row-btn', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
             var rid = $(this).data('rid');
             var tr = $('tr[data-row-id="' + rid + '"]');
+            if (!tr.length || tr.data('confirming')) {
+                return;
+            }
+            tr.data('confirming', true);
             var cat = tr.attr('data-cat') || 'general';
             var accSel = $('.row-account[data-rid="' + rid + '"]');
             var accOpt = accSel.find('option:selected');
@@ -591,10 +631,12 @@
             var desc = ($('.row-desc[data-rid="' + rid + '"]').val() || '').trim();
 
             if (!accId) {
+                tr.data('confirming', false);
                 show_toastr('error', 'Please select an account.', 'error');
                 return;
             }
             if (debit === 0 && credit === 0) {
+                tr.data('confirming', false);
                 show_toastr('error', 'Enter a debit or credit amount.', 'error');
                 return;
             }
@@ -644,7 +686,7 @@
             }
 
             var entry = {
-                id: Date.now(),
+                id: Date.now() + parseInt(rid || 0),
                 account_id: accId,
                 path,
                 cat,
@@ -1189,13 +1231,13 @@
             <div class="card">
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('branches', __('Branch'), ['class' => 'form-label']) }}
                                 {{ Form::select('branches', $branches, $selectedBranch, ['class' => 'form-control', 'id' => 'branches']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('voucher_type', __('Voucher Type'), ['class' => 'form-label']) }}
                                 {{ Form::select(
@@ -1212,15 +1254,16 @@
                                 ) }}
                             </div>
                         </div>
+                        <input type="hidden" name="voucher_series" id="voucher_series" value="MANUAL">
 
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg- 3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('journal_number', __('Journal Number'), ['class' => 'form-label', 'id' => 'journal-number']) }}
                                 <input type="text" class="form-control" id="journal-number-inp"
                                     value="{{ $displayVoucherNumber }}" readonly>
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('category_type_id', __('Voucher Category Type'), ['class' => 'form-label']) }}
                                 {{ Form::select('category_type_id', $voucherCategoryTypes, $journalEntry->category_type_id ?? null, [
@@ -1229,13 +1272,20 @@
                                 ]) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('date', __('Transaction Date'), ['class' => 'form-label']) }}
                                 {{ Form::date('date', $transactionDate, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                          <!-- Payment Date -->
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payment_date', __('Payment Date'), ['class' => 'form-label']) }}
+                                {{ Form::date('payment_date', $journalEntry->payment_date ?? null, ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('payment_mode', __('Payment Mode'), ['class' => 'form-label']) }}
                                 {{ Form::select(
@@ -1244,6 +1294,7 @@
                                         '' => 'Select Payment Mode',
                                         'dd' => 'DD',
                                         'cd' => 'CD',
+                                        'online' => 'Online',
                                         'bank-transfer' => 'Bank Transfer',
                                         'chq' => 'Cheque',
                                         'others' => 'Others',
@@ -1253,7 +1304,7 @@
                                 ) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('amount', __('Amount'), ['class' => 'form-label']) }}
                                 <input type="number" class="form-control" id="voucher-amount-display"
@@ -1262,19 +1313,19 @@
                                     value="{{ number_format($voucherAmount, 2, '.', '') }}">
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
                                 {{ Form::text('reference', $journalEntry->reference ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('transaction_no', __('Transaction No'), ['class' => 'form-label']) }}
                                 {{ Form::text('transaction_no', $journalEntry->transaction_no ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('user_type', __('Party Type'), ['class' => 'form-label']) }}
                                 {{ Form::select(
@@ -1291,45 +1342,45 @@
                                 ) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6 party-select-wrap" data-party="Customer">
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Customer">
                             <div class="form-group">
                                 {{ Form::label('customer_user_id', __('Customer'), ['class' => 'form-label']) }}
                                 {{ Form::select('customer_user_id', $customers ?? [], $selectedPartyType == 'Customer' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6 party-select-wrap" data-party="Vender">
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Vender">
                             <div class="form-group">
                                 {{ Form::label('vendor_user_id', __('Vendor'), ['class' => 'form-label']) }}
                                 {{ Form::select('vendor_user_id', $vendors ?? [], in_array($selectedPartyType, ['Vender', 'Vendor']) ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6 party-select-wrap" data-party="Employee">
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Employee">
                             <div class="form-group">
                                 {{ Form::label('employee_user_id', __('Employee'), ['class' => 'form-label']) }}
                                 {{ Form::select('employee_user_id', $employees ?? [], $selectedPartyType == 'Employee' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6 party-select-wrap" data-party="Student">
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Student">
                             <div class="form-group">
                                 {{ Form::label('student_user_id', __('Student'), ['class' => 'form-label']) }}
                                 {{ Form::select('student_user_id', $students ?? [], $selectedPartyType == 'Student' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
                             </div>
                         </div>
                         <input type="hidden" name="user_id" id="user_id" value="{{ $selectedPartyId }}">
-                        <div class="col-lg-4 col-md-6 cheque-field-wrap">
+                        <div class="col-lg-3 col-md-3 cheque-field-wrap">
                             <div class="form-group">
                                 {{ Form::label('cheque_no', __('Cheque No'), ['class' => 'form-label']) }}
                                 {{ Form::text('cheque_no', $journalEntry->cheque_no ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6 cheque-field-wrap">
+                        <div class="col-lg-3 col-md-3 cheque-field-wrap">
                             <div class="form-group">
                                 {{ Form::label('cheque_date', __('Cheque Date'), ['class' => 'form-label']) }}
                                 {{ Form::date('cheque_date', $journalEntry->cheque_date ?? null, ['class' => 'form-control']) }}
                             </div>
                         </div>
 
-                        <div class="col-lg-4 col-md-6">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('attachment', __('Attachment'), ['class' => 'form-label']) }}
                                 {{ Form::file('attachment', ['class' => 'form-control']) }}
@@ -1341,9 +1392,80 @@
                                 @endif
                             </div>
                         </div>
+                        <!-- Payee & Receiver details -->
+                        <div class="col-lg-12 col-md-12"><hr></div>
+                        
+                      
+                        <div class="col-lg-8 col-md-6"></div>
+
+                        <!-- Payee Details -->
+                        <div class="col-lg-12 col-md-12">
+                            <h5 class="text-primary mt-2 mb-3">{{ __('Payee Details') }}</h5>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_account_title', __('Payee Account Title'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_account_title', $journalEntry->payee_account_title ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Account Title')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_account_no', __('Payee Account No'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_account_no', $journalEntry->payee_account_no ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Account Number')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_cnic', __('Payee CNIC'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_cnic', $journalEntry->payee_cnic ?? '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_contact', __('Payee Contact'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_contact', $journalEntry->payee_contact ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_email', __('Payee Email'), ['class' => 'form-label']) }}
+                                {{ Form::email('payee_email', $journalEntry->payee_email ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                            </div>
+                        </div>
+
+                        <!-- Receiver Details -->
+                        <div class="col-lg-12 col-md-12">
+                            <h5 class="text-primary mt-3 mb-3">{{ __('Receiver Details') }}</h5>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_name', __('Receiver Name'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_name', $journalEntry->receiver_name ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Receiver Name')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_cnic', __('Receiver CNIC'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_cnic', $journalEntry->receiver_cnic ?? '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_contact', __('Receiver Contact'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_contact', $journalEntry->receiver_contact ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_email', __('Receiver Email'), ['class' => 'form-label']) }}
+                                {{ Form::email('receiver_email', $journalEntry->receiver_email ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-12 col-md-12"><hr></div>
+
                         <div class="col-lg-12 col-md-12">
                             <div class="form-group">
-                                {{ Form::label('narration', __('Narration'), ['class' => 'form-label']) }}
+                                {{ Form::label('narration', __('Note for Payment'), ['class' => 'form-label']) }}
                                 {{ Form::textarea('narration', $journalEntry->description ?? '', ['class' => 'form-control', 'rows' => '2']) }}
                             </div>
                         </div>
@@ -1365,7 +1487,7 @@
                         <thead>
                             <tr>
                                 <th class="col-account">{{ __('Account') }}</th>
-                                <th class="col-type">{{ __('Type') }}</th>
+                                <th class="col-type">{{ __('Memo') }}</th>
                                 <th class="col-ref">{{ __('Ref No') }}</th>
                                 <th class="col-tradate">{{ __('Date') }}</th>
                                 <th class="col-debit text-right">{{ __('Debit') }}</th>

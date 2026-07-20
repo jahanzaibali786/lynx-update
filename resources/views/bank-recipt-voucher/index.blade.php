@@ -69,6 +69,9 @@
                 <th>#</th>
                 <th> {{ __('Voucher ID') }}</th>
                 <th> {{ __('Date') }}</th>
+                <th> {{ __('Payee') }}</th>
+                <th> {{ __('Receiver') }}</th>
+                <th> {{ __('Payment Mode') }}</th>
                 <th> {{ __('Amount') }}</th>
                 <th class="wrap-td"> {{ __('Description') }}</th>
                 <th width="10%"> {{ __('Action') }}</th>
@@ -80,18 +83,34 @@
                     <td>{{ $loop->iteration }}</td>
                     <td class="Id">
                         <a href="{{ route('bank-recipt-voucher.show', $journalEntry->id) }}"
-                            class="btn btn-outline-primary"><span class="btn-inner--icon">{{ AUth::user()->BRVNumberFormat($journalEntry->journal_id) }}</span></a>
+                            class="btn btn-outline-primary"><span class="btn-inner--icon">{{ $journalEntry->getVoucherNumber() }}</span></a>
                     </td>
                     <td>{{ Auth::user()->dateFormat($journalEntry->date) }}</td>
+                    <td>
+                        <div><strong>{{ $journalEntry->payee_account_title ?? '-' }}</strong></div>
+                        <small class="text-muted">{{ $journalEntry->payee_account_no ?? '' }}</small>
+                    </td>
+                    <td>{{ $journalEntry->receiver_name ?? '-' }}</td>
+                    <td>
+                        <div>{{ strtoupper($journalEntry->payment_mode ?? ($journalEntry->mode ?? '-')) }}</div>
+                        @if(!empty($journalEntry->payment_date))
+                            <small class="text-muted">{{ \Auth::user()->dateFormat($journalEntry->payment_date) }}</small>
+                        @endif
+                    </td>
                     <td>
                         {{ \Auth::user()->priceFormat($journalEntry->totalCredit()) }}
                     </td>
                     <td class="wrap-td">{{ !empty($journalEntry->description) ? $journalEntry->description : '-' }}</td>
                     <td>
-                        <div class="action-btn ms-2">
+                        <div class="action-btn ms-2" style="display: flex; gap: 5px;">
+                            @can('show journal entry')
+                                <a title="{{ __('Voucher Print') }}" href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-secondary align-items-center" data-bs-title="{{ __('Print') }}">
+                                    <span class="btn-inner--icon"> <i class="ti ti-printer"></i> </span>
+                                </a>
+                            @endcan
                             @can('edit journal entry')
-                                <a title="{{ __('Edit Bank Recipt Voucher') }}"
-                                    href="{{ route('bank-recipt-voucher.edit', [$journalEntry->id]) }}"
+                                <a title="{{ __('Edit') }}"
+                                    href="{{ route('journal-entry.edit', [$journalEntry->id]) }}"
                                     class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center" 
                                     data-bs-title="{{ __('Edit') }}">
                                     <span class="btn-inner--icon"> <i class="ti ti-pencil"></i> </span>
@@ -102,6 +121,7 @@
                                     'method' => 'DELETE',
                                     'route' => ['bank-recipt-voucher.destroy', $journalEntry->id],
                                     'id' => 'delete-form-' . $journalEntry->id,
+                                    'style' => 'display:inline;'
                                 ]) !!}
                                 <a href="#"
                                     class="mx-1 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"
