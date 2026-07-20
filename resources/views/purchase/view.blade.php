@@ -138,6 +138,8 @@
                                             <p class="text-muted text-sm mb-3">
                                                 @if($purchase->status == 6 && $purchase->grn_converted)
                                                     <small>{{__('Converted')}}</small>
+                                                @elseif($purchase->status == 6 && $purchase->items->sum('received_quantity') > 0)
+                                                    <small>{{__('Partially Converted')}}</small>
                                                 @elseif($purchase->status == 6)
                                                     <small>{{__('Ready to convert')}}</small>
                                                 @else

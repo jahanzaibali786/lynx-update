@@ -544,25 +544,6 @@ class PurchaseController extends Controller
                     // Removed stock and warehouse updates as per request to keep it as a record only
 
                 }
-                $ven = Vender::where('id', $request->vender_id)->first();
-                $data['id'] = $purchase->id;
-                $data['no'] = $purchase->purchase_id;
-                $data['date'] = $purchase->purchase_date;
-                $data['reference'] = $purchaseProduct->purchase_date;
-                $data['category'] = 'Purchase';
-                $data['owned_by'] = $purchase->created_by;
-                $data['created_by'] = $purchase->created_by;
-                $data['user_id'] = $ven->account_id;
-                $data['user_type'] = 'Vendor';
-                $data['vender_account'] = $ven->account_id;
-                $data['items'] = $newitems;
-
-                $dataret = Utility::purchasejv($data);
-
-                // dd($purchase,'egwd');
-                $purchase->voucher_id = $dataret;
-                $purchase->save();
-
                 DB::commit();
                 if ($request->ajax()) {
                     return response()->json(['success' => true, 'message' => \Auth::user()->type == 'company' ? __('Purchase successfully created and forwarded to Head Office.') : __('Purchase successfully created.')]);
@@ -665,18 +646,7 @@ class PurchaseController extends Controller
                     $purchase->category_id = $request->category_id;
                     $purchase->save();
                     $products = $request->items;
-                    // voucher get of this purchase order
-                    $voucher = JournalEntry::where('category', 'Purchase')->where('reference_id', $purchase->id)->where('voucher_type', 'JV')->first();
-
-                    if (!$voucher) {
-                        DB::rollback();
-                        if ($request->ajax()) {
-                            return response()->json(['success' => false, 'message' => __('Purchase voucher not found. Please check the purchase entry.')]);
-                        }
-                        return redirect()->back()->with('error', __('Purchase voucher not found. Please check the purchase entry.'));
-                    }
-
-                    $total_pay = 0;
+                    $this->purgePurchaseAccountingVouchers($purchase);
                     // collect existing product IDs to detect removals
                     $existingIds = PurchaseProduct::where('purchase_id', $purchase->id)->pluck('id')->toArray();
                     $submittedIds = [];
@@ -700,21 +670,6 @@ class PurchaseController extends Controller
                                 $purchaseProduct->save();
                                 $submittedIds[] = $purchaseProduct->id;
 
-                                $product = ProductService::where('id', $purchaseProduct->product_id)->first();
-                                // new item added in Voucher
-                                $journalItem = new JournalItem();
-                                $journalItem->journal = $voucher->id;
-                                $journalItem->account = @$product->sale_chartaccount_id;
-                                $journalItem->entry_id = @$purchaseProduct->id;
-                                $journalItem->types = 'Purchase';
-$journalItem->description = $product->name ?? '';
-                                 $journalItem->head_ids = $product->id ?? null;
-                                $journalItem->branch_id = $purchase->created_by;
-                                $journalItem->credit = 0;
-                                $journalItem->debit = (($products[$i]['quantity'] ?? 0) * ($products[$i]['price'] ?? 0)) - ($products[$i]['discount'] ?? 0);
-                                $journalItem->save();
-                                $total_pay += (($products[$i]['price'] ?? 0) * ($products[$i]['quantity'] ?? 0)) - ($products[$i]['discount'] ?? 0);
-
                             } else {
                                 $old_qty = $purchaseProduct->quantity;
                                 // Removed total_quantity minus
@@ -728,21 +683,6 @@ $journalItem->description = $product->name ?? '';
                                 $purchaseProduct->description = $products[$i]['description'] ?? '';
                                 $purchaseProduct->save();
 
-                                $product = ProductService::where('id', $purchaseProduct->product_id)->first();
-                                // already Voucher item update its values
-                                $jouitem = JournalItem::where('journal', $voucher->id)->where('entry_id', $purchaseProduct->id)->where('types', 'Purchase')->first();
-                                if (!$jouitem) {
-                                    $jouitem = new JournalItem();
-                                    $jouitem->journal = $voucher->id;
-                                    $jouitem->entry_id = $purchaseProduct->id;
-                                    $jouitem->types = 'Purchase';
-                                    $jouitem->description = $product->name ?? '';
-                                    $jouitem->head_ids = $product->id ?? null;
-                                }
-                                $jouitem->account = @$product->sale_chartaccount_id;
-                                $jouitem->debit = (($products[$i]['price'] ?? 0) * ($products[$i]['quantity'] ?? 0)) - ($products[$i]['discount'] ?? 0);
-                                $jouitem->save();
-                                $total_pay += (($products[$i]['price'] ?? 0) * ($products[$i]['quantity'] ?? 0)) - ($products[$i]['discount'] ?? 0);
                                 $submittedIds[] = $purchaseProduct->id;
 
                             }
@@ -753,39 +693,7 @@ $journalItem->description = $product->name ?? '';
                         // delete items that were removed from the form
                         $removedIds = array_diff($existingIds, $submittedIds);
                         if (!empty($removedIds)) {
-                            JournalItem::whereIn('entry_id', $removedIds)->where('journal', $voucher->id)->where('types', 'Purchase')->delete();
                             PurchaseProduct::whereIn('id', $removedIds)->delete();
-                        }
-                        $ven = Vender::find($request->vender_id);
-                        if ($ven === null || empty($ven->account_id)) {
-                            // already Voucher Payable update its values
-                            $types = ChartOfAccountType::where('created_by', '=', $purchase->created_by)->where('name', 'Liabilities')->first();
-                            if ($types) {
-                                $sub_type = ChartOfAccountSubType::where('type', $types->id)->where('name', 'Payables')->first();
-                                $account = ChartOfAccount::where('type', $types->id)->where('sub_type', $sub_type->id)->where('name', 'payable study pack')->first();
-                                // if head not exist then create it
-                                if ($account) {
-                                } else {
-                                    $account = new ChartOfAccount();
-                                    $account->name = 'payable study pack';
-                                    $account->code = '0';
-                                    $account->type = $types->id;
-                                    $account->sub_type = $sub_type->id;
-                                    $account->description = 'payable study pack';
-                                    $account->is_enabled = 1;
-                                    $account->created_by = \Auth::user()->creatorId();
-                                    $account->save();
-                                }
-                            }
-                            if ($account) {
-                                $item_last = JournalItem::where('journal', $voucher->id)->where('account', $account->id)->first();
-                                $item_last->credit = $total_pay;
-                                $item_last->save();
-                            }
-                        } else {
-                            $item_last = JournalItem::where('journal', $voucher->id)->where('account', $ven->account_id)->first();
-                            $item_last->credit = $total_pay;
-                            $item_last->save();
                         }
 
                     } else {
@@ -843,9 +751,13 @@ $journalItem->description = $product->name ?? '';
 
                 $purchasepayments = $purchase->payments;
                 foreach ($purchasepayments as $key => $value) {
-                    $purchasepayment = PurchasePayment::find($value->id)->first();
-                    $purchasepayment->delete();
+                    $purchasepayment = PurchasePayment::find($value->id);
+                    $this->purgePurchasePaymentVoucher($purchasepayment);
+                    if ($purchasepayment) {
+                        $purchasepayment->delete();
+                    }
                 }
+                $this->purgePurchaseAccountingVouchers($purchase);
 
                     // Stock decrement logic removed for record-only
 
@@ -1329,29 +1241,6 @@ $journalItem->description = $product->name ?? '';
 
                 // }
 
-                $bankAccount = BankAccount::find($request->account_id);
-                $data['id'] = $purchasePayment->id;
-                $data['date'] = $purchasePayment->date;
-                $data['reference'] = $request->reference;
-                $data['description'] = $purchasePayment->purchase_id;
-                $data['prod_id'] = $purchasePayment->id;
-                $data['amount'] = $purchasePayment->amount;
-                $data['category'] = 'Purchase';
-                $data['owned_by'] = $purchasePayment->created_by;
-                $data['created_by'] = $purchasePayment->created_by;
-                $data['account_id'] = $bankAccount->chart_account_id;
-                $data['user_id'] = $vender->id;
-                $data['user_type'] = 'Vendor';
-                $data['vender_account'] = $vender->account_id;
-                if (strtolower($bankAccount->bank_name) == 'cash' || strtolower($bankAccount->holder_name) == 'cash') {
-                    $dataret = Utility::cpv_entry($data);
-                } else {
-                    $dataret = Utility::bpv_entry($data);
-                }
-                PurchasePayment::where('id', $purchasePayment->id)->update([
-                    'voucher_id' => $dataret,
-                ]);
-
                 DB::commit();
                 return redirect()->back()->with('success', __('Payment successfully added.'));
 
@@ -1369,6 +1258,7 @@ $journalItem->description = $product->name ?? '';
 
         if (\Auth::user()->can('delete payment purchase')) {
             $payment = PurchasePayment::find($payment_id);
+            $this->purgePurchasePaymentVoucher($payment);
             PurchasePayment::where('id', '=', $payment_id)->delete();
 
             $purchase = Purchase::where('id', $purchase_id)->first();
@@ -1429,26 +1319,7 @@ $journalItem->description = $product->name ?? '';
                 $purchase = Purchase::find($res->purchase_id);
                 if ($purchase->status == 0 || $purchase->status == 1) {
                     // Removed stock decrement for record-only
-                    // Deleting voucher entry
-                    $voucher = JournalEntry::where('category', 'Purchase')->where('reference_id', $purchase->id)->where('voucher_type', 'JV')->first();
-                    $item = JournalItem::where('journal', $voucher->id)->where('entry_id', $res->id)->delete();
-
-                    $value = ($res->price * $res->quantity) - ($res->discount);
-                    $taxPrice = 0;
-                    $tax = Tax::find($res->tax);
-                    if ($tax) {
-                        $taxPrice = ($tax->rate / 100) * ($res->price * $res->quantity);
-                        $jotax = JournalItem::where('journal', $voucher->id)->where('account', $tax->account_expance)->where('description', 'Tax on ' . $res->product_id)->where('head_ids', $res->product_id)->where('types', 'Purchase')->delete();
-                    }
-                    //    less amount from payable
-                    $types = ChartOfAccountType::where('created_by', '=', $purchase->created_by)->where('name', 'Liabilities')->first();
-                    if ($types) {
-                        $sub_type = ChartOfAccountSubType::where('type', $types->id)->where('name', 'Current Liabilities')->first();
-                        $account = ChartOfAccount::where('type', $types->id)->where('sub_type', $sub_type->id)->where('name', 'Account Payable')->first();
-                    }
-                    $item_last = JournalItem::where('journal', $voucher->id)->where('account', $account->id)->first();
-                    $item_last->credit = $item_last->credit - ($value + $taxPrice);
-                    $item_last->save();
+                    $this->purgePurchaseAccountingVouchers($purchase);
 
                     PurchaseProduct::where('id', '=', $request->id)->delete();
 
@@ -1574,16 +1445,7 @@ $journalItem->description = $product->name ?? '';
             $purchase->status = 6; // Finalized
             $purchase->save();
 
-            // Apply stock updates
-            foreach ($purchase->items as $purchaseProduct) {
-                Utility::total_quantity('plus', $purchaseProduct->quantity, $purchaseProduct->product_id);
-                $type = 'purchase';
-                $description = $purchaseProduct->quantity . '  ' . __(' quantity add in purchase') . ' ' . \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
-                Utility::addProductStock($purchaseProduct->product_id, $purchaseProduct->quantity, $type, $description, $purchase->id);
-                Utility::addWarehouseStock($purchaseProduct->product_id, $purchaseProduct->quantity, $purchase->warehouse_id);
-            }
-
-            return redirect()->back()->with('success', __('Purchase finalized. Stock updated.'));
+            return redirect()->back()->with('success', __('Purchase finalized. Ready to convert to GRN.'));
         }
         return redirect()->back()->with('error', __('Permission denied.'));
     }
@@ -1611,11 +1473,11 @@ $journalItem->description = $product->name ?? '';
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        if ($purchase->grn_converted) {
-            return response()->json(['error' => __('Already converted to GRN.')], 422);
+        $viewData = $this->purchaseGrnFormData($purchase);
+        if (count($viewData['initialItems']) === 0) {
+            return response()->json(['error' => __('All items fully received.')], 422);
         }
 
-        $viewData = $this->purchaseGrnFormData($purchase);
         $view = view('purchase.convert_to_grn', $viewData);
 
         if (request()->ajax()) {
@@ -1633,20 +1495,20 @@ $journalItem->description = $product->name ?? '';
             return response()->json(['success' => false, 'message' => __('Permission denied.')], 401);
         }
 
-        if ($purchase->grn_converted) {
-            return response()->json(['success' => false, 'message' => __('Already converted to GRN.')], 422);
-        }
-
         $user = \Auth::user();
         $validator = \Validator::make($request->all(), [
             'vendor_id' => 'required|integer|exists:venders,id',
             'warehouse_id' => 'required|integer',
             'grn_date' => 'required|date',
             'reference_no' => 'required|string|max:191',
-            'purchase_order_id' => 'required|string|max:191',
+            'purchase_order_id' => 'required|string|max:1000',
             'remarks' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer|exists:product_services,id',
+            'items.*.purchase_id' => 'nullable|integer|exists:purchases,id',
+            'items.*.purchase_product_id' => 'nullable|integer|exists:purchase_products,id',
+            'items.*.purchase_order_no' => 'nullable|string|max:191',
+            'items.*.ordered_quantity' => 'nullable|numeric|min:0',
             'items.*.condition' => 'required|in:new,used,damaged',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.price' => 'nullable|numeric|min:0',
@@ -1675,8 +1537,12 @@ $journalItem->description = $product->name ?? '';
             foreach ($request->items as $item) {
                 \App\Models\GrnItem::create([
                     'grn_id' => $grn->id,
+                    'purchase_id' => $item['purchase_id'] ?? $purchase->id,
+                    'purchase_product_id' => $item['purchase_product_id'] ?? null,
+                    'purchase_order_no' => $item['purchase_order_no'] ?? $request->purchase_order_id,
                     'product_id' => $item['product_id'],
                     'condition' => $item['condition'],
+                    'ordered_quantity' => (float) ($item['ordered_quantity'] ?? 0),
                     'quantity' => (float) $item['quantity'],
                     'price' => (float) ($item['price'] ?? 0),
                     'description' => $item['description'] ?? null,
@@ -1689,8 +1555,6 @@ $journalItem->description = $product->name ?? '';
                 }
             }
 
-            $purchase->grn_converted = 1;
-            $purchase->save();
 
             DB::commit();
             return response()->json([
@@ -1752,16 +1616,33 @@ $journalItem->description = $product->name ?? '';
             ->orderBy('chart_of_accounts.code')
             ->get();
 
-        $initialItems = $purchase->items->map(function ($item) {
+        $purchaseOrderNo = $user->purchaseNumberFormat($purchase->purchase_id);
+        $initialItems = $purchase->items->map(function ($item) use ($purchase, $purchaseOrderNo) {
+            $pending = \App\Models\GrnItem::query()
+                ->join('grns', 'grns.id', '=', 'grn_items.grn_id')
+                ->where('grn_items.purchase_product_id', $item->id)
+                ->whereIn('grns.status', [0, 5, 6, 7])
+                ->sum('grn_items.quantity');
+            $remaining = max(0, (float) $item->quantity - (float) ($item->received_quantity ?? 0) - (float) $pending);
+
+            if ($remaining <= 0) {
+                return null;
+            }
+
             return [
                 'product_id' => $item->product_id,
+                'purchase_id' => $purchase->id,
+                'purchase_product_id' => $item->id,
+                'purchase_order_no' => $purchaseOrderNo,
+                'ordered_quantity' => (float) $item->quantity,
+                'available_quantity' => $remaining,
                 'condition' => 'new',
-                'quantity' => (float) $item->quantity,
+                'quantity' => $remaining,
                 'price' => (float) ($item->price ?? 0),
                 'description' => $item->description ?? '',
-                'source' => __('Purchase'),
+                'source' => $purchaseOrderNo,
             ];
-        })->values();
+        })->filter()->values();
 
         $formDefaults = [
             'vendor_id' => $purchase->vender_id,
@@ -1771,6 +1652,10 @@ $journalItem->description = $product->name ?? '';
             'purchase_order_id' => $user->purchaseNumberFormat($purchase->purchase_id),
             'remarks' => __('Converted from Purchase') . ' ' . $user->purchaseNumberFormat($purchase->purchase_id),
         ];
+
+        $existingGrns = \App\Models\Grn::whereHas('items', function($q) use($purchase) {
+            $q->where('purchase_id', $purchase->id);
+        })->get();
 
         $submitLabel = __('Convert');
         $cancelUrl = route('purchase.show', Crypt::encrypt($purchase->id));
@@ -1792,12 +1677,73 @@ $journalItem->description = $product->name ?? '';
             'submitLabel',
             'cancelUrl',
             'showPurchaseLink',
-            'showAddVendorLink'
+            'showAddVendorLink',
+            'existingGrns'
         );
     }
 
     private function nextPurchaseGrnNumber($creatorId)
     {
         return ((int) \App\Models\Grn::where('created_by', $creatorId)->max('grn_no')) + 1;
+    }
+
+    private function purgePurchaseAccountingVouchers(?Purchase $purchase): void
+    {
+        if (!$purchase) {
+            return;
+        }
+
+        $journalIds = collect([$purchase->voucher_id])
+            ->merge(
+                JournalEntry::where('category', 'Purchase')
+                    ->where('reference_id', $purchase->id)
+                    ->where('voucher_type', 'JV')
+                    ->pluck('id')
+            )
+            ->filter()
+            ->unique()
+            ->values();
+
+        $this->deleteJournalEntriesWithItems($journalIds);
+
+        if ($purchase->voucher_id) {
+            $purchase->voucher_id = null;
+            $purchase->save();
+        }
+    }
+
+    private function purgePurchasePaymentVoucher(?PurchasePayment $payment): void
+    {
+        if (!$payment) {
+            return;
+        }
+
+        $journalIds = collect([$payment->voucher_id])
+            ->merge(
+                JournalEntry::where('category', 'Purchase')
+                    ->where('reference_id', $payment->id)
+                    ->whereIn('voucher_type', ['BPV', 'CPV'])
+                    ->pluck('id')
+            )
+            ->filter()
+            ->unique()
+            ->values();
+
+        $this->deleteJournalEntriesWithItems($journalIds);
+
+        if ($payment->voucher_id) {
+            $payment->voucher_id = null;
+            $payment->save();
+        }
+    }
+
+    private function deleteJournalEntriesWithItems($journalIds): void
+    {
+        if ($journalIds->isEmpty()) {
+            return;
+        }
+
+        JournalItem::whereIn('journal', $journalIds)->delete();
+        JournalEntry::whereIn('id', $journalIds)->delete();
     }
 }

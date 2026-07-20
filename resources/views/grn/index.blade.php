@@ -89,7 +89,9 @@
                         <span class="status_badge badge
                             @if($grn->status == 0) bg-secondary
                             @elseif($grn->status == 5) bg-info
-                            @elseif($grn->status == 6) bg-success
+                            @elseif($grn->status == 6) bg-primary
+                            @elseif($grn->status == 7) bg-warning
+                            @elseif($grn->status == 8) bg-success
                             @else bg-secondary
                             @endif p-2 px-3 rounded">
                             {{ __($statusLabel) }}
@@ -113,7 +115,7 @@
                         @if($grn->status == 5 && \Auth::user()->type == 'company')
                             <a href="{{ route('grn.finalize', $grn->id) }}"
                                 class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Finalize') }}"
-                                onclick="return confirm('{{ __('Finalize this GRN? Stock and vendor balance will be updated.') }}')">
+                                onclick="return confirm('{{ __('Finalize this GRN? It will be ready to forward to Accounts.') }}')">
                                 <i class="ti ti-check"></i>
                             </a>
                             <a href="{{ route('grn.reject', $grn->id) }}"
@@ -121,7 +123,21 @@
                                 <i class="ti ti-x"></i>
                             </a>
                         @endif
-                        @if($grn->status != 6)
+                        @if($grn->status == 6 && \Auth::user()->type == 'company')
+                            <a href="{{ route('grn.fw_to_accounts', $grn->id) }}"
+                                class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Fw to Accounts') }}"
+                                onclick="return confirm('{{ __('Forward this GRN to Accounts?') }}')">
+                                <i class="ti ti-send"></i>
+                            </a>
+                        @endif
+                        @if($grn->status == 7 && in_array(\Auth::user()->type, ['company', 'accountant']))
+                            <a href="{{ route('grn.accounts_approve', $grn->id) }}"
+                                class="mx-1 btn btn-sm btn-outline-success align-items-center" title="{{ __('Accounts Approve') }}"
+                                onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
+                                <i class="ti ti-checks"></i>
+                            </a>
+                        @endif
+                        @if($grn->status != 8)
                             {{ Form::open(['route' => ['grn.destroy', $grn->id], 'method' => 'DELETE', 'class' => 'd-inline']) }}
                                 <button type="submit" class="mx-1 btn btn-sm btn-outline-info"
                                     onclick="return confirm('{{ __('Are you sure you want to delete this GRN? Stock will be reversed.') }}')">

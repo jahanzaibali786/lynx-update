@@ -13,6 +13,10 @@
                 ->map(function ($item) {
                     return [
                         'product_id' => $item->product_id,
+                        'purchase_id' => $item->purchase_id,
+                        'purchase_product_id' => $item->purchase_product_id,
+                        'purchase_order_no' => $item->purchase_order_no,
+                        'ordered_quantity' => (float) ($item->ordered_quantity ?? 0),
                         'condition' => $item->condition,
                         'quantity' => (float) $item->quantity,
                         'price' => (float) $item->price,
@@ -23,6 +27,10 @@
             : collect([
                 [
                     'product_id' => '',
+                    'purchase_id' => '',
+                    'purchase_product_id' => '',
+                    'purchase_order_no' => '',
+                    'ordered_quantity' => 0,
                     'condition' => 'new',
                     'quantity' => 1,
                     'price' => 0,
@@ -33,7 +41,7 @@
 
     <style>
         .grn-row-locked select,
-        .grn-row-locked input,
+        .grn-row-locked input:not(.qty-input),
         .grn-row-locked textarea {
             background: #f8f9fa;
             pointer-events: none;
@@ -79,11 +87,16 @@
 
         function grnRowHtml(item = {}, index = 0, locked = false) {
             const condition = item.condition || 'new';
-            const sourceBadge = item.source ? `<span class="badge bg-info me-1 text-xs">${item.source}</span>` : '';
+            const sourceText = item.purchase_order_no || item.source || '';
+            const sourceBadge = sourceText ? `<span class="badge bg-info me-1 text-xs">${sourceText}</span>` : '';
             return `
                 <tr class="${locked ? 'grn-row-locked' : ''}">
                     <td>
                         ${sourceBadge}
+                        <input type="hidden" name="items[${index}][purchase_id]" class="purchase-id-input" value="${item.purchase_id || ''}">
+                        <input type="hidden" name="items[${index}][purchase_product_id]" class="purchase-product-id-input" value="${item.purchase_product_id || ''}">
+                        <input type="hidden" name="items[${index}][purchase_order_no]" class="purchase-order-no-input" value="${item.purchase_order_no || ''}">
+                        <input type="hidden" name="items[${index}][ordered_quantity]" class="ordered-quantity-input" value="${item.ordered_quantity || 0}">
                         <select name="items[${index}][product_id]" class="form-control custom-select item-select" required placeholder="Select Product">
                             ${productOptionsHtml(item.product_id || '')}
                         </select>
@@ -95,7 +108,13 @@
                             <option value="damaged" ${condition === 'damaged' ? 'selected' : ''}>Damaged</option>
                         </select>
                     </td>
-                    <td><input type="number" name="items[${index}][quantity]" class="form-control qty-input" min="0.01" step="0.01" value="${item.quantity || 1}" required></td>
+                    <td>
+                        <input type="number" class="form-control bg-light" value="${item.available_quantity || item.quantity || 1}" readonly tabindex="-1">
+                        ${item.ordered_quantity ? `<small class="text-muted d-block">PO: ${item.ordered_quantity}</small>` : ''}
+                    </td>
+                    <td>
+                        <input type="number" name="items[${index}][quantity]" class="form-control qty-input" min="0.01" step="0.01" value="${item.quantity || 1}" max="${item.available_quantity || ''}" required>
+                    </td>
                     <td><input type="number" name="items[${index}][price]" class="form-control price-input" min="0" step="0.01" value="${item.price || 0}"></td>
                     <td><input type="text" name="items[${index}][description]" class="form-control desc-input" value="${(item.description || '').replace(/"/g, '&quot;')}"></td>
                     <td class="text-end amount-cell">0.00</td>
@@ -146,7 +165,16 @@
         }
 
         function recalcRow($row) {
-            const qty = parseFloat($row.find('.qty-input').val()) || 0;
+            const $qtyInput = $row.find('.qty-input');
+            let qty = parseFloat($qtyInput.val()) || 0;
+            const maxQty = parseFloat($qtyInput.attr('max')) || 0;
+            if (maxQty > 0 && qty > maxQty) {
+                qty = maxQty;
+                $qtyInput.val(maxQty);
+                if (typeof show_toastr === 'function') {
+                    show_toastr('warning', 'Received quantity cannot exceed remaining purchase quantity.', 'warning');
+                }
+            }
             const price = parseFloat($row.find('.price-input').val()) || 0;
             $row.find('.amount-cell').text((qty * price).toFixed(2));
             recalcTotal();
@@ -420,9 +448,55 @@
                     </div>
                     <div class="col-md-6">
                         {{ Form::label('remarks', __('Remarks'), ['class' => 'form-label']) }}
-                        {{ Form::text('remarks', old('remarks', $isEdit ? $grn->remarks : ($formDefaults['remarks'] ?? '')), ['class' => 'form-control']) }}
+                        {{ Form::textarea('remarks', old('remarks', $isEdit ? $grn->remarks : ($formDefaults['remarks'] ?? '')), ['class' => 'form-control', 'rows' => 2]) }}
                     </div>
                 </div>
+
+                @if(isset($existingGrns) && $existingGrns->isNotEmpty())
+                    <hr class="mt-4 mb-3">
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="text-muted mb-2"><i class="ti ti-info-circle me-1"></i>{{ __('Previously Created GRNs from this Purchase') }}</h6>
+                            <table class="table table-sm table-hover mb-0 border">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>{{ __('GRN Number') }}</th>
+                                        <th>{{ __('Date') }}</th>
+                                        <th>{{ __('Reference') }}</th>
+                                        <th>{{ __('Status') }}</th>
+                                        <th class="text-end">{{ __('Action') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($existingGrns as $egrn)
+                                        <tr>
+                                            <td><strong>GRN-{{ sprintf('%05d', $egrn->grn_no) }}</strong></td>
+                                            <td>{{ \Auth::user()->dateFormat($egrn->grn_date) }}</td>
+                                            <td>{{ $egrn->reference_no ?? '-' }}</td>
+                                            <td>
+                                                <span class="badge 
+                                                    @if($egrn->status == 0) bg-secondary 
+                                                    @elseif($egrn->status == 5) bg-info 
+                                                    @elseif($egrn->status == 6) bg-primary 
+                                                    @elseif($egrn->status == 7) bg-warning 
+                                                    @elseif($egrn->status == 8) bg-success 
+                                                    @else bg-secondary 
+                                                    @endif">
+                                                    {{ __(App\Models\Grn::$statues[$egrn->status] ?? 'Draft') }}
+                                                </span>
+                                            </td>
+                                            <td class="text-end">
+                                                <a href="{{ route('grn.show', $egrn->id) }}" target="_blank" class="btn btn-sm btn-outline-primary py-1 px-2">
+                                                    <i class="ti ti-eye"></i> {{ __('View') }}
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
 
@@ -440,10 +514,11 @@
                 <table class="table" id="grn-items-table">
                     <thead>
                         <tr>
-                            <th style="width: 28%;">{{ __('Item') }}</th>
-                            <th style="width: 12%;">{{ __('Type') }}</th>
-                            <th style="width: 12%;">{{ __('Quantity') }}</th>
-                            <th style="width: 12%;">{{ __('Cost') }}</th>
+                            <th style="width: 25%;">{{ __('Item') }}</th>
+                            <th style="width: 10%;">{{ __('Type') }}</th>
+                            <th style="width: 10%;">{{ __('Quantity') }}</th>
+                            <th style="width: 10%;">{{ __('Received') }}</th>
+                            <th style="width: 10%;">{{ __('Cost') }}</th>
                             <th>{{ __('Description') }}</th>
                             <th style="width: 12%;" class="text-end">{{ __('Amount') }}</th>
                             <th style="width: 95px;" class="text-center">{{ __('Action') }}</th>
@@ -452,7 +527,7 @@
                     <tbody></tbody>
                     <tfoot>
                         <tr>
-                            <th colspan="5" class="text-end">{{ __('Total') }}</th>
+                            <th colspan="6" class="text-end">{{ __('Total') }}</th>
                             <th class="text-end" id="grn-total">0.00</th>
                             <th></th>
                         </tr>

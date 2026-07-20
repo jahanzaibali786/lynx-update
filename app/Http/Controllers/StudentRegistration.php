@@ -300,8 +300,14 @@ class StudentRegistration extends Controller
                 $challan->owned_by = $registration->owned_by;
                 $challan->created_by = \Auth::user()->creatorId();
                 $challan->save();
-                $bankAccount = BankAccount::where('owned_by', $challan->owned_by)->first();
-                $recipts = StudentReceipt::create(
+                $bankAccount = BankAccount::where('owned_by', $challan->owned_by)
+                    // ->where('type', 'normal')
+                    ->where(function ($query) {
+                        $query->where('bank_name', 'LIKE', '%cash%')
+                            ->orWhere('bank_name', 'LIKE', '%csh%');
+                    })
+                    ->first();
+                    $recipts = StudentReceipt::create(
                     [
                         'recipt_date' => date('Y-m-d'),
                         'challan_id' => $challan->id,

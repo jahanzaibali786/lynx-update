@@ -20,6 +20,7 @@
             'cancelUrl' => $cancelUrl,
             'showPurchaseLink' => $showPurchaseLink,
             'showAddVendorLink' => $showAddVendorLink,
+            'existingGrns' => $existingGrns ?? null
         ])
     {{ Form::close() }}
 

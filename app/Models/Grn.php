@@ -27,6 +27,8 @@ class Grn extends Model
         '',
         'Fw to Ho',
         'Finalized',
+        'Fw to Accounts',
+        'Accounts Approved',
     ];
 
     public function vendor()
@@ -51,6 +53,12 @@ class Grn extends Model
 
 
 
+    public function linkedPurchases()
+    {
+        return $this->belongsToMany(Purchase::class, 'grn_items', 'grn_id', 'purchase_id')
+            ->whereNotNull('grn_items.purchase_id')
+            ->distinct();
+    }
     public function getSubTotal()
     {
         return $this->items->sum(fn($item) => (float) $item->quantity * (float) $item->price);

@@ -310,7 +310,6 @@
             </table>
                 <br>
                 <br>
-                <br>
             {{-- SIGNATURE --}}
             <div class="signature-section">
                 <table>

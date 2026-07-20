@@ -10,6 +10,21 @@
                 return false;
             }
         });
+
+        $('#branch_from').on('change', function() {
+            var branchFrom = $(this).val();
+            $('#branch_to option').show();
+            if (branchFrom) {
+                $('#branch_to option[value="' + branchFrom + '"]').hide();
+                if ($('#branch_to').val() == branchFrom) {
+                    $('#branch_to').val('');
+                }
+            }
+        });
+
+        if ($('#branch_from').val()) {
+            $('#branch_from').trigger('change');
+        }
     });
     function branchemployees(id) {
     // remember previous selection so we can restore if still available
@@ -109,11 +124,11 @@
     <div class="row">
         <div class="form-group col-lg-6 col-md-6">
             {{ Form::label('branch_from_id', __('Branch From'),['class'=>'form-label'])}}
-            {{ Form::select('branch_from_id', $branches, isset($_GET['branch_id']) ? $_GET['branch_id'] : '', ['class' => 'form-control select' ,  'onchange' => 'branchemployees(this.value)','id'=>'branch_from']) }}
+            {{ Form::select('branch_from_id', $from_branches, isset($_GET['branch_id']) ? $_GET['branch_id'] : '', ['class' => 'form-control select' ,  'onchange' => 'branchemployees(this.value)','id'=>'branch_from']) }}
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{ Form::label('branch_to_id', __('Branch To'),['class'=>'form-label'])}}
-            {{ Form::select('branch_to_id', $branches, isset($_GET['branch_id']) ? $_GET['branch_id'] : '', ['class' => 'form-control select' , 'onchange' => 'branchtype(this.value)','id'=>'branch_to']) }}
+            {{ Form::select('branch_to_id', $to_branches, isset($_GET['branch_id']) ? $_GET['branch_id'] : '', ['class' => 'form-control select' , 'onchange' => 'branchtype(this.value)','id'=>'branch_to']) }}
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{ Form::label('employee_id', __('Employee'),['class'=>'form-label'])}}

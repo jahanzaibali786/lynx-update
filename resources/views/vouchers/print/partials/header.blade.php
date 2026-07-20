@@ -26,7 +26,7 @@
     </td>
     <td colspan="2" style="height:24px;"></td>
     <td style="font-weight:bold; text-align:right; height:24px;">Date:</td>
-    <td colspan="2" style="text-align:right; border-bottom:1px solid #000000; height:24px; white-space:nowrap;">
+    <td colspan="2" style="text-align:right; height:24px; white-space:nowrap;">
         {{ $data['date'] ?? '' }}
     </td>
 </tr>

@@ -269,7 +269,7 @@ class JournalEntryController extends Controller
             'payee' => $payeeInfo,
             'payment' => array_merge($paymentInfo, [
                 'payment_date' => !empty($paymentInfo['payment_date'])
-                    ? \Carbon\Carbon::parse($paymentInfo['payment_date'])->format('M,d Y D')
+                    ? \Carbon\Carbon::parse($paymentInfo['payment_date'])->format('F,d Y D')
                     : '',
             ]),
             'amount_words' => $amountWords,
@@ -340,7 +340,7 @@ class JournalEntryController extends Controller
             'margin_bottom' => 6.35,
         ]);
         $pdf->SetDisplayMode('fullpage');
-        $pdf->shrink_tables_to_fit = 1;
+        $pdf->shrink_tables_to_fit = 0;
 
         if (!empty($watermarkLogo) && file_exists($watermarkLogo)) {
             $pdf->SetWatermarkImage($watermarkLogo, 0.4, [85, 66], [62, 106]);

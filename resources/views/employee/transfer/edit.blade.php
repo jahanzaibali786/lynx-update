@@ -12,11 +12,11 @@
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{ Form::label('branch_from_id', __('Branch From'),['class'=>'form-label'])}}
-            {{ Form::select('branch_from_id', $branches, isset($_GET['branch_from_id']) ? $_GET['branch_from_id'] : '', ['class' => 'form-control select' , 'onchange' => 'branchtype(this.value)']) }}
+            {{ Form::select('branch_from_id', $from_branches, isset($_GET['branch_from_id']) ? $_GET['branch_from_id'] : '', ['class' => 'form-control select' , 'onchange' => 'branchtype(this.value)']) }}
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{ Form::label('branch_to_id', __('Branch To'),['class'=>'form-label'])}}
-            {{ Form::select('branch_to_id', $branches, isset($_GET['branch_to_id']) ? $_GET['branch_to_id'] : '', ['class' => 'form-control select' , 'onchange' => 'branchtype(this.value)']) }}
+            {{ Form::select('branch_to_id', $to_branches, isset($_GET['branch_to_id']) ? $_GET['branch_to_id'] : '', ['class' => 'form-control select' , 'onchange' => 'branchtype(this.value)']) }}
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{Form::label('department_from_id',__('Department From'),['class'=>'form-label'])}}
@@ -41,3 +41,32 @@
 
 
 {{Form::close()}}
+<script>
+    $(document).ready(function() {
+        $('form').on('submit', function(event) {
+            var branch_from = $('#branch_from_id').val();
+            var branch_to = $('#branch_to_id').val();
+           
+            if (branch_from === branch_to) {
+                event.preventDefault();
+                show_toastr('error', 'To transfer, you have to shift branch', 'error');
+                return false;
+            }
+        });
+
+        $('#branch_from_id').on('change', function() {
+            var branchFrom = $(this).val();
+            $('#branch_to_id option').show();
+            if (branchFrom) {
+                $('#branch_to_id option[value="' + branchFrom + '"]').hide();
+                if ($('#branch_to_id').val() == branchFrom) {
+                    $('#branch_to_id').val('');
+                }
+            }
+        });
+
+        if ($('#branch_from_id').val()) {
+            $('#branch_from_id').trigger('change');
+        }
+    });
+</script>
