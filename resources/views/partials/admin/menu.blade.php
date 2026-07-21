@@ -1690,6 +1690,7 @@
                 </li>
                 @endif --}}
                                     @if (Gate::check('manage chart of account') ||
+                                            Gate::check('create journal voucher') ||
                                             Gate::check('manage journal entry') ||
                                             Gate::check('balance sheet report') ||
                                             Gate::check('ledger report') ||
@@ -1717,10 +1718,12 @@
                                                     <a class="dash-link {{ Request::segment(1) == 'journal-entry' || Request::segment(1) == 'bank-recipt-voucher' || Request::segment(1) == 'bank-payment-voucher' || Request::segment(1) == 'cash-recipt-voucher' || Request::segment(1) == 'cash-payment-voucher' ? 'active dash-trigger' : '' }}"
                                                         href="#voucher">{{ __('Vouchers') }}</a>
                                                     <ul id="voucher" class="dash-submenu">
-														<li class="dash-item ">
-                                                            <a class="dash-link {{ Request::route()->getName() ==  'createVoucher' ? ' active' : '' }}"
-                                                                href="{{ route('createVoucher') }}">{{ __('Add Voucher') }}</a>
-                                                        </li>
+                                                        @can('create journal voucher')
+                                                            <li class="dash-item ">
+                                                                <a class="dash-link {{ Request::route()->getName() ==  'createVoucher' ? ' active' : '' }}"
+                                                                    href="{{ route('createVoucher') }}">{{ __('Add Voucher') }}</a>
+                                                            </li>
+                                                        @endcan
                                                         <li class="dash-item ">
                                                             <a class="dash-link {{ Request::route()->getName() == 'bank-recipt-voucher.edit' || Request::route()->getName() == 'bank-recipt-voucher.create' || Request::route()->getName() == 'bank-recipt-voucher.index' || Request::route()->getName() == 'bank-recipt-voucher.show' ? ' active' : '' }}"
                                                                 href="{{ route('bank-recipt-voucher.index') }}">{{ __('BRV') }}</a>

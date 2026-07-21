@@ -36,10 +36,30 @@
                         {{ Form::open(['route' => ['cash-recipt-voucher.index'], 'method' => 'GET', 'id' => 'cash-recipt-voucher_submit']) }}
                         <div class="row d-flex justify-content-end ">
 
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                            @if(\Auth::user()->type == 'company')
+                            <div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
                                     {{ Form::select('branches', $branches, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select']) }}
+                                </div>
+                            </div>
+                            @endif
+                            <div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
+                                    {{ Form::label('start_date', __('From Date'), ['class' => 'form-label']) }}
+                                    {{ Form::date('start_date', request('start_date', $startDate), ['class' => 'form-control']) }}
+                                </div>
+                            </div>
+                            <div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
+                                    {{ Form::label('end_date', __('To Date'), ['class' => 'form-label']) }}
+                                    {{ Form::date('end_date', request('end_date', $endDate), ['class' => 'form-control']) }}
+                                </div>
+                            </div>
+                            <div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
+                                    {{ Form::label('voucher_series', __('Series'), ['class' => 'form-label']) }}
+                                    {{ Form::select('voucher_series', ['' => __('All'), 'SYSTEM' => __('System'), 'MANUAL' => __('Manual')], request('voucher_series', $voucherSeriesFilter), ['class' => 'form-control select']) }}
                                 </div>
                             </div>
 

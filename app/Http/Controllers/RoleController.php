@@ -220,7 +220,7 @@ class RoleController extends Controller
             'account dashboard', 'proposal', 'invoice', 'bill', 'revenue', 'payment', 'proposal product',
             'invoice product', 'bill product', 'goal', 'credit note', 'debit note', 'bank account',
             'bank transfer', 'transaction', 'customer', 'vender', 'constant custom field', 'assets',
-            'chart of account', 'journal entry', 'report', 'warehouse', 'purchase', 'pos', 'barcode',
+            'chart of account', 'journal entry', 'journal voucher', 'report', 'warehouse', 'purchase', 'pos', 'barcode',
             'companybranch', 'space', 'spacetype', 'chair', 'clientuser', 'ismail', 'vistor',
         ];
 

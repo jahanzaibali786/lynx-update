@@ -8,7 +8,7 @@
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('code', __('Code'),['class'=>'form-label']) }}
-            {{ Form::number('code', null, array('class' => 'form-control','required'=>'required')) }}
+            {{ Form::text('code', null, array('class' => 'form-control','required'=>'required','maxlength'=>'50')) }}
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('sub_type', __('Account Type'), ['class' => 'form-label']) }}
@@ -39,7 +39,7 @@
 
         <div class="form-group col-md-6 acc_type {{ $isSubAccount ? '' : 'd-none' }}">
             {{ Form::label('parent', __('Parent Account'), ['class' => 'form-label']) }}
-            <select class="form-control select" name="parent" id="parent" >
+            <select class="form-control select custom-select" name="parent" id="parent" >
                 <option value="0">{{ __('Select Parent Account') }}</option>
                 @foreach($parentAccounts as $pid => $pname)
                     <option value="{{ $pid }}" {{ $pid == $actualParentId ? 'selected' : '' }}>{{ $pname }}</option>
@@ -60,4 +60,3 @@
     <input type="submit" value="{{__('Update')}}" class="btn  btn-primary">
 </div>
 {{ Form::close() }}
-

@@ -173,9 +173,24 @@
         return null;
     }
 
+    function removeAdjacentCustomSelectWrappers(selectElement) {
+        let sibling = selectElement.nextElementSibling;
+        while (sibling && sibling.classList && sibling.classList.contains('custom-select-wrapper')) {
+            const nextSibling = sibling.nextElementSibling;
+            sibling.remove();
+            sibling = nextSibling;
+        }
+    }
+
     // CustomSelect Class
     class CustomSelect {
         constructor(selectElement) {
+            if (selectElement.customSelectInstance && typeof selectElement.customSelectInstance.destroy === 'function') {
+                selectElement.customSelectInstance.destroy();
+            }
+
+            removeAdjacentCustomSelectWrappers(selectElement);
+
             this.originalSelect = selectElement;
             this.options = [];
             this.filteredOptions = [];
@@ -184,6 +199,7 @@
             this.isOpen = false;
 
             this.init();
+            this.originalSelect.customSelectInstance = this;
         }
 
         init() {
@@ -441,8 +457,13 @@
 
         // Public method to destroy the custom select
         destroy() {
-            this.wrapper.remove();
+            if (this.wrapper) {
+                this.wrapper.remove();
+            }
             this.originalSelect.style.display = '';
+            if (this.originalSelect.customSelectInstance === this) {
+                this.originalSelect.customSelectInstance = null;
+            }
         }
     }
 

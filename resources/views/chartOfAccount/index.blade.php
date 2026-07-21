@@ -32,10 +32,34 @@
         //         }
         //     });
         // });
-        $(document).on('change', '#sub_type', function() {
+        var chartAccountParentRequest = null;
+
+        function rebuildChartAccountCustomSelect(selectElement) {
+            if (!selectElement || !window.CustomSelect) {
+                return;
+            }
+
+            if (selectElement.customSelectInstance && typeof selectElement.customSelectInstance.destroy === 'function') {
+                selectElement.customSelectInstance.destroy();
+            }
+
+            $(selectElement).nextAll('.custom-select-wrapper').remove();
+            selectElement.style.display = '';
+            window.CustomSelect.create(selectElement);
+        }
+
+        $(document).off('change.chartAccountSubType', '#sub_type').on('change.chartAccountSubType', '#sub_type', function() {
             $('.acc_check').removeClass('d-none');
             var type = $(this).val();
-            $.ajax({
+            var $form = $(this).closest('form');
+            var $parent = $form.find('#parent');
+            var parentSelect = $parent[0];
+
+            if (chartAccountParentRequest) {
+                chartAccountParentRequest.abort();
+            }
+
+            chartAccountParentRequest = $.ajax({
                 url: '{{ route('charofAccount.subType') }}',
                 type: 'POST',
                 data: {
@@ -43,15 +67,20 @@
                     "_token": "{{ csrf_token() }}",
                 },
                 success: function(data) {
-                    $('#parent').empty();
+                    $parent.empty();
                     $.each(data, function(key, value) {
-                        $('#parent').append('<option value="' + key + '">' + value +
+                        $parent.append('<option value="' + key + '">' + value +
                             '</option>');
                     });
+
+                    rebuildChartAccountCustomSelect(parentSelect);
+                },
+                complete: function() {
+                    chartAccountParentRequest = null;
                 }
             });
         });
-        $(document).on('click', '#account', function() {
+        $(document).off('click.chartAccountSubAccount', '#account').on('click.chartAccountSubAccount', '#account', function() {
             const element = $('#account').is(':checked');
             $('.acc_type').addClass('d-none');
             if (element == true) {

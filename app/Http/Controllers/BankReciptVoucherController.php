@@ -17,6 +17,10 @@ class BankReciptVoucherController extends Controller
     {
         if(\Auth::user()->can('manage journal entry'))
         {
+            $startDate = $request->start_date ?: now()->subDays(30)->toDateString();
+            $endDate = $request->end_date ?: now()->toDateString();
+            $voucherSeriesFilter = $request->filled('voucher_series') ? strtoupper($request->voucher_series) : 'MANUAL';
+
             if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);               
@@ -30,9 +34,24 @@ class BankReciptVoucherController extends Controller
             if (!empty($request->branches)) {
                 $query->where('owned_by', '=', $request->branches);
             }
-            $journalEntries = $query->orderBy('created_at', 'desc')->paginate(25);
+            $query->whereDate('date', '>=', $startDate)
+                ->whereDate('date', '<=', $endDate);
+
+            if (!empty($voucherSeriesFilter)) {
+                if ($voucherSeriesFilter === 'SYSTEM') {
+                    $query->where(function ($seriesQuery) {
+                        $seriesQuery->where('voucher_series', 'SYSTEM')
+                            ->orWhereNull('voucher_series')
+                            ->orWhere('voucher_series', '');
+                    });
+                } elseif ($voucherSeriesFilter === 'MANUAL') {
+                    $query->where('voucher_series', 'MANUAL');
+                }
+            }
+
+            $journalEntries = $query->orderBy('id', 'desc')->paginate(25);
             
-            return view('bank-recipt-voucher.index', compact('journalEntries','branches'));
+            return view('bank-recipt-voucher.index', compact('journalEntries','branches', 'startDate', 'endDate', 'voucherSeriesFilter'));
         }
         else
         {

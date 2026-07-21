@@ -141,6 +141,7 @@ class ChartOfAccountController extends Controller
             $validator = \Validator::make(
                 $request->all(), [
                                    'name' => 'required',
+                                   'code' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9._\/-]+$/'],
                                 //    'type' => 'required',
                                     'sub_type' => 'required',
                                ]
@@ -329,11 +330,7 @@ class ChartOfAccountController extends Controller
 
             $parentAccounts = [];
             if ($chartOfAccount->parent > 0 && $chartOfAccount->parentAccount) {
-                $parentAccounts = ChartOfAccount::where('sub_type', $chartOfAccount->sub_type)
-                    ->where('id', '!=', $chartOfAccount->id)
-                    ->get()
-                    ->pluck('name', 'id')
-                    ->toArray();
+                $parentAccounts = $this->parentAccountOptions($chartOfAccount->sub_type, $chartOfAccount->id);
             }
 
             return view('chartOfAccount.edit', compact('chartOfAccount', 'account_type', 'parentAccounts'));
@@ -366,6 +363,7 @@ public function updateCategory(Request $request)
             $validator = \Validator::make(
                 $request->all(), [
                                    'name' => 'required',
+                                   'code' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9._\/-]+$/'],
                                    'sub_type' => 'required',
                                ]
             );
@@ -455,12 +453,133 @@ public function updateCategory(Request $request)
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 
-        $types = ChartOfAccount::where('sub_type', $request->type)
-            ->where('created_by', \Auth::user()->creatorId())
-            ->get()
-            ->pluck('name', 'id');
-        $types->prepend('Select an account', 0);
+        return response()->json($this->parentAccountOptions($request->type));
+    }
 
-        return response()->json($types);
+    private function parentAccountOptions($subType, $excludeAccountId = null): array
+    {
+        $creatorId = \Auth::user()->creatorId();
+
+        $directAccountIds = ChartOfAccount::where('created_by', $creatorId)
+            ->where('sub_type', $subType)
+            ->when($excludeAccountId, function ($query) use ($excludeAccountId) {
+                $query->where('id', '!=', $excludeAccountId);
+            })
+            ->pluck('id')
+            ->toArray();
+
+        $allAccountIds = $directAccountIds;
+        $currentParentIds = $directAccountIds;
+
+        while (!empty($currentParentIds)) {
+            $parentRecordIds = ChartOfAccountParent::whereIn('account', $currentParentIds)
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($parentRecordIds)) {
+                break;
+            }
+
+            $childIds = ChartOfAccount::where('created_by', $creatorId)
+                ->whereIn('parent', $parentRecordIds)
+                ->when($excludeAccountId, function ($query) use ($excludeAccountId) {
+                    $query->where('id', '!=', $excludeAccountId);
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $newChildIds = array_diff($childIds, $allAccountIds);
+            if (empty($newChildIds)) {
+                break;
+            }
+
+            $allAccountIds = array_merge($allAccountIds, $newChildIds);
+            $currentParentIds = $newChildIds;
+        }
+
+        $accountsList = ChartOfAccount::select(['id', 'code', 'name', 'parent'])
+            ->whereIn('id', $allAccountIds)
+            ->orderBy('code')
+            ->orderBy('name')
+            ->get();
+
+        $parentRecordIds = $accountsList->pluck('parent')->filter()->unique()->toArray();
+        $parentRecords = ChartOfAccountParent::whereIn('id', $parentRecordIds)
+            ->pluck('account', 'id')
+            ->toArray();
+
+        $byParent = [];
+        foreach ($accountsList as $account) {
+            $parentCoaId = 0;
+            if ($account->parent > 0 && isset($parentRecords[$account->parent])) {
+                $parentCoaId = (int) $parentRecords[$account->parent];
+            }
+            $byParent[$parentCoaId][] = $account;
+        }
+
+        foreach ($byParent as $parentId => $children) {
+            usort($children, function ($firstAccount, $secondAccount) {
+                return strnatcasecmp(
+                    $firstAccount->code . ' ' . $firstAccount->name,
+                    $secondAccount->code . ' ' . $secondAccount->name
+                );
+            });
+            $byParent[$parentId] = $children;
+        }
+
+        $allAccountIdsSet = array_flip($allAccountIds);
+        $roots = [];
+        foreach ($accountsList as $account) {
+            $parentCoaId = 0;
+            if ($account->parent > 0 && isset($parentRecords[$account->parent])) {
+                $parentCoaId = (int) $parentRecords[$account->parent];
+            }
+
+            if ($parentCoaId == 0 || !isset($allAccountIdsSet[$parentCoaId])) {
+                $roots[] = $account;
+            }
+        }
+
+        usort($roots, function ($firstAccount, $secondAccount) {
+            return strnatcasecmp(
+                $firstAccount->code . ' ' . $firstAccount->name,
+                $secondAccount->code . ' ' . $secondAccount->name
+            );
+        });
+
+        $buildAccountTree = function ($accounts) use (&$buildAccountTree, $byParent) {
+            $tree = [];
+
+            foreach ($accounts as $account) {
+                $tree[] = [
+                    'account' => $account,
+                    'children' => !empty($byParent[$account->id])
+                        ? $buildAccountTree($byParent[$account->id])
+                        : [],
+                ];
+            }
+
+            return $tree;
+        };
+
+        $accountTree = $buildAccountTree($roots);
+        $options = [0 => __('Select Parent Account')];
+
+        $appendAccountTreeOptions = function ($nodes, $depth = 0) use (&$appendAccountTreeOptions, &$options) {
+            foreach ($nodes as $node) {
+                $account = $node['account'];
+                $indent = str_repeat('-- ', $depth);
+                $options[$account->id] = $indent . trim($account->code . ' - ' . $account->name);
+
+                if (!empty($node['children'])) {
+                    $appendAccountTreeOptions($node['children'], $depth + 1);
+                }
+            }
+        };
+
+        $appendAccountTreeOptions($accountTree);
+
+        return $options;
+
     }
 }

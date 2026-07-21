@@ -18,7 +18,10 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\ProductServiceCategory;
+use App\Http\Requests\StoreJournalVoucherRequest;
+use App\Services\JournalVoucherService;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 
 class JournalEntryController extends Controller
 {
@@ -26,22 +29,44 @@ class JournalEntryController extends Controller
     public function index(Request $request)
     {
         if (\Auth::user()->can('manage journal entry')) {
+            $startDate = $request->start_date ?: now()->subDays(30)->toDateString();
+            $endDate = $request->end_date ?: now()->toDateString();
+            $voucherTypeFilter = $request->has('voucher_type') ? strtoupper((string) $request->voucher_type) : 'JV';
+            $voucherSeriesFilter = $request->filled('voucher_series') ? strtoupper($request->voucher_series) : 'MANUAL';
+
             if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $query = JournalEntry::where('created_by', '=', \Auth::user()->creatorId())->where('voucher_type', 'JV');
+                $query = JournalEntry::where('created_by', '=', \Auth::user()->creatorId());
             } else {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = JournalEntry::where('owned_by', '=', \Auth::user()->ownedId())->where('voucher_type', 'JV');
+                $query = JournalEntry::where('owned_by', '=', \Auth::user()->ownedId());
             }
             if (!empty($request->branches)) {
                 $query->where('owned_by', '=', $request->branches);
             }
+            if (!empty($voucherTypeFilter)) {
+                $query->where('voucher_type', $voucherTypeFilter);
+            }
+            $query->whereDate('date', '>=', $startDate)
+                ->whereDate('date', '<=', $endDate);
+
+            if (!empty($voucherSeriesFilter)) {
+                if ($voucherSeriesFilter === 'SYSTEM') {
+                    $query->where(function ($seriesQuery) {
+                        $seriesQuery->where('voucher_series', 'SYSTEM')
+                            ->orWhereNull('voucher_series')
+                            ->orWhere('voucher_series', '');
+                    });
+                } elseif ($voucherSeriesFilter === 'MANUAL') {
+                    $query->where('voucher_series', 'MANUAL');
+                }
+            }
             $journalEntries = $query->orderBy('id', 'desc')->paginate(25);
             // dd($journalEntries);
-            return view('journalEntry.index', compact('journalEntries', 'branches'));
+            return view('journalEntry.index', compact('journalEntries', 'branches', 'startDate', 'endDate', 'voucherTypeFilter', 'voucherSeriesFilter'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -50,7 +75,7 @@ class JournalEntryController extends Controller
 
     public function create()
     {
-        if (\Auth::user()->can('create journal entry')) {
+        if ($this->canCreateJournalVoucher()) {
             $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name,chart_of_accounts.id, chart_of_accounts.code,  chart_of_accounts.parent'))
                 ->where('parent', '=', 0)
                 ->where('created_by', \Auth::user()->creatorId())->get()
@@ -170,194 +195,31 @@ class JournalEntryController extends Controller
     }
 
 
-   public function store(Request $request)
+    public function store(StoreJournalVoucherRequest $request, JournalVoucherService $journalVoucherService)
     {
-        if (\Auth::user()->can('create journal entry')) {
-            \DB::beginTransaction();
-            try {
-                $validator = \Validator::make(
-                    $request->all(),
-                    [
-                        'date' => 'required',
-                        'voucher_type' => 'nullable|in:jv,cpv,bpv,crv,brv,JV,CPV,BPV,CRV,BRV',
-                        'status' => 'nullable|in:Draft,Submitted,Approved,Posted,Reversed',
-                        'bank_id' => 'nullable|integer',
-                        'payment_mode' => 'nullable|string|max:50',
-                        'cheque_no' => 'nullable|string|max:100',
-                        'cheque_date' => 'nullable|date',
-                        'user_type' => 'nullable|in:Customer,Vender,Vendor,Employee,Student',
-                        'user_id' => 'nullable|integer',
-                        'transaction_no' => 'nullable|string|max:150',
-                        'reversed_entry_id' => 'nullable|integer',
-                        'reversed_timestamp' => 'nullable|date',
-                        'attachment' => 'nullable|file|max:5120',
-                        'accounts' => 'required|array|min:1',
-                        'category_type_id' => 'nullable|integer',
-                        'payee_account_title' => 'nullable|string|max:191',
-                        'payee_account_no' => 'nullable|string|max:191',
-                        'payee_contact' => 'nullable|string|max:191',
-                        'payee_email' => 'nullable|email|max:191',
-                        'payee_cnic' => 'nullable|string|max:191',
-                        'receiver_name' => 'nullable|string|max:191',
-                        'receiver_cnic' => 'nullable|string|max:191',
-                        'receiver_contact' => 'nullable|string|max:191',
-                        'receiver_email' => 'nullable|email|max:191',
-                        'payment_date' => 'nullable|date',
-                        'voucher_series' => 'nullable|in:SYSTEM,MANUAL,system,manual',
-                    ]
-                );
-                if ($validator->fails()) {
-                    \DB::rollback();
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => $validator->getMessageBag()->first()
-                    ], 422);
-                }
+        try {
+            $journal = $journalVoucherService->create($request);
 
-                $accounts = $request->accounts;
-                $voucherType = $this->normalizeVoucherType($request->voucher_type);
-                $ownedBy = $request->branches ?: \Auth::user()->ownedId();
+            return response()->json([
+                'status' => 'success',
+                'message' => __('Voucher successfully created.'),
+                'redirect' => route('journal-entry.show', $journal->id),
+            ]);
+        } catch (InvalidArgumentException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], $e->getCode() ?: 422);
+        } catch (\Throwable $e) {
+            \Log::error('Journal voucher create failed', [
+                'error' => $e->getMessage(),
+                'user_id' => \Auth::id(),
+            ]);
 
-                $totalDebit = 0;
-                $totalCredit = 0;
-                for ($i = 0; $i < count($accounts); $i++) {
-                    $debit = isset($accounts[$i]['debit']) ? (float) $accounts[$i]['debit'] : 0;
-                    $credit = isset($accounts[$i]['credit']) ? (float) $accounts[$i]['credit'] : 0;
-                    $accountId = $accounts[$i]['account_id'] ?? $accounts[$i]['account'] ?? null;
-
-                    if (empty($accountId)) {
-                        \DB::rollback();
-                        return response()->json([
-                            'status' => 'error',
-                            'message' => __('Please select an account for every line.')
-                        ], 422);
-                    }
-
-                    if (($debit <= 0 && $credit <= 0) || ($debit > 0 && $credit > 0)) {
-                        \DB::rollback();
-                        return response()->json([
-                            'status' => 'error',
-                            'message' => __('Each line must have either debit or credit amount.')
-                        ], 422);
-                    }
-
-                    $totalDebit += $debit;
-                    $totalCredit += $credit;
-                }
-
-                if (round($totalCredit, 2) != round($totalDebit, 2)) {
-                    \DB::rollback();
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => __('Debit and Credit must be Equal.')
-                    ], 400);
-                }
-
-                $transactionDateTime = \Carbon\Carbon::parse($request->date)->setTimeFrom(now());
-                $journal = new JournalEntry();
-
-                $series = strtoupper($request->voucher_series ?? 'SYSTEM');
-                $journal->voucher_series = $series;
-
-                if ($series === 'MANUAL') {
-                    $last = JournalEntry::where('voucher_type', $voucherType)
-                        ->where('voucher_series', 'MANUAL')
-                        ->where('created_by', \Auth::user()->creatorId())
-                        ->max('manual_series_no');
-                    $next = $last + 1;
-                    $journal->manual_series_no = $next;
-                    $journal->manual_reference = 'M' . $voucherType . '-' . str_pad($next, 6, '0', STR_PAD_LEFT);
-                    $journal->journal_id = $next;
-                } else {
-                    $journal->journal_id = $this->voucherNumber($voucherType, $ownedBy);
-                }
-
-                $journal->date = $request->date;
-                $journal->reference = $request->reference;
-                $journal->description = $request->narration ?? $request->description;
-                $journal->voucher_type = $voucherType;
-                $journal->owned_by = $ownedBy;
-                $journal->created_by = \Auth::user()->creatorId();
-                $this->setNullableModelValueIfColumn($journal, 'added_by', \Auth::id());
-                $this->setNullableModelValueIfColumn($journal, 'added_at', now());
-                $this->setModelValueIfColumn($journal, 'amount', $request->amount);
-                $this->setModelValueIfColumn($journal, 'category', 'manual');
-                $this->setModelValueIfColumn($journal, 'status', 'Draft');
-                $journal->category_type_id = $request->category_type_id;
-                $this->fillJournalEntryExtraFields($journal, $request);
-                $journal->created_at = $transactionDateTime;
-                $journal->updated_at = $transactionDateTime;
-                $journal->save();
-
-                for ($i = 0; $i < count($accounts); $i++) {
-                    $account = $accounts[$i];
-                    $accountId = $account['account_id'] ?? $account['account'];
-                    $debit = isset($account['debit']) ? (float) $account['debit'] : 0;
-                    $credit = isset($account['credit']) ? (float) $account['credit'] : 0;
-                    $lineMemo = trim($account['memo'] ?? '');
-                    $manualDescription = trim($account['description'] ?? '');
-                    $journalItem = new JournalItem();
-                    $journalItem->journal = $journal->id;
-                    $journalItem->account = $accountId;
-                    $journalItem->description = $manualDescription;
-                    $this->setModelValueIfColumn($journalItem, 'memo', $lineMemo);
-                    $journalItem->debit = $debit;
-                    $journalItem->credit = $credit;
-                    $journalItem->types = $account['types'] ?? $voucherType;
-                    $journalItem->branch_id = $account['branch_id'] ?? $ownedBy;
-                    $journalItem->ref_no = $account['ref_no'] ?? null;
-                    $journalItem->tra_date = $account['tra_date'] ?? null;
-                    $journalItem->user_type = $account['user_type'] ?? null;
-                    $journalItem->user_id = $account['user_id'] ?? null;
-                    $this->setNullableModelValueIfColumn($journalItem, 'added_by', \Auth::id());
-                    $this->setNullableModelValueIfColumn($journalItem, 'added_at', now());
-                    $this->setNullableModelValueIfColumn($journalItem, 'updated_by', \Auth::id());
-                    $this->setModelValueIfColumn($journalItem, 'category', 'manual');
-                    $this->setModelValueIfColumn($journalItem, 'department_id', $account['dept_id'] ?? null);
-                    $this->setModelValueIfColumn($journalItem, 'designation_id', $account['designation_id'] ?? null);
-                    $journalItem->created_at = $transactionDateTime;
-                    $journalItem->updated_at = $transactionDateTime;
-                    $journalItem->save();
-
-                    if ($journal->status == 'Approved') {
-                        $bankAccounts = BankAccount::where('chart_account_id', '=', $accountId)->get();
-                        if (!empty($bankAccounts)) {
-                            foreach ($bankAccounts as $bankAccount) {
-                                $old_balance = $bankAccount->opening_balance;
-                                $new_balance = null;
-                                if ($journalItem->debit > 0) {
-                                    $new_balance = $old_balance + $journalItem->debit;
-                                }
-                                if ($journalItem->credit > 0) {
-                                    $new_balance = $old_balance - $journalItem->credit;
-                                }
-                                if (isset($new_balance)) {
-                                    $bankAccount->opening_balance = $new_balance;
-                                    $bankAccount->save();
-                                }
-                            }
-                        }
-                    }
-
-                }
-
-
-                \DB::commit();
-                return response()->json([
-                    'status' => 'success',
-                    'message' => __('Voucher successfully created.'),
-                    'redirect' => route('journal-entry.show', $journal->id)
-                ]);
-                // return redirect()->route('journal-entry.index')->with('success', __('Journal entry successfully created.'));
-            } catch (\Exception $e) {
-                \DB::rollback();
-                return response()->json([
-                    'status' => 'error',
-                    'message' => __('Something went wrong: ') . $e->getMessage()
-                ], 500);
-            }
-        } else {
-            return response()->json(['status' => 'error', 'message' => __('Permission denied.')], 403);
+            return response()->json([
+                'status' => 'error',
+                'message' => __('Something went wrong: ') . $e->getMessage(),
+            ], 500);
         }
     }
 
@@ -924,6 +786,22 @@ class JournalEntryController extends Controller
         return compact('branches', 'departments', 'chartAccounts', 'subAccounts', 'journalId', 'bankAccounts', 'customers', 'vendors', 'employees', 'students', 'voucherCategoryTypes');
     }
 
+    private function canCreateVoucherType($voucherType): bool
+    {
+        $type = $this->normalizeVoucherType($voucherType);
+
+        if ($type === 'JV') {
+            return $this->canCreateJournalVoucher();
+        }
+
+        return \Auth::user()->can('create journal entry');
+    }
+
+    private function canCreateJournalVoucher(): bool
+    {
+        return \Auth::user()->can('create journal voucher');
+    }
+
     private function voucherItemsForEditor(JournalEntry $journalEntry)
     {
         $journalEntry->load('accounts.accounts');
@@ -1182,7 +1060,7 @@ class JournalEntryController extends Controller
     //create new voucher
     public function createVoucher()
     {
-        if (\Auth::user()->can('create journal entry')) {
+        if ($this->canCreateJournalVoucher()) {
             return view('journalEntry.createvoucher', $this->voucherFormData());
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
@@ -1883,6 +1761,9 @@ class JournalEntryController extends Controller
         if (\Auth::user()->can('manage journal entry')) {
             $user = \Auth::user();
             $creatorId = $user->creatorId();
+            $fromDate = $request->from_date ?: now()->subDays(30)->toDateString();
+            $toDate = $request->to_date ?: now()->toDateString();
+            $voucherSeriesFilter = $request->filled('voucher_series') ? strtoupper($request->voucher_series) : 'MANUAL';
 
             $query = JournalEntry::query()
                 ->where('created_by', '=', $creatorId)
@@ -1896,12 +1777,19 @@ class JournalEntryController extends Controller
                 }
             }
 
-            if (!empty($request->from_date)) {
-                $query->where('date', '>=', $request->from_date);
-            }
+            $query->whereDate('date', '>=', $fromDate)
+                ->whereDate('date', '<=', $toDate);
 
-            if (!empty($request->to_date)) {
-                $query->where('date', '<=', $request->to_date);
+            if (!empty($voucherSeriesFilter)) {
+                if ($voucherSeriesFilter === 'SYSTEM') {
+                    $query->where(function ($seriesQuery) {
+                        $seriesQuery->where('voucher_series', 'SYSTEM')
+                            ->orWhereNull('voucher_series')
+                            ->orWhere('voucher_series', '');
+                    });
+                } elseif ($voucherSeriesFilter === 'MANUAL') {
+                    $query->where('voucher_series', 'MANUAL');
+                }
             }
 
             if (!empty($request->expense_account_id)) {
@@ -2015,7 +1903,7 @@ class JournalEntryController extends Controller
             }
             $totalBankBalance = $bankQuery->sum('opening_balance');
 
-            return view('journalEntry.headimprestindex', compact('journalEntries', 'totalBankBalance', 'branches', 'chartAccounts'));
+            return view('journalEntry.headimprestindex', compact('journalEntries', 'totalBankBalance', 'branches', 'chartAccounts', 'fromDate', 'toDate', 'voucherSeriesFilter'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }

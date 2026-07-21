@@ -195,6 +195,7 @@ class BranchSeeder extends Seeder
             ['name' => 'delete chart of account'],
             ['name' => 'manage journal entry'],
             ['name' => 'create journal entry'],
+            ['name' => 'create journal voucher'],
             ['name' => 'edit journal entry'],
             ['name' => 'delete journal entry'],
             ['name' => 'show journal entry'],
