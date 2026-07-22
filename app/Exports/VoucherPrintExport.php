@@ -55,6 +55,7 @@ class VoucherPrintExport implements FromView, WithColumnWidths, WithEvents
                 public_path('assets/images/lynxheadertext.webp'),
             ]),
             'headerLogo' => $this->data['header_logo'] ?? '',
+            'watermarkLogo' => $this->data['watermark_logo'] ?? '',
         ]);
     }
 

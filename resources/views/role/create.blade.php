@@ -1024,6 +1024,33 @@
                                                         @endif
                                                     @endif
 
+                                                    @if(in_array('print '.$module,(array) $permissions))
+                                                        @if($key = array_search('print '.$module,$permissions))
+                                                            <div class="col-md-3 custom-control custom-checkbox">
+                                                                {{Form::checkbox('permissions[]',$key,false, ['class'=>'form-check-input isscheck account_checkall isscheck_'.str_replace(' ', '', $module),'id' =>'permission'.$key])}}
+                                                                {{Form::label('permission'.$key,'Print',['class'=>'custom-control-label'])}}<br>
+                                                            </div>
+                                                        @endif
+                                                    @endif
+
+                                                    @if(in_array('submit '.$module,(array) $permissions))
+                                                        @if($key = array_search('submit '.$module,$permissions))
+                                                            <div class="col-md-3 custom-control custom-checkbox">
+                                                                {{Form::checkbox('permissions[]',$key,false, ['class'=>'form-check-input isscheck account_checkall isscheck_'.str_replace(' ', '', $module),'id' =>'permission'.$key])}}
+                                                                {{Form::label('permission'.$key,'Submit',['class'=>'custom-control-label'])}}<br>
+                                                            </div>
+                                                        @endif
+                                                    @endif
+
+                                                    @if(in_array('approve '.$module,(array) $permissions))
+                                                        @if($key = array_search('approve '.$module,$permissions))
+                                                            <div class="col-md-3 custom-control custom-checkbox">
+                                                                {{Form::checkbox('permissions[]',$key,false, ['class'=>'form-check-input isscheck account_checkall isscheck_'.str_replace(' ', '', $module),'id' =>'permission'.$key])}}
+                                                                {{Form::label('permission'.$key,'Approve',['class'=>'custom-control-label'])}}<br>
+                                                            </div>
+                                                        @endif
+                                                    @endif
+
                                                     @if(in_array('create payment '.$module,(array) $permissions))
                                                         @if($key = array_search('create payment '.$module,$permissions))
                                                             <div class="col-md-3 custom-control custom-checkbox">

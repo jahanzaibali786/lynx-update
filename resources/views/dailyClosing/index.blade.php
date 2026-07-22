@@ -79,67 +79,9 @@
                                     <th width="15%" class="text-end">{{ __('Action') }}</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="daily-closing-table-body">
                                 @foreach ($closings as $index => $closing)
-                                    <tr>
-                                        <td>{{ $index + 1 }}</td>
-                                        <td>{{ $closing->from_date->format('d-M-Y') }}</td>
-                                        <td>{{ $closing->to_date->format('d-M-Y') }}</td>
-                                        <td>{{ $closing->deposit_date ? $closing->deposit_date->format('d-M-Y') : '-' }}</td>
-                                        <td>{{ \Auth::user()->priceFormat($closing->total_income_received) }}</td>
-                                        <td>{{ \Auth::user()->priceFormat($closing->total_income_deposited) }}</td>
-                                        <td>
-                                            @if($closing->difference > 0)
-                                                <span class="text-danger font-weight-bold">({{ \Auth::user()->priceFormat(abs($closing->difference)) }})</span>
-                                            @elseif($closing->difference < 0)
-                                                <span class="text-success font-weight-bold">{{ \Auth::user()->priceFormat(abs($closing->difference)) }}</span>
-                                            @else
-                                                <span class="text-muted">-</span>
-                                            @endif
-                                        </td>
-                                        <td>{{ $closing->issued_by ?? '-' }}</td>
-                                        <td>{{ $closing->received_by ?? '-' }}</td>
-                                        <td>
-                                            <span class="badge badge-status p-2 px-3 rounded-pill bg-{{ $closing->status === 'approved' ? 'success' : 'warning' }}" id="status-badge-{{ $closing->id }}">
-                                                {{ ucfirst($closing->status) }}
-                                            </span>
-                                        </td>
-                                        <td class="text-end font-style">
-                                            <a href="{{ route('daily-closing.show', $closing->id) }}" target="_blank"
-                                               class="btn btn-sm btn-outline-info align-items-center"
-                                               data-bs-toggle="tooltip" data-bs-title="{{ __('View/Print') }}">
-                                                <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
-                                            </a>
-                                            
-                                            @if(\Auth::user()->type == 'company')
-                                                <a href="#" class="btn btn-sm btn-outline-success align-items-center toggle-approval"
-                                                   data-id="{{ $closing->id }}" data-url="{{ route('daily-closing.approve', $closing->id) }}"
-                                                   data-bs-toggle="tooltip" data-bs-title="{{ __('Toggle Approval') }}">
-                                                    <span class="btn-inner--icon"><i class="ti ti-circle-check"></i></span>
-                                                    
-                                                </a>
-                                            @endif
-
-                                            @if($closing->status !== 'approved')
-                                                <a href="#" class="btn btn-sm btn-outline-primary align-items-center"
-                                                   data-url="{{ route('daily-closing.edit', $closing->id) }}" data-ajax-popup="true"
-                                                   data-title="{{ __('Edit Daily Closing') }}" data-size="xl"
-                                                   data-bs-toggle="tooltip" data-bs-title="{{ __('Edit') }}">
-                                                    <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                                                    
-                                                </a>
-
-                                                {!! Form::open(['method' => 'DELETE', 'route' => ['daily-closing.destroy', $closing->id], 'id' => 'delete-form-' . $closing->id, 'class' => 'd-inline']) !!}
-                                                    <a href="#" class="btn btn-sm btn-outline-danger align-items-center bs-pass-para"
-                                                       data-confirm="{{ __('Are You Sure?') }}" data-text="{{ __('This action cannot be undone. Do you want to continue?') }}"
-                                                       data-confirm-yes="delete-form-{{ $closing->id }}"
-                                                       data-bs-toggle="tooltip" data-bs-title="{{ __('Delete') }}">
-                                                        <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
-                                                    </a>
-                                                {!! Form::close() !!}
-                                            @endif
-                                        </td>
-                                    </tr>
+                                    @include('dailyClosing.partials.row', ['closing' => $closing, 'index' => $index + 1])
                                 @endforeach
                             </tbody>
                         </table>
@@ -152,35 +94,131 @@
 
 @push('script-page')
     <script>
-        $(document).on('click', '.toggle-approval', function(e) {
+        window.reindexDailyClosingRows = function() {
+            $('#daily-closing-table-body tr').each(function(index) {
+                $(this).find('.daily-closing-row-index').text(index + 1);
+            });
+        };
+
+        window.refreshDailyClosingTooltips = function() {
+            if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) {
+                return;
+            }
+
+            $('#daily-closing-table-body [data-bs-toggle="tooltip"]').each(function() {
+                var existingTooltip = bootstrap.Tooltip.getInstance(this);
+                if (existingTooltip) {
+                    existingTooltip.dispose();
+                }
+                new bootstrap.Tooltip(this);
+            });
+        };
+
+        window.upsertDailyClosingRow = function(rowHtml, id, mode) {
+            if (!rowHtml || !$('#daily-closing-table-body').length) {
+                return;
+            }
+
+            var existingRow = $('[data-closing-row="' + id + '"]');
+            if (existingRow.length) {
+                existingRow.replaceWith(rowHtml);
+            } else if (mode === 'prepend') {
+                $('#daily-closing-table-body').prepend(rowHtml);
+            }
+
+            window.reindexDailyClosingRows();
+            window.refreshDailyClosingTooltips();
+        };
+
+        $(document).off('click.dailyClosingApproval', '.toggle-approval');
+        $(document).on('click.dailyClosingApproval', '.toggle-approval', function(e) {
             e.preventDefault();
+            e.stopImmediatePropagation();
+
             var btn = $(this);
+            if (btn.data('request-running')) {
+                return false;
+            }
+
             var id = btn.data('id');
             var url = btn.data('url');
+            var currentStatus = $.trim($('#status-badge-' + id).text()).toLowerCase();
+            var desiredStatus = currentStatus === 'approved' ? 'pending' : 'approved';
+
+            btn.data('request-running', true);
+            btn.addClass('disabled').css('pointer-events', 'none');
             
             $.ajax({
                 url: url,
                 type: 'POST',
                 data: {
-                    _token: '{{ csrf_token() }}'
+                    _token: '{{ csrf_token() }}',
+                    status: desiredStatus
                 },
                 success: function(response) {
                     if (response.success) {
-                        var badge = $('#status-badge-' + id);
-                        badge.text(response.status.charAt(0).toUpperCase() + response.status.slice(1));
-                        if (response.status === 'approved') {
-                            badge.removeClass('bg-warning').addClass('bg-success');
-                            show_toastr('Success', response.message, 'success');
+                        if (response.row && typeof window.upsertDailyClosingRow === 'function') {
+                            window.upsertDailyClosingRow(response.row, response.id || id, 'replace');
                         } else {
-                            badge.removeClass('bg-success').addClass('bg-warning');
-                            show_toastr('Success', response.message, 'success');
+                            var badge = $('#status-badge-' + id);
+                            badge.text(response.status.charAt(0).toUpperCase() + response.status.slice(1));
+                            if (response.status === 'approved') {
+                                badge.removeClass('bg-warning').addClass('bg-success');
+                                btn.closest('td').find('[data-ajax-popup="true"], .daily-closing-delete').remove();
+                            } else {
+                                badge.removeClass('bg-success').addClass('bg-warning');
+                            }
+                            btn.removeClass('disabled').css('pointer-events', '');
                         }
+                        show_toastr('Success', response.message, 'success');
                     } else {
                         show_toastr('Error', response.message || 'Something went wrong', 'error');
+                        btn.data('request-running', false);
+                        btn.removeClass('disabled').css('pointer-events', '');
                     }
                 },
                 error: function(xhr) {
-                    show_toastr('Error', 'Unable to toggle status', 'error');
+                    var message = (xhr.responseJSON && (xhr.responseJSON.message || xhr.responseJSON.error)) || 'Unable to toggle status';
+                    show_toastr('Error', message, 'error');
+                    btn.data('request-running', false);
+                    btn.removeClass('disabled').css('pointer-events', '');
+                }
+            });
+
+            return false;
+        });
+
+        $(document).on('click', '.daily-closing-delete', function(e) {
+            e.preventDefault();
+
+            if (!confirm('{{ __('This action cannot be undone. Do you want to continue?') }}')) {
+                return;
+            }
+
+            var btn = $(this);
+            btn.addClass('disabled').css('pointer-events', 'none');
+
+            $.ajax({
+                url: btn.data('url'),
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    _method: 'DELETE'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('[data-closing-row="' + btn.data('id') + '"]').remove();
+                        window.reindexDailyClosingRows();
+                        show_toastr('Success', response.message, 'success');
+                    } else {
+                        show_toastr('Error', response.message || response.error || 'Something went wrong', 'error');
+                        btn.removeClass('disabled').css('pointer-events', '');
+                    }
+                },
+                error: function(xhr) {
+                    var message = (xhr.responseJSON && xhr.responseJSON.error) || 'Unable to delete daily closing';
+                    show_toastr('Error', message, 'error');
+                    btn.removeClass('disabled').css('pointer-events', '');
                 }
             });
         });

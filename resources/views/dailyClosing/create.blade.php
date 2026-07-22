@@ -292,10 +292,8 @@
                 success: function(response) {
                     if (response.success) {
                         $('#commonModal').modal('hide');
-                        show_toastr('Success', response.message, 'success');
-                        setTimeout(function() {
-                            location.reload();
-                        }, 1000);
+                        window.upsertDailyClosingRow?.(response.row, response.id, 'prepend');
+                        show_toastr('success', response.message, 'success');
                     } else {
                         $('#modal-error-alert').text(response.error || 'Validation error');
                         $('#modal-error-alert-wrapper').removeClass('d-none');
@@ -303,7 +301,7 @@
                     }
                 },
                 error: function(xhr) {
-                    $('#modal-error-alert').text('Server error occurred. Please try again.');
+                    $('#modal-error-alert').text(xhr.responseJSON?.error || 'Server error occurred. Please try again.');
                     $('#modal-error-alert-wrapper').removeClass('d-none');
                     submitBtn.prop('disabled', false);
                 }

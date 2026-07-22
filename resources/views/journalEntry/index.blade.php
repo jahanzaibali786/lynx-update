@@ -59,7 +59,7 @@
                                 <div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                     <div class="btn-box">
                                         {{ Form::label('voucher_type', __('Voucher Type'), ['class' => 'form-label']) }}
-                                        {{ Form::select('voucher_type', ['' => __('All'), 'JV' => __('JV'), 'CPV' => __('CPV'), 'BPV' => __('BPV'), 'CRV' => __('CRV'), 'BRV' => __('BRV')], request('voucher_type', $voucherTypeFilter), ['class' => 'form-control select']) }}
+                                        {{ Form::select('voucher_type', $canManageAllVoucherTypes ? ['' => __('All'), 'JV' => __('JV'), 'CPV' => __('CPV'), 'BPV' => __('BPV'), 'CRV' => __('CRV'), 'BRV' => __('BRV')] : ['JV' => __('JV')], request('voucher_type', $voucherTypeFilter), ['class' => 'form-control select']) }}
                                     </div>
                                 </div>
                                 <div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -112,6 +112,14 @@
                             </thead>
                             <tbody>
                             @foreach ($journalEntries as $journalEntry)
+                                @php
+                                    $isJournalVoucher = strtoupper($journalEntry->voucher_type ?? 'JV') === 'JV';
+                                    $canPrintVoucher = $isJournalVoucher ? \Auth::user()->can('print journal voucher') : \Auth::user()->can('show journal entry');
+                                    $canEditVoucher = $isJournalVoucher ? \Auth::user()->can('edit journal voucher') : \Auth::user()->can('edit journal entry');
+                                    $canDeleteVoucher = $isJournalVoucher ? \Auth::user()->can('delete journal voucher') : \Auth::user()->can('delete journal entry');
+                                    $canSubmitVoucher = $isJournalVoucher ? \Auth::user()->can('submit journal voucher') : \Auth::user()->can('edit journal entry');
+                                    $canApproveVoucher = $isJournalVoucher ? \Auth::user()->can('approve journal voucher') : \Auth::user()->can('edit journal entry');
+                                @endphp
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td class="Id">
@@ -145,41 +153,37 @@
                                     </td>
                                      <td>
                                                 <div class="action-btn ms-2" style="display: flex; gap: 5px;">  
-                                                    @can('show journal entry')
-                                                <a title="{{ __('Voucher Print') }}" href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-secondary align-items-center" data-bs-title="{{ __('Print') }}">
-                                                   <span class="btn-inner--icon"> <i class="ti ti-printer"></i> </span>
-                                                </a>
-                                        @endcan
-                                         @can('edit journal entry')
-                                             @if($journalEntry->status != 'Approved' && \Auth::user()->type == 'company')
+                                                    @if($canPrintVoucher)
+                                                        <a title="{{ __('Voucher Print') }}" href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-secondary align-items-center" data-bs-title="{{ __('Print') }}">
+                                                           <span class="btn-inner--icon"> <i class="ti ti-printer"></i> </span>
+                                                        </a>
+                                                    @endif
+                                             @if($canApproveVoucher && $journalEntry->status != 'Approved' && \Auth::user()->type == 'company')
                                                  {!! Form::open(['method' => 'POST', 'route' => array('journal-entry.approve', $journalEntry->id), 'id'=>'approve-form-'.$journalEntry->id, 'style'=>'display:inline;']) !!}
                                                  <a href="#" class="mx-1 btn btn-sm btn-outline-success align-items-center bs-pass-para" data-bs-title="{{__('Approve / Send to HO')}}" data-confirm="{{__('Approve Voucher?').'|'.__('This will approve the voucher and update bank balances. Do you want to continue?')}}" data-confirm-yes="document.getElementById('approve-form-{{$journalEntry->id}}').submit();">
                                                      <span class="btn-inner--icon"> <i class="ti ti-check"></i> </span>
                                                  </a>
                                                  {!! Form::close() !!}
                                              @endif
-                                             @if($journalEntry->status == 'Draft' && \Auth::user()->type == 'branch')
+                                             @if($canSubmitVoucher && $journalEntry->status == 'Draft' && \Auth::user()->type == 'branch')
                                                  {!! Form::open(['method' => 'POST', 'route' => array('journal-entry.send-to-ho', $journalEntry->id), 'id'=>'send-to-ho-form-'.$journalEntry->id, 'style'=>'display:inline;']) !!}
                                                  <a href="#" class="mx-1 btn btn-sm btn-outline-info align-items-center bs-pass-para" data-bs-title="{{__('Send to HO')}}" data-confirm="{{__('Send to HO?').'|'.__('Are you sure you want to send this voucher to HO for approval?')}}" data-confirm-yes="document.getElementById('send-to-ho-form-{{$journalEntry->id}}').submit();">
                                                      <span class="btn-inner--icon"> <i class="ti ti-send"></i> </span>
                                                  </a>
                                                  {!! Form::close() !!}
                                              @endif
-                                             @if($journalEntry->is_system_generated == 0)
+                                             @if($canEditVoucher && $journalEntry->is_system_generated == 0)
                                                  <a title="{{__('Edit Journal')}}" href="{{ route('journal-entry.edit',[$journalEntry->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center"  data-bs-title="{{__('Edit')}}" data-bs-title="{{__('Edit')}}">
                                                     <span class="btn-inner--icon"> <i class="ti ti-pencil"></i> </span>
                                                  </a>
                                              @endif
-                                         @endcan
-                                         @can('delete journal entry')
-                                             @if(!($journalEntry->status == 'Approved' && \Auth::user()->type == 'branch'))
+                                             @if($canDeleteVoucher && !($journalEntry->status == 'Approved' && \Auth::user()->type == 'branch'))
                                                  {!! Form::open(['method' => 'DELETE', 'route' => array('journal-entry.destroy', $journalEntry->id),'id'=>'delete-form-'.$journalEntry->id, 'style'=>'display:inline;']) !!}
                                                  <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"  data-bs-title="{{__('Delete')}}" data-bs-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$journalEntry->id}}').submit();">
                                                      <span class="btn-inner--icon"> <i class="ti ti-trash"></i> </span>
                                                  </a>
                                                  {!! Form::close() !!}
                                              @endif
-                                         @endcan
                                                 </div>
                                     </td> 
                                 </tr>

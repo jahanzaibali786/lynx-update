@@ -83,6 +83,21 @@
             background: #fff;
             position: relative;
         }
+        .voucher-watermark {
+            position: absolute;
+            left: 50%;
+            top: 48%;
+            width: 340px;
+            height: auto;
+            opacity: 0.12;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            pointer-events: none;
+        }
+        .voucher-content {
+            position: relative;
+            z-index: 1;
+        }
         .btn-print {
             background-color: #6a1b9a;
             color: white;
@@ -127,6 +142,19 @@
                 border: none;
                 padding: 0;
                 max-width: 100%;
+                width: 100%;
+                overflow: hidden;
+            }
+            .voucher-content {
+                width: 100%;
+                zoom: 0.8;
+                transform: none;
+                transform-origin: initial;
+            }
+            .voucher-watermark {
+                top: 45%;
+                width: 300px;
+                opacity: 0.12;
             }
             .no-print {
                 display: none !important;
@@ -290,7 +318,10 @@
     </div>
 
     <div class="print-container">
-        <div class="page">
+        @if(!empty($watermarkLogo))
+            <img src="{{ pathToUrl($watermarkLogo) }}" class="voucher-watermark" alt="">
+        @endif
+        <div class="page voucher-content">
             <table>
                 <tr>
                     <td style="width:35%; height:72px; vertical-align:top;">
@@ -430,13 +461,13 @@
         @endforeach
     </table>
 
-    <table style="margin-top:32px;">
+    <table style="margin-top:25px;">
         <tr>
             <td style="width:25%; {{ $sectionTitleStyle }}" class="section-title">Authorization:</td>
             <td></td>
         </tr>
     </table>
-    <table style="margin-top:50px;">
+    <table style="margin-top:20px;">
         <tr>
             <td style="width:29%; height:48px;" class="signature-text"></td>
             <td style="width:6%;"></td>

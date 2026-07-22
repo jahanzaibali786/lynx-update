@@ -226,6 +226,7 @@ class RoleController extends Controller
 
         $actions = [
             'view', 'add', 'move', 'manage', 'create', 'edit', 'delete', 'show', 'send',
+            'print', 'submit', 'approve',
             'create payment', 'delete payment', 'income', 'expense', 'income vs expense',
             'loss & profit', 'tax', 'invoice', 'bill', 'duplicate', 'balance sheet',
             'ledger', 'trial balance',

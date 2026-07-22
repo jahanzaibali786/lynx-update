@@ -50,23 +50,23 @@
             color: #fff;
             text-align: center;
             font-weight: bold;
-            padding: 3px;
-            font-size: 0.85rem;
+            padding: 5px 3px;
+            font-size: 1.05rem;
             text-transform: uppercase;
         }
         .table-closing {
-            font-size: 0.8rem;
+            font-size: 1rem;
             border-collapse: collapse;
             width: 100%;
         }
         .table-closing tr {
-            height: 25px;
+            height: 29px;
         }
         .table-closing th, .table-closing td {
             /* border: 1px solid #000; */
-            padding: 2px 6px;
+            padding: 5px 4px;
             vertical-align: middle;
-            height: 25px;
+            height: 29px;
             box-sizing: border-box;
             overflow: hidden;
             white-space: nowrap;
@@ -74,6 +74,7 @@
         .table-closing th {
             background-color: #e6e6e6;
             font-weight: bold;
+            font-size: 0.95rem;
             text-align: center;
         }
         .total-row {
@@ -82,7 +83,7 @@
             border-bottom: 2px double #000;
         }
         .signature-section {
-            margin-top: 400px;
+            margin-top: 100px;
             display: flex;
             justify-content: space-between;
         }
@@ -191,7 +192,7 @@
 
         <div class="row">
             <!-- Left Side: Income Received -->
-            <div class="col-7 pe-3">
+            <div class="col-8 pe-3">
                 <div class="table-title mb-1">{{ __('Cash Received') }}</div>
                 <table class="table-closing">
                     <thead>
@@ -205,7 +206,7 @@
                     </thead>
                     <tbody>
                         @php
-                            $emptyLinesCount = 25 - count($transferRows);
+                            $emptyLinesCount = 22 - count($transferRows);
                             $emptyLinesCount = $emptyLinesCount < 0 ? 0 : $emptyLinesCount;
                         @endphp
                         @foreach ($transferRows as $row)
@@ -240,7 +241,7 @@
             </div>
 
             <!-- Right Side: Income Deposited -->
-            <div class="col-5 ps-3">
+            <div class="col-4 ps-3">
                 <div class="table-title mb-1">{{ __('Cash Deposited') }}</div>
                 <table class="table-closing">
                     <thead>
@@ -269,7 +270,7 @@
                         
                         <!-- Pad to match left column height exactly -->
                         @php
-                            $leftTotalRows = max(25, count($transferRows));
+                            $leftTotalRows = max(22, count($transferRows));
                             $rightPaddingCount = $leftTotalRows - 10;
                         @endphp
                         @for ($i = 0; $i < $rightPaddingCount; $i++)

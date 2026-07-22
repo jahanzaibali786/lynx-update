@@ -28,7 +28,8 @@ class JournalEntryController extends Controller
 
     public function index(Request $request)
     {
-        if (\Auth::user()->can('manage journal entry')) {
+        if (\Auth::user()->can('manage journal entry') || \Auth::user()->can('manage journal voucher')) {
+            $canManageAllVoucherTypes = \Auth::user()->can('manage journal entry');
             $startDate = $request->start_date ?: now()->subDays(30)->toDateString();
             $endDate = $request->end_date ?: now()->toDateString();
             $voucherTypeFilter = $request->has('voucher_type') ? strtoupper((string) $request->voucher_type) : 'JV';
@@ -46,6 +47,9 @@ class JournalEntryController extends Controller
             }
             if (!empty($request->branches)) {
                 $query->where('owned_by', '=', $request->branches);
+            }
+            if (!$canManageAllVoucherTypes) {
+                $voucherTypeFilter = 'JV';
             }
             if (!empty($voucherTypeFilter)) {
                 $query->where('voucher_type', $voucherTypeFilter);
@@ -66,7 +70,7 @@ class JournalEntryController extends Controller
             }
             $journalEntries = $query->orderBy('id', 'desc')->paginate(25);
             // dd($journalEntries);
-            return view('journalEntry.index', compact('journalEntries', 'branches', 'startDate', 'endDate', 'voucherTypeFilter', 'voucherSeriesFilter'));
+            return view('journalEntry.index', compact('journalEntries', 'branches', 'startDate', 'endDate', 'voucherTypeFilter', 'voucherSeriesFilter', 'canManageAllVoucherTypes'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -97,7 +101,7 @@ class JournalEntryController extends Controller
 
     public function voucherPrint(JournalEntry $journalEntry)
     {
-        if (!\Auth::user()->can('show journal entry')) {
+        if (!$this->canUseJournalEntry($journalEntry, 'print', 'show journal entry')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -226,7 +230,7 @@ class JournalEntryController extends Controller
 
     public function show(JournalEntry $journalEntry)
     {
-        if (\Auth::user()->can('show journal entry')) {
+        if ($this->canUseJournalEntry($journalEntry, 'show', 'show journal entry')) {
             if ($journalEntry->created_by == \Auth::user()->creatorId()) {
                 $accounts = $journalEntry->accounts;
                 $settings = Utility::settings();
@@ -243,7 +247,7 @@ class JournalEntryController extends Controller
 
     public function edit(JournalEntry $journalEntry)
     {
-        if (\Auth::user()->can('edit journal entry')) {
+        if ($this->canUseJournalEntry($journalEntry, 'edit', 'edit journal entry')) {
             if ($journalEntry->created_by != \Auth::user()->creatorId() || $journalEntry->is_system_generated != 0) {
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
@@ -261,7 +265,7 @@ class JournalEntryController extends Controller
 
     public function update(Request $request, JournalEntry $journalEntry)
     {
-        if (\Auth::user()->can('edit journal entry')) {
+        if ($this->canUseJournalEntry($journalEntry, 'edit', 'edit journal entry')) {
             if ($journalEntry->created_by == \Auth::user()->creatorId()) {
                 if ($journalEntry->is_system_generated != 0) {
                     return response()->json(['status' => 'error', 'message' => __('Permission denied.')], 403);
@@ -398,7 +402,7 @@ class JournalEntryController extends Controller
     {
 
 
-        if (\Auth::user()->can('delete journal entry')) {
+        if ($this->canUseJournalEntry($journalEntry, 'delete', 'delete journal entry')) {
             if ($journalEntry->created_by == \Auth::user()->creatorId()) {
                 if ($journalEntry->status == 'Approved') {
                     foreach ($journalEntry->items as $item) {
@@ -611,6 +615,7 @@ class JournalEntryController extends Controller
     {
         $paths = [
             public_path('assets/images/lynx2-watermark.png'),
+            public_path('assets/images/graylynx.png'),
             public_path('assets/images/lynx2.jpg'),
         ];
 
@@ -800,6 +805,20 @@ class JournalEntryController extends Controller
     private function canCreateJournalVoucher(): bool
     {
         return \Auth::user()->can('create journal voucher');
+    }
+
+    private function isJournalVoucher(?JournalEntry $journalEntry): bool
+    {
+        return $journalEntry && $this->normalizeVoucherType($journalEntry->voucher_type ?? 'JV') === 'JV';
+    }
+
+    private function canUseJournalEntry(?JournalEntry $journalEntry, string $journalVoucherAction, string $legacyPermission): bool
+    {
+        if ($this->isJournalVoucher($journalEntry)) {
+            return \Auth::user()->can($journalVoucherAction . ' journal voucher');
+        }
+
+        return \Auth::user()->can($legacyPermission);
     }
 
     private function voucherItemsForEditor(JournalEntry $journalEntry)
@@ -1944,8 +1963,9 @@ class JournalEntryController extends Controller
 
     public function approveJournalEntry($id)
     {
-        if (\Auth::user()->can('edit journal entry') && \Auth::user()->type == 'company') {
-            $journal = JournalEntry::find($id);
+        $journal = JournalEntry::find($id);
+
+        if ($this->canUseJournalEntry($journal, 'approve', 'edit journal entry') && \Auth::user()->type == 'company') {
             if ($journal && $journal->created_by == \Auth::user()->creatorId()) {
                 if ($journal->status == 'Approved') {
                     return redirect()->back()->with('error', __('Voucher is already approved.'));
@@ -1977,8 +1997,9 @@ class JournalEntryController extends Controller
 
     public function sendToHO($id)
     {
-        if (\Auth::user()->can('edit journal entry')) {
-            $journal = JournalEntry::find($id);
+        $journal = JournalEntry::find($id);
+
+        if ($this->canUseJournalEntry($journal, 'submit', 'edit journal entry')) {
             if ($journal && $journal->created_by == \Auth::user()->creatorId()) {
                 if (in_array($journal->status, ['Approved', 'Posted', 'Reversed'])) {
                     return redirect()->back()->with('error', __('Voucher is already approved, posted or reversed.'));
