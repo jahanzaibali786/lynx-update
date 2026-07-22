@@ -922,7 +922,7 @@
                 </div>
                 <div class="tab-pane fade " id="account" role="tabpanel" aria-labelledby="pills-contact-tab">
                     @php
-                        $modules=['account dashboard','proposal','invoice','bill','revenue','payment','proposal product','invoice product','bill product','goal','credit note','debit note','bank account','bank transfer','transaction','customer','vender','constant custom field','assets','chart of account','journal entry','journal voucher','report'];
+                        $modules=['account dashboard','proposal','invoice','bill','revenue','payment','proposal product','invoice product','bill product','goal','credit note','debit note','bank account','bank transfer','daily cash closing','transaction','customer','vender','constant custom field','assets','chart of account','journal entry','journal voucher','report'];
                     @endphp
                     <div class="col-md-12">
                         <div class="form-group">

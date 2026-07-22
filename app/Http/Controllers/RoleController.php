@@ -219,7 +219,7 @@ class RoleController extends Controller
             'estimation', 'holiday', 'transfer', 'announcement', 'leave', 'leave type', 'attendance',
             'account dashboard', 'proposal', 'invoice', 'bill', 'revenue', 'payment', 'proposal product',
             'invoice product', 'bill product', 'goal', 'credit note', 'debit note', 'bank account',
-            'bank transfer', 'transaction', 'customer', 'vender', 'constant custom field', 'assets',
+            'bank transfer', 'daily cash closing', 'transaction', 'customer', 'vender', 'constant custom field', 'assets',
             'chart of account', 'journal entry', 'journal voucher', 'report', 'warehouse', 'purchase', 'pos', 'barcode',
             'companybranch', 'space', 'spacetype', 'chair', 'clientuser', 'ismail', 'vistor',
         ];

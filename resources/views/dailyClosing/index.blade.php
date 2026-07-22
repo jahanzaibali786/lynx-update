@@ -9,11 +9,11 @@
 
 @section('action-btn')
     <div class="float-end">
-        @if (Gate::check('manage bank account') || Gate::check('manage bank transfer'))
+        @can('create daily cash closing')
             <a href="#" data-url="{{ route('daily-closing.create') }}" data-ajax-popup="true" data-title="{{ __('Create Daily Closing') }}" data-size="xl" class="btn mx-1 btn-sm btn-outline-primary" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="{{ __('Create Daily Closing') }}">
                 <span class="btn-inner--icon">{{ __('Create Daily Closing') }}</span>
             </a>
-        @endif
+        @endcan
     </div>
 @endsection
 

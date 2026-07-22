@@ -22,13 +22,15 @@
         </span>
     </td>
     <td class="text-end font-style">
-        <a href="{{ route('daily-closing.show', $closing->id) }}" target="_blank"
-           class="btn btn-sm btn-outline-info align-items-center"
-           data-bs-toggle="tooltip" data-bs-title="{{ __('View/Print') }}">
-            <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
-        </a>
+        @can('show daily cash closing')
+            <a href="{{ route('daily-closing.show', $closing->id) }}" target="_blank"
+               class="btn btn-sm btn-outline-info align-items-center"
+               data-bs-toggle="tooltip" data-bs-title="{{ __('View / Print') }}">
+                <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
+            </a>
+        @endcan
 
-        @if(\Auth::user()->type == 'company')
+        @can('approve daily cash closing')
             @php
                 $isApproved = $closing->status === 'approved';
                 $approvalTitle = $isApproved ? __('Mark as Pending') : __('Approve');
@@ -38,21 +40,25 @@
                data-bs-toggle="tooltip" data-bs-title="{{ $approvalTitle }}">
                 <span class="btn-inner--icon"><i class="ti {{ $isApproved ? 'ti-rotate-clockwise' : 'ti-circle-check' }}"></i></span>
             </a>
-        @endif
+        @endcan
 
         @if($closing->status !== 'approved')
-            <a href="#" class="btn btn-sm btn-outline-primary align-items-center"
-               data-url="{{ route('daily-closing.edit', $closing->id) }}" data-ajax-popup="true"
-               data-title="{{ __('Edit Daily Closing') }}" data-size="xl"
-               data-bs-toggle="tooltip" data-bs-title="{{ __('Edit') }}">
-                <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-            </a>
+            @can('edit daily cash closing')
+                <a href="#" class="btn btn-sm btn-outline-primary align-items-center"
+                   data-url="{{ route('daily-closing.edit', $closing->id) }}" data-ajax-popup="true"
+                   data-title="{{ __('Edit Daily Closing') }}" data-size="xl"
+                   data-bs-toggle="tooltip" data-bs-title="{{ __('Edit') }}">
+                    <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
+                </a>
+            @endcan
 
-            <a href="#" class="btn btn-sm btn-outline-danger align-items-center daily-closing-delete"
-               data-id="{{ $closing->id }}" data-url="{{ route('daily-closing.destroy', $closing->id) }}"
-               data-bs-toggle="tooltip" data-bs-title="{{ __('Delete') }}">
-                <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
-            </a>
+            @can('delete daily cash closing')
+                <a href="#" class="btn btn-sm btn-outline-danger align-items-center daily-closing-delete"
+                   data-id="{{ $closing->id }}" data-url="{{ route('daily-closing.destroy', $closing->id) }}"
+                   data-bs-toggle="tooltip" data-bs-title="{{ __('Delete') }}">
+                    <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
+                </a>
+            @endcan
         @endif
     </td>
 </tr>

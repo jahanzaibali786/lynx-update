@@ -17,6 +17,10 @@ class DailyClosingController extends Controller
 
     public function index(Request $request)
     {
+        if (!Auth::user()->can('manage daily cash closing')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $user = Auth::user();
         if ($user->type == 'company') {
             $query = DailyClosing::where('created_by', $user->creatorId());
@@ -38,6 +42,10 @@ class DailyClosingController extends Controller
 
     public function create()
     {
+        if (!Auth::user()->can('create daily cash closing')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         $hoEmployees = $this->dailyClosingService->employeeOptions();
 
         return view('dailyClosing.create', compact('hoEmployees'));
@@ -45,6 +53,10 @@ class DailyClosingController extends Controller
 
     public function getTransfers(Request $request)
     {
+        if (!Auth::user()->can('create daily cash closing') && !Auth::user()->can('edit daily cash closing')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         $fromDate = $request->from_date;
         $toDate = $request->to_date;
 
@@ -57,6 +69,10 @@ class DailyClosingController extends Controller
 
     public function store(DailyClosingRequest $request)
     {
+        if (!Auth::user()->can('create daily cash closing')) {
+            return response()->json(['success' => false, 'error' => __('Permission denied.')], 403);
+        }
+
         try {
             $dailyClosing = $this->dailyClosingService->create($request->validated());
 
@@ -89,6 +105,10 @@ class DailyClosingController extends Controller
 
     public function edit($id)
     {
+        if (!Auth::user()->can('edit daily cash closing')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         $dailyClosing = DailyClosing::findOrFail($id);
         $hoEmployees = $this->dailyClosingService->employeeOptions();
 
@@ -97,6 +117,10 @@ class DailyClosingController extends Controller
 
     public function update(DailyClosingRequest $request, $id)
     {
+        if (!Auth::user()->can('edit daily cash closing')) {
+            return response()->json(['success' => false, 'error' => __('Permission denied.')], 403);
+        }
+
         $dailyClosing = DailyClosing::findOrFail($id);
         try {
             $dailyClosing = $this->dailyClosingService->update($dailyClosing, $request->validated());
@@ -131,6 +155,10 @@ class DailyClosingController extends Controller
 
     public function destroy($id)
     {
+        if (!Auth::user()->can('delete daily cash closing')) {
+            return response()->json(['success' => false, 'error' => __('Permission denied.')], 403);
+        }
+
         $dailyClosing = DailyClosing::findOrFail($id);
         $this->dailyClosingService->delete($dailyClosing);
 
@@ -142,6 +170,10 @@ class DailyClosingController extends Controller
 
     public function approve(Request $request, $id)
     {
+        if (!Auth::user()->can('approve daily cash closing')) {
+            return response()->json(['success' => false, 'error' => __('Permission denied.')], 403);
+        }
+
         $dailyClosing = DailyClosing::findOrFail($id);
         $desiredStatus = $request->input('status');
         $dailyClosing = $this->dailyClosingService->setApprovalStatus($dailyClosing, $desiredStatus);
@@ -160,6 +192,10 @@ class DailyClosingController extends Controller
 
     public function show($id)
     {
+        if (!Auth::user()->can('show daily cash closing')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $dailyClosing = DailyClosing::findOrFail($id);
 
         $transferRows = $this->dailyClosingService->printRows($dailyClosing);
