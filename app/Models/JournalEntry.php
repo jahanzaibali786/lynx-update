@@ -137,4 +137,8 @@ class JournalEntry extends Model
 
         return $voucherType . sprintf("%05d", $this->journal_id);
     }
+    public function securityAdjustment()
+    {
+        return $this->hasOne('App\Models\ChallanSecAdjustment', 'voucher_id', 'id');
+    }
 }

@@ -168,22 +168,43 @@ class StudentWithdrawlListingExport implements FromView, WithEvents
                 $sheet->getColumnDimension('B')->setWidth(5);
                 $sheet->getColumnDimension('C')->setWidth(10);
                 $sheet->getColumnDimension('D')->setWidth(20);
-                $sheet->getColumnDimension('F')->setWidth(20);
+                $sheet->getColumnDimension('E')->setWidth(8);
+                $sheet->getColumnDimension('F')->setWidth(14);
                 $sheet->getColumnDimension('G')->setWidth(20);
+                $sheet->getColumnDimension('H')->setWidth(20);
+                $sheet->getColumnDimension('I')->setWidth(15);
                 $sheet->getColumnDimension('J')->setWidth(15);
+                $sheet->getColumnDimension('K')->setWidth(20);
 
                 // style col font size 8px and align center
                 $sheet->getStyle("A10:B{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("C10:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("F10:F{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("I10:I{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle("E10:E{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("G10:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("H10:H{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("J10:J{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("K10:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-                $sheet->getStyle("K10:{$highestColumnLetter}{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->getStyle("F10:F{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("G10:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("H10:H{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("I10:I{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("J10:J{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("K10:K{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("L10:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("L10:{$highestColumnLetter}{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0');
                 $sheet->getStyle("A10:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
+
+                // Convert Adm Date (F) and Withdrawal Date (J) text to Excel date serials
+                foreach (['F', 'J'] as $col) {
+                    for ($row = 10; $row <= $lastDataRow; $row++) {
+                        $cell = $sheet->getCell("{$col}{$row}");
+                        $val = $cell->getValue();
+                        if ($val && $val !== '-') {
+                            $timestamp = \DateTime::createFromFormat('d-M-Y', $val);
+                            if ($timestamp) {
+                                $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($timestamp);
+                                $cell->setValue($excelDate);
+                                $sheet->getStyle("{$col}{$row}")->getNumberFormat()->setFormatCode('dd-mmm-yyyy');
+                            }
+                        }
+                    }
+                }
             },
         ];
     }

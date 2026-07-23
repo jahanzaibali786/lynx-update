@@ -15,8 +15,13 @@ class StockReport extends Model
         'type',
         'type_id',
         'description',
-	        'owned_by',
-
+        'warehouse_id',
+        'unit_price',
+        'sale_price',
+        'remaining_qty',
+        'condition',
+        'owned_by',
+        'created_by',
     ];
 
 

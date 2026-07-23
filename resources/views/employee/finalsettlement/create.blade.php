@@ -551,34 +551,19 @@
                         $service_tenure = $months . ' Months';
                     }
                     $payscale = @$employee->employee_payscale_details->last();
-                    $today = $resign_date->copy();
-                    $previous_month_25th = $resign_date->copy()->subMonth()->day(25);
-                    if ($today->day > 25) {
-                        $start_date = $today->copy()->day(25);
-                        $nextMonth = $resign_date->copy()->addMonth();
-                        $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
-                            'employee_id',
-                            $employee->id,
-                        )
-                            ->whereMonth('salary_date', $nextMonth->month)
-                            ->whereYear('salary_date', $nextMonth->year)
-                            ->first();
-                    } else {
-                        $start_date = $today->copy()->subMonth()->day(25);
-                        $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
-                            'employee_id',
-                            $employee->id,
-                        )
-                            ->whereMonth('salary_date', $resign_date->month)
-                            ->whereYear('salary_date', $resign_date->year)
-                            ->first();
-                    }
+                    $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
+                        'employee_id',
+                        $employee->id,
+                    )
+                        ->whereMonth('salary_date', $resign_date->month)
+                        ->whereYear('salary_date', $resign_date->year)
+                        ->first();
                     if ($existingslaryforthismonth) {
                         $total_days = 0;
                     } else {
-                        $total_days = $today->diffInDays($start_date);
+                        $total_days = min((int) $resign_date->day, 30);
                     }
-                    $total_days_in_month = $resign_date->daysInMonth;
+                    $total_days_in_month = 30;
                 @endphp
                 <div class="col-md-4">
                     <p style="font-size:1rem; text-align:right;"><b>Service Tenure

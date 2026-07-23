@@ -391,8 +391,14 @@
                                     {{ Form::select('student', @$students, isset($_GET['student']) ? $_GET['student'] : 'all', ['class' => 'form-control select custom-select', 'id' => 'student_select']) }}
                                 </div>
                             </div>
-
+							
                             @if ($challanType == 'regular')
+							<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
+                                    <div class="btn-box">
+                                        {{ Form::label('register_option', __('Student Category'), ['class' => 'form-label']) }}
+                                        {{ Form::select('register_option', ['all' => 'All Students', 'shifa' => 'Shifa Students', 'non_shifa' => 'Non-Shifa Students'], isset($_GET['register_option']) ? 																		$_GET['register_option'] : 'all', ['class' => 'form-control', 'id' => 'register_option']) }}
+                                    </div>
+                                </div>
                                 {{-- Challan Month --}}
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
                                     <div class="btn-box">

@@ -1033,6 +1033,7 @@
                                             data-bs-toggle="tooltip" data-bs-toggle="{{ __('Apply') }}">
                                             <span class="btn-inner--icon">Search</span>
                                         </a>
+                                        @if(\Auth::user()->type == 'company')
                                         <a href="#" class="btn btn-sm btn-outline-success generate-btn salary-action-btn"
                                             data-bs-toggle="tooltip" data-bs-title="Generate">
                                             <span class="btn-inner--icon">Generate</span>
@@ -1057,6 +1058,7 @@
                                             data-bs-toggle="tooltip" data-bs-title="UnFinalize Salary">
                                             <span class="btn-inner--icon">UnFinalize</span>
                                         </a>
+                                        @endif
                                         {{-- <a href="{{ route('emp-month-sal-attendance.index') }}"
                                             class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip"
                                             data-bs-title="{{ __('Reset') }}">

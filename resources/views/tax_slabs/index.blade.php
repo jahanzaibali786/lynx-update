@@ -8,6 +8,7 @@
 @endsection
 @section('action-btn')
     <div class="float-end">
+        
         <a href="#" data-url="{{ route('tax-slab.create') }}" data-ajax-popup="true" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="{{ __('Create') }}"
             class="btn mx-1 btn-sm btn-outline-primary">
             <span class="btn-inner--icon"><i class="ti ti-plus"></i></span>

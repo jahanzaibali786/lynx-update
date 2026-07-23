@@ -8,7 +8,7 @@
     <li class="breadcrumb-item"><a href="{{ route('invoice.index') }}">{{ __('Invoice') }}</a></li>
     <li class="breadcrumb-item">{{ __('Invoice Edit') }}</li>
 @endsection
-@push('script-page')
+@section('content')
     <script src="{{ asset('js/jquery-ui.min.js') }}"></script>
     <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -54,18 +54,28 @@
 
             if (typeof value != 'undefined' && value.length != 0) {
                 value = JSON.parse(value);
-                $repeater.setList(value);
-                for (var i = 0; i < value.length; i++) {
-                    var tr = $('#sortable-table .id[value="' + value[i].id + '"]').parent();
-                    tr.find('.item').val(value[i].product_id);
-                    changeItem(tr.find('.item'));
+                // Map product_id to item so repeater sets the select correctly
+                for (var k = 0; k < value.length; k++) {
+                    value[k].item = value[k].product_id;
                 }
+                $repeater.setList(value);
+                // Allow repeater rows to render before populating selects
                 setTimeout(function() {
-                    $('#sortable-table [data-repeater-item]').each(function() {
-                        setInvoiceRowLocked($(this), true);
-                    });
-                    recalculateInvoiceTotals();
-                }, 500);
+                    for (var i = 0; i < value.length; i++) {
+                        var tr = $('#sortable-table .id[value="' + value[i].id + '"]').parent();
+                        if (!tr.length) {
+                            tr = $('#sortable-table [data-repeater-item]').eq(i).find('tr').first();
+                        }
+                        tr.find('.item').val(value[i].product_id);
+                        changeItem(tr.find('.item'));
+                    }
+                    setTimeout(function() {
+                        $('#sortable-table [data-repeater-item]').each(function() {
+                            setInvoiceRowLocked($(this), true);
+                        });
+                        recalculateInvoiceTotals();
+                    }, 800);
+                }, 300);
             }
         }
 
@@ -147,35 +157,11 @@
                                 var amount = (invoiceItems.price * invoiceItems.quantity);
                                 $(el.parent().parent().find('.quantity')).val(invoiceItems.quantity);
                                 $(el.parent().parent().find('.price')).val(invoiceItems.price);
-                                $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
                             } else {
                                 $(el.parent().parent().find('.quantity')).val(1);
                                 $(el.parent().parent().find('.price')).val(item.product.sale_price);
-                                $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
                             }
 
-                            var taxes = '';
-                            var tax = [];
-                            var totalItemTaxRate = 0;
-                            for (var i = 0; i < item.taxes.length; i++) {
-                                taxes += '<span class="badge bg-primary p-2 px-3 rounded mt-1 mr-1">' +
-                                    item.taxes[i].name + ' ' + '(' + item.taxes[i].rate + '%)' + '</span>';
-                                tax.push(item.taxes[i].id);
-                                totalItemTaxRate += parseFloat(item.taxes[i].rate);
-                            }
-
-                            if (invoiceItems != null) {
-                                var itemTaxPrice = parseFloat((totalItemTaxRate / 100)) *
-                                    parseFloat((invoiceItems.price * invoiceItems.quantity));
-                            } else {
-                                var itemTaxPrice = parseFloat((totalItemTaxRate / 100)) *
-                                    parseFloat((item.product.sale_price * 1));
-                            }
-
-                            $(el.parent().parent().find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
-                            $(el.parent().parent().find('.itemTaxRate')).val(totalItemTaxRate.toFixed(2));
-                            $(el.parent().parent().find('.taxes')).html(taxes);
-                            $(el.parent().parent().find('.tax')).val(tax);
                             $(el.parent().parent().find('.unit')).html(item.unit);
 
                             // Store stock quantities as data attributes
@@ -195,33 +181,13 @@
                                 validateStock(quantityInput);
                             }
 
-                            var inputs = $(".amount");
-                            var subTotal = 0;
-                            for (var i = 0; i < inputs.length; i++) {
-                                subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
+                            if (invoiceItems != null) {
+                                $(el.parent().parent().find('.amount')).html(parseFloat(amount).toFixed(2));
+                            } else {
+                                $(el.parent().parent().find('.amount')).html(parseFloat(item.totalAmount).toFixed(2));
                             }
 
-                            var totalItemPrice = 0;
-                            var inputs_quantity = $(".quantity");
-                            var priceInput = $('.price');
-                            for (var j = 0; j < priceInput.length; j++) {
-                                totalItemPrice += (parseFloat(priceInput[j].value) * parseFloat(inputs_quantity[j].value));
-                            }
-
-                            var totalItemTaxPrice = 0;
-                            var itemTaxPriceInput = $('.itemTaxPrice');
-                            for (var j = 0; j < itemTaxPriceInput.length; j++) {
-                                totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
-                                if (invoiceItems != null) {
-                                    $(el.parent().parent().find('.amount')).html(parseFloat(amount) + parseFloat(itemTaxPrice));
-                                } else {
-                                    $(el.parent().parent().find('.amount')).html(parseFloat(item.totalAmount) + parseFloat(itemTaxPrice));
-                                }
-                            }
-
-                            $('.subTotal').html(totalItemPrice.toFixed(2));
-                            $('.totalTax').html(totalItemTaxPrice.toFixed(2));
-                            $('.totalAmount').html((parseFloat(totalItemPrice) + parseFloat(totalItemTaxPrice)).toFixed(2));
+                            recalculateInvoiceTotals();
                         }
                     });
                 },
@@ -229,40 +195,13 @@
         }
 
         $(document).on('keyup', '.quantity', function() {
-            var quntityTotalTaxPrice = 0;
             var el = $(this).parent().parent().parent().parent();
             var quantity = $(this).val();
             var price = $(el.find('.price')).val();
-            var totalItemPrice = (quantity * price);
-            var amount = (totalItemPrice);
+            var amount = (quantity * price);
 
-            var totalItemTaxRate = $(el.find('.itemTaxRate')).val();
-            var itemTaxPrice = parseFloat((totalItemTaxRate / 100) * (totalItemPrice));
-            $(el.find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
-            $(el.find('.amount')).html(parseFloat(itemTaxPrice) + parseFloat(amount));
-
-            var totalItemTaxPrice = 0;
-            var itemTaxPriceInput = $('.itemTaxPrice');
-            for (var j = 0; j < itemTaxPriceInput.length; j++) {
-                totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
-            }
-
-            var totalItemPrice = 0;
-            var inputs_quantity = $(".quantity");
-            var priceInput = $('.price');
-            for (var j = 0; j < priceInput.length; j++) {
-                totalItemPrice += (parseFloat(priceInput[j].value) * parseFloat(inputs_quantity[j].value));
-            }
-
-            var inputs = $(".amount");
-            var subTotal = 0;
-            for (var i = 0; i < inputs.length; i++) {
-                subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
-            }
-
-            $('.subTotal').html(totalItemPrice.toFixed(2));
-            $('.totalTax').html(totalItemTaxPrice.toFixed(2));
-            $('.totalAmount').html((parseFloat(subTotal)).toFixed(2));
+            $(el.find('.amount')).html(parseFloat(amount).toFixed(2));
+            recalculateInvoiceTotals();
 
             // Stock validation on quantity change
             validateStock($(this));
@@ -272,36 +211,10 @@
             var el = $(this).parent().parent().parent().parent();
             var price = $(this).val();
             var quantity = $(el.find('.quantity')).val();
-            var totalItemPrice = (quantity * price);
-            var amount = (totalItemPrice);
+            var amount = (quantity * price);
 
-            var totalItemTaxRate = $(el.find('.itemTaxRate')).val();
-            var itemTaxPrice = parseFloat((totalItemTaxRate / 100) * (totalItemPrice));
-            $(el.find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
-            $(el.find('.amount')).html(parseFloat(itemTaxPrice) + parseFloat(amount));
-
-            var totalItemTaxPrice = 0;
-            var itemTaxPriceInput = $('.itemTaxPrice');
-            for (var j = 0; j < itemTaxPriceInput.length; j++) {
-                totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
-            }
-
-            var totalItemPrice = 0;
-            var inputs_quantity = $(".quantity");
-            var priceInput = $('.price');
-            for (var j = 0; j < priceInput.length; j++) {
-                totalItemPrice += (parseFloat(priceInput[j].value) * parseFloat(inputs_quantity[j].value));
-            }
-
-            var inputs = $(".amount");
-            var subTotal = 0;
-            for (var i = 0; i < inputs.length; i++) {
-                subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
-            }
-
-            $('.subTotal').html(totalItemPrice.toFixed(2));
-            $('.totalTax').html(totalItemTaxPrice.toFixed(2));
-            $('.totalAmount').html((parseFloat(subTotal)).toFixed(2));
+            $(el.find('.amount')).html(parseFloat(amount).toFixed(2));
+            recalculateInvoiceTotals();
         })
 
         // Stock validation function - resets quantity to available stock if exceeded
@@ -392,23 +305,16 @@
         // ─── Confirm row - switch to locked mode ─────────────────────────────────────
         function recalculateInvoiceTotals() {
             var subTotal = 0;
-            var totalTax = 0;
-            var totalAmount = 0;
 
             $('#sortable-table [data-repeater-item]').each(function() {
                 var quantity = parseFloat($(this).find('.quantity').val()) || 0;
                 var price = parseFloat($(this).find('.price').val()) || 0;
-                var itemTaxPrice = parseFloat($(this).find('.itemTaxPrice').val()) || 0;
-                var amount = parseFloat($(this).find('.amount').html()) || 0;
 
                 subTotal += quantity * price;
-                totalTax += itemTaxPrice;
-                totalAmount += amount;
             });
 
             $('.subTotal').html(subTotal.toFixed(2));
-            $('.totalTax').html(totalTax.toFixed(2));
-            $('.totalAmount').html(totalAmount.toFixed(2));
+            $('.totalAmount').html(subTotal.toFixed(2));
         }
 
         function setInvoiceRowLocked($row, locked) {
@@ -586,6 +492,27 @@
             e.preventDefault();
             deleteInvoiceRow($(this).closest('[data-repeater-item]'));
         });
+
+        $(document).ready(function() {
+            if (typeof ajaxModalForm !== 'undefined') {
+                ajaxModalForm('.invoice-ajax-form', {
+                    closeOnSuccess: true,
+                    showToast: true,
+                    onSuccess: function(response, $form) {
+                        if (typeof response === 'object' && response.success) {
+                            closeActiveBootstrapModal();
+                            if (response.message && typeof show_toastr === 'function') {
+                                show_toastr('success', response.message, 'success');
+                            }
+                            setTimeout(function() { window.location.reload(); }, 500);
+                        } else if (typeof response === 'string') {
+                            closeActiveBootstrapModal();
+                            window.location.reload();
+                        }
+                    }
+                });
+            }
+        });
     </script>
 
     <style>
@@ -601,11 +528,9 @@
             color: #ffffff !important;
         }
     </style>
-@endpush
 
-@section('content')
     <div class="row">
-        {{ Form::model($invoice, ['route' => ['invoice.update', $invoice->id], 'method' => 'PUT', 'class' => 'w-100']) }}
+        {{ Form::model($invoice, ['route' => ['invoice.update', $invoice->id], 'method' => 'PUT', 'class' => 'w-100 invoice-ajax-form', 'novalidate' => true]) }}
         <div class="col-12">
             <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
             <div class="card">
@@ -625,7 +550,7 @@
                                 <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mr-2">
                                     <div class="form-group">
                                         {{ Form::label('store_to', __('Store To'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
-                                        {{ Form::select('store_to', $store_to, isset($_GET['store_to']) ? $_GET['store_to'] : '', ['class' => 'form-control select custom-select']) }}
+                                        {{ Form::select('store_to', $store_to, $invoice->store_to ?? '', ['class' => 'form-control select custom-select']) }}
                                     </div>
                                 </div>
                                 <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mr-2">
@@ -670,7 +595,7 @@
         </div>
         <div class="col-12">
             <h5 class=" d-inline-block mb-4">{{ __('Products') }}</h5>
-            <div class="card repeater" data-value='{!! json_encode($invoice->items) !!}'>
+            <div class="card repeater" data-value='{!! json_encode($invoice->items->map(function($item) { $item->item = $item->product_id; return $item; })) !!}'>
                 <div class="item-section py-2">
                     <div class="row justify-content-between align-items-center">
                         <div class="col-md-12 d-flex align-items-center justify-content-between justify-content-md-end">
@@ -691,7 +616,6 @@
                                     <th width="10%">{{ __('Quantity') }}</th>
                                     <th width="10%">{{ __('Price') }} </th>
                                     <th width="10%">{{ __('Type') }}</th>
-                                    <th>{{ __('Tax') }}</th>
                                     <th class="text-end">{{ __('Amount') }} </th>
                                     <th>{{ __('Action') }}</th>
                                 </tr>
@@ -724,16 +648,7 @@
                                             ) }}
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="form-group">
-                                            <div class="input-group colorpickerinput">
-                                                <div class="taxes"></div>
-                                                {{ Form::hidden('tax', '', ['class' => 'form-control tax']) }}
-                                                {{ Form::hidden('itemTaxPrice', '', ['class' => 'form-control itemTaxPrice']) }}
-                                                {{ Form::hidden('itemTaxRate', '', ['class' => 'form-control itemTaxRate']) }}
-                                            </div>
-                                        </div>
-                                    </td>
+
                                     <td class="text-end amount">0.00</td>
                                     <td style="white-space:nowrap;">
                                         <span class="edit-actions">
@@ -767,16 +682,6 @@
                                     <td></td>
                                     <td><strong>{{ __('Sub Total') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
                                     <td class="text-end subTotal">0.00</td>
-                                    <td></td>
-                                </tr>
-                                <tr>
-                                    <td>&nbsp;</td>
-                                    <td>&nbsp;</td>
-                                    <td>&nbsp;</td>
-                                    <td></td>
-                                    <td><strong>{{ __('Tax') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
-                                    <td class="text-end totalTax">0.00</td>
-                                    <td></td>
                                 </tr>
                                 <tr>
                                     <td>&nbsp;</td>
@@ -785,7 +690,6 @@
                                     <td>&nbsp;</td>
                                     <td class="blue-text"><strong>{{ __('Total Amount') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
                                     <td class="text-end totalAmount blue-text">0.00</td>
-                                    <td></td>
                                 </tr>
                             </tfoot>
                         </table>

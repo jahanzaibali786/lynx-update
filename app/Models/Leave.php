@@ -16,7 +16,7 @@ class Leave extends Model
         'leave_reason',
         'remark',
         'status',
-        'added_by',
+	 	'added_by',
         'owned_by',
         'created_by',
     ];
@@ -30,7 +30,7 @@ class Leave extends Model
     {
         return $this->hasOne('App\Models\Employee', 'id', 'employee_id');
     }
-
+	
     public function addedBy()
     {
         return $this->belongsTo(User::class, 'added_by', 'id');

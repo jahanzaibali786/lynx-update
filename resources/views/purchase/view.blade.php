@@ -138,6 +138,8 @@
                                             <p class="text-muted text-sm mb-3">
                                                 @if($purchase->status == 6 && $purchase->grn_converted)
                                                     <small>{{__('Converted')}}</small>
+                                                @elseif($purchase->status == 6 && $purchase->items->sum('received_quantity') > 0)
+                                                    <small>{{__('Partially Converted')}}</small>
                                                 @elseif($purchase->status == 6)
                                                     <small>{{__('Ready to convert')}}</small>
                                                 @else
@@ -146,7 +148,12 @@
                                             </p>
                                             <div class="timeline-action">
                                                 @if($purchase->status == 6 && \Auth::user()->type == 'company' && !$purchase->grn_converted)
-                                                    <a href="{{ route('purchase.convert_to_grn', $purchase->id) }}" class="btn mx-1 btn-sm btn-outline-primary">
+                                                    <a href="#"
+                                                        data-url="{{ route('purchase.convert_to_grn', $purchase->id) }}"
+                                                        data-size="modal-fullscreen"
+                                                        data-ajax-popup="true"
+                                                        data-bs-title="{{ __('Convert to GRN') }}"
+                                                        class="btn mx-1 btn-sm btn-outline-primary">
                                                         <span class="btn-inner--icon"><i class="ti ti-file-import mr-2"></i></span>{{__('Convert to GRN')}}
                                                     </a>
                                                 @endif

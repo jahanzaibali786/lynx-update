@@ -152,8 +152,23 @@
                     <td>{{ $enroll->enrollId }}</td>
                     <td>{{ $enroll->StudentRegistration->stdname ?? '-' }}</td>
                     <td>{{ $enroll->StudentRegistration->fathername ?? '-' }}</td>
-                    <td>{{ $enroll->class->name ?? '-' }}</td>
-                    <td>{{ $enroll->section->name ?? '-' }}</td>
+                   <td>{{ $enroll->class->name ?? '-' }}</td>
+					@php
+					    $sectionName = $enroll->section->name ?? 'Set Section';
+					    $sectionUrl = route('section.show', $enroll->id);
+					@endphp
+					
+					<td>
+					    <a href="#"
+					       class="btn btn-sm btn-outline-primary w-100 d-flex align-items-start justify-content-start text-left"
+					       style="text-align:left; min-height:38px; white-space:normal; word-break:break-word; line-height:1.2; width:160px !important;"
+					       data-size="lg"
+					       data-url="{{ $sectionUrl }}"
+					       data-ajax-popup="true"
+					       data-title="Section History">
+					        {{ $sectionName }}
+					    </a>
+					</td>
                     <td>{{ $enroll->StudentRegistration->session->year ?? '-' }}</td>
                     <td>{{ $enroll->StudentRegistration->registeroption->name ?? '-' }}</td>
                     <td>{{ $enroll->adm_date ? date('d-M-Y', strtotime($enroll->adm_date)) : '-' }}</td>

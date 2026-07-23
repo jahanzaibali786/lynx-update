@@ -7,6 +7,7 @@ use App\Http\Controllers\EmployeeApraisalFroms;
 use App\Http\Controllers\EmployeeMonthlySalaryAttendance;
 use App\Http\Controllers\EmployeeSalaryDetail;
 use App\Http\Controllers\EmployeeSalaryHeads;
+use App\Http\Controllers\BulkBillingController;
 use App\Http\Controllers\EmployeeSalaryProposal;
 use App\Http\Controllers\EmployeeScaleHeads;
 use App\Http\Controllers\EmployeeSettlementController;
@@ -24,10 +25,10 @@ use App\Http\Controllers\StudentPromotions;
 use App\Http\Controllers\StudentRegistration;
 use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\EmployeeImportController;
-use App\Http\Controllers\StudentFinanceCleanupController;
 use App\Http\Controllers\StudentReportController;
 use App\Http\Controllers\StudentReportController2;
 use App\Http\Controllers\StudyPackChallanController;
+use App\Http\Controllers\StudentFinanceCleanupController;
 use App\Http\Controllers\WhatsappController;
 use App\Models\EmployeeMonthlySalary;
 use App\Models\EmployeeMonthlySalaryHeads;
@@ -71,8 +72,7 @@ use App\Http\Controllers\GoalController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\CustomFieldController;
- 
-use App\Http\Controllers\HeadImprestVoucherController;
+use App\Http\Controllers\ChartOfAccountController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\StudentIncomeController;
 use App\Http\Controllers\ClientController;
@@ -506,7 +506,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('roles', RoleController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('user-permissions/edit', [UserPermissionController::class, 'edit'])->name('user.permissions.edit')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('user-permissions/update', [UserPermissionController::class, 'update'])->name('user.permissions.update')->middleware(['auth', 'XSS', 'revalidate']);
-
+    
     Route::resource('permissions', PermissionController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::group(
@@ -646,22 +646,23 @@ Route::group(['middleware' => ['verified']], function () {
             Route::resource('bank-account', BankAccountController::class);
         }
     );
-Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'getReference'])
-        ->name('bank.transfer.reference');
-    Route::group(
-        [
-            'middleware' => [
-                'auth',
-                'XSS',
-                'revalidate',
+    Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'getReference'])
+            ->name('bank.transfer.reference');
+        Route::group(
+            [
+                'middleware' => [
+                    'auth',
+                    'XSS',
+                    'revalidate',
+                ],
             ],
-        ],
-        function () {
-            Route::get('bank-transfer/index', [BankTransferController::class, 'index'])->name('bank-transfer.index');
-            Route::resource('bank-transfer', BankTransferController::class);
-        }
-    );
-
+            function () {
+                Route::get('bank-transfer/index', [BankTransferController::class, 'index'])->name('bank-transfer.index');
+                Route::resource('bank-transfer', BankTransferController::class);
+            }
+        );
+    
+    
     Route::group(
         [
             'middleware' => [
@@ -715,12 +716,18 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('invoice/items', [InvoiceController::class, 'items'])->name('invoice.items');
 
 			Route::get('grn/{grn}/fw-to-ho', [GrnController::class, 'fwToHo'])->name('grn.fw_to_ho');
-            Route::get('grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
+			Route::match(['get', 'post'], 'grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
+            Route::get('grn/{grn}/fw-to-accounts', [GrnController::class, 'fwToAccounts'])->name('grn.fw_to_accounts');
+            Route::get('grn/{grn}/accounts-approve', [GrnController::class, 'accountsApprove'])->name('grn.accounts_approve');
             Route::get('grn/{grn}/reject', [GrnController::class, 'reject'])->name('grn.reject');
+            Route::get('grn/draft-purchases', [GrnController::class, 'draftPurchases'])->name('grn.draft_purchases');
+            Route::get('grn/purchase-items/{id}', [GrnController::class, 'purchaseItems'])->name('grn.purchase_items');
+            Route::get('grn/add-vendor-form', [GrnController::class, 'addVendorForm'])->name('grn.add_vendor_form');
 			Route::resource('grn', GrnController::class);
 
 
-
+            Route::get('invoice/draft-branch-purchases', [InvoiceController::class, 'draftBranchPurchases'])->name('invoice.draft_branch_purchases');
+            Route::get('invoice/branch-purchase-items/{id}', [InvoiceController::class, 'branchPurchaseItems'])->name('invoice.branch_purchase_items');
             Route::resource('invoice', InvoiceController::class);
             Route::get('invoice/create/{cid}', [InvoiceController::class, 'create'])->name('invoice.create');
             Route::post('company_contract', [InvoiceController::class, 'companycontract'])->name('company_contract');
@@ -953,20 +960,17 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
 
             Route::post('journal-entry/account/destroy', [JournalEntryController::class, 'accountDestroy'])->name('journal.account.destroy');
 			Route::get('get-voucher-number', [JournalEntryController::class, 'getVoucherNumber'])->name('getVoucherNumber');
-			Route::get('get-voucher-parties', [JournalEntryController::class, 'getVoucherParties'])->name('getVoucherParties');
-            Route::get('journal-entry/{journalEntry}/voucher-print', [JournalEntryController::class, 'voucherPrint'])->name('journal-entry.voucher-print');
+            Route::get('get-voucher-parties', [JournalEntryController::class, 'getVoucherParties'])->name('getVoucherParties');
 			Route::get('voucher-create', [JournalEntryController::class, 'createVoucher'])->name('createVoucher');
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
-            Route::get('expense-voucher/create', [HeadImprestVoucherController::class, 'create'])->name('expense-voucher.create');
-            Route::get('expense-voucher/head-imprest-banks', [HeadImprestVoucherController::class, 'getHeadImprestBankAccounts'])->name('expense-voucher.head-imprest-banks');
-            Route::post('expense-voucher/store', [HeadImprestVoucherController::class, 'store'])->name('expense-voucher.store');
-            Route::get('expense-voucher/{id}/edit', [HeadImprestVoucherController::class, 'edit'])->name('expense-voucher.edit');
-            Route::post('expense-voucher/{id}/update', [HeadImprestVoucherController::class, 'update'])->name('expense-voucher.update');
-            Route::get('head-imprest-vouchers', [HeadImprestVoucherController::class, 'index'])->name('head-imprest-vouchers.index');
-            Route::get('head-imprest-vouchers/{id}', [HeadImprestVoucherController::class, 'show'])->name('head-imprest-vouchers.show');
-            Route::delete('head-imprest-vouchers/{id}', [HeadImprestVoucherController::class, 'destroy'])->name('head-imprest-vouchers.destroy');
-            Route::post('head-imprest-vouchers/approve/{id}', [HeadImprestVoucherController::class, 'approve'])->name('head-imprest-vouchers.approve');
-            Route::post('head-imprest-vouchers/send-to-ho/{id}', [HeadImprestVoucherController::class, 'sendToHO'])->name('head-imprest-vouchers.send-to-ho');
+            Route::get('journal-entry/{journalEntry}/voucher-print', [JournalEntryController::class, 'voucherPrint'])->name('journal-entry.voucher-print');
+             Route::get('expense-voucher/create', [JournalEntryController::class, 'createExpenseVoucher'])->name('expense-voucher.create');
+            Route::post('expense-voucher/store', [JournalEntryController::class, 'storeExpenseVoucher'])->name('expense-voucher.store');
+            Route::get('expense-voucher/{id}/edit', [JournalEntryController::class, 'editExpenseVoucher'])->name('expense-voucher.edit');
+            Route::post('expense-voucher/{id}/update', [JournalEntryController::class, 'updateExpenseVoucher'])->name('expense-voucher.update');
+            Route::get('head-imprest-vouchers', [JournalEntryController::class, 'headImprestVouchersIndex'])->name('head-imprest-vouchers.index');
+            Route::post('head-imprest-vouchers/approve/{id}', [JournalEntryController::class, 'approveHeadImprestVoucher'])->name('head-imprest-vouchers.approve');
+            Route::post('head-imprest-vouchers/send-to-ho/{id}', [JournalEntryController::class, 'sendToHO'])->name('head-imprest-vouchers.send-to-ho');
             Route::post('journal-entry/approve/{id}', [JournalEntryController::class, 'approveJournalEntry'])->name('journal-entry.approve');
             Route::post('journal-entry/send-to-ho/{id}', [JournalEntryController::class, 'sendToHO'])->name('journal-entry.send-to-ho');
             
@@ -978,8 +982,9 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('student-incomes/get-bank-accounts', [StudentIncomeController::class, 'getBankAccounts'])->name('student-incomes.get-bank-accounts');
             Route::post('student-incomes/day-end', [StudentIncomeController::class, 'processDayEnd'])->name('student-incomes.day-end');
             Route::delete('student-incomes/{id}', [StudentIncomeController::class, 'destroy'])->name('student-incomes.destroy');
-
+            
             Route::resource('journal-entry', JournalEntryController::class);
+        
 
 
             Route::post('bank-recipt-voucher/account/destroy', [BankReciptVoucherController::class, 'brvDestroy'])->name('brv.account.destroy');
@@ -1947,6 +1952,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('purchase/{id}/finalize', [PurchaseController::class, 'finalize'])->name('purchase.finalize');
             Route::get('purchase/{id}/reject', [PurchaseController::class, 'reject'])->name('purchase.reject');
             Route::get('purchase/{id}/convert-to-grn', [PurchaseController::class, 'convertToGrn'])->name('purchase.convert_to_grn');
+            Route::post('purchase/{id}/convert-to-grn', [PurchaseController::class, 'storeConvertedGrn'])->name('purchase.convert_to_grn.store');
 
             Route::resource('branchpurchase', \App\Http\Controllers\BranchPurchaseController::class);
             Route::get('branchpurchase/create/{cid}', [\App\Http\Controllers\BranchPurchaseController::class, 'create'])->name('branchpurchase.create');
@@ -1956,6 +1962,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::post('branchpurchase/{id}/finalize', [\App\Http\Controllers\BranchPurchaseController::class, 'finalize'])->name('branchpurchase.finalize');
             Route::get('branchpurchase/{id}/reject', [\App\Http\Controllers\BranchPurchaseController::class, 'reject'])->name('branchpurchase.reject');
             Route::get('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'convertToInvoice'])->name('branchpurchase.convert_to_invoice');
+            Route::post('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'storeConvertedInvoice'])->name('branchpurchase.convert_to_invoice.store');
 
         }
 
@@ -2178,6 +2185,13 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             ],
         ],
         function () {
+             Route::get('/student-finance-cleanup', [StudentFinanceCleanupController::class, 'index'])->name('student-finance-cleanup.index');
+            Route::post('/student-finance-cleanup/start', [StudentFinanceCleanupController::class, 'start'])->name('student-finance-cleanup.start');
+            Route::get('/student-finance-cleanup/{id}/status', [StudentFinanceCleanupController::class, 'status'])->name('student-finance-cleanup.status');
+            Route::post('/student-finance-cleanup/{id}/process', [StudentFinanceCleanupController::class, 'process'])->name('student-finance-cleanup.process');
+          
+            
+            
             Route::post('/session_branch', [SessionController::class, 'session_branch'])->name('session_branch');
             Route::resource('/session', SessionController::class);
             Route::post('/sessions/{sessionId}/update-status', [SessionController::class, 'updateSessionStatus'])->name('update_session_status');
@@ -2198,6 +2212,11 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('/employee-bulk-update', [EmployeeImportController::class, 'showImportForm'])->name('employee.bulk.update');
             Route::post('/employee-bulk-update', [EmployeeImportController::class, 'import'])->name('employee.bulk.store');
             
+            Route::get('/bulk-billing', [BulkBillingController::class, 'create'])->name('bulk-billing.create');
+            Route::post('/bulk-billing', [BulkBillingController::class, 'store'])->name('bulk-billing.store');
+            Route::get('/bulk-billing/students/{branchId}', [BulkBillingController::class, 'getStudents'])->name('bulk-billing.students');
+            Route::get('/bulk-billing/fee-structure/{studentId}/{month}', [BulkBillingController::class, 'getFeeStructure'])->name('bulk-billing.fee-structure');
+
             Route::get('/get-concession', [StudentRegistration::class, 'getconcession'])->name('get.concession');
             Route::get('/registration-receipt/{id}', [StudentRegistration::class, 'receipt'])->name('reg.receipt');
             Route::post('update-student-fee-str', [AccountWiseFeeStructure::class, 'update_student_fee_str'])->name('account-wise-fee.save')->middleware(['auth', 'XSS']);
@@ -2287,7 +2306,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::post('/transfer-add-head', [StudentTransferController::class, 'challanheadadd'])->name('transfer.add_head');
             Route::resource('/withdrawlstudent', StudentWithdrawalController::class);
             Route::get('/withdrawlapplication/{id}', [StudentWithdrawalController::class, 'withdrawlapplication'])->name('withdrawlapplication');
-            Route::get('/fwd-to-ho/{id}', [StudentWithdrawalController::class, 'fwdtoho'])->name('fwdtoho');
+            Route::any('/fwd-to-ho/{id}', [StudentWithdrawalController::class, 'fwdtoho'])->name('fwdtoho');
 			Route::post('/withdrawlapplication/{id}/save-basics', [StudentWithdrawalController::class, 'saveBasics'])->name('withdrawlapplication.savebasics');
             Route::post('/withdrawlapplication/{id}/store', [StudentWithdrawalController::class, 'withdrawlapplicationstore'])->name('withdrawlapplicationstore');
             Route::post('/calculate-balance', [StudentWithdrawalController::class, 'calculateBalance'])->name('calculate.balance');
@@ -2297,10 +2316,6 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('/student-adjust-detail', [StudentWithdrawalController::class, 'studentadjustdetail'])->name('student-adjust-detail');
             Route::get('/student-challan-detail', [StudentWithdrawalController::class, 'studentchallandetail'])->name('student-challan-detail');
             Route::get('/student-adjust-detail', [StudentWithdrawalController::class, 'studentadjustdetail'])->name('student-adjust-detail');
-            Route::get('/admin/student-finance-cleanup', [StudentFinanceCleanupController::class, 'index'])->name('student-finance-cleanup.index');
-            Route::post('/admin/student-finance-cleanup/start', [StudentFinanceCleanupController::class, 'start'])->name('student-finance-cleanup.start');
-            Route::get('/admin/student-finance-cleanup/{id}/status', [StudentFinanceCleanupController::class, 'status'])->name('student-finance-cleanup.status');
-            Route::post('/admin/student-finance-cleanup/{id}/process', [StudentFinanceCleanupController::class, 'process'])->name('student-finance-cleanup.process');
             Route::get('studypack/items', [StudyPackController::class, 'items'])->name('studypack.items');
             Route::resource('/studypack', StudyPackController::class);
             Route::get('studypack/items', [StudyPackController::class, 'items'])->name('studypack.items');
@@ -2335,7 +2350,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
 			Route::get('/fee-revision-report', [StudentReportController::class, 'feeRevisionReport'])->name('fee_revision_report');
             Route::post('/student-report/filter-students', [StudentReportController::class, 'reportFilterStudents'])->name('student_report.filter_students');
             Route::get('/student-promotion-report', [StudentReportController::class, 'studentPromotionReport'])->name('student_promotion_report');
-            
+			Route::get('/student-fee-detail', [StudentReportController::class, 'studentFeeDetail'])->name('student_fee_detail');
             Route::get('/admissionwithdrawalreport', [StudentReportController::class, 'admissionwithdrawal'])->name('admissionwithdrawal.index');
             Route::get('/admissionwithdrawal/pdf/report', [StudentReportController::class, 'admissionwithdrawalPdfReport'])->name('admissionwithdrawalPdf.report');
             Route::get('/studentstrengthreport', [StudentReportController::class, 'studentstrength'])->name('studentstrength.index');
@@ -2496,7 +2511,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::resource('employee-advance', EmployeeAdvanceController::class);
             Route::get('advance-tax-collection-status/{id}', [AdvanceTaxCollectionController::class, 'status'])->name('advance-tax-collection.status');
             Route::put('advance-tax-collection-status-change/{id}', [AdvanceTaxCollectionController::class, 'statusChange'])->name('advance-tax-collection.statusChange');
-            Route::get('advance-tax-collection/{id}/proof', [AdvanceTaxCollectionController::class, 'proof'])->name('advance-tax-collection.proof');
+ 			Route::get('advance-tax-collection/{id}/proof', [AdvanceTaxCollectionController::class, 'proof'])->name('advance-tax-collection.proof');
             Route::resource('advance-tax-collection', AdvanceTaxCollectionController::class);
 
             // Export salary sheet
@@ -2697,6 +2712,8 @@ Route::get('/emp-salaries-id-update', function () {
 Route::get('/clearance-certificate-pdf/{id}', [StudentWithdrawalController::class, 'certificatePdf'])->name('student_withdrawal.certificate_pdf');
 // for print
 Route::get('/clearance-certificate-print/{id}', [StudentWithdrawalController::class, 'certificatePrint'])->name('student_withdrawal.certificate_print');
+Route::get('/clearance-certificate-settlement/{id}', [StudentWithdrawalController::class, 'settlementCertificate'])->name('student_withdrawal.settlement_certificate');
+
 
 Route::delete('employee_exp_info/{id}', [App\Http\Controllers\EmployeeController::class, 'destroyEmployeeExperience'])->name('employee_exp_info.destroy');
 

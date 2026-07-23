@@ -32,8 +32,6 @@
         //         }
         //     });
         // });
-        var chartAccountParentRequest = null;
-
         function rebuildChartAccountCustomSelect(selectElement) {
             if (!selectElement || !window.CustomSelect) {
                 return;
@@ -48,18 +46,12 @@
             window.CustomSelect.create(selectElement);
         }
 
-        $(document).off('change.chartAccountSubType', '#sub_type').on('change.chartAccountSubType', '#sub_type', function() {
+        $(document).on('change', '#sub_type', function() {
             $('.acc_check').removeClass('d-none');
             var type = $(this).val();
-            var $form = $(this).closest('form');
-            var $parent = $form.find('#parent');
-            var parentSelect = $parent[0];
+            var parentSelect = document.getElementById('parent');
 
-            if (chartAccountParentRequest) {
-                chartAccountParentRequest.abort();
-            }
-
-            chartAccountParentRequest = $.ajax({
+            $.ajax({
                 url: '{{ route('charofAccount.subType') }}',
                 type: 'POST',
                 data: {
@@ -67,20 +59,17 @@
                     "_token": "{{ csrf_token() }}",
                 },
                 success: function(data) {
-                    $parent.empty();
+                    $('#parent').empty();
                     $.each(data, function(key, value) {
-                        $parent.append('<option value="' + key + '">' + value +
+                        $('#parent').append('<option value="' + key + '">' + value +
                             '</option>');
                     });
 
                     rebuildChartAccountCustomSelect(parentSelect);
-                },
-                complete: function() {
-                    chartAccountParentRequest = null;
                 }
             });
         });
-        $(document).off('click.chartAccountSubAccount', '#account').on('click.chartAccountSubAccount', '#account', function() {
+        $(document).on('click', '#account', function() {
             const element = $('#account').is(':checked');
             $('.acc_type').addClass('d-none');
             if (element == true) {

@@ -603,34 +603,19 @@
                         $service_tenure = $months . ' Months';
                     }
                     $payscale = @$emplsetlement->employee->employee_payscale_details->last();
-                    $today = $resign_date->copy();
-                    $previous_month_25th = $resign_date->copy()->subMonth()->day(25);
-                    if ($today->day > 25) {
-                        $start_date = $today->copy()->day(25);
-                        $nextMonth = $resign_date->copy()->addMonth();
-                        $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
-                            'employee_id',
-                            $emplsetlement->employee->id,
-                        )
-                            ->whereMonth('salary_date', $nextMonth->month)
-                            ->whereYear('salary_date', $nextMonth->year)
-                            ->first();
-                    } else {
-                        $start_date = $today->copy()->subMonth()->day(25);
-                        $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
-                            'employee_id',
-                            $emplsetlement->employee->id,
-                        )
-                            ->whereMonth('salary_date', $resign_date->month)
-                            ->whereYear('salary_date', $resign_date->year)
-                            ->first();
-                    }
+                    $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
+                        'employee_id',
+                        $emplsetlement->employee->id,
+                    )
+                        ->whereMonth('salary_date', $resign_date->month)
+                        ->whereYear('salary_date', $resign_date->year)
+                        ->first();
                     if ($existingslaryforthismonth) {
                         $total_days = 0;
                     } else {
-                        $total_days = $today->diffInDays($start_date);
+                        $total_days = min((int) $resign_date->day, 30);
                     }
-                    $total_days_in_month = $resign_date->daysInMonth;
+                    $total_days_in_month = 30;
                 @endphp
                 <div class="col-md-4">
                     <p style="font-size:1rem; text-align:right;"><b>Service Tenure
@@ -646,7 +631,7 @@
                 </div>
                 <div class="col-md-4">
                     <p style="font-size:1rem; text-align:right;"><b>Working Days
-                            :</b>{{ @$emplsetlement->working_days ? $emplsetlement->working_days : $total_days_in_month }}
+                            :</b>{{ $total_days }}
                     </p>
                 </div>
                 <div class="col-md-4">
@@ -683,7 +668,7 @@
                         <th style="width:150px;"></th>
                         <th style="width:20px;"></th>
                         <th style="width:150px;">As Per Anexture 'R'</th>
-                        <th style="width:20px;"><b>{{ @$emplsetlement->working_days }}</b></th>
+                        <th style="width:20px;"><b>{{ $total_days }}</b></th>
                         <th style="width:150px;">Salary for the month
                             {{ \Carbon\Carbon::parse($resign_date)->format('F-Y') }}</th>
                     </tr>
@@ -692,7 +677,8 @@
                     @foreach (@$emplsetlement->finalsettlementHeads as $salhead)
                         @php
                             $gross += $salhead->head_value;
-                            $earnedgross += $salhead->earned_value;
+                            $earnedValue = ($salhead->head_value * $total_days) / $total_days_in_month;
+                            $earnedgross += $earnedValue;
                             $salheads = \App\Models\EmpFinalSettlementHeads::with('salaryHead')
                                 ->where('final_settlement_id', $emplsetlement->id)
                                 ->where('head_id', $salhead->head_id)
@@ -703,7 +689,7 @@
                             <td><b>Rs.</b></td>
                             <td>{!! $salheads->head_value !!}</td>
                             <td><b>Rs.</b></td>
-                            <td>{{ number_format($salhead->earned_value, 2) }}</td>
+                            <td>{{ number_format($earnedValue, 2) }}</td>
                         </tr>
                     @endforeach
                     <tr>

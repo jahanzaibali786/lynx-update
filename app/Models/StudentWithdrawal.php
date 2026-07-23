@@ -17,17 +17,20 @@ class StudentWithdrawal extends Model
         'branch_id',
         'withdraw_date',
         'reason',
-        'is_po',
         'remark',
-        'other_reason',
-        'beneficiary_name',
-        'bank_name',
-        'cheque_no',
-        'cheque_date',
+        'ho_remarks',
+        'branch_snapshot',
+        'ho_snapshot',
         'approved_by',
         'status',
+        'is_po',
         'created_by',
         'owned_by',
+    ];
+
+    protected $casts = [
+        'branch_snapshot' => 'array',
+        'ho_snapshot' => 'array',
     ];
 
     protected $studentCache = null;
@@ -71,11 +74,4 @@ class StudentWithdrawal extends Model
     {
         return $this->hasOne('App\Models\Classes', 'id', 'class_id');
     }
-    protected $casts = [
-        'withdraw_date' => 'date',
-        'expected_readmission_date' => 'date',
-        'cheque_date' => 'date',
-        'is_po' => 'boolean',
-    ];
-
 }

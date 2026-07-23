@@ -88,7 +88,7 @@
         </tr>
     </thead>
     <tbody>
-    @php $enrollments =$enrollments->sortBy('class_id')->sortBy('section_id')->groupBy('owned_by'); @endphp
+    @php $enrollments =$enrollments->sortBy([['class_id', 'asc'], ['section_id', 'asc']])->groupBy('owned_by'); @endphp
             @php $tot=1; @endphp
         @foreach ($enrollments as $bra => $enro)
              <tr style="font-weight: 800; border: 2px solid black; background-color: gray;">

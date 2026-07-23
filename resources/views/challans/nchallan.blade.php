@@ -515,6 +515,7 @@
                             <div class="payment-terms" style="padding-bottom: 6px;">
                                 <div style="font-size: 12px;">1. LATE PAYMENT SURCHARGE @ RS 120.00 PER DAY WILL BE CALCULATED AND CHARGED BY THE BANK / Branch AFTER DUE DATE</div>
                                 <div style="font-size: 12px;">2. ANY ERROR IN THE CALCULATION OF FINE BY THE BANK / Branch WILL BE ADJUSTED IN THE NEXT FEE BILL</div>
+								<div style="font-size: 12px;">3. IN CASE THE MONTHLY FEE IS NOT SETTLED IN FULL, A DAILY LATE SURCHARGE WILL BE APPLICABLE AFTER THE DUE DATE.</div>
                             </div>
                             @endif
                             <div style="background-color:rgb(206, 206, 206); padding: 4px;">

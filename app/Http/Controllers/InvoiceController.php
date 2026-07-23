@@ -509,6 +509,7 @@ class InvoiceController extends Controller
     }
 
 
+    
     public function create($customerId)
     {
         if (\Auth::user()->can('create invoice')) {
@@ -548,6 +549,9 @@ class InvoiceController extends Controller
             // $product_services = Space::where('created_by', \Auth::user()->creatorId())->where('meeting','yes')->get()->pluck('name', 'id');
             $product_services->prepend("Select item", '');
 
+            if (request()->ajax()) {
+                return view('invoice.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'customFields'))->renderSections()['content'] ?? '';
+            }
             return view('invoice.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'customFields'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
@@ -601,6 +605,9 @@ class InvoiceController extends Controller
 
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
+                    if ($request->ajax()) {
+                        return response()->json(['success' => false, 'message' => $messages->first()]);
+                    }
                     return redirect()->back()->with('error', $messages->first());
                 }
 
@@ -687,13 +694,22 @@ class InvoiceController extends Controller
                 $webhook = Utility::webhookSetting($module);
 
                 DB::commit();
+                if ($request->ajax()) {
+                    return response()->json(['success' => true, 'message' => __('Invoice successfully created.')]);
+                }
                 return redirect()->route('invoice.index', $invoice->id)->with('success', __('Invoice successfully created.'));
             } catch (\Exception $e) {
                 DB::rollback();
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage()]);
+                }
                 dd($e);
                 return redirect()->back()->with('error', 'Something went wrong !');
             }
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
@@ -742,6 +758,9 @@ class InvoiceController extends Controller
             // $cust = Customer::find($invoice->customer_id);
             // $cont = Contract::where('company_id', $cust->company_id)->get();
 
+            if (request()->ajax()) {
+                return view('invoice.edit', compact('product_services', 'invoice', 'invoice_number', 'store_from', 'store_to', 'customFields'))->renderSections()['content'] ?? '';
+            }
             return view('invoice.edit', compact('product_services', 'invoice', 'invoice_number', 'store_from', 'store_to', 'customFields'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
@@ -765,6 +784,9 @@ class InvoiceController extends Controller
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
 
+                    if ($request->ajax()) {
+                        return response()->json(['success' => false, 'message' => $messages->first()]);
+                    }
                     return redirect()->route('invoice.index')->with('error', $messages->first());
                 }
 
@@ -779,6 +801,9 @@ class InvoiceController extends Controller
                 // Utility::starting_number( $invoice->invoice_id + 1, 'invoice');
                 CustomField::saveData($invoice, $request->customField);
                 $products = $request->items;
+                // Track existing items to detect removals
+                $existingIds = InvoiceProduct::where('invoice_id', $invoice->id)->pluck('id')->toArray();
+                $submittedIds = [];
                 $data = [];
                 $newitems = $request->items;
                 for ($i = 0; $i < count($products); $i++) {
@@ -829,6 +854,7 @@ class InvoiceController extends Controller
                     $invoiceProduct->price = $products[$i]['price'];
                     $invoiceProduct->type = $products[$i]['type'] ?? 'new';
                     $invoiceProduct->save();
+                    $submittedIds[] = $invoiceProduct->id;
 
                     // Deduct new stock based on type
                     $product = ProductService::find($products[$i]['item']);
@@ -880,14 +906,24 @@ class InvoiceController extends Controller
                 $data['items'] = $newitems;
 
                 // $dataret = Utility::invoicejv($data);
+                if ($request->ajax()) {
+                    return response()->json(['success' => true, 'message' => __('Invoice successfully updated.')]);
+                }
                 return redirect()->route('invoice.index')->with('success', __('Invoice successfully updated.'));
             } else {
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+                }
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
+
 
 
     function invoiceNumber()
@@ -2144,6 +2180,40 @@ class InvoiceController extends Controller
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+    public function draftBranchPurchases(\Illuminate\Http\Request $request)
+    {
+        $storeToId = $request->get('store_to');
+        if (!$storeToId) {
+            $purchases = collect();
+        } else {
+            $warehouse = \App\Models\Warehouse::find($storeToId);
+            if ($warehouse && $warehouse->owned_by) {
+                $purchases = \App\Models\BranchPurchase::with('vender')
+                    ->where('branch_id', $warehouse->owned_by)
+                    ->where('invoice_converted', 0)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } else {
+                $purchases = collect();
+            }
+        }
+        return view('invoice.draft_branch_purchases', compact('purchases'));
+    }
+
+    public function branchPurchaseItems($id)
+    {
+        $purchase = \App\Models\BranchPurchase::with('items.product')->findOrFail($id);
+        $items = $purchase->items->map(function ($item) {
+            return [
+                'product_id' => $item->product_id,
+                'quantity' => $item->quantity,
+                'price' => $item->price,
+                'description' => $item->description,
+                'type' => 'new',
+            ];
+        });
+        return response()->json($items);
     }
 
 }

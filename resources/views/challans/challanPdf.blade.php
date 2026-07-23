@@ -636,6 +636,7 @@
                                         CALCULATED AND CHARGED BY THE BANK / Branch AFTER DUE DATE</div>
                                     <div style="font-size: 0.75rem;">2. ANY ERROR IN THE CALCULATION OF FINE BY THE BANK / Branch
                                         WILL BE ADJUSTED IN THE NEXT FEE BILL</div>
+									<div style="font-size: 0.75rem;">3. IN CASE THE MONTHLY FEE IS NOT SETTLED IN FULL, A DAILY LATE SURCHARGE WILL BE APPLICABLE AFTER THE DUE DATE.</div>	
                                 </div>
                             @endif
 
@@ -887,6 +888,7 @@
                                         CALCULATED AND CHARGED BY THE BANK / Branch AFTER DUE DATE</div>
                                     <div style="font-size: 0.75rem;">2. ANY ERROR IN THE CALCULATION OF FINE BY THE BANK / Branch
                                         WILL BE ADJUSTED IN THE NEXT FEE BILL</div>
+									<div style="font-size: 0.75rem;">3. IN CASE THE MONTHLY FEE IS NOT SETTLED IN FULL, A DAILY LATE SURCHARGE WILL BE APPLICABLE AFTER THE DUE DATE.</div>
                                 </div>
                             @endif
 
@@ -1149,6 +1151,7 @@
                                         CALCULATED AND CHARGED BY THE BANK / Branch AFTER DUE DATE</div>
                                     <div style="font-size: 0.75rem;">2. ANY ERROR IN THE CALCULATION OF FINE BY THE BANK / Branch
                                         WILL BE ADJUSTED IN THE NEXT FEE BILL</div>
+									<div style="font-size: 0.75rem;">3. IN CASE THE MONTHLY FEE IS NOT SETTLED IN FULL, A DAILY LATE SURCHARGE WILL BE APPLICABLE AFTER THE DUE DATE.</div>
                                 </div>
                             @endif
 

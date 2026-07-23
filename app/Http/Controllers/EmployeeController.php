@@ -990,19 +990,7 @@ public function employeedesiganddeprtment(Request $request)
 
     public function getdepartment(Request $request)
     {
-        if (Auth::user()->type == 'company') {
-            if ($request->branch_id == 0) {
-                $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id')->toArray();
-            } else {
-                $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->where('branch_id', $request->branch_id)->get()->pluck('name', 'id')->toArray();
-            }
-        } else {
-            if ($request->branch_id == 0) {
-                $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id')->toArray();
-            } else {
-                $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->where('branch_id', $request->branch_id)->get()->pluck('name', 'id')->toArray();
-            }
-        }
+        $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id')->toArray();
 
         return response()->json($departments);
     }

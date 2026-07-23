@@ -22,7 +22,7 @@
             </div>
         @endif
 
-        {!! Form::open(['route' => 'registration.store', 'method' => 'POST']) !!}
+        {!! Form::open(['route' => 'registration.store', 'method' => 'POST', 'novalidate' => 'novalidate']) !!}
         {!! csrf_field() !!}
         <div class="form-group">
             <div class="row">
@@ -91,8 +91,20 @@
                     {{ Form::text('fatherprofession', null, ['class' => 'form-control']) }}
                 </div>
                 <div class="col-md-6">
+                    {{ Form::label('father_email', __('Father Email'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
+                    {{ Form::email('father_email', null, ['class' => 'form-control', 'required' => 'required']) }}
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="row">
+                <div class="col-md-6">
                     {{ Form::label('city', __('City'), ['class' => 'form-label']) }}
                     {{ Form::text('city', null, ['class' => 'form-control']) }}
+                </div>
+                <div class="col-md-6">
+                    {{ Form::label('email', __('Email'), ['class' => 'form-label']) }}
+                    {{ Form::email('email', null, ['class' => 'form-control', 'placeholder' => __('Email')]) }}
                 </div>
             </div>
         </div>
@@ -117,18 +129,25 @@
                     {{ Form::text('motherprofession', null, ['class' => 'form-control']) }}
                 </div>
                 <div class="col-md-6">
-                    {{ Form::label('prevschool', __('Previous School'), ['class' => 'form-label']) }}
-                    {{ Form::text('prevschool', null, ['class' => 'form-control', 'placeholder' => __('Previous School')]) }}
+                    {{ Form::label('mother_email', __('Mother Email'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
+                    {{ Form::email('mother_email', null, ['class' => 'form-control', 'required' => 'required']) }}
                 </div>
-
             </div>
         </div>
         <div class="form-group">
             <div class="row">
                 <div class="col-md-6">
+                    {{ Form::label('prevschool', __('Previous School'), ['class' => 'form-label']) }}
+                    {{ Form::text('prevschool', null, ['class' => 'form-control', 'placeholder' => __('Previous School')]) }}
+                </div>
+                <div class="col-md-6">
                     {{ Form::label('prevclass', __('Previous Class'), ['class' => 'form-label']) }}
                     {{ Form::text('prevclass', null, ['class' => 'form-control', 'placeholder' => __('Previous Class')]) }}
                 </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="row">
                 <div class="col-md-6">
                     {!! Form::label('register_option', __('Register Option'), ['class' => 'form-label']) !!}<span style="color: red"> *</span>
                     {!! Form::select('register_option', $registerOption, null, [
@@ -136,15 +155,10 @@
                         'required' => 'required',
                     ]) !!}
                 </div>
-                
-
-                {{-- Hidden wrapper for additional fields --}}
-
-
-                {{-- <div class="col-md-6">
-                {{ Form::label('email', __('Email'), ['class' => 'form-label']) }}
-                {{ Form::email('email', null, ['class' => 'form-control', 'placeholder' => __('Email')]) }}
-            </div> --}}
+                <div class="col-md-6">
+                    {{ Form::label('remarks', __('Remarks'), ['class' => 'form-label']) }}
+                    {{ Form::textarea('remarks', null, ['class' => 'form-control', 'rows' => 1]) }}
+                </div>
             </div>
         </div>
         @php
@@ -204,19 +218,76 @@
         </div>
         <div class="form-group">
             <div class="row">
-
-                <div class="col-md-6">
-                    {{ Form::label('address', __('Address'), ['class' => 'form-label']) }}
-                    {{ Form::textarea('address', null, ['class' => 'form-control', 'rows' => 1, 'placeholder' => __('Address'), 'style' => 'text-transform: uppercase;']) }}
+                <div class="col-md-12">
+                    <h6>{{ __('Present Address') }}</h6>
                 </div>
-
-                <div class="col-md-6">
-                    {!! Form::label('remarks', __('Remarks'), ['class' => 'form-label']) !!}
-                    {!! Form::textarea('remarks', null, ['class' => 'form-control', 'rows' => 1]) !!}
+                <div class="col-md-4">
+                    {{ Form::label('present_house', __('House #'), ['class' => 'form-label']) }}
+                    {{ Form::text('present_house', null, ['class' => 'form-control', 'id' => 'presentHouse', 'placeholder' => __('House No')]) }}
+                </div>
+                <div class="col-md-4">
+                    {{ Form::label('present_street', __('Street'), ['class' => 'form-label']) }}
+                    {{ Form::text('present_street', null, ['class' => 'form-control', 'id' => 'presentStreet', 'placeholder' => __('Street')]) }}
+                </div>
+                <div class="col-md-4">
+                    {{ Form::label('present_area', __('Area'), ['class' => 'form-label']) }}
+                    {{ Form::text('present_area', null, ['class' => 'form-control', 'id' => 'presentArea', 'placeholder' => __('Area')]) }}
                 </div>
             </div>
         </div>
-        <br>
+        <div class="form-group">
+            <div class="row">
+                <div class="col-md-4">
+                    {{ Form::label('present_sector', __('Sector'), ['class' => 'form-label']) }}
+                    {{ Form::text('present_sector', null, ['class' => 'form-control', 'id' => 'presentSector', 'placeholder' => __('Sector')]) }}
+                </div>
+                <div class="col-md-4">
+                    {{ Form::label('present_city_addr', __('City'), ['class' => 'form-label']) }}
+                    {{ Form::text('present_city_addr', null, ['class' => 'form-control', 'id' => 'presentCityAddr', 'placeholder' => __('City')]) }}
+                </div>
+                <div class="col-md-4">
+                    {{ Form::label('present_district_addr', __('District'), ['class' => 'form-label']) }}
+                    {{ Form::text('present_district_addr', null, ['class' => 'form-control', 'id' => 'presentDistrictAddr', 'placeholder' => __('District')]) }}
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="row">
+                <div class="col-md-12">
+                    <button type="button" id="copyAddressBtn" class="btn btn-sm btn-info mb-2">Same As Present Address</button>
+                    <h6>{{ __('Permanent Address') }}</h6>
+                </div>
+                <div class="col-md-4">
+                    {{ Form::label('permanent_house', __('House #'), ['class' => 'form-label']) }}
+{{ Form::text('permanent_house', null, ['class' => 'form-control', 'id' => 'permanentHouse', 'placeholder' => __('House No')]) }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ Form::label('permanent_street', __('Street'), ['class' => 'form-label']) }}
+                                {{ Form::text('permanent_street', null, ['class' => 'form-control', 'id' => 'permanentStreet', 'placeholder' => __('Street')]) }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ Form::label('permanent_area', __('Area'), ['class' => 'form-label']) }}
+                                {{ Form::text('permanent_area', null, ['class' => 'form-control', 'id' => 'permanentArea', 'placeholder' => __('Area')]) }}
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="row">
+                <div class="col-md-4">
+                    {{ Form::label('permanent_sector', __('Sector'), ['class' => 'form-label']) }}
+{{ Form::text('permanent_sector', null, ['class' => 'form-control', 'id' => 'permanentSector', 'placeholder' => __('Sector')]) }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ Form::label('permanent_city_addr', __('City'), ['class' => 'form-label']) }}
+                                {{ Form::text('permanent_city_addr', null, ['class' => 'form-control', 'id' => 'permanentCityAddr', 'placeholder' => __('City')]) }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ Form::label('permanent_district_addr', __('District'), ['class' => 'form-label']) }}
+                                {{ Form::text('permanent_district_addr', null, ['class' => 'form-control', 'id' => 'permanentDistrictAddr', 'placeholder' => __('District')]) }}
+                </div>
+            </div>
+        </div>
+
         <div class="form-group">
                     <div class="form-check">
                         {!! Form::checkbox('legal_custody', 1, false, [
@@ -514,7 +585,43 @@
                 });
             }, 2000); // Delay of 1000 milliseconds (1 second)
         });
-    </script>
 
+        document.getElementById('copyAddressBtn').addEventListener('click', function() {
+            var ids = ['House', 'Street', 'Area', 'Sector', 'CityAddr', 'DistrictAddr'];
+            ids.forEach(function(id) {
+                var src = document.getElementById('present' + id);
+                var dst = document.getElementById('permanent' + id);
+                if (src && dst) {
+                    dst.value = src.value;
+                }
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            $('[required]').each(function() {
+                var label = $(this).closest('.form-group').find('label').first();
+                if (label.length && !label.find('.required-star').length && label.text().indexOf('*') === -1 && !label.next().is('span[style*="color:red"], span[style*="color: red"]')) {
+                    label.append('<span class="required-star" style="color:red"> *</span>');
+                }
+            });
+
+            $('form').on('submit', function(e) {
+                var valid = true;
+                $(this).find('[required]').each(function() {
+                    if (!$(this).val()) {
+                        $(this).css('border-color', 'red');
+                        valid = false;
+                    } else {
+                        $(this).css('border-color', '');
+                    }
+                });
+                if (!valid) {
+                    e.preventDefault();
+                    show_toastr('error', 'Please fill all required fields', 'error');
+                }
+            });
+        });
+    </script>
 
 @endsection

@@ -168,7 +168,7 @@
     <table>
         <thead>
             <tr>
-                <th colspan="7">Student Information</th>
+                <th colspan="8">Student Information</th>
                 <th colspan="3">Monthly Fee</th>
                 @foreach ($heads as $head)
                     <th colspan="3">{{ $head->fee_head }}</th>
@@ -188,6 +188,7 @@
 				<th>Admission Date</th>
                 <th>Reg Type</th>
                 <th>Class</th>
+                <th>Section</th>
                 <th>Billing Month</th>
                 <th>Challan Type</th>
                 <th>Rs.</th>
@@ -270,7 +271,7 @@
 						<td>{{ $stu['adm_date'] ? \Carbon\Carbon::parse($stu['adm_date'])->format('d-M-Y') : '-' }}</td>
                         <td>{{ $stu['registration_type'] }}</td>
                         <td>{{ $stu['class_name'] }}</td>
-
+                        <td>{{ $stu['section_name'] }}</td>
                         {{-- ↓ Raw Y-m-d so export class converts to Excel date serial --}}
                         <td>{{ \Carbon\Carbon::parse($dateInput)->format('Y-M') }}</td>
 

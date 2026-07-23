@@ -80,19 +80,27 @@ class EmployeeTransferController extends Controller
                 $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
+                
+                $from_branches = $branches;
+                $to_branches = $branches;
+                
                 $employees = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $employees->prepend('Select Employee', '');
             } else {
-                $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $departments->prepend('Select Department', '');
-                $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $designations->prepend('Select Designation', '');
-                $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $branches->prepend('Select Branch', '');
+                
+                $from_branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                
+                $to_branches = User::where('type', '=', 'branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $to_branches->prepend('Select Branch', '');
+                
                 $employees = Employee::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $employees->prepend('Select Employee', '');
             }
-            return view('employee.transfer.create', compact('designations', 'employees', 'departments', 'branches'));
+            return view('employee.transfer.create', compact('designations', 'employees', 'departments', 'from_branches', 'to_branches'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -176,20 +184,32 @@ public function print($id)
             if (Auth::user()->type == 'company') {
                 $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $departments->prepend('Select Department', '');
+                $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $designations->prepend('Select Designation', '');
                 $branches = User::where('type', '=', 'branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
+                
+                $from_branches = $branches;
+                $to_branches = $branches;
+                
                 $employees = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $employees->prepend('Select Employee', '');
             } else {
-                $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $departments->prepend('Select Department', '');
-                $branches = User::where('type', '=', 'branch')->where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $branches->prepend('Select Branch', '');
+                $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $designations->prepend('Select Designation', '');
+                
+                $from_branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                
+                $to_branches = User::where('type', '=', 'branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $to_branches->prepend('Select Branch', '');
+                
                 $employees = Employee::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $employees->prepend('Select Employee', '');
             }
             $transfer = EmployeeTransfer::where('id', $id)->first();
-            return view('employee.transfer.edit', compact('transfer', 'employees', 'departments', 'branches'));
+            return view('employee.transfer.edit', compact('transfer', 'employees', 'departments', 'from_branches', 'to_branches', 'designations'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }

@@ -3386,7 +3386,7 @@ class Utility extends Model
             'edit daily cash closing',
             'delete daily cash closing',
             'approve daily cash closing',
-            'manage head imprest',
+             'manage head imprest',
             'create head imprest',
             'show head imprest',
             'edit head imprest',
@@ -3465,7 +3465,7 @@ class Utility extends Model
             'edit daily cash closing',
             'delete daily cash closing',
             'approve daily cash closing',
-            'manage head imprest',
+             'manage head imprest',
             'create head imprest',
             'show head imprest',
             'edit head imprest',
@@ -3848,7 +3848,7 @@ class Utility extends Model
     }
 
     // add quantity in product stock
-    public static function addProductStock($product_id, $quantity, $type, $description, $type_id)
+    public static function addProductStock($product_id, $quantity, $type, $description, $type_id, $extra = [])
     {
         $stocks = new StockReport;
         $stocks->product_id = $product_id;
@@ -3860,6 +3860,13 @@ class Utility extends Model
         if (Schema::hasColumn('stock_reports', 'owned_by')) {
             $stocks->owned_by = \Auth::user()->ownedId();
         }
+
+        if(isset($extra['warehouse_id'])) $stocks->warehouse_id = $extra['warehouse_id'];
+        if(isset($extra['unit_price'])) $stocks->unit_price = $extra['unit_price'];
+        if(isset($extra['sale_price'])) $stocks->sale_price = $extra['sale_price'];
+        if(isset($extra['remaining_qty'])) $stocks->remaining_qty = $extra['remaining_qty'];
+        if(isset($extra['condition'])) $stocks->condition = $extra['condition'];
+
         $stocks->save();
     }
 
@@ -5973,7 +5980,7 @@ class Utility extends Model
         DB::beginTransaction();
         try {
             $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->latest()->first();
-            if (! $latest) {
+            if (!$latest) {
                 $latest = 1;
             } else {
                 $latest = $latest->journal_id + 1;
@@ -5983,7 +5990,7 @@ class Utility extends Model
             $journal->journal_id = $latest;
             $journal->date = $data['date'];
             $journal->reference = $data['reference'];
-            $journal->description = 'Challan no : '.@$data['no'];
+            $journal->description = 'Challan no : ' . @$data['no'];
             $journal->reference_id = $data['id'];
             $journal->category = $data['category'];
             $journal->voucher_type = 'JV';
@@ -6001,9 +6008,12 @@ class Utility extends Model
                 $journalItem->journal = $journal->id;
                 $journalItem->account = @$account_name->id;
                 $journalItem->head = $data['items'][$i]['head'];
-                $journalItem->description = 'Adjust of Challan no : '.@$data['no'];
+                $journalItem->description = 'Adjust of Challan no : ' . @$data['no'];
                 $journalItem->credit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['concession'];
                 $journalItem->debit = 0;
+                $journalItem->user_id = @$data['user_id'];
+                $journalItem->user_type = 'student';
+                $journalItem->types = 'challan adjustment';
                 $journalItem->save();
             }
 
@@ -6013,9 +6023,12 @@ class Utility extends Model
             $journalItem->journal = $journal->id;
             $journalItem->account = @$account_sec->id;
             $journalItem->head = $head->id;
-            $journalItem->description = 'Adjust on Challan no : '.@$data['no'];
+            $journalItem->description = 'Adjust on Challan no : ' . @$data['no'];
             $journalItem->credit = 0;
             $journalItem->debit = $data['total'];
+            $journalItem->user_id = @$data['user_id'];
+            $journalItem->user_type = 'student';
+            $journalItem->types = 'challan adjustment';
             $journalItem->save();
 
             DB::commit();
@@ -6171,10 +6184,9 @@ class Utility extends Model
     //     return 'true';
     // }
 
-
-public static function brv_entry($data)
+    public static function brv_entry($data, $updateBankBalance = true)
     {
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data, $updateBankBalance) {
 
             $voucherType = 'BRV';
 
@@ -6240,7 +6252,7 @@ public static function brv_entry($data)
                         'head' => $item['head'],
                         'entry_id' => $item['prod_id'] ?? null,
                         'bank_id' => $data['bank_id'],
-                        'user_id' => $data['user_id'],
+                    'user_id' => $data['user_id'] ?? null,
                         'user_type' => 'Student',
                         'types' => 'Challan Payment',
                         'branch_id' => $data['branch_id'] ?? null,
@@ -6282,7 +6294,7 @@ public static function brv_entry($data)
                 ]);
             }
 
-            if (!empty($data['bank_id']) && $data['total'] > 0) {
+            if ($updateBankBalance && !empty($data['bank_id']) && $data['total'] > 0) {
                 self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
             }
 
@@ -6290,9 +6302,9 @@ public static function brv_entry($data)
         });
     }
 
-    public static function crv_entry($data)
+    public static function crv_entry($data, $updateBankBalance = true)
     {
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data, $updateBankBalance) {
 
             $voucherType = 'CRV';
 
@@ -6390,6 +6402,8 @@ public static function brv_entry($data)
                     'account' => $data['account_id'],
                     'bank_id' => $data['bank_id'],
                     'branch_id' => $data['branch_id'] ?? null,
+					'user_type' => 'Student',
+                    'user_id' => $data['user_id'] ?? null,
                     'types' => 'Challan Payment',
                     'description' => 'Receive of Challan no: ' . $data['no'] . ' - Bank: ' . $data['bank_name'],
                     'credit' => 0,
@@ -6399,7 +6413,7 @@ public static function brv_entry($data)
                 ]);
             }
 
-            if (!empty($data['bank_id']) && $data['total'] > 0) {
+            if ($updateBankBalance && !empty($data['bank_id']) && $data['total'] > 0) {
                 self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
             }
 
@@ -6995,7 +7009,6 @@ public static function brv_entry($data)
         $journal->save();
 
         $payable = 0;
-        $tax = 0;
 
         for ($i = 0; $i < count($data['items']); $i++) {
             $product = ProductService::where('id', $data['items'][$i]['item'])->first();
@@ -7011,22 +7024,7 @@ public static function brv_entry($data)
             $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['discount'];
             $journalItem->save();
             $payable += ((floatval($data['items'][$i]['quantity']) * floatval($data['items'][$i]['price'])) - $data['items'][$i]['discount']);
-            $tax += floatval($data['items'][$i]['itemTaxPrice']);
 
-            $taxes = Tax::where('id', $product->tax_id)->first();
-            if ($taxes) {
-                $journalItem = new JournalItem;
-                $journalItem->journal = $journal->id;
-                $journalItem->account = @$taxes->account_expance ?? 0;
-                $journalItem->types = @$data['category'];
-                $journalItem->description = 'Tax on '.$product->id;
-                $journalItem->head_ids = $product->id;
-                $journalItem->branch_id = $data['owned_by'];
-                $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['discount'];
-                $journalItem->credit = 0;
-                // dd($journalItem,$taxes);
-                $journalItem->save();
-            }
         }
 
         if (! empty($data['vender_account'])) {

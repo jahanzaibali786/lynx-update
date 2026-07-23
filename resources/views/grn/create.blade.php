@@ -11,7 +11,12 @@
 @endsection
 
 @section('content')
-    {{ Form::open(['route' => 'grn.store', 'method' => 'POST', 'id' => 'grn-form']) }}
+    {{ Form::open(['route' => 'grn.store', 'method' => 'POST', 'id' => 'grn-form', 'class' => 'grn-ajax-form', 'novalidate' => true]) }}
         @include('grn.form', ['grn' => null])
     {{ Form::close() }}
+    <script>
+        $(document).ready(function () {
+            ajaxModalForm({ formSelector: '.grn-ajax-form', submitText: '{{ __('Creating...') }}', onSuccess: function (r) { $.ajax({ url: window.location.href, cache: false, dataType: 'html', success: function(html) { var el = new DOMParser().parseFromString(html, 'text/html').getElementById('content-area'); if (el) { document.getElementById('content-area').innerHTML = el.innerHTML; try { common_bind(); commonLoader(); } catch(e){} } else { location.reload(); } }, error: function() { location.reload(); } }); } });
+        });
+    </script>
 @endsection

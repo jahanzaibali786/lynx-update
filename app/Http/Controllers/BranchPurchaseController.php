@@ -87,6 +87,10 @@ class BranchPurchaseController extends Controller
             ->where('created_by', $user->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
         $product_services->prepend('Select Item', '');
 
+        if (request()->ajax()) {
+            return view('branchpurchase.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse'))->renderSections()['content'] ?? '';
+        }
+
         return view('branchpurchase.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse'));
     }
 
@@ -95,6 +99,9 @@ class BranchPurchaseController extends Controller
         $user = \Auth::user();
 
         if ($user->type == 'company' && !$user->can('create purchase')) {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -111,6 +118,9 @@ class BranchPurchaseController extends Controller
             );
             if ($validator->fails()) {
                 $messages = $validator->getMessageBag();
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => $messages->first()]);
+                }
                 return redirect()->back()->with('error', $messages->first());
             }
 
@@ -120,7 +130,7 @@ class BranchPurchaseController extends Controller
             $branchPurchase->warehouse_id = $request->warehouse_id;
             $branchPurchase->purchase_date = $request->purchase_date;
             $branchPurchase->category_id = $request->category_id;
-            $branchPurchase->status = 0;
+            $branchPurchase->status = 5;
             $branchPurchase->created_by = $user->creatorId();
             $branchPurchase->owned_by = $user->ownedId();
             $branchPurchase->save();
@@ -139,9 +149,15 @@ class BranchPurchaseController extends Controller
             }
 
             DB::commit();
-            return redirect()->route('branchpurchase.show', Crypt::encrypt($branchPurchase->id))->with('success', __('Branch Purchase successfully created.'));
+            if ($request->ajax()) {
+                return response()->json(['success' => true, 'message' => __('Branch Purchase successfully created and sent to Head Office.')]);
+            }
+            return redirect()->route('branchpurchase.show', Crypt::encrypt($branchPurchase->id))->with('success', __('Branch Purchase successfully created and sent to Head Office.'));
         } catch (\Exception $e) {
             DB::rollback();
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()]);
+            }
             return redirect()->back()->with('error', $e->getMessage());
         }
     }
@@ -196,6 +212,16 @@ class BranchPurchaseController extends Controller
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
+        $canEditCurrentStatus = (
+            $user->type == 'company' && in_array($branchPurchase->status, [0, 5])
+        ) || (
+            $user->type == 'branch' && $branchPurchase->branch_id == $user->id && $branchPurchase->status == 0
+        );
+
+        if (!$canEditCurrentStatus) {
+            return response()->json(['error' => __('Branch Purchase cannot be edited in current status.')], 401);
+        }
+
         $warehouse = warehouse::where('owned_by', $user->creatorId())->get()->pluck('name', 'id');
         $purchase_number = $user->purchaseNumberFormat($branchPurchase->branch_purchase_no);
 
@@ -214,6 +240,10 @@ class BranchPurchaseController extends Controller
         $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
             ->where('created_by', $user->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
 
+        if (request()->ajax()) {
+            return view('branchpurchase.edit', compact('branches', 'product_services', 'branchPurchase', 'warehouse', 'purchase_number'))->renderSections()['content'] ?? '';
+        }
+
         return view('branchpurchase.edit', compact('branches', 'product_services', 'branchPurchase', 'warehouse', 'purchase_number'));
     }
 
@@ -223,19 +253,37 @@ class BranchPurchaseController extends Controller
         $branchPurchase = BranchPurchase::find($id);
 
         if (!$branchPurchase || $branchPurchase->created_by != $user->creatorId()) {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
         if ($user->type == 'company' && !$user->can('edit purchase')) {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
         if ($user->type == 'branch' && $branchPurchase->branch_id != $user->id) {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($branchPurchase->status > 0) {
-            return redirect()->route('branchpurchase.index')->with('error', __('Branch Purchase items cannot be changed after submission.'));
+        $canEditCurrentStatus = (
+            $user->type == 'company' && in_array($branchPurchase->status, [0, 5])
+        ) || (
+            $user->type == 'branch' && $branchPurchase->branch_id == $user->id && $branchPurchase->status == 0
+        );
+
+        if (!$canEditCurrentStatus) {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Branch Purchase cannot be edited in current status.')]);
+            }
+            return redirect()->route('branchpurchase.index')->with('error', __('Branch Purchase cannot be edited in current status.'));
         }
 
         DB::beginTransaction();
@@ -250,6 +298,9 @@ class BranchPurchaseController extends Controller
             );
             if ($validator->fails()) {
                 $messages = $validator->getMessageBag();
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => $messages->first()]);
+                }
                 return redirect()->route('branchpurchase.index')->with('error', $messages->first());
             }
 
@@ -262,18 +313,18 @@ class BranchPurchaseController extends Controller
             $newItemIds = [];
 
             foreach ($request->items as $product) {
-                if (!empty($product['id']) && $product['id'] != '0') {
-                    $item = BranchPurchaseItem::find($product['id']);
-                    if ($item) {
-                        if (isset($product['item'])) $item->product_id = $product['item'];
-                        $item->quantity = $product['quantity'];
-                        $item->tax = $product['tax'] ?? 0;
-                        $item->discount = $product['discount'] ?? 0;
-                        $item->price = $product['price'];
-                        $item->description = $product['description'] ?? '';
-                        $item->save();
-                        $newItemIds[] = $item->id;
-                    }
+                $itemId = $product['id'] ?? 0;
+                // Treat as new item if ID is 0, '0', or doesn't exist in DB
+                $item = ($itemId > 0) ? BranchPurchaseItem::find($itemId) : null;
+                if ($item) {
+                    if (isset($product['item'])) $item->product_id = $product['item'];
+                    $item->quantity = $product['quantity'];
+                    $item->tax = $product['tax'] ?? 0;
+                    $item->discount = $product['discount'] ?? 0;
+                    $item->price = $product['price'];
+                    $item->description = $product['description'] ?? '';
+                    $item->save();
+                    $newItemIds[] = $item->id;
                 } else {
                     $item = new BranchPurchaseItem();
                     $item->branch_purchase_id = $branchPurchase->id;
@@ -295,9 +346,15 @@ class BranchPurchaseController extends Controller
             }
 
             DB::commit();
+            if ($request->ajax()) {
+                return response()->json(['success' => true, 'message' => __('Branch Purchase successfully updated.')]);
+            }
             return redirect()->route('branchpurchase.index')->with('success', __('Branch Purchase successfully updated.'));
         } catch (\Exception $e) {
             DB::rollback();
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()]);
+            }
             return redirect()->back()->with('error', $e->getMessage());
         }
     }
@@ -415,68 +472,203 @@ class BranchPurchaseController extends Controller
     public function convertToInvoice($id)
     {
         if (\Auth::user()->type != 'company') {
-            return redirect()->back()->with('error', __('Only company users can convert to Invoice.'));
+            return response()->json(['error' => __('Only company users can convert to Invoice.')], 401);
         }
 
-        $branchPurchase = BranchPurchase::find($id);
+        $branchPurchase = BranchPurchase::with(['items.product', 'branchUser'])->find($id);
         if (!$branchPurchase || $branchPurchase->created_by != \Auth::user()->creatorId()) {
-            return redirect()->back()->with('error', __('Permission denied.'));
+            return response()->json(['error' => __('Permission denied.')], 401);
         }
 
         if ($branchPurchase->status != 6) {
-            return redirect()->back()->with('error', __('Branch Purchase must be finalized before conversion.'));
+            return response()->json(['error' => __('Branch Purchase must be finalized before conversion.')], 422);
         }
 
         if ($branchPurchase->invoice_converted) {
-            return redirect()->back()->with('error', __('Already converted to Invoice.'));
+            return response()->json(['error' => __('Already converted to Invoice.')], 422);
+        }
+
+        if (!\Auth::user()->can('create invoice')) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        $mainStore = warehouse::where('owned_by', \Auth::user()->creatorId())->first();
+        $storeTo = warehouse::where('id', '!=', $mainStore ? $mainStore->id : 0)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->pluck('name', 'id');
+        $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('type', '!=', 'service')
+            ->get()
+            ->pluck('name', 'id');
+        $product_services->prepend('Select Item', '');
+
+        $invoice_number = \Auth::user()->invoiceNumberFormat($this->branchPurchaseInvoiceNumber());
+        $issueDate = date('Y-m-d');
+        $dueDate = date('Y-m-d');
+        $selectedStoreTo = $branchPurchase->warehouse_id;
+        $conversionItems = $branchPurchase->items->map(function ($item) {
+            $product = $item->product;
+            $quantity = (float) ($item->shipped_quantity ?: $item->quantity);
+
+            return [
+                'id' => $item->id,
+                'item_id' => $item->product_id,
+                'item_name' => $product ? trim(($product->sku ? $product->sku . ' - ' : '') . $product->name) : '',
+                'quantity' => $quantity,
+                'price' => (float) $item->price,
+                'discount' => (float) ($item->discount ?? 0),
+                'tax' => $item->tax ?? '',
+                'type' => 'new',
+                'unit' => $product && $product->unit() ? $product->unit()->name : '',
+                'amount' => ($quantity * (float) $item->price) - (float) ($item->discount ?? 0),
+                'description' => $item->description ?? '',
+                'source' => __('Branch Purchase'),
+            ];
+        })->values();
+
+        $view = view('branchpurchase.convert_to_invoice', compact(
+            'branchPurchase',
+            'mainStore',
+            'storeTo',
+            'product_services',
+            'invoice_number',
+            'issueDate',
+            'dueDate',
+            'selectedStoreTo',
+            'conversionItems'
+        ));
+
+        if (request()->ajax()) {
+            return $view->renderSections()['content'] ?? '';
+        }
+
+        return $view;
+    }
+
+    public function storeConvertedInvoice(Request $request, $id)
+    {
+        if (\Auth::user()->type != 'company') {
+            return response()->json(['success' => false, 'message' => __('Only company users can convert to Invoice.')]);
+        }
+
+        if (!\Auth::user()->can('create invoice')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+        }
+
+        $branchPurchase = BranchPurchase::with('items')->find($id);
+        if (!$branchPurchase || $branchPurchase->created_by != \Auth::user()->creatorId()) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+        }
+
+        if ($branchPurchase->status != 6) {
+            return response()->json(['success' => false, 'message' => __('Branch Purchase must be finalized before conversion.')]);
+        }
+
+        if ($branchPurchase->invoice_converted) {
+            return response()->json(['success' => false, 'message' => __('Already converted to Invoice.')]);
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'issue_date' => 'required|date',
+            'due_date' => 'required|date',
+            'store_from' => 'required',
+            'store_to' => 'required',
+            'items' => 'required|array|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->getMessageBag()->first()]);
         }
 
         DB::beginTransaction();
         try {
-            $branch = $branchPurchase->branchUser;
-            $branchName = $branch ? $branch->name : 'Branch';
-
-            $latestInvoice = Invoice::where('created_by', \Auth::user()->creatorId())->latest()->first();
-            $invoiceNo = $latestInvoice ? $latestInvoice->invoice_id + 1 : 1;
-
-            $mainStore = warehouse::where('owned_by', \Auth::user()->creatorId())->first();
-            $branchStore = $branchPurchase->warehouse_id;
-
             $invoice = new Invoice();
-            $invoice->invoice_id = $invoiceNo;
+            $invoice->invoice_id = $this->branchPurchaseInvoiceNumber();
             $invoice->customer_id = 0;
-            $invoice->issue_date = $branchPurchase->purchase_date;
-            $invoice->due_date = date('Y-m-d', strtotime($branchPurchase->purchase_date . ' +30 days'));
+            $invoice->issue_date = $request->issue_date;
+            $invoice->due_date = $request->due_date;
+            $invoice->ref_number = $request->ref_number;
             $invoice->status = 0;
             $invoice->category_id = $branchPurchase->category_id;
-            $invoice->from_store = $mainStore ? $mainStore->id : 0;
-            $invoice->to_store = $branchStore;
+            $invoice->from_store = $request->store_from;
+            $invoice->to_store = $request->store_to;
             $invoice->owned_by = \Auth::user()->ownedId();
             $invoice->created_by = \Auth::user()->creatorId();
             $invoice->save();
 
-            foreach ($branchPurchase->items as $item) {
-                $qty = $item->shipped_quantity;
+            $newitems = $request->items;
+            foreach ($request->items as $index => $item) {
+                $quantity = (float) ($item['quantity'] ?? 0);
+                $price = (float) ($item['price'] ?? 0);
+                if (empty($item['item']) || $quantity <= 0 || $price <= 0) {
+                    throw new \Exception(__('Please enter valid item, quantity and price for all rows.'));
+                }
+
                 $invoiceProduct = new InvoiceProduct();
                 $invoiceProduct->invoice_id = $invoice->id;
-                $invoiceProduct->product_id = $item->product_id;
-                $invoiceProduct->quantity = $qty;
-                $invoiceProduct->tax = $item->tax;
-                $invoiceProduct->discount = $item->discount;
-                $invoiceProduct->price = $item->price;
-                $invoiceProduct->description = $item->description;
+                $invoiceProduct->product_id = $item['item'];
+                $invoiceProduct->quantity = $quantity;
+                $invoiceProduct->tax = $item['tax'] ?? 0;
+                $invoiceProduct->discount = $item['discount'] ?? 0;
+                $invoiceProduct->price = $price;
+                $invoiceProduct->type = $item['type'] ?? 'new';
+                $invoiceProduct->description = $item['description'] ?? '';
                 $invoiceProduct->save();
+
+                $product = ProductService::find($item['item']);
+                if ($product) {
+                    $type = $item['type'] ?? 'new';
+                    if ($type === 'use') {
+                        $product->used_quantity = max(0, ($product->used_quantity ?? 0) - $quantity);
+                    } elseif ($type === 'damage') {
+                        $product->damaged_quantity = max(0, ($product->damaged_quantity ?? 0) - $quantity);
+                    } else {
+                        $product->quantity = max(0, ($product->quantity ?? 0) - $quantity);
+                    }
+                    $product->save();
+                }
+
+                Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $item['item'], $quantity);
+                $newitems[$index]['prod_id'] = $invoiceProduct->id;
             }
 
             $branchPurchase->invoice_converted = true;
             $branchPurchase->save();
 
+            $data['id'] = $invoice->id;
+            $data['no'] = $invoice->invoice_id;
+            $data['date'] = $invoice->issue_date;
+            $data['reference'] = $invoice->ref_number;
+            $data['category'] = 'Invoice';
+            $data['owned_by'] = $invoice->owned_by;
+            $data['created_by'] = $invoice->created_by;
+            $data['from_store'] = $invoice->from_store;
+            $data['to_store'] = $invoice->to_store;
+            $data['items'] = $newitems;
+            Utility::invoicejv($data);
+
             DB::commit();
-            return redirect()->route('invoice.show', Crypt::encrypt($invoice->id))->with('success', __('Branch Purchase successfully converted to Invoice.'));
+            return response()->json([
+                'success' => true,
+                'message' => __('Branch Purchase successfully converted to Invoice.'),
+                'redirect_url' => route('invoice.show', Crypt::encrypt($invoice->id)),
+            ]);
         } catch (\Exception $e) {
             DB::rollback();
-            return redirect()->back()->with('error', $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
+    }
+
+    private function branchPurchaseInvoiceNumber()
+    {
+        $latest = Invoice::where('owned_by', '=', \Auth::user()->ownedId())->latest()->first();
+
+        if (!$latest) {
+            return 1;
+        }
+
+        return $latest->invoice_id + 1;
     }
 
     public function items(Request $request)

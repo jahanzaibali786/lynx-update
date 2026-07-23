@@ -17,34 +17,45 @@ use Illuminate\Contracts\View\View;
 class StaffChildExport implements FromView, WithEvents
 {
     protected $branches;
+    protected $branchLookup;
     protected $groupedStudents;
     protected $students;
-    protected $employees;
 
-    public function __construct($branches, $students, $employees, $groupedStudents)
+    public function __construct($branches, $students, $groupedStudents = null, $branchLookup = null)
     {
         $this->branches = $branches;
-        $this->groupedStudents = $groupedStudents;
-        $this->students = $students;
-        $this->employees = $employees;
+        $this->branchLookup = $branchLookup;
+        $argCount = func_num_args();
+        if ($groupedStudents && $argCount === 3) {
+            // Excel: ($branches, $students, $groupedStudents)
+            $this->students = $students;
+            $this->groupedStudents = $groupedStudents;
+        } elseif ($groupedStudents && $argCount > 3) {
+            // PDF: ($branches, $groupedStudents, $report_name, $request, $branchLookup)
+            $this->groupedStudents = $students;
+            $this->students = $students->flatten(1);
+        } else {
+            // Fallback
+            $this->students = $students;
+            $this->groupedStudents = $groupedStudents ?? $students->groupBy('owned_by');
+        }
     }
-     public function view(): View
+
+    public function view(): View
     {
         $is_signature = false;
         $is_period = false;
         $report_name = __('Staff Child Report');
         $branch = 'All Branches';
-        // Pass
-        //  only the table-related data to the export view
         return view('student.exports.staff_child', [
             'branches' => $this->branches,
+            'branchLookup' => $this->branchLookup ?? $this->branches,
             'groupedStudents' => $this->groupedStudents,
             'is_signature' => $is_signature,
             'is_period' => $is_period,
             'report_name' => $report_name,
             'branch' => $branch,
             'students' => $this->students,
-            'employees' => $this->employees,
         ]);
     }
     public function registerEvents(): array
@@ -165,22 +176,35 @@ class StaffChildExport implements FromView, WithEvents
                 $sheet->getColumnDimension('A')->setWidth(5);
                 $sheet->getColumnDimension('B')->setWidth(5);
                 $sheet->getColumnDimension('C')->setWidth(10);
-                $sheet->getColumnDimension('D')->setWidth(15);
-                $sheet->getColumnDimension('E')->setWidth(15);
-                $sheet->getColumnDimension('F')->setWidth(15);
-                $sheet->getColumnDimension('G')->setWidth(15);
-                $sheet->getColumnDimension('H')->setWidth(20);
-                $sheet->getColumnDimension('I')->setWidth(20);
-                $sheet->getColumnDimension('J')->setWidth(15);
+                $sheet->getColumnDimension('D')->setWidth(10);
+                $sheet->getColumnDimension('E')->setWidth(12);
+                $sheet->getColumnDimension('F')->setWidth(18);
+                $sheet->getColumnDimension('G')->setWidth(12);
+                $sheet->getColumnDimension('H')->setWidth(22);
+                $sheet->getColumnDimension('I')->setWidth(15);
+                $sheet->getColumnDimension('J')->setWidth(12);
                 $sheet->getColumnDimension('K')->setWidth(12);
+                $sheet->getColumnDimension('L')->setWidth(12);
+                $sheet->getColumnDimension('M')->setWidth(10);
+                $sheet->getColumnDimension('N')->setWidth(12);
+                $sheet->getColumnDimension('O')->setWidth(20);
 
                 // style col font size 8px and align center
                 $sheet->getStyle("A8:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("D8:F{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("H8:J{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("F8:F{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("H8:I{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle("L8:N{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                 $sheet->getStyle("L8:N{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0');
                 $sheet->getStyle("A8:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
+
+                // Left-align branch header rows (merged cells spanning A-O with no data in column B)
+                for ($row = 8; $row <= $lastDataRow; $row++) {
+                    $valA = $sheet->getCell("A{$row}")->getValue();
+                    $valB = $sheet->getCell("B{$row}")->getValue();
+                    if ($valA !== null && $valA !== '' && ($valB === null || $valB === '')) {
+                        $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    }
+                }
             },
         ];
     }

@@ -226,32 +226,11 @@ class EmployeeSettlementController extends Controller
         } else {
             $service_tenure = $months . ' Months';
         }
-        $payscale = @$employee->employee_payscale_details->last();
-        $today = $resign_date->copy();
-        $previous_month_25th = $resign_date->copy()->subMonth()->day(25);
-        if ($today->day > 25) {
-            $start_date = $today->copy()->day(25);
-            $nextMonth = $resign_date->copy()->addMonth();
-            $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
-                'employee_id',
-                $employee->id,
-            )
-                ->whereMonth('salary_date', $nextMonth->month)
-                ->whereYear('salary_date', $nextMonth->year)
-                ->first();
-        } else {
-            $start_date = $today->copy()->subMonth()->day(25);
-            $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where('employee_id', $employee->id)
-                ->whereMonth('salary_date', $resign_date->month)
-                ->whereYear('salary_date', $resign_date->year)
-                ->first();
-        }
-        if ($existingslaryforthismonth) {
-            $total_days = 0;
-        } else {
-            $total_days = $today->diffInDays($start_date);
-        }
-        $total_days_in_month = $resign_date->daysInMonth;
+         $payscale = @$employee->employee_payscale_details->last();
+            $settlementDays = $this->calculateFinalSettlementDays($employee);
+            $total_days = $settlementDays['working_days'];
+            $total_days_in_month = $settlementDays['days_in_month'];
+
         $security_amnt = 0;
         if($request->adjustment_labels){
             //get sec lebel
@@ -560,6 +539,20 @@ class EmployeeSettlementController extends Controller
         DB::beginTransaction();
         try {
             $employee_final_settlement = EmployeeFinalSettlement::findOrFail($id);
+            $employee = Employee::findOrFail($employee_final_settlement->emp_id);
+            $settlementDays = $this->calculateFinalSettlementDays($employee);
+
+            $employee_final_settlement->working_days = $settlementDays['working_days'];
+            if ($request->filled('total_payable')) {
+                $employee_final_settlement->payable = $request->total_payable;
+            }
+            $employee_final_settlement->save();
+
+            foreach ($employee_final_settlement->finalsettlementHeads as $head) {
+                $head->earned_value = ($head->head_value * $settlementDays['working_days']) / $settlementDays['days_in_month'];
+                $head->save();
+            }
+
             EmpFinalSettlementAdjDed::where('final_settlement_id', $id)->delete();
             foreach ($request->adjustment_labels as $index => $label) {
                 EmpFinalSettlementAdjDed::create([
@@ -718,9 +711,16 @@ class EmployeeSettlementController extends Controller
         DB::beginTransaction();
         try {
             $employee_final_settlement = EmployeeFinalSettlement::findOrFail($request->id);
+            $employee = Employee::findOrFail($employee_final_settlement->emp_id);
+            $settlementDays = $this->calculateFinalSettlementDays($employee);
+
+            $employee_final_settlement->working_days = $settlementDays['working_days'];
+            foreach ($employee_final_settlement->finalsettlementHeads as $head) {
+                $head->earned_value = ($head->head_value * $settlementDays['working_days']) / $settlementDays['days_in_month'];
+                $head->save();
+            }
             $employee_final_settlement->status = 1;
             $employee_final_settlement->save();
-            $employee = Employee::findOrFail($employee_final_settlement->emp_id);
             $employee->is_res_ter =  1;
             $employee->save();
             DB::commit();
@@ -730,5 +730,20 @@ class EmployeeSettlementController extends Controller
             dd($e);
             return redirect()->back()->with('error', $e->getMessage());
         }
+    }
+    private function calculateFinalSettlementDays(Employee $employee): array
+    {
+        $resignDate = Carbon::parse($employee->resignation->last_attendance_date);
+        $existingSalaryForThisMonth = EmployeeMonthlySalary::where('employee_id', $employee->id)
+            ->whereMonth('salary_date', $resignDate->month)
+            ->whereYear('salary_date', $resignDate->year)
+            ->first();
+
+        $workingDays = $existingSalaryForThisMonth ? 0 : min((int) $resignDate->day, 30);
+
+        return [
+            'working_days' => $workingDays,
+            'days_in_month' => 30,
+        ];
     }
 }

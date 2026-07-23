@@ -882,12 +882,6 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
-                'name' => 'create journal voucher',
-                'guard_name' => 'web',
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ],
-            [
                 'name' => 'edit journal entry',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -3066,6 +3060,7 @@ class UsersTableSeeder extends Seeder
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
+            
         ];
 
         Permission::insert($arrPermissions);
@@ -3298,7 +3293,6 @@ class UsersTableSeeder extends Seeder
             ['name' => 'delete chart of account'],
             ['name' => 'manage journal entry'],
             ['name' => 'create journal entry'],
-            ['name' => 'create journal voucher'],
             ['name' => 'edit journal entry'],
             ['name' => 'delete journal entry'],
             ['name' => 'show journal entry'],
@@ -3665,7 +3659,6 @@ class UsersTableSeeder extends Seeder
             ['name' => 'delete head imprest'],
             ['name' => 'submit head imprest'],
             ['name' => 'approve head imprest'],
-
         ];
 
         $companyRole->givePermissionTo($companyPermissions);
@@ -3804,7 +3797,6 @@ class UsersTableSeeder extends Seeder
             ['name' => 'delete chart of account'],
             ['name' => 'manage journal entry'],
             ['name' => 'create journal entry'],
-            ['name' => 'create journal voucher'],
             ['name' => 'edit journal entry'],
             ['name' => 'delete journal entry'],
             ['name' => 'show journal entry'],

@@ -10,7 +10,7 @@
 @section('action-btn')
     <div class="float-end">
         @if(\Auth::user()->type == 'company' && Gate::check('create purchase') || \Auth::user()->type == 'branch')
-            <a href="{{ route('branchpurchase.create', 0) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{ __('Create') }}">
+            <a href="#" data-url="{{ route('branchpurchase.create', 0) }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Create Branch Purchase') }}" class="btn mx-1 btn-sm btn-outline-primary">
                 <span class="btn-inner--icon">Create</span>
             </a>
         @endif
@@ -58,6 +58,15 @@
                     </thead>
                     <tbody>
                         @foreach ($branchPurchases as $branchPurchase)
+                            @php
+                                $isCompany = \Auth::user()->type == 'company';
+                                $isBranchOwner = \Auth::user()->type == 'branch' && $branchPurchase->branch_id == \Auth::user()->id;
+                                $canEditBranchPurchase = ($isCompany && Gate::check('edit purchase') && in_array($branchPurchase->status, [0, 5]))
+                                    || ($isBranchOwner && $branchPurchase->status == 0);
+                                $canForwardToHo = $isBranchOwner && $branchPurchase->status == 0;
+                                $canApproveReject = $isCompany && $branchPurchase->status == 5;
+                                $canConvertToInvoice = $isCompany && $branchPurchase->status == 6 && !$branchPurchase->invoice_converted;
+                            @endphp
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td class="Id">
@@ -86,14 +95,43 @@
                                                         <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                                     </a>
                                                 @endif
-                                                @if(\Auth::user()->type == 'company' && Gate::check('edit purchase') && $branchPurchase->status == 0 || \Auth::user()->type == 'branch' && $branchPurchase->branch_id == \Auth::user()->id && $branchPurchase->status == 0)
-                                                    <a href="{{ route('branchpurchase.edit', Crypt::encrypt($branchPurchase->id)) }}"
+                                                @if($canEditBranchPurchase)
+                                                    <a href="#"
+                                                        data-url="{{ route('branchpurchase.edit', Crypt::encrypt($branchPurchase->id)) }}"
+                                                        data-size="modal-fullscreen" data-ajax-popup="true"
                                                         class="mx-1 btn btn-outline-primary btn-sm align-items-center" data-bs-title="{{ __('Edit') }}">
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
                                                 @endif
-                                                @if($branchPurchase->status == 6 && \Auth::user()->type == 'company' && !$branchPurchase->invoice_converted)
-                                                    <a href="{{ route('branchpurchase.convert_to_invoice', $branchPurchase->id) }}"
+                                                @if($canForwardToHo)
+                                                    <a href="{{ route('branchpurchase.fw_to_ho', $branchPurchase->id) }}"
+                                                        class="mx-1 btn btn-outline-warning btn-sm align-items-center"
+                                                        data-bs-title="{{ __('Fw to Ho') }}"
+                                                        onclick="return confirm('{{ __('Are you sure you want to forward this branch purchase to Head Office?') }}')">
+                                                        <span class="btn-inner--icon"><i class="ti ti-mail-forward"></i></span>
+                                                    </a>
+                                                @endif
+                                                @if($canApproveReject)
+                                                    {{ Form::open(['route' => ['branchpurchase.finalize', $branchPurchase->id], 'method' => 'POST', 'class' => 'd-inline']) }}
+                                                        <button type="submit"
+                                                            class="mx-1 btn btn-outline-success btn-sm align-items-center"
+                                                            data-bs-title="{{ __('Approve') }}"
+                                                            onclick="return confirm('{{ __('Are you sure you want to approve this branch purchase?') }}')">
+                                                            <span class="btn-inner--icon"><i class="ti ti-check"></i></span>
+                                                        </button>
+                                                    {{ Form::close() }}
+                                                    <a href="{{ route('branchpurchase.reject', $branchPurchase->id) }}"
+                                                        class="mx-1 btn btn-outline-danger btn-sm align-items-center"
+                                                        data-bs-title="{{ __('Reject') }}"
+                                                        onclick="return confirm('{{ __('Are you sure you want to reject this branch purchase?') }}')">
+                                                        <span class="btn-inner--icon"><i class="ti ti-x"></i></span>
+                                                    </a>
+                                                @endif
+                                                @if($canConvertToInvoice)
+                                                    <a href="#"
+                                                        data-url="{{ route('branchpurchase.convert_to_invoice', $branchPurchase->id) }}"
+                                                        data-size="modal-fullscreen"
+                                                        data-ajax-popup="true"
                                                         class="mx-1 btn btn-outline-primary btn-sm align-items-center" title="Convert to Invoice" data-bs-title="{{ __('Convert to Invoice') }}">
                                                         <span class="btn-inner--icon"><i class="ti ti-file-import"></i></span>
                                                     </a>

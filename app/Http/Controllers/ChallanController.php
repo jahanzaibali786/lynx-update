@@ -915,13 +915,13 @@ public function legacyShow($id, Request $request)
         $daysOverdue = $today->diffInDays($dueDate);
 
         // OL payment type grace rule
-        // Exactly 1 day late => exempt
-        if (strtoupper($receiveType) == 'OL' && $daysOverdue == 1) {
-            return;
-        }
+        // 50% payment exemption — exclude existing late fee from total
+        $existingLateFeeTotal = ChallanHead::where('challan_id', $challan->id)
+            ->whereHas('feeHead', fn($q) => $q->where('fee_head', 'LIKE', '%LATE FEE%'))
+            ->sum('price');
+        $baseTotal = $challan->total_amount - $existingLateFeeTotal;
+        $totalPayable = $baseTotal - ($challan->concession_amount ?? 0);
 
-        // 50% payment exemption
-        $totalPayable = $challan->total_amount - ($challan->concession_amount ?? 0);
 
         if ($totalPayable > 0) {
 
@@ -1835,11 +1835,20 @@ public function legacyShow($id, Request $request)
                 'chart_account' => $account->chartAccount ? strtolower($account->chartAccount->name) : ''
             ];
         }
+        // Calculate existing late fee total for 50% check exclusion
+        $lateFeeHead = FeeHead::where('fee_head', 'LIKE', '%LATE FEE%')->first();
+        $lateFeeAmount = 0;
+        if ($lateFeeHead) {
+            $lateFeeAmount = (float) ChallanHead::where('challan_id', $challandata->id)
+                ->where('head_id', $lateFeeHead->id)
+                ->sum('price');
+        }
 
         return response()->json([
             'challandetail' => $challandata,
             'previousUnpaidChallans' => $previousUnpaidChallans,
             'headsData' => $headsData,
+            'challan_late_fee' => $lateFeeAmount,
             'accounts' => $accountsFormatted,
             'account_all' => $accountAllFormatted,
             'accounts_data' => $accountsData,
@@ -2210,7 +2219,9 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                 ], 422);
             }
 
-            // Pre-challan report check
+           // Pre-challan report check (skip for Shifa students in July)
+            $isShifaJuly = ($month == 7 && $request->register_option == 'shifa');
+            if (!$isShifaJuly) {
             if ($request->branches == 'all') {
                 $allBranchIds = \App\Models\Branch::pluck('id');
                 $approvedBranchIds = \App\Models\PreChallanReport::whereIn('month', $subscriptionMontsdate ?: [$feeMonthFormatted])
@@ -2238,6 +2249,7 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                         'message' => 'Pre-challan report for ' . $feeMonthFormatted
                             . ' is not approved for this branch.',
                     ]);
+                }
                 }
             }
 
@@ -2267,16 +2279,20 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                 return response()->json(['error' => true, 'message' => 'Student not found.']);
             }
 
-            $preReport = \App\Models\PreChallanReport::where('branch_id', $singleStudent->owned_by)
-                ->whereIn('month', $subscriptionMontsdate ?: [$feeMonthFormatted])
-                ->where('status', 'Approved')
-                ->exists();
-            if (!$preReport) {
-                return response()->json([
-                    'error' => true,
-                    'message' => 'Pre-challan report for ' . $feeMonthFormatted
-                        . ' is not approved for this student\'s branch.',
-                ]);
+            // / Pre-challan report check (skip for Shifa students in July)
+            $isShifaJuly = ($month == 7 && optional($singleStudent)->register_option == 2);
+            if (!$isShifaJuly) {
+                $preReport = \App\Models\PreChallanReport::where('branch_id', $singleStudent->owned_by)
+                    ->whereIn('month', $subscriptionMontsdate ?: [$feeMonthFormatted])
+                    ->where('status', 'Approved')
+                    ->exists();
+                if (!$preReport) {
+                    return response()->json([
+                        'error' => true,
+                        'message' => 'Pre-challan report for ' . $feeMonthFormatted
+                            . ' is not approved for this student\'s branch.',
+                    ]);
+                }
             }
 
             if ($duration === 1 && $tuitionFeeHead) {
@@ -2301,7 +2317,17 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
         if (!empty($request->class) && $request->class != 'all') {
             $query->where('class_id', $request->input('class'));
         }
-
+		
+        if (!empty($request->register_option) && $request->register_option != 'all') {
+            if ($request->register_option == 'shifa') {
+                $query->where('register_option', 2);
+            } elseif ($request->register_option == 'non_shifa') {
+                $query->where(function ($q) {
+                    $q->where('register_option', '!=', 2)
+                      ->orWhereNull('register_option');
+                });
+            }
+        }
         // ----------------------------------------------------------------
         // 5. Load ALL students with enrollment eager-loaded
         // ----------------------------------------------------------------
@@ -3332,6 +3358,11 @@ public function paidchallan(Request $request)
                 $invoicePayment->save();
                 $invoicePayment->refresh(); // reload updated model
             }
+            $lateFeeTotal = ChallanHead::where('challan_id', $invoicePayment->id)
+                ->whereHas('feeHead', fn($q) => $q->where('fee_head', 'LIKE', '%LATE FEE%'))
+                ->sum('price');
+            $baseTotal = $invoicePayment->total_amount - $lateFeeTotal;
+            
             $isfiftypercent = false;
             if ($invoicePayment->paid_amount >= ($invoicePayment->total_amount - $invoicePayment->concession_amount) / 2) {
                 $isfiftypercent = true;
@@ -3404,8 +3435,39 @@ public function paidchallan(Request $request)
                     'created_by' => \Auth::user()->creatorId(),
                 ]
             );
+            $feeMonth = $invoicePayment->fee_month;
+            $isBeforeFeb2026 = $feeMonth && strtotime($feeMonth) < strtotime('2026-02-01');
 
-            Utility::bankAccountBalance($request->account_id, $request->amount, 'credit');
+            if ($isBeforeFeb2026) {
+                $bankTransfer = \App\Models\BankTransfer::where(function ($q) use ($request) {
+                    $q->where('from_account', $request->bank)
+                      ->orWhere('to_account', $request->bank);
+                })
+                    ->whereYear('date', 2026)
+                    ->whereMonth('date', 2)
+                    ->orderBy('date')
+                    ->orderBy('id')
+                    ->first();
+
+                if ($bankTransfer) {
+                    $bankTransfer->amount = ($bankTransfer->amount ?? 0) + $total;
+                    $bankTransfer->previous_balance = ($bankTransfer->previous_balance ?? 0) + $total;
+                    $bankTransfer->save();
+
+                    $journalItems = \App\Models\JournalItem::where('journal', $bankTransfer->voucher_id)->get();
+                    foreach ($journalItems as $ji) {
+                        if ($ji->debit > 0) {
+                            $ji->debit += $total;
+                        }
+                        if ($ji->credit > 0) {
+                            $ji->credit += $total;
+                        }
+                        $ji->save();
+                    }
+                }
+            } else {
+                Utility::bankAccountBalance($request->account_id, $request->amount, 'credit');
+            }
             $invoicePayment = Challans::where('challanNo', $request->challan_id)->first();
 
             $bankAccount = BankAccount::find($request->bank);
@@ -4063,7 +4125,19 @@ if (!empty($request->class) && $request->class != 'all') {
             $query->where('student_id', $stdreg->id);
         }
         // dd($query->get());
-
+		// ---------------- REGISTRATION OPTION FILTER ----------------
+        if (!empty($request->register_option) && $request->register_option != 'all') {
+            $query->whereHas('student', function ($q) use ($request) {
+                if ($request->register_option == 'shifa') {
+                    $q->where('register_option', 2);
+                } elseif ($request->register_option == 'non_shifa') {
+                    $q->where(function ($sq) {
+                        $sq->where('register_option', '!=', 2)
+                           ->orWhereNull('register_option');
+                    });
+                }
+            });
+        }
         // ---------------- CHALLAN TYPE FILTER ----------------
         $pattern = '%regular%';
         $pattern2 = '%Advance%';
@@ -4242,7 +4316,7 @@ public function storeChallan(Request $request)
             $students = StudentRegistration::with('enrollment')
                 ->where('roll_no', $request->student_id)
                 ->where('student_status', 'Enrolled')
-                ->where('session_id', $request->session_id)
+                // ->where('session_id', $request->session_id)
                 ->get();
             // $students = collect([
             //     StudentRegistration::where('roll_no', $request->student_id)

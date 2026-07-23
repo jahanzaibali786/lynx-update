@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
         integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script src="{{ asset('js/jquery.min.js') }}"></script>
+    <script src="{{ asset('js/jquery.min.js') }}"></script>l
     <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
     <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
 @endpush
@@ -439,6 +439,7 @@
             dueDate: '', // 'YYYY-MM-DD'
             totalAmount: 0,
             concession: 0,
+            lateFeeAmount: 0,
             paidAmount: 0,
         };
 
@@ -619,8 +620,9 @@
             // 50% rule — late fee stops accumulating once student pays ≥ 50% of total payable
             // Check if THIS receipt will bring them to the 50% threshold
             // (NOT whether they're already at 50% — late fee keeps growing until they cross 50%)
-            const totalPayable = currentChallanMeta.totalAmount - currentChallanMeta.concession;
-            if (totalPayable <= 0) return 0;
+            const baseTotal = currentChallanMeta.totalAmount - (currentChallanMeta.lateFeeAmount || 0);
+            const totalPayable = baseTotal - currentChallanMeta.concession;
+                        if (totalPayable <= 0) return 0;
 
             const alreadyPaid = currentChallanMeta.paidAmount;
 
@@ -730,6 +732,7 @@
                             challanType: detail.challan_type || detail.challanType || detail.type ||
                                 '',
                             dueDate: detail.due_date || detail.dueDate || '',
+                            lateFeeAmount: parseFloat(response.challan_late_fee) || 0,
                             totalAmount: parseFloat(detail.total_amount) || 0,
                             concession: parseFloat(detail.concession_amount) || 0,
                             paidAmount: parseFloat(detail.paid_amount) || 0,
@@ -864,7 +867,8 @@
                 dueDate: '',
                 totalAmount: 0,
                 concession: 0,
-                paidAmount: 0
+                paidAmount: 0,
+                lateFeeAmount: 0,
             };
         }
 

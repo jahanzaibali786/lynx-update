@@ -2,138 +2,104 @@
     <thead>
     @include('student.exports.header')
         <tr>
-            <th>
-                {{ __('Sr No') }}</th>
-            <th>
-                {{ __('B.Sr No') }}</th>
-            <th>
-                {{ __('Emp No') }}</th>
-            <th>
-                {{ __('Employee') }}</th>
-            <th>
-                {{ __('Service Period') }}</th>
-            <th>
-                {{ __('Designation') }}</th>
-            <th>
-                {{ __('Child Roll No') }}</th>
-            <th>
-                {{ __('Child Branch') }}</th>
-            <th>
-                {{ __('Child Name') }}</th>
-            <th>
-                {{ __('Child Class') }}</th>
-            <th>
-                {{ __('D.O.A') }}</th>
-            <th>
-                {{ __('Class Fee') }}</th>
-            <th>
-                {{ __('Child Fee') }}</th>
-            <th>
-                {{ __('Child Concession %') }}</th>
+            <th>{{ __('Sr#') }}</th>
+            <th>{{ __('Bsr#') }}</th>
+            <th>{{ __('Branch') }}</th>
+            <th>{{ __('Emp No') }}</th>
+            <th>{{ __('Emp Branch') }}</th>
+            <th>{{ __('Emp Name') }}</th>
+            <th>{{ __('Roll No') }}</th>
+            <th>{{ __('Child Name') }}</th>
+            <th>{{ __('Child Branch') }}</th>
+            <th>{{ __('Child Class') }}</th>
+            <th>{{ __('D.O.A') }}</th>
+            <th>{{ __('Tuition Fee') }}</th>
+            <th>{{ __('Concession') }}</th>
+            <th>{{ __('Payable') }}</th>
+            <th>{{ __('Discount Policy') }}</th>
         </tr>
     </thead>
     <tbody>
         @php
             $sr = 1;
-            $grand_monthly_fee = 0;
-            $grand_discount = 0;
+            $head = \App\Models\FeeHead::where('fee_head', 'like', '%Tuition Fee%')->first();
         @endphp
 
         @foreach ($groupedStudents as $branchId => $students)
+            @php
+                $bsr = 1;
+            @endphp
             <tr></tr>
             <tr class="branch-header" style="background-color:#F2F2F2;">
-                <td colspan="3" style=" font-weight: bold; font-size: 8px; background-color:#F2F2F2;">
+                <td colspan="15" style="font-weight: bold; font-size: 8px; background-color:#F2F2F2;">
                     {{ $branches[$branchId] ?? 'Branch Not Specified' }}
-                </td>
-                <td colspan="11" style=" font-weight: bold; font-size: 8px; background-color:#F2F2F2;">
                 </td>
             </tr>
 
-            @php
-                $bsr = 1;
-                $branch_monthly_fee = 0;
-                $branch_discount = 0;
-            @endphp
-
             @foreach ($students as $index => $student)
+                @php
+                                $headId = $head->id ?? 0;
+
+                                $feeStructure = $student->fee_structure
+                                    ->where('head_id', $headId)
+                                    ->first();
+
+                                $amount = (float) ($feeStructure->amount ?? 0);
+
+                                $discountPct = 0;
+                                $policyName = '';
+
+                                $concession = \App\Models\Concession::with('concession')->where('student_id', $student->id)
+                                    ->where('end_date', '>=', date('Y-m-d'))
+                                    ->orderBy('id', 'desc')
+                                    ->where('active_status', '!=', 0)
+                                    ->where('status', 'Approved')
+                                    ->first();
+                                if (!$concession) {
+                                    $concession = \App\Models\Concession::with('concession')->where('student_id', $student->id)
+                                        ->orderBy('id', 'desc')
+                                        ->whereNull('end_date')
+                                        ->where('active_status', '!=', 0)
+                                        ->where('status', 'Approved')
+                                        ->first();
+                                }
+                                if ($concession) {
+                                    $policyHead = $concession
+                                                    ->concession
+                                                    ->policy_head()
+                                                    ->where('head_id', $headId)
+                                                    ->latest('id')
+                                                    ->first();
+
+                                                // dd($policyHead);
+
+                                    $discountPct = (float) ($policyHead->percentage ?? 0);
+                                    $discAmnt = ($amount * $discountPct) / 100;
+                                    $policyName = $concession->concession->title ?? '';
+                                }
+
+                                $payable = $amount - ($amount * $discountPct / 100);
+
+                                $employee = $student->employee ?? null;
+                            @endphp
                 <tr>
                     <td>{{ $sr++ }}</td>
                     <td>{{ $bsr++ }}</td>
-                    <td>{{ $student->emp_id ?? '-' }}</td>
-                    <td>{{ @$student->employee->name ?? '-' }}</td>
-                    <td>
-                        {{ @$student->employee->getEmployeeTenure(@$student->employee->id) ?? '-' }}</td>
-                    <td>{{ @$student->employee->designation->name ?? '-' }}
-                    </td>
-                    <td>{{ @$student->student->roll_no ?? '-' }}</td>
-                    <td>{{ @$student->student->branches->name ?? '-' }}</td>
-                    <td>{{ @$student->student->stdname ?? '-' }}</td>
-                    <td>{{ @$student->student->class->name ?? '-' }}</td>
-                    <td>
-                        {{ date('d-M-Y', strtotime(@$student->enrollment->adm_date)) ?? '-' }}</td>
-                    @php
-                        $head = \App\Models\FeeHead::where('fee_head', 'like', '%Tuition Fee%')->first();
-                        $monthly_fee = \App\Models\StudentFeeStructure::where(function ($query) use ($student, $head) {
-                            $query->where('reg_id', $student->id)->orWhere('student_id', $student->roll_no);
-                        })
-                            ->where('head_id', $head->id ?? null)
-                            ->first();
-
-                        $amount = $monthly_fee->amount ?? 0;
-                        $discount =
-                            @$student->student->concession->policy_head->where('head_id', $head->id)->first()
-                                ->percentage ?? 0;
-
-                        $discountfee = $amount * ((100 - $discount) / 100);
-
-                        $branch_monthly_fee += $amount;
-                        $branch_discount += $discountfee;
-
-                        $grand_monthly_fee += $amount;
-                        $grand_discount += $discountfee;
-                    @endphp
-
-                    <td>{{ $amount }}</td>
-                    <td>{{ number_format($discountfee) }}</td>
-                    <td>{{ $discount }}%</td>
+                    <td>{{ $branches[$branchId] ?? '' }}</td>
+                    <td>{{ $employee->employee_id ?? '' }}</td>
+                    <td>{{ !empty($employee->owned_by) ? ($branchLookup[$employee->owned_by] ?? '') : '' }}</td>
+                    <td>{{ $employee->name ?? '' }}</td>
+                    <td>{{ $student->roll_no ?? '' }}</td>
+                    <td>{{ $student->stdname ?? '' }}</td>
+                    <td>{{ $student->branches->name ?? '' }}</td>
+                    <td>{{ $student->class->name ?? '' }}</td>
+                    <td>{{ $student->enrollment ? date('d-M-Y', strtotime($student->enrollment->adm_date)) : '' }}</td>
+                    <td>{{ number_format($amount, 0) }}</td>
+                        <td>{{ number_format($discAmnt, 0) }}</td>
+                    <td>{{ number_format($payable, 0) }}</td>
+                    <td>{{ $policyName }}</td>
                 </tr>
             @endforeach
-
-            {{-- Branch Total Row --}}
-            <tr></tr>
-            <tr>
-                <td colspan="12"
-                    style="text-align: center; background-color: #D9D9D9; font-weight: bold; font-size: 8px; border: 1px solid black;">
-                    Branch Total</td>
-                <td
-                    style="background-color: #D9D9D9; font-weight: bold; text-align: right; font-size: 8px; border: 1px solid black">
-                    {{ number_format($branch_monthly_fee, 0) }}</td>
-                <td colspan=""
-                    style="background-color: #D9D9D9; font-weight: bold; text-align: right; font-size: 8px; border: 1px solid black">
-                    {{ number_format($branch_discount, 0) }}</td>
-                <td colspan=""
-                    style="background-color: white; font-weight: bold; text-align: right; font-size: 8px;"></td>
-            </tr>
-            <tr></tr>
         @endforeach
-
-        <tr></tr>
-
-        {{-- Grand Total Row --}}
-        <tr>
-            <td colspan="12"
-                style="text-align: center; background-color: #D9D9D9; font-weight: bold; font-size: 8px; border: 1px solid black; border-top: 1px double black; border-bottom: 1px double black;">
-                Grand Total</td>
-            <td
-                style="background-color: #D9D9D9; font-weight: bold; text-align: right; font-size: 8px; border: 1px solid black; border-top: 1px double black; border-bottom: 1px double black;">
-                {{ number_format($grand_monthly_fee, 0) }}</td>
-            <td colspan=""
-                style="background-color: #D9D9D9; font-weight: bold; text-align: right; font-size: 8px; border: 1px solid black; border-top: 1px double black; border-bottom: 1px double black;">
-                {{ number_format($grand_discount, 0) }}</td>
-            <td colspan=""
-                style="background-color: white;">
-            </td>
-        </tr>
     </tbody>
-
 </table>

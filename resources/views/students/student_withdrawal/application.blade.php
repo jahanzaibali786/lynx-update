@@ -2,6 +2,9 @@
 @section('page-title')
     {{ __('Withdrawl Application') }}
 @endsection
+@php
+    $isHO = \Auth::user()->type == 'company' || \Auth::user()->type == 'super admin';
+@endphp
 @push('script-page')
     <script src="{{ asset('js/jquery.min.js') }}"></script>
     <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
@@ -33,7 +36,7 @@
 
                         $('#actual_fee').val(response.actual_fee);
                         $('#security_deposit').val(Number(response.security_deposit).toFixed(
-                        2));
+                            2));
                         $('#security_payable').val(response.security_payable);
                         $('#other_fee').val(response.other_fee);
                         $('#refund').val(response.refund);
@@ -263,8 +266,63 @@
         $(document).ready(function() {
             // Automatically trigger the click event
             $('#calculateBalance').trigger('click');
-
         });
+
+        var branchSnapshot = {!! json_encode($studentwithdrawal->branch_snapshot ?? []) !!};
+        var hoSnapshot = {!! json_encode($studentwithdrawal->ho_snapshot ?? []) !!};
+
+        function applySnapshot(snapshot) {
+            if (!snapshot) return;
+            if (snapshot.actual_fee !== undefined) $('#actual_fee').val(snapshot.actual_fee);
+            if (snapshot.security_deposit !== undefined) $('#security_deposit').val(Number(snapshot.security_deposit)
+                .toFixed(2));
+            if (snapshot.security_payable !== undefined) $('#security_payable').val(snapshot.security_payable);
+            if (snapshot.other_fee !== undefined) $('#other_fee').val(snapshot.other_fee);
+            if (snapshot.other_account !== undefined) $('[name="other_account"]').val(snapshot.other_account);
+            if (snapshot.refund !== undefined) $('#refund').val(snapshot.refund);
+            if (snapshot.notice_fee !== undefined) $('#notice_fee').val(snapshot.notice_fee);
+            if (snapshot.other_deduction !== undefined) $('#other_deduction').val(snapshot.other_deduction);
+            if (snapshot.total_payables !== undefined) $('#total_payables').val(snapshot.total_payables);
+            if (snapshot.total_receivables !== undefined) $('#total_receivables').val(snapshot.total_receivables);
+            if (snapshot.net_balance !== undefined) $('#net_balance').val(snapshot.net_balance);
+        }
+
+        @if (!$isHO)
+            $(document).on('click', '#sendToHoBtn', function() {
+                var formData = new FormData();
+                formData.append('_token', '{{ csrf_token() }}');
+                formData.append('actual_fee', $('#actual_fee').val());
+                formData.append('security_deposit', $('#security_deposit').val());
+                formData.append('security_payable', $('#security_payable').val());
+                formData.append('other_fee', $('#other_fee').val());
+                formData.append('other_account', $('[name="other_account"]').val());
+                formData.append('refund', $('#refund').val());
+                formData.append('notice_fee', $('#notice_fee').val());
+                formData.append('other_deduction', $('#other_deduction').val());
+                formData.append('total_payables', $('#total_payables').val());
+                formData.append('total_receivables', $('#total_receivables').val());
+                formData.append('net_balance', $('#net_balance').val());
+                formData.append('remarks', $('#remarks').val());
+
+                $.ajax({
+                    url: '{{ route('fwdtoho', $studentwithdrawal->id) }}',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        show_toastr('success', 'Forwarded to HO successfully.');
+                        setTimeout(function() {
+                            window.location.href = '{{ route('withdrawlstudent.index') }}';
+                        }, 1000);
+                    },
+                    error: function(xhr) {
+                        show_toastr('error', xhr.responseJSON ? xhr.responseJSON.error :
+                            'Error forwarding to HO');
+                    }
+                });
+            });
+        @endif
     </script>
 @endpush
 @section('breadcrumb')
@@ -273,17 +331,31 @@
 @endsection
 @section('action-btn')
     <div class="float-end">
-        <a href="{{ route('student_withdrawal.certificate_pdf', $studentwithdrawal->id) }}" target="_blank"
-            class="btn btn-sm btn-outline-primary" data-bs-title="{{ __('Clearance Certificate Print') }}">
-            <i class="ti ti-printer"></i> {{ __('Clearance Print') }}
-        </a>
-        <a href="{{ route('student_withdrawal.certificate_print', $studentwithdrawal->id) }}" target="_blank"
-            class="btn btn-sm btn-outline-success" data-bs-title="{{ __('Withdrawal Application Print') }}">
-            <i class="ti ti-printer"></i> {{ __('Withdrawal Print') }}
-        </a>
-        @if (\Auth::user()->type != 'company' && (int) @$studentwithdrawal->fwd_to_ho === 0 && strtolower((string) @$studentwithdrawal->status) === 'draft')
-            <a href="{{ route('fwdtoho', @$studentwithdrawal->id) }}" title="Send to Head Office"
-                class="btn btn-sm btn-outline-warning">Send to HO</a>
+        @if (!$isHO && @$studentwithdrawal->fwd_to_ho == 0)
+            <button type="button" id="sendToHoBtn" class="btn btn-sm btn-outline-warning">Send to HO</button>
+        @endif
+        @if ($isHO)
+            @if (@$studentwithdrawal->branch_snapshot)
+                <button type="button" class="btn btn-sm btn-outline-info" onclick="applySnapshot(branchSnapshot)"
+                    data-bs-title="{{ __('Branch Calculation') }}">
+                    Branch Calc
+                </button>
+            @endif
+            @if (@$studentwithdrawal->ho_snapshot)
+                <button type="button" class="btn btn-sm btn-outline-warning" onclick="applySnapshot(hoSnapshot)"
+                    data-bs-title="{{ __('Company Calculation') }}">
+                    Company Calc
+                </button>
+            @endif
+            <a href="{{ route('student_withdrawal.settlement_certificate', $studentwithdrawal->id) }}" target="_blank"
+                class="btn btn-sm btn-outline-success" data-bs-title="{{ __('Clearance Certificate') }}">
+                Clearance Certificate </a>
+            @if ($studentwithdrawal->status == 'approved')
+                <a href="{{ route('student_withdrawal.certificate_print', $studentwithdrawal->id) }}" target="_blank"
+                    class="btn btn-sm btn-outline-secondary" data-bs-title="{{ __('School Leaving Certificate') }}">
+                    SLC
+                </a>
+            @endif
         @endif
         @if (@$withdrawal_challan)
             <button type="button" class="btn btn-sm btn-primary"
@@ -366,73 +438,44 @@
             </div>
             <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
                 {{ Form::label('remarks', __('Branch Remarks'), ['class' => 'form-label']) }}
-                {{ Form::text('remarks', @$studentwithdrawal->remark, ['class' => 'form-control']) }}
+                {{ Form::text('remarks', @$studentwithdrawal->remark, $isHO || @$studentwithdrawal->fwd_to_ho == 1 ? ['class' => 'form-control', 'readonly' => 'readonly'] : ['class' => 'form-control']) }}
             </div>
 
         </div>
-        <div class="row d-flex justify-content-start mt-1 ">
-            <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12 mr-2">
-                {{ Form::label('ho_remarks', __('HO Remarks'), ['class' => 'form-label']) }}
-                {{ Form::textarea('ho_remarks', @$studentwithdrawal->ho_remarks, ['class' => 'form-control editor', 'rows' => 3]) }}
-            </div>
-            <style>
-                .ck-editor__editable_inline { min-height: 200px; border: 1px solid #ddd !important; }
-            </style>
-            <div class="mt-2">
-                <button type="button" id="saveBasicsBtn" class="btn btn-success">{{ __('Save') }}</button>
-            </div>
-            <script src="{{ asset('js/ckeditor.js') }}"></script>
-            <script src="https://cdn.ckeditor.com/ckeditor5/45.2.1/translations/en.umd.js"></script>
-            <script src="https://cdn.ckeditor.com/ckeditor5-premium-features/45.2.1/translations/en.umd.js"></script>
-            <script>
-                ClassicEditor
-                    .create(document.querySelector('.editor'), {
-                        language: 'en',
-                        toolbar: {
-                            items: [
-                                '|', 'bold', 'underline', 'italic', 'link',
-                                'bulletedList', 'numberedList', '|',
-                                'alignment', 'indent', 'outdent', '|',
-                                'fontColor', 'fontBackgroundColor', 'fontSize',
-                                'fontFamily', 'highlight', '|',
-                                'insertTable', 'blockQuote', 'removeFormat', '|',
-                                'heading'
-                            ]
-                        },
-                        licenseKey: '',
-                    })
-                    .then(editor => {
-                        window.hoEditor = editor;
-                    })
-                    .catch(error => {
-                        console.error(error);
-                    });
-            </script>
-            <script>
-                $(document).on('click', '#saveBasicsBtn', function() {
-                    if (window.hoEditor) {
-                        window.hoEditor.updateSourceElement();
-                    }
-                    var formData = new FormData();
-                    formData.append('_token', '{{ csrf_token() }}');
-                    formData.append('remarks', $('#remarks').val());
-                    formData.append('ho_remarks', $('#ho_remarks').val());
+        @if ($isHO)
+            <div class="row d-flex justify-content-start mt-1 ">
+                <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12 mr-2">
+                    {{ Form::label('ho_remarks', __('HO Remarks'), ['class' => 'form-label']) }}
+                    {{ Form::textarea('ho_remarks', @$studentwithdrawal->ho_remarks, ['class' => 'form-control', 'rows' => 3]) }}
+                </div>
+                <div class="mt-2">
+                    <button type="button" id="saveBasicsBtn" class="btn btn-success">{{ __('Save Basics') }}</button>
+                </div>
+                <script>
+                    $(document).on('click', '#saveBasicsBtn', function() {
+                        var formData = new FormData();
+                        formData.append('_token', '{{ csrf_token() }}');
+                        formData.append('remarks', $('#remarks').val());
+                        formData.append('ho_remarks', $('#ho_remarks').val());
 
-                    $.ajax({
-                        url: '{{ route("withdrawlapplication.savebasics", $studentwithdrawal->id) }}',
-                        method: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
-                        success: function(response) {
-                            show_toastr('success', response.success);
-                        },
-                        error: function(xhr) {
-                            show_toastr('error', xhr.responseJSON ? xhr.responseJSON.error : 'Error saving basics');
-                        }
+                        $.ajax({
+                            url: '{{ route('withdrawlapplication.savebasics', $studentwithdrawal->id) }}',
+                            method: 'POST',
+                            data: formData,
+                            processData: false,
+                            contentType: false,
+                            success: function(response) {
+                                show_toastr('success', response.success);
+                            },
+                            error: function(xhr) {
+                                show_toastr('error', xhr.responseJSON ? xhr.responseJSON.error :
+                                    'Error saving basics');
+                            }
+                        });
                     });
-                });
-            </script>
+                </script>
+            </div>
+        @endif
         <hr>
         <div class="row d-flex justify-content-start mt-1 ">
             @if ($PrevChallan->isNotEmpty())
@@ -471,11 +514,11 @@
                                     </button>
                                 </td>
                                 <!-- <td>
-                                                            <input type="number" name="form-control adj_amount{{ $prev->challanNo }}"
-                                                                id="{{ $prev->challanNo }}" data-ids="{{ $prev->challanNo }}"
-                                                                data-max="{{ $payable }}" class="adj_put" min="0"
-                                                                max='{{ $payable }}' />
-                                                        </td> -->
+                                                                <input type="number" name="form-control adj_amount{{ $prev->challanNo }}"
+                                                                    id="{{ $prev->challanNo }}" data-ids="{{ $prev->challanNo }}"
+                                                                    data-max="{{ $payable }}" class="adj_put" min="0"
+                                                                    max='{{ $payable }}' />
+                                                            </td> -->
 
                                 <td>
                                     <a href="javascript:void(0);" class="challan-detail-link btn-sm btn-primary"
@@ -591,13 +634,14 @@
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('other_fee', __('Other Fee'), ['class' => 'form-label']) }}
-                    {{ Form::text('other_fee', '0', ['id' => 'other_fee', 'class' => 'form-control']) }}
+                    {{ Form::text('other_fee', '0', array_merge(['id' => 'other_fee', 'class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('other_account', __('Other Account'), ['class' => 'form-label']) }}
-                    <select name="other_account" class="form-control selectbox" required="required">
+                    <select name="other_account" class="form-control selectbox" required="required"
+                        {{ !$isHO ? 'disabled' : '' }}>
                         @foreach ($all_accounts as $chartAccount)
                             <option value="{{ $chartAccount['id'] }}" class="subAccount">
                                 {{ $chartAccount['code'] . ' - ' . $chartAccount['name'] }}
@@ -672,59 +716,61 @@
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('challan_date', __('Challan Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('challan_date', '', ['class' => 'form-control', 'disabled' => 'disabled']) }}
+                    {{ Form::date('challan_date', '', array_merge(['class' => 'form-control', 'readonly' => 'readonly'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('due_date', __('Due Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('due_date', '', ['class' => 'form-control', 'disabled' => 'disabled']) }}
+                    {{ Form::date('due_date', '', array_merge(['class' => 'form-control', 'readonly' => 'readonly'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('invoice_no', __('Invoice No'), ['class' => 'form-label']) }}
-                    {{ Form::text('invoice_no', '', ['class' => 'form-control', 'disabled' => 'disabled']) }}
+                    {{ Form::text('invoice_no', '', ['class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('invoice_date', __('Invoice Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('invoice_date', '', ['class' => 'form-control', 'disabled' => 'disabled']) }}
+                    {{ Form::date('invoice_date', '', array_merge(['class' => 'form-control', 'readonly' => 'readonly'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
         </div>
         <div class="row d-flex justify-content-end mt-1 ">
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
-                    {{ Form::label('beneficiary_name', __('Beneficiary Name'), ['class' => 'form-label']) }}
-                    {{ Form::text('beneficiary_name', old('beneficiary_name', $studentwithdrawal->beneficiary_name), ['class' => 'form-control']) }}
+                    {{ Form::label('beneficiary_name', __('Cheque infavor of'), ['class' => 'form-label']) }}
+                    {{ Form::text('beneficiary_name', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('bank_name', __('Bank Name'), ['class' => 'form-label']) }}
-                    {{ Form::text('bank_name', old('bank_name', $studentwithdrawal->bank_name), ['class' => 'form-control']) }}
+                    {{ Form::text('bank_name', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('cheque_no', __('Cheque No'), ['class' => 'form-label']) }}
-                    {{ Form::text('cheque_no', old('cheque_no', $studentwithdrawal->cheque_no), ['class' => 'form-control']) }}
+                    {{ Form::text('cheque_no', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('cheque_date', __('Cheque Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('cheque_date', old('cheque_date', optional($studentwithdrawal->cheque_date)->format('Y-m-d')), ['class' => 'form-control', 'placeholder' => 'mm/dd/yyyy']) }}
+                    {{ Form::date('cheque_date', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
-            <div class="row mt-4">
-                <div class="col text-end">
+            @if ($isHO)
+                <div class="row mt-4">
+                    <div class="col text-end">
 
-                    {{ Form::submit(__('Submit Withdrawal'), ['class' => 'btn btn-primary']) }}
+                        {{ Form::submit(__('Submit Withdrawal'), ['class' => 'btn btn-primary']) }}
+                    </div>
                 </div>
-            </div>
+            @endif
             {!! Form::close() !!}
         </div>
     @endsection

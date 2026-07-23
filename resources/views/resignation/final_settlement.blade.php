@@ -51,34 +51,20 @@
                         $service_tenure = $months . ' Months';
                     }
                     $payscale = @$EmployeefinalSettlement->employee->employee_payscale_details->last();
-                    $today = $resign_date->copy();
-                    $previous_month_25th = $resign_date->copy()->subMonth()->day(25);
-                    if ($today->day > 25) {
-                        $start_date = $today->copy()->day(25);
-                        $nextMonth = $resign_date->copy()->addMonth();
-                        $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
-                            'employee_id',
-                            $EmployeefinalSettlement->employee->id,
-                        )
-                            ->whereMonth('salary_date', $nextMonth->month)
-                            ->whereYear('salary_date', $nextMonth->year)
-                            ->first();
-                    } else {
-                        $start_date = $today->copy()->subMonth()->day(25);
-                        $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
-                            'employee_id',
-                            $EmployeefinalSettlement->employee->id,
-                        )
-                            ->whereMonth('salary_date', $resign_date->month)
-                            ->whereYear('salary_date', $resign_date->year)
-                            ->first();
-                    }
+                    $existingslaryforthismonth = \App\Models\EmployeeMonthlySalary::where(
+                        'employee_id',
+                        $EmployeefinalSettlement->employee->id,
+                    )
+                        ->whereMonth('salary_date', $resign_date->month)
+                        ->whereYear('salary_date', $resign_date->year)
+                        ->first();
+
                     if ($existingslaryforthismonth) {
                         $total_days = 0;
                     } else {
-                        $total_days = $today->diffInDays($start_date);
+                        $total_days = min((int) $resign_date->day, 30);
                     }
-                    $total_days_in_month = $resign_date->daysInMonth;
+                    $total_days_in_month = 30;
                 @endphp
             <tr>
                 <td style="width:25%;"><b>Last Date of Attendance</b></td>
@@ -103,7 +89,7 @@
                 <td style="width:25%;"><b>Basic Salary</b></td>
                 <td style="width:25%;">{!! @$EmployeefinalSettlement->basic_sal !!}</td>
                 <td style="width:25%;"><b>Working Days</b></td>
-                <td style="width:25%;">{!! @$EmployeefinalSettlement->working_days !!}</td>
+                <td style="width:25%;">{!! $total_days !!}</td>
             </tr>
         </table><br>
         <hr>
@@ -113,7 +99,7 @@
                     <th style="width:40%; text-align:left;"></th>
                     <th style="width:5%; text-align:left;"></th>
                     <th style="width:25%; text-align:left;">As Per Anexture 'R'</th>
-                    <th style="width:5%; text-align:left;"><b>{!! @$EmployeefinalSettlement->working_days !!}</b></th>
+                    <th style="width:5%; text-align:left;"><b>{!! $total_days !!}</b></th>
                     <th style="width:25%; text-align:left;">Salary for the month {!! \Carbon\Carbon::parse(@$EmployeefinalSettlement->resignation->resignation_date)->format('F-Y') !!}</th>
                 </tr>
             </thead>
@@ -121,7 +107,8 @@
                 @foreach ($EmployeefinalSettlement->finalsettlementHeads as $salhead)
                     @php
                         $gross += $salhead->head_value;
-                        $earnedgross += $salhead->earned_value;
+                        $earnedValue = ($salhead->head_value * $total_days) / $total_days_in_month;
+                        $earnedgross += $earnedValue;
                         $accounts = \App\Models\JournalEntry::with('accounts')->where('category', 'Final Settlement')->where('voucher_type','BPV')->orwhere('voucher_type','CPV')->where('reference_id', $EmployeefinalSettlement->id)->get();
                         $total_paid = 0;
                         foreach ($accounts as $account) {
@@ -133,7 +120,7 @@
                         <td><b>Rs.</b></td>
                         <td>{!! $salhead->head_value !!}</td>
                         <td><b>Rs.</b></td>
-                        <td>{{ number_format($salhead->earned_value, 2) }}</td>
+                        <td>{{ number_format($earnedValue, 2) }}</td>
                     </tr>
                 @endforeach
                 <tr>

@@ -199,6 +199,8 @@ class StudentRegistration extends Controller
             'motherprofession' => 'nullable|string',
             'register_option' => 'required|integer',
             'email' => 'nullable|email',
+			 'father_email' => 'required|email',
+            'mother_email' => 'required|email',
             // 'address' => 'required|string',
             'branch' => 'required',
             'class_id' => 'required',
@@ -244,8 +246,26 @@ class StudentRegistration extends Controller
             $registration->mothercnic = $request->input('mothercnic');
             $registration->motherprofession = $request->input('motherprofession');
             $registration->register_option = $request->input('register_option');
-            $registration->email = $request->input('email');
-            $registration->address = strtoupper($request->input('address'));
+            $registration->father_email = $request->input('father_email');
+            $registration->mother_email = $request->input('mother_email');
+            $presentParts = array_filter([
+                $request->input('present_house'),
+                $request->input('present_street'),
+                $request->input('present_area'),
+                $request->input('present_sector'),
+                $request->input('present_city_addr'),
+                $request->input('present_district_addr'),
+            ]);
+            $registration->address = strtoupper(implode(', ', $presentParts));
+            $permanentParts = array_filter([
+                $request->input('permanent_house'),
+                $request->input('permanent_street'),
+                $request->input('permanent_area'),
+                $request->input('permanent_sector'),
+                $request->input('permanent_city_addr'),
+                $request->input('permanent_district_addr'),
+            ]);
+            $registration->permanent_address = strtoupper(implode(', ', $permanentParts));
             $registration->branch = $request->input('branch');
             $registration->class_id = $request->input('class_id');
             $registration->reg_class = $request->input('class_id');
@@ -280,7 +300,12 @@ class StudentRegistration extends Controller
                 $challan->owned_by = $registration->owned_by;
                 $challan->created_by = \Auth::user()->creatorId();
                 $challan->save();
-                $bankAccount = BankAccount::where('owned_by', $challan->owned_by)->first();
+                $bankAccount = BankAccount::where('owned_by', $challan->owned_by)
+                    ->where(function ($query) {
+                        $query->where('bank_name', 'LIKE', '%cash%')
+                            ->orWhere('bank_name', 'LIKE', '%csh%');
+                    })
+                    ->first();
                 $recipts = StudentReceipt::create(
                     [
                         'recipt_date' => date('Y-m-d'),
@@ -408,11 +433,16 @@ class StudentRegistration extends Controller
             $query = ModelsStudentRegistration::with('session', 'class')->where('owned_by', '=', \Auth::user()->ownedId());
         }
         $student = ModelsStudentRegistration::where('id', $id)->with('class', 'session', 'branches', 'enrollment')->first();
+
+        // Determine type from student's register_option
+        $teacherChildOption = Registring_option::where('name', 'TEACHER CHILD')->first();
+        $type = ($teacherChildOption && $student->register_option == $teacherChildOption->id) ? 'teacher_child' : 'regular';
+
         $classes = Classes::where('owned_by', $student->owned_by)->get()->pluck('name', 'id');
         $classfee = StudentFeeStructure::with('feehead')->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
 
         if ($classfee->isEmpty()) {
-            $fee_head = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->get();
+            $fee_head = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->where('type', $type)->get();
             if ($fee_head) {
                 for ($i = 0; $i < count($fee_head); $i++) {
                     $classfee = StudentFeeStructure::updateOrCreate(
@@ -520,10 +550,27 @@ class StudentRegistration extends Controller
                 $student->birth_place = $sectionData['birth_place'];
                 $student->district = $sectionData['district'];
                 $student->city = $sectionData['city'];
+               $student->email = $sectionData['email'] ?? '';
                 $student->register_option = $sectionData['register_option'];
                 $student->prevschool = $sectionData['prevschool'];
-                $student->address = strtoupper($sectionData['present_address']);
-                $student->permanent_address = strtoupper($sectionData['permanent_address']);
+                $presentParts = array_filter([
+                    $sectionData['present_house'] ?? '',
+                    $sectionData['present_street'] ?? '',
+                    $sectionData['present_area'] ?? '',
+                    $sectionData['present_sector'] ?? '',
+                    $sectionData['present_city_addr'] ?? '',
+                    $sectionData['present_district_addr'] ?? '',
+                ]);
+                $student->address = strtoupper(implode(', ', $presentParts));
+                $permanentParts = array_filter([
+                    $sectionData['permanent_house'] ?? '',
+                    $sectionData['permanent_street'] ?? '',
+                    $sectionData['permanent_area'] ?? '',
+                    $sectionData['permanent_sector'] ?? '',
+                    $sectionData['permanent_city_addr'] ?? '',
+                    $sectionData['permanent_district_addr'] ?? '',
+                ]);
+                $student->permanent_address = strtoupper(implode(', ', $permanentParts));                
                 $student->save();
                 if (isset($sectionData['branch']) && $sectionData['branch']) {
                     if ($sectionData['branch'] != $student->owned_by) {
@@ -623,9 +670,11 @@ class StudentRegistration extends Controller
                 $student->fatherphone = isset($sectionData['home_phone']) ? $sectionData['home_phone'] : '';
                 $student->fathercell = isset($sectionData['mobile_phone']) ? $sectionData['mobile_phone'] : '';
                 $student->fatherprofession = $sectionData['father_occupation'];
+				$student->father_email = $sectionData['father_email'] ?? '';
                 $student->mothername = $sectionData['mother_name'];
                 $student->mothercnic = $sectionData['mother_cnic'];
                 $student->motherprofession = $sectionData['mother_occupation'];
+				$student->mother_email = $sectionData['mother_email'] ?? '';
                 $student->guardianname = isset($sectionData['guardian_name']) ? $sectionData['guardian_name'] : '';
                 $student->guardianrelation = isset($sectionData['guardian_relation']) ? $sectionData['guardian_relation'] : '';
                 $student->guardianprofession = isset($sectionData['guardian_occupation']) ? $sectionData['guardian_occupation'] : '';

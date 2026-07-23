@@ -24,6 +24,7 @@
             <th>Roll No</th>
             <th>Student Name</th>
             <th>Class</th>
+            <th>Adm Date</th>
             <th>Father Name</th>
             <th>Address</th>
             <th>Phone</th>
@@ -35,17 +36,19 @@
             @foreach ($all_data as $data)
                 <tr>
                     <td>{{ $loop->iteration }}</td>
-                    <td>{{ !empty($data) ? $data->enrollId : '-' }}</td>
-                    <td>{{ !empty($data->StudentRegistration) ? $data->StudentRegistration->stdname : '-' }}</td>
-                    <td>{{ !empty($data->StudentRegistration->class) ? $data->StudentRegistration->class->name : '-' }}
+                    <td>{{ !empty($data->student) ? $data->student->roll_no : '-' }}</td>
+                    <td>{{ !empty($data->student) ? $data->student->stdname : '-' }}</td>
+                    <td>{{ !empty($data->student->class) ? $data->student->class->name : '-' }}
                     </td>
-                    <td>{{ !empty($data->StudentRegistration) ? $data->StudentRegistration->fathername : '-' }}
+                    <td>{{ !empty($data->student->enrollment) ? \Carbon\Carbon::parse($data->student->enrollment->adm_date)->format('d-M-Y') : '-' }}
                     </td>
-                    <td>{{ !empty($data->StudentRegistration) ? $data->StudentRegistration->address : '-' }}</td>
-                    <td>{{ !empty($data->StudentRegistration) ? $data->StudentRegistration->fatherphone : '-' }}
+                    <td>{{ !empty($data->student) ? $data->student->fathername : '-' }}
+                    </td>
+                    <td>{{ !empty($data->student) ? $data->student->address : '-' }}</td>
+                    <td>{!! !empty($data->student) ? str_replace(',', '<br>', $data->student->fatherphone) : '-' !!}
                     </td>
                     <td style="width:50px;">
-                        {{ !empty($data->withdrawal) ? $data->withdrawal->withdraw_date : '-' }}
+                        {{ !empty($data) ? $data->withdraw_date : '-' }}
                     <td>
                         @php
                             $arrears = 0;
@@ -53,7 +56,7 @@
                             $challans = \App\Models\Challans::select(
                                 \DB::raw('(total_amount - (paid_amount + concession_amount)) as total'),
                             )
-                                ->where('student_id', @$data->StudentRegistration->id)
+                                ->where('student_id', @$data->student_id)
                                 ->where('status', '!=', 'Paid')
                                 ->get();
                             foreach ($challans as $challan) {
@@ -63,7 +66,7 @@
                         {{ $arrears }}
 
                     </td>
-                    <td>{{ !empty($data->withdrawal) ? $data->withdrawal->reason : '-' }}</td>
+                    <td>{{ !empty($data) ? $data->reason : '-' }}</td>
                 </tr>
             @endforeach
 

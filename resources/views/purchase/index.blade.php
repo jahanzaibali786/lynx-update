@@ -33,8 +33,7 @@
         {{--        </a> --}}
 
         @can('create purchase')
-            <a href="{{ route('purchase.create', 0) }}" class="btn mx-1 btn-sm btn-outline-primary" 
-                data-bs-title="{{ __('Create') }}">
+            <a href="#" data-url="{{ route('purchase.create', 0) }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Create Purchase') }}" class="btn mx-1 btn-sm btn-outline-primary">
                 <span class="btn-inner--icon">Create</span>
             </a>
         @endcan
@@ -154,15 +153,33 @@
                                                     </a>
                                                 @endcan
                                                 @can('edit purchase')
-                                                    <a href="{{ route('purchase.edit', \Crypt::encrypt($purchase->id)) }}"
+                                                    <a href="#"
+                                                        data-url="{{ route('purchase.edit', \Crypt::encrypt($purchase->id)) }}"
+                                                        data-size="modal-fullscreen" data-ajax-popup="true"
                                                         class="mx-1 btn btn-outline-primary btn-sm align-items-center"
-                                                         title="Edit"
                                                         data-bs-title="{{ __('Edit') }}">
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
                                                 @endcan
+                                                @if($purchase->status == 5 && \Auth::user()->type == 'company')
+                                                    <a href="{{ route('purchase.finalize', $purchase->id) }}"
+                                                        class="mx-1 btn btn-outline-success btn-sm align-items-center"
+                                                        data-bs-title="{{ __('Approve') }}"
+                                                        onclick="return confirm('{{ __('Approve this purchase?') }}')">
+                                                        <span class="btn-inner--icon"><i class="ti ti-check"></i></span>
+                                                    </a>
+                                                    <a href="{{ route('purchase.reject', $purchase->id) }}"
+                                                        class="mx-1 btn btn-outline-danger btn-sm align-items-center"
+                                                        data-bs-title="{{ __('Reject') }}"
+                                                        onclick="return confirm('{{ __('Reject this purchase and send it back to draft?') }}')">
+                                                        <span class="btn-inner--icon"><i class="ti ti-x"></i></span>
+                                                    </a>
+                                                @endif
                                                 @if($purchase->status == 6 && \Auth::user()->type == 'company' && !$purchase->grn_converted)
-                                                    <a href="{{ route('purchase.convert_to_grn', $purchase->id) }}"
+                                                    <a href="#"
+                                                        data-url="{{ route('purchase.convert_to_grn', $purchase->id) }}"
+                                                        data-size="modal-fullscreen"
+                                                        data-ajax-popup="true"
                                                         class="mx-1 btn btn-outline-primary btn-sm align-items-center"
                                                         title="Convert to GRN"
                                                         data-bs-title="{{ __('Convert to GRN') }}">
