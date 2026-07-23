@@ -1692,6 +1692,7 @@
                                     @if (Gate::check('manage chart of account') ||
                                             Gate::check('create journal voucher') ||
                                             Gate::check('manage journal entry') ||
+                                            Gate::check('manage head imprest') ||
                                             Gate::check('balance sheet report') ||
                                             Gate::check('ledger report') ||
                                             Gate::check('trial balance report'))
@@ -1744,10 +1745,12 @@
                                                             <a class="dash-link {{ Request::route()->getName() == 'journal-entry.edit' || Request::route()->getName() == 'journal-entry.create' || Request::route()->getName() == 'journal-entry.index' || Request::route()->getName() == 'journal-entry.show' ? ' active' : '' }}"
                                                                 href="{{ route('journal-entry.index') }}">{{ __('JV') }}</a>
                                                         </li>
-                                                        <li class="dash-item ">
-                                                            <a class="dash-link {{ Request::route()->getName() == 'head-imprest-vouchers.index' ? ' active' : '' }}"
-                                                                href="{{ route('head-imprest-vouchers.index') }}">{{ __('Head Imprest Vouchers') }}</a>
-                                                        </li>
+                                                        @can('manage head imprest')
+                                                            <li class="dash-item ">
+                                                                <a class="dash-link {{ in_array(Request::route()->getName(), ['head-imprest-vouchers.index', 'head-imprest-vouchers.show']) ? ' active' : '' }}"
+                                                                    href="{{ route('head-imprest-vouchers.index') }}">{{ __('Head Imprest Vouchers') }}</a>
+                                                            </li>
+                                                        @endcan
                                                         <li class="dash-item ">
                                                             <a class="dash-link {{ Request::route()->getName() == 'report.head-imprest.cashflow' ? ' active' : '' }}"
                                                                 href="{{ route('report.head-imprest.cashflow') }}">{{ __('Head Imprest Report') }}</a>

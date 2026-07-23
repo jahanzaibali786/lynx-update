@@ -1,4 +1,4 @@
-{{ Form::model($journalEntry, ['route' => ['expense-voucher.update', $journalEntry->id], 'method' => 'POST', 'enctype' => 'multipart/form-data', 'class' => 'ajax-modal-form']) }}
+{{ Form::model($journalEntry, ['route' => ['expense-voucher.update', $journalEntry->id], 'method' => 'POST', 'enctype' => 'multipart/form-data', 'class' => 'ajax-modal-form expense-voucher-form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="col-lg-6 col-md-6">
@@ -20,7 +20,7 @@
             <div class="form-group">
                 {{ Form::label('bank_id', __('Bank Account (Head Imprest Only)'), ['class' => 'form-label']) }}
                 <span class="text-danger">*</span>
-                {{ Form::select('bank_id', $bankAccounts, $journalEntry->bank_id, ['class' => 'form-control select', 'required' => 'required', 'placeholder' => __('Select Bank Account')]) }}
+                {{ Form::select('bank_id', $bankAccounts, $journalEntry->bank_id, ['class' => 'form-control select', 'id' => 'bank_id', 'required' => 'required', 'placeholder' => __('Select Bank Account')]) }}
             </div>
         </div>
         <div class="col-lg-6 col-md-6">
@@ -119,3 +119,4 @@
         }
     });
 </script>
+@include('headImprest.partials.bank-refresh', ['selectedBankId' => $journalEntry->bank_id])

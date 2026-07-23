@@ -71,7 +71,8 @@ use App\Http\Controllers\GoalController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\CustomFieldController;
-use App\Http\Controllers\ChartOfAccountController;
+ 
+use App\Http\Controllers\HeadImprestVoucherController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\StudentIncomeController;
 use App\Http\Controllers\ClientController;
@@ -956,13 +957,16 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::get('journal-entry/{journalEntry}/voucher-print', [JournalEntryController::class, 'voucherPrint'])->name('journal-entry.voucher-print');
 			Route::get('voucher-create', [JournalEntryController::class, 'createVoucher'])->name('createVoucher');
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
-            Route::get('expense-voucher/create', [JournalEntryController::class, 'createExpenseVoucher'])->name('expense-voucher.create');
-            Route::post('expense-voucher/store', [JournalEntryController::class, 'storeExpenseVoucher'])->name('expense-voucher.store');
-            Route::get('expense-voucher/{id}/edit', [JournalEntryController::class, 'editExpenseVoucher'])->name('expense-voucher.edit');
-            Route::post('expense-voucher/{id}/update', [JournalEntryController::class, 'updateExpenseVoucher'])->name('expense-voucher.update');
-            Route::get('head-imprest-vouchers', [JournalEntryController::class, 'headImprestVouchersIndex'])->name('head-imprest-vouchers.index');
-            Route::post('head-imprest-vouchers/approve/{id}', [JournalEntryController::class, 'approveHeadImprestVoucher'])->name('head-imprest-vouchers.approve');
-            Route::post('head-imprest-vouchers/send-to-ho/{id}', [JournalEntryController::class, 'sendToHO'])->name('head-imprest-vouchers.send-to-ho');
+            Route::get('expense-voucher/create', [HeadImprestVoucherController::class, 'create'])->name('expense-voucher.create');
+            Route::get('expense-voucher/head-imprest-banks', [HeadImprestVoucherController::class, 'getHeadImprestBankAccounts'])->name('expense-voucher.head-imprest-banks');
+            Route::post('expense-voucher/store', [HeadImprestVoucherController::class, 'store'])->name('expense-voucher.store');
+            Route::get('expense-voucher/{id}/edit', [HeadImprestVoucherController::class, 'edit'])->name('expense-voucher.edit');
+            Route::post('expense-voucher/{id}/update', [HeadImprestVoucherController::class, 'update'])->name('expense-voucher.update');
+            Route::get('head-imprest-vouchers', [HeadImprestVoucherController::class, 'index'])->name('head-imprest-vouchers.index');
+            Route::get('head-imprest-vouchers/{id}', [HeadImprestVoucherController::class, 'show'])->name('head-imprest-vouchers.show');
+            Route::delete('head-imprest-vouchers/{id}', [HeadImprestVoucherController::class, 'destroy'])->name('head-imprest-vouchers.destroy');
+            Route::post('head-imprest-vouchers/approve/{id}', [HeadImprestVoucherController::class, 'approve'])->name('head-imprest-vouchers.approve');
+            Route::post('head-imprest-vouchers/send-to-ho/{id}', [HeadImprestVoucherController::class, 'sendToHO'])->name('head-imprest-vouchers.send-to-ho');
             Route::post('journal-entry/approve/{id}', [JournalEntryController::class, 'approveJournalEntry'])->name('journal-entry.approve');
             Route::post('journal-entry/send-to-ho/{id}', [JournalEntryController::class, 'sendToHO'])->name('journal-entry.send-to-ho');
             

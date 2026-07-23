@@ -3386,6 +3386,13 @@ class Utility extends Model
             'edit daily cash closing',
             'delete daily cash closing',
             'approve daily cash closing',
+            'manage head imprest',
+            'create head imprest',
+            'show head imprest',
+            'edit head imprest',
+            'delete head imprest',
+            'submit head imprest',
+            'approve head imprest',
 
         ];
         foreach ($arrPermissions as $ap) {
@@ -3458,6 +3465,13 @@ class Utility extends Model
             'edit daily cash closing',
             'delete daily cash closing',
             'approve daily cash closing',
+            'manage head imprest',
+            'create head imprest',
+            'show head imprest',
+            'edit head imprest',
+            'delete head imprest',
+            'submit head imprest',
+            'approve head imprest',
         ];
         foreach ($companyNewPermission as $op) {
             // check if permission is not assign to owner then assign.

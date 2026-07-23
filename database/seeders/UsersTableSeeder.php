@@ -3658,6 +3658,13 @@ class UsersTableSeeder extends Seeder
             ['name' => 'create webhook'],
             ['name' => 'edit webhook'],
             ['name' => 'delete webhook'],
+            ['name' => 'manage head imprest'],
+            ['name' => 'create head imprest'],
+            ['name' => 'show head imprest'],
+            ['name' => 'edit head imprest'],
+            ['name' => 'delete head imprest'],
+            ['name' => 'submit head imprest'],
+            ['name' => 'approve head imprest'],
 
         ];
 

@@ -12,7 +12,7 @@
 @section('content')
     <div class="row mt-4">
         <div class="col-xl-12">
-            {{ Form::open(['route' => 'expense-voucher.store', 'method' => 'POST', 'enctype' => 'multipart/form-data', 'class' => 'ajax-modal-form']) }}
+            {{ Form::open(['route' => 'expense-voucher.store', 'method' => 'POST', 'enctype' => 'multipart/form-data', 'class' => 'ajax-modal-form expense-voucher-form']) }}
             <div class="card">
                 <div class="card-body">
                     <div class="row">
@@ -35,7 +35,7 @@
                             <div class="form-group">
                                 {{ Form::label('bank_id', __('Bank Account (Head Imprest Only)'), ['class' => 'form-label']) }}
                                 <span class="text-danger">*</span>
-                                {{ Form::select('bank_id', $bankAccounts, null, ['class' => 'form-control select2', 'required' => 'required', 'placeholder' => __('Select Bank Account')]) }}
+                                {{ Form::select('bank_id', $bankAccounts, null, ['class' => 'form-control select2', 'id' => 'bank_id', 'required' => 'required', 'placeholder' => __('Select Bank Account')]) }}
                             </div>
                         </div>
                         <div class="col-lg-6 col-md-6">
@@ -118,4 +118,5 @@
             }
         });
     </script>
+    @include('headImprest.partials.bank-refresh')
 @endpush

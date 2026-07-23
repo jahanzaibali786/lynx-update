@@ -15,7 +15,7 @@
         <a href="{{ route('report.head-imprest.cashflow') }}" class="btn btn-sm btn-info text-white m-0">
             <span class="btn-inner--icon"><i class="ti ti-report me-1"></i>{{__('Cash Flow Report')}}</span>
         </a>
-        @can('create journal entry')
+        @can('create head imprest')
             <a href="#" data-url="{{ route('expense-voucher.create') }}" data-ajax-popup="true" data-title="{{__('Create Expense Voucher')}}" data-size="lg" class="btn btn-sm btn-outline-primary m-0">
                 <span class="btn-inner--icon"><i class="ti ti-plus me-1"></i>{{__('Create Expense Voucher')}}</span>
             </a>
@@ -102,7 +102,11 @@
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td class="Id">
-                                        <a href="{{ route('journal-entry.show',$journalEntry->id) }}" class="btn btnpurchase1 btn-outline-primary">{{ $journalEntry->getVoucherNumber() }}</a>
+                                        @can('show head imprest')
+                                            <a href="{{ route('head-imprest-vouchers.show', $journalEntry->id) }}" class="btn btnpurchase1 btn-outline-primary">{{ $journalEntry->getVoucherNumber() }}</a>
+                                        @else
+                                            {{ $journalEntry->getVoucherNumber() }}
+                                        @endcan
                                     </td>
                                     <td>{{ Auth::user()->dateFormat($journalEntry->date) }}</td>
                                     <td>
@@ -140,22 +144,21 @@
                                     <td class="wrap-td">{{!empty($journalEntry->description)?$journalEntry->description:'-'}}</td>
                                     <td>
                                         <div class="action-btn ms-2">
-                                            <a title="{{__('View Details')}}" href="{{ route('journal-entry.show',[$journalEntry->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center">
-                                                <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
-                                            </a>
-                                            @can('show journal entry')
-                                                <a title="{{ __('Voucher Print') }}" href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-secondary align-items-center" data-bs-title="{{ __('Print') }}">
-                                                    <span class="btn-inner--icon"> <i class="ti ti-printer"></i> </span>
+                                            @can('show head imprest')
+                                                <a title="{{__('View Details')}}" href="{{ route('head-imprest-vouchers.show', $journalEntry->id) }}" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center">
+                                                    <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                                 </a>
                                             @endcan
-                                            @can('edit journal entry')
+                                            @can('approve head imprest')
                                                 @if(!in_array($journalEntry->status, ['Approved', 'Posted']) && \Auth::user()->type == 'company')
                                                     {!! Form::open(['method' => 'POST', 'route' => array('head-imprest-vouchers.approve', $journalEntry->id), 'style'=>'display:inline-block;', 'id'=>'approve-head-form-'.$journalEntry->id]) !!}
-                                                    <a href="#" class="mx-1 btn btn-sm btn-outline-success align-items-center bs-pass-para" data-bs-title="{{__('Approve')}}" data-confirm="{{__('Approve Voucher?').'|'.__('This will approve the voucher and update bank balances. Do you want to continue?')}}" data-confirm-yes="document.getElementById('approve-head-form-{{$journalEntry->id}}').submit();">
+                                                    <a href="#" class="mx-1 btn btn-sm btn-outline-success align-items-center bs-pass-para" data-bs-title="{{__('Approve')}}" data-confirm="{{__('Approve Voucher?').'|'.__('This will approve the voucher. Do you want to continue?')}}" data-confirm-yes="document.getElementById('approve-head-form-{{$journalEntry->id}}').submit();">
                                                         <span class="btn-inner--icon"><i class="ti ti-check"></i></span>
                                                     </a>
                                                     {!! Form::close() !!}
                                                 @endif
+                                            @endcan
+                                            @can('submit head imprest')
                                                 @if($journalEntry->status == 'Draft' && \Auth::user()->type == 'branch')
                                                     {!! Form::open(['method' => 'POST', 'route' => array('head-imprest-vouchers.send-to-ho', $journalEntry->id), 'style'=>'display:inline-block;', 'id'=>'send-to-ho-form-'.$journalEntry->id]) !!}
                                                     <a href="#" class="mx-1 btn btn-sm btn-outline-info align-items-center bs-pass-para" data-bs-title="{{__('Send to HO')}}" data-confirm="{{__('Send to HO?').'|'.__('Are you sure you want to send this voucher to HO for approval?')}}" data-confirm-yes="document.getElementById('send-to-ho-form-{{$journalEntry->id}}').submit();">
@@ -163,15 +166,17 @@
                                                     </a>
                                                     {!! Form::close() !!}
                                                 @endif
+                                            @endcan
+                                            @can('edit head imprest')
                                                 @if(!in_array($journalEntry->status, ['Approved', 'Posted']))
-                                                    <a title="{{__('Edit')}}" href="{{ route('journal-entry.edit',[$journalEntry->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center" data-bs-title="{{__('Edit')}}">
+                                                    <a title="{{__('Edit')}}" href="#" data-url="{{ route('expense-voucher.edit', $journalEntry->id) }}" data-ajax-popup="true" data-title="{{__('Edit Expense Voucher')}}" data-size="lg" class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center" data-bs-title="{{__('Edit')}}">
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
                                                 @endif
                                             @endcan
-                                            @can('delete journal entry')
-                                                @if(!($journalEntry->status == 'Approved' && \Auth::user()->type == 'branch'))
-                                                    {!! Form::open(['method' => 'DELETE', 'route' => array('journal-entry.destroy', $journalEntry->id),'id'=>'delete-form-'.$journalEntry->id, 'style'=>'display:inline-block;']) !!}
+                                            @can('delete head imprest')
+                                                @if(!in_array($journalEntry->status, ['Approved', 'Posted', 'Reversed']))
+                                                    {!! Form::open(['method' => 'DELETE', 'route' => array('head-imprest-vouchers.destroy', $journalEntry->id),'id'=>'delete-form-'.$journalEntry->id, 'style'=>'display:inline-block;']) !!}
                                                     <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"  data-bs-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$journalEntry->id}}').submit();">
                                                         <span class="btn-inner--icon"> <i class="ti ti-trash"></i> </span>
                                                     </a>

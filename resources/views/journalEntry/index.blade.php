@@ -16,7 +16,7 @@
     }
 </style>
     <div class="float-end">
-        @can('create journal entry')
+        @can('create head imprest')
             <a href="{{ route('expense-voucher.create') }}" class="btn mx-1 btn-sm btn-outline-primary">
                 <span class="btn-inner--icon">{{__('Create Expense Voucher')}}</span>
             </a>
