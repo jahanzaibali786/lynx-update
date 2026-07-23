@@ -115,6 +115,7 @@
 <li class="breadcrumb-item">{{ __('Product Information ') }}</li>
 @endsection
 @section('action-btn')
+@can('create product & service')
 <div class="float-end">
     <a href="#" data-url="{{ route('productservice.create') }}" data-size="modal-fullscreen"
         data-ajax-popup="true" data-bs-title="{{ __('Create Product') }}"
@@ -122,6 +123,7 @@
         <span class="btn-inner--icon">Create</span>
     </a>
 </div>
+@endcan
 @endsection
 
 @section('content')
@@ -202,15 +204,21 @@
                                 <th>{{ __('Sr.') }}</th>
                                 <th>{{ __('Product Name') }}</th>
                                 <th>{{ __('Product code') }}</th>
-                                <th>{{ __('Sale Price') }}</th>
-                                <th>{{ __('Purchase Price') }}</th>
+                                @can('show sale price product & service')
+                                    <th>{{ __('Sale Price') }}</th>
+                                @endcan
+                                @can('show purchase price product & service')
+                                    <th>{{ __('Purchase Price') }}</th>
+                                @endcan
                                 <th>{{ __('Category') }}</th>
                                 <th>{{ __('SubCategory') }}</th>
                                 <th>{{ __('Unit') }}</th>
-                                <th>{{ __('New Qty') }}</th>
-                                <th>{{ __('Used Qty') }}</th>
-                                <th>{{ __('Damaged Qty') }}</th>
-                                <th>{{ __('Total Qty') }}</th>
+                                @can('show quantity product & service')
+                                    <th>{{ __('New Qty') }}</th>
+                                    <th>{{ __('Used Qty') }}</th>
+                                    <th>{{ __('Damaged Qty') }}</th>
+                                    <th>{{ __('Total Qty') }}</th>
+                                @endcan
                                 <th>{{ __('Action') }}</th>
                             </tr>
                         </thead>

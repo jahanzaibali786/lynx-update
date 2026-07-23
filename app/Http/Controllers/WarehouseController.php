@@ -46,6 +46,10 @@ class WarehouseController extends Controller
      */
     public function create()
     {
+        if (!\Auth::user()->can('create warehouse')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
         $branches->prepend(\Auth::user()->name, \Auth::user()->id);
         // $branches->prepend('Select Branch', '');

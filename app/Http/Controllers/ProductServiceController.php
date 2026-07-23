@@ -273,7 +273,7 @@ class ProductServiceController extends Controller
             'inventoryAssetAccount',
         ])->findOrFail($id);
 
-        if (!\Auth::user()->can('manage product & service') || $productService->created_by != \Auth::user()->creatorId()) {
+        if (!\Auth::user()->can('show product & service') || $productService->created_by != \Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
