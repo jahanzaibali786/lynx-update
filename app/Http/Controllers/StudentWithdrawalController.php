@@ -1096,6 +1096,9 @@ class StudentWithdrawalController extends Controller
             ->where('status', 'Paid')
             ->orderByDesc('fee_month')
             ->first();
+        $lastBilling = \App\Models\Challans::where('student_id', $student->id)
+            ->orderByDesc('fee_month')
+            ->first();
 
         $securityHead = \App\Models\FeeHead::whereRaw('LOWER(fee_head) LIKE ?', ['%security%'])->first();
         $securityDeposit = 0;
@@ -1160,13 +1163,12 @@ class StudentWithdrawalController extends Controller
                 ->sum('paid_amount');
         }
 
-        if ($lastPaidChallan) {
-            $lastReceipt = \App\Models\StudentReceipt::where('challan_id', $lastPaidChallan->id)
+        
+            $lastReceipt = \App\Models\StudentReceipt::where('student_id', $student->id)
                 ->orderBy('id', 'desc')
                 ->first();
             $lastReceiptAmount = $lastReceipt ? $lastReceipt->recipt_amount : 0;
             $lastReceiptDate = $lastReceipt ? $lastReceipt->recipt_date : null;
-        }
 
         $pdf = Pdf::loadView('students.student_withdrawal.clearanceCertificatePrint', [
             'withdrawal' => $withdrawal,
@@ -1174,7 +1176,7 @@ class StudentWithdrawalController extends Controller
             'branch' => $branch,
             'class' => $class,
             'enrollment' => $enrollment,
-            'lastPaidChallan' => $lastPaidChallan,
+            'lastBilling' => $lastBilling,
             'securityDeposit' => $securityDeposit,
             'securityChallanNo' => $securityChallanNo,
             'securityDepositDate' => $securityDepositDate,

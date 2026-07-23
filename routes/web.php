@@ -691,6 +691,7 @@ Route::get('/bank-transfer/reference/{id}', [BankTransferController::class, 'get
             Route::post('invoice/{id}/payment/{pid}/destroy', [InvoiceController::class, 'paymentDestroy'])->name('invoice.payment.destroy');
             Route::get('invoice/items', [InvoiceController::class, 'items'])->name('invoice.items');
 
+			Route::get('accounts/grn', [GrnController::class, 'accountsIndex'])->name('grn.accounts_index');
 			Route::get('grn/{grn}/fw-to-ho', [GrnController::class, 'fwToHo'])->name('grn.fw_to_ho');
             Route::match(['get', 'post'], 'grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
             Route::get('grn/{grn}/fw-to-accounts', [GrnController::class, 'fwToAccounts'])->name('grn.fw_to_accounts');

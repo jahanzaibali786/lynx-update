@@ -1742,6 +1742,18 @@
                                             </ul>
                                         </li>
                                     @endif
+
+                                        <li id="accounts-inventory" class="dash-item dash-hasmenu ">
+                                            <a class="dash-link {{ Request::segment(1) == 'accounts' && Request::segment(2) == 'grn' ? 'active dash-trigger' : '' }}"
+                                                href="#acc_inventory">{{ __('Inventory') }}</a>
+                                            <ul id="acc_inventory" class="dash-submenu">
+                                                <li class="dash-item ">
+                                                    <a class="dash-link {{ Request::route()->getName() == 'grn.accounts_index' ? ' active' : '' }}"
+                                                        href="{{ route('grn.accounts_index') }}">{{ __('GRN') }}</a>
+                                                </li>
+                                            </ul>
+                                        </li>
+
                                     {{-- @if (\Auth::user()->type == 'company' || \Auth::user()->type == 'branch')
                                             <li class="dash-item ">
                                                 <a class="dash-link {{ Request::segment(1) == 'budget' ? 'active' : '' }}"

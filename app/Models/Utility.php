@@ -3800,7 +3800,7 @@ class Utility extends Model
     }
 
     // add quantity in product stock
-    public static function addProductStock($product_id, $quantity, $type, $description, $type_id)
+    public static function addProductStock($product_id, $quantity, $type, $description, $type_id, $extra = [])
     {
         $stocks = new StockReport;
         $stocks->product_id = $product_id;
@@ -3812,6 +3812,13 @@ class Utility extends Model
         if (Schema::hasColumn('stock_reports', 'owned_by')) {
             $stocks->owned_by = \Auth::user()->ownedId();
         }
+
+        if(isset($extra['warehouse_id'])) $stocks->warehouse_id = $extra['warehouse_id'];
+        if(isset($extra['unit_price'])) $stocks->unit_price = $extra['unit_price'];
+        if(isset($extra['sale_price'])) $stocks->sale_price = $extra['sale_price'];
+        if(isset($extra['remaining_qty'])) $stocks->remaining_qty = $extra['remaining_qty'];
+        if(isset($extra['condition'])) $stocks->condition = $extra['condition'];
+
         $stocks->save();
     }
 

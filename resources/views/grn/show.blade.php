@@ -146,8 +146,11 @@
                                                 </a>
                                             @endif
                                             @if($grn->status == 7 && in_array(\Auth::user()->type, ['company', 'accountant']))
-                                                <a href="{{ route('grn.accounts_approve', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-success" onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
+                                                <a href="{{ route('grn.accounts_approve', $grn->id) }}" class="btn mx-1 btn-sm btn-success text-white" onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
                                                     <span class="btn-inner--icon"><i class="ti ti-checks mr-2"></i></span>{{__('Approve')}}
+                                                </a>
+                                                <a href="{{ route('grn.reject', $grn->id) }}" class="btn mx-1 btn-sm btn-danger text-white" onclick="return confirm('{{ __('Are you sure you want to reject this GRN?') }}')">
+                                                    <span class="btn-inner--icon"><i class="ti ti-x mr-2"></i></span>{{__('Reject')}}
                                                 </a>
                                             @endif
                                         </div>

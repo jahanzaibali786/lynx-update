@@ -87,9 +87,9 @@ class EmployeeTransferController extends Controller
                 $employees = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $employees->prepend('Select Employee', '');
             } else {
-                $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $departments->prepend('Select Department', '');
-                $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $designations->prepend('Select Designation', '');
                 
                 $from_branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
@@ -195,9 +195,9 @@ public function print($id)
                 $employees = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $employees->prepend('Select Employee', '');
             } else {
-                $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $departments->prepend('Select Department', '');
-                $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $designations->prepend('Select Designation', '');
                 
                 $from_branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');

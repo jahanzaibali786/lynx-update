@@ -29,6 +29,8 @@ class Grn extends Model
         'Finalized',
         'Fw to Accounts',
         'Accounts Approved',
+        'Rejected by HO',
+        'Rejected by Accounts'
     ];
 
     public function vendor()

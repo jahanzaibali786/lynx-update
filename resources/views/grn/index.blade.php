@@ -92,6 +92,8 @@
                             @elseif($grn->status == 6) bg-primary
                             @elseif($grn->status == 7) bg-warning
                             @elseif($grn->status == 8) bg-success
+                            @elseif($grn->status == 9) bg-danger
+                            @elseif($grn->status == 10) bg-danger
                             @else bg-secondary
                             @endif p-2 px-3 rounded">
                             {{ __($statusLabel) }}
@@ -102,7 +104,7 @@
                             class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Show') }}">
                             <i class="ti ti-eye"></i>
                         </a>
-                        @if ($grn->status == 0)
+                        @if (in_array($grn->status, [0, 9, 10]))
                             <a href="#" data-url="{{ route('grn.edit', $grn->id) }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Edit GRN') }}"
                                 class="mx-1 btn btn-sm btn-outline-info align-items-center">
                                 <i class="ti ti-pencil"></i>

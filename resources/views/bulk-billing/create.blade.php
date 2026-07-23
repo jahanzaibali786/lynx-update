@@ -15,19 +15,19 @@
                 <div class="col-md-3">
                     <div class="form-group">
                         {{ Form::label('branch_id', __('Branch'), ['class' => 'form-label']) }}<span style="color:red"> *</span>
-                        {{ Form::select('branch_id', $branches, null, ['class' => 'form-control select', 'id' => 'branch_id', 'required' => 'required', 'placeholder' => __('Select Branch')]) }}
+                        {{ Form::select('branch_id', $branches, null, ['class' => 'form-control select custom-select', 'id' => 'branch_id', 'required' => 'required', 'placeholder' => __('Select Branch')]) }}
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="form-group">
                         {{ Form::label('session_id', __('Session'), ['class' => 'form-label']) }}<span style="color:red"> *</span>
-                        {{ Form::select('session_id', $sessions, 2, ['class' => 'form-control select', 'id' => 'session_id', 'required' => 'required', 'placeholder' => __('Select Session')]) }}
+                        {{ Form::select('session_id', $sessions, 2, ['class' => 'form-control select custom-select', 'id' => 'session_id', 'required' => 'required', 'placeholder' => __('Select Session')]) }}
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="form-group">
                         {{ Form::label('student_id', __('Student'), ['class' => 'form-label']) }}<span style="color:red"> *</span>
-                        {{ Form::select('student_id', [], null, ['class' => 'form-control select', 'id' => 'student_id', 'required' => 'required', 'placeholder' => __('Select Student')]) }}
+                        {{ Form::select('student_id', [], null, ['class' => 'form-control select custom-select', 'id' => 'student_id', 'required' => 'required', 'placeholder' => __('Select Student')]) }}
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -93,13 +93,13 @@
                 <div class="col-md-3">
                     <div class="form-group">
                         {{ Form::label('bank_id', __('Bank'), ['class' => 'form-label']) }}<span style="color:red"> *</span>
-                        {{ Form::select('bank_id', $accounts, null, ['class' => 'form-control select', 'id' => 'bank_id', 'required' => 'required', 'placeholder' => __('Select Bank')]) }}
+                        {{ Form::select('bank_id', $accounts, null, ['class' => 'form-control select custom-select', 'id' => 'bank_id', 'required' => 'required', 'placeholder' => __('Select Bank')]) }}
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="form-group">
                         {{ Form::label('payment_type', __('Payment Type'), ['class' => 'form-label']) }}<span style="color:red"> *</span>
-                        {{ Form::select('payment_type', ['DD' => 'Demand Draft', 'OL' => 'Online', 'CHQ' => 'Cheque', 'CD' => 'Cash Deposit'], null, ['class' => 'form-control', 'id' => 'payment_type', 'required' => 'required']) }}
+                        {{ Form::select('payment_type', ['DD' => 'Demand Draft', 'OL' => 'Online', 'CHQ' => 'Cheque', 'CD' => 'Cash Deposit'], null, ['class' => 'form-control custom-select', 'id' => 'payment_type', 'required' => 'required']) }}
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -122,26 +122,87 @@
 @push('script-page')
 <script>
     var accountsData = {!! json_encode($accountsData) !!};
+    var bulkBillingStudentRequest = null;
+    var bulkBillingStudentRequestToken = 0;
+
+    function rebuildBulkBillingCustomSelect($select) {
+        if (!$select.length) {
+            return;
+        }
+
+        var select = $select[0];
+        $select.addClass('custom-select');
+
+        if (select.customSelectInstance) {
+            var $activeWrapper = select.customSelectInstance.wrapper ? $(select.customSelectInstance.wrapper) : $();
+            $select.siblings('.custom-select-wrapper').not($activeWrapper).remove();
+
+            if (typeof select.customSelectInstance.updateOptions === 'function') {
+                select.customSelectInstance.updateOptions();
+            }
+
+            if (!select.value && select.customSelectInstance.displayText) {
+                select.customSelectInstance.selectedValue = '';
+                select.customSelectInstance.selectedText = '';
+                select.customSelectInstance.displayText.textContent = select.getAttribute('placeholder') || '{{ __("Select Student") }}';
+            }
+            return;
+        }
+
+        $select.siblings('.custom-select-wrapper').remove();
+        $select.show();
+
+        if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
+            window.CustomSelect.create(select);
+        }
+    }
 
     $(document).ready(function() {
-        $('#branch_id').change(function() {
+        $('#branch_id').off('change.bulkBillingStudents').on('change.bulkBillingStudents', function() {
             var branchId = $(this).val();
-            $('#student_id').empty().append('<option value="">{{ __("Select Student") }}</option>');
+            var $studentSelect = $('#student_id');
+
+            $studentSelect.val('').empty().append('<option value="">{{ __("Select Student") }}</option>');
+            rebuildBulkBillingCustomSelect($studentSelect);
             $('#feeHeadsBody').html('<tr><td colspan="5" class="text-center">{{ __("Select a student to load fee heads") }}</td></tr>');
+
+            if (bulkBillingStudentRequest && bulkBillingStudentRequest.readyState !== 4) {
+                bulkBillingStudentRequest.abort();
+            }
+
             if (branchId) {
-                $.ajax({
+                var requestToken = ++bulkBillingStudentRequestToken;
+                bulkBillingStudentRequest = $.ajax({
                     url: '{{ route("bulk-billing.students", ":branchId") }}'.replace(':branchId', branchId),
                     type: 'GET',
                     success: function(data) {
+                        if (requestToken !== bulkBillingStudentRequestToken) {
+                            return;
+                        }
+
+                        var addedStudentIds = {};
+                        $studentSelect.val('').empty().append('<option value="">{{ __("Select Student") }}</option>');
                         $.each(data, function(i, s) {
-                            $('#student_id').append('<option value="' + s.id + '">' + s.text + '</option>');
+                            if (!s.id || addedStudentIds[s.id]) {
+                                return;
+                            }
+                            addedStudentIds[s.id] = true;
+                            $studentSelect.append('<option value="' + s.id + '">' + s.text + '</option>');
                         });
+                        rebuildBulkBillingCustomSelect($studentSelect);
+                    },
+                    error: function(xhr, status) {
+                        if (status !== 'abort') {
+                            rebuildBulkBillingCustomSelect($studentSelect);
+                        }
                     }
                 });
+            } else {
+                bulkBillingStudentRequestToken++;
             }
         });
 
-        $('#billing_month').change(function() {
+        $('#billing_month').off('change.bulkBillingDates').on('change.bulkBillingDates', function() {
             var month = $(this).val();
             if (month) {
                 $('#challan_date').val(month + '-01');
@@ -152,7 +213,7 @@
             }
         });
 
-        $('#student_id, #billing_month').change(function() {
+        $('#student_id, #billing_month').off('change.bulkBillingHeads').on('change.bulkBillingHeads', function() {
             var studentId = $('#student_id').val();
             var month = $('#billing_month').val();
             if (studentId && month) {
@@ -197,7 +258,7 @@
             row.find('.head-checkbox').prop('checked', true);
         });
 
-        $('#bank_id').change(function() {
+        $('#bank_id').off('change.bulkBillingBank').on('change.bulkBillingBank', function() {
             var bankId = $(this).val();
             var d = accountsData[bankId] || {};
             var chartAccount = d.chart_account || '';
@@ -207,6 +268,7 @@
             } else {
                 $type.html('<option value="DD">DD</option><option value="OL">OL</option><option value="CHQ">CHQ</option>');
             }
+            rebuildBulkBillingCustomSelect($type);
         });
 
         $('#bulkBillingForm').on('submit', function(e) {

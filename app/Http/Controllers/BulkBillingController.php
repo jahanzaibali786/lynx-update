@@ -70,9 +70,9 @@ class BulkBillingController extends Controller
     {
         $students = StudentRegistration::where('owned_by', $branchId)
             ->whereIn('student_status', ['Enrolled', 'Withdrawal'])
-            ->whereHas('enrollment', function ($q) {
-                $q->where('active_status', 1);
-            })
+            // ->whereHas('enrollment', function ($q) {
+            //     $q->where('active_status', 1);
+            // })
             ->orderBy('stdname')
             ->get(['id', 'stdname', 'roll_no']);
 

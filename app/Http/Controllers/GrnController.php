@@ -50,6 +50,61 @@ class GrnController extends Controller
         return view('grn.index', compact('grns', 'warehouses', 'vendors'));
     }
 
+    public function accountsIndex(Request $request)
+    {
+        $user = \Auth::user();
+        
+        if (!in_array($user->type, ['company', 'accountant'])) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $query = Grn::with(['vendor', 'warehouse', 'branch', 'items.purchase'])
+            ->where('created_by', $user->creatorId());
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        } else {
+            $query->whereIn('status', [7, 8]);
+        }
+
+        $warehouses = $this->warehouseOptions();
+        $vendors = Vender::where('created_by', $user->creatorId())
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->prepend('Select Vendor', '');
+
+        if ($request->filled('warehouse_id')) {
+            $query->where('warehouse_id', $request->warehouse_id);
+        }
+
+        if ($request->filled('vendor_id')) {
+            $query->where('vendor_id', $request->vendor_id);
+        }
+
+        if (!$request->has('start_date') && !$request->has('end_date')) {
+            $request->merge([
+                'start_date' => date('Y-m-01'),
+                'end_date' => date('Y-m-d')
+            ]);
+        }
+
+        if ($request->filled('start_date')) {
+            $query->whereDate('grn_date', '>=', $request->start_date);
+        }
+
+        if ($request->filled('end_date')) {
+            $query->whereDate('grn_date', '<=', $request->end_date);
+        }
+
+        $grns = $query->latest()->paginate(15);
+        
+        $statuses = [
+            7 => 'Pending',
+            8 => 'Approved'
+        ];
+
+        return view('grn.accounts_index', compact('grns', 'warehouses', 'vendors', 'statuses'));
+    }
+
     public function create(Request $request)
     {
         $viewData = $this->formData();
@@ -101,7 +156,7 @@ class GrnController extends Controller
     public function edit(Request $request, Grn $grn)
     {
         $this->authorizeGrn($grn);
-        if ($grn->status >= 5) {
+        if ($grn->status >= 5 && !in_array($grn->status, [9, 10])) {
             if ($request->ajax()) {
                 return response()->json(['success' => false, 'message' => __('Finalized GRN cannot be edited.')], 422);
             }
@@ -127,7 +182,7 @@ class GrnController extends Controller
     public function update(Request $request, Grn $grn)
     {
         $this->authorizeGrn($grn);
-        if ($grn->status >= 5) {
+        if ($grn->status >= 5 && !in_array($grn->status, [9, 10])) {
             return redirect()->route('grn.show', $grn->id)->with('error', __('Finalized GRN cannot be edited.'));
         }
         $data = $this->validatedData($request);
@@ -299,9 +354,15 @@ class GrnController extends Controller
         $this->authorizeGrn($grn);
 
         if ($grn->status == 5 && \Auth::user()->type == 'company') {
-            $grn->status = 0;
+            $grn->status = 9;
             $grn->save();
-            return redirect()->back()->with('success', __('GRN rejected and sent back to draft.'));
+            return redirect()->back()->with('success', __('GRN rejected by HO and sent back.'));
+        }
+
+        if ($grn->status == 7 && in_array(\Auth::user()->type, ['company', 'accountant'])) {
+            $grn->status = 10;
+            $grn->save();
+            return redirect()->back()->with('success', __('GRN rejected by Accounts and sent back.'));
         }
 
         return redirect()->back()->with('error', __('Permission denied.'));
@@ -461,7 +522,20 @@ class GrnController extends Controller
             Utility::addWarehouseStock($grnItem->product_id, $quantity, $grn->warehouse_id);
 
             $description = $quantity . ' ' . __('quantity received in GRN') . ' GRN-' . sprintf('%05d', $grn->grn_no);
-            Utility::addProductStock($grnItem->product_id, $quantity, 'grn', $description, $grn->id);
+            Utility::addProductStock(
+                $grnItem->product_id,
+                $quantity,
+                'grn',
+                $description,
+                $grn->id,
+                [
+                    'warehouse_id' => $grn->warehouse_id,
+                    'unit_price' => $grnItem->price ?? 0,
+                    'sale_price' => 0,
+                    'remaining_qty' => $quantity,
+                    'condition' => $grnItem->condition,
+                ]
+            );
         }
     }
 

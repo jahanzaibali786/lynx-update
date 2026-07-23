@@ -8,7 +8,20 @@ use Illuminate\Database\Eloquent\Model;
 class Concession extends Model
 {
     use HasFactory;
-
+    protected $fillable = [
+        'student_id',
+        'class_id',
+        'concession_id',
+        'concession_by',
+        'type',
+        'session_id',
+        'apply_date',
+        'start_date',
+        'end_date',
+        'remarks',
+        'owned_by',
+        'created_by'
+    ];    
     public function student()
     {
         return $this->belongsTo(StudentRegistration::class, 'student_id', 'id');

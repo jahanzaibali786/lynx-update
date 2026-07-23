@@ -225,7 +225,7 @@
                         <table class="info-table">
                             <tr><td class="label">Security Deposit</td><td class="rvalue">Rs. {{ number_format($securityDeposit, 2) }}</td></tr>
                             <tr><td class="label">Security Deposit Date</td><td class="rvalue">{{ $securityDepositDate ?: 'N/A' }}</td></tr>
-                            <tr><td class="label">Last Billing Generated</td><td class="rvalue">{{ $lastPaidChallan ? strtoupper(\Carbon\Carbon::parse($lastPaidChallan->fee_month)->format('M Y')) : '-' }}</td></tr>
+                            <tr><td class="label">Last Billing Generated</td><td class="rvalue">{{ $lastBilling ? strtoupper(\Carbon\Carbon::parse($lastBilling->fee_month)->format('M Y')) : '-' }}</td></tr>
                             <tr><td class="label">Fee Paid Upto</td><td class="rvalue">{{ $lastReceiptDate ?  \Carbon\Carbon::parse($lastReceiptDate)->format('d M Y') : 'N/A' }}</td></tr>
                         </table>
                     </td>
@@ -233,8 +233,8 @@
                         <table class="info-table">
                             <tr><td class="label">Challan #</td><td class="rvalue">{{ $securityChallanNo ?? '-' }}</td></tr>
                             <tr><td class="label">Last Date of Attendance</td><td class="rvalue">{{ $withdrawal->withdraw_date ? \Carbon\Carbon::parse($withdrawal->withdraw_date)->format('d M Y') : '-' }}</td></tr>
-                            <tr><td colspan="2" style="text-align:left;">{{ $lastPaidChallan ? 'Rs. ' . number_format(($lastPaidChallan->total_amount - $lastPaidChallan->concession_amount), 2) : '-' }}</td></tr>
-                            <tr><td colspan="2" style="text-align:left;">{{ $lastPaidChallan ? 'Rs. ' . number_format($lastReceiptAmount, 2) : '-' }}</td></tr>
+                            <tr><td colspan="2" style="text-align:left;">{{ $lastBilling ? 'Rs. ' . number_format(($lastBilling->total_amount - $lastBilling->concession_amount), 2) : '-' }}</td></tr>
+                            <tr><td colspan="2" style="text-align:left;">{{ $lastReceiptAmount ? 'Rs. ' . number_format($lastReceiptAmount, 2) : '-' }}</td></tr>
                         </table>
                     </td>
                 </tr>
