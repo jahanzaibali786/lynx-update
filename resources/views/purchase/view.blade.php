@@ -75,9 +75,11 @@
                                             </p>
                                             <div class="timeline-action">
                                                 @if($purchase->status == 0)
+                                                    @can('send purchase')
                                                     <a href="{{ route('purchase.fw_to_ho', $purchase->id) }}" class="btn mx-1 btn-sm btn-outline-warning">
                                                         <span class="btn-inner--icon"><i class="ti ti-mail-forward mr-2"></i></span>{{__('Fw to Ho')}}
                                                     </a>
+                                                    @endcan
                                                 @endif
                                             </div>
                                         </div>
@@ -147,6 +149,7 @@
                                                 @endif
                                             </p>
                                             <div class="timeline-action">
+                                                @can('convert purchase to grn')
                                                 @if($purchase->status == 6 && \Auth::user()->type == 'company' && !$purchase->grn_converted)
                                                     <a href="#"
                                                         data-url="{{ route('purchase.convert_to_grn', $purchase->id) }}"
@@ -157,6 +160,7 @@
                                                         <span class="btn-inner--icon"><i class="ti ti-file-import mr-2"></i></span>{{__('Convert to GRN')}}
                                                     </a>
                                                 @endif
+                                                @endcan
                                             </div>
                                         </div>
                                     </div>

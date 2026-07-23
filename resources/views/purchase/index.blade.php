@@ -101,8 +101,12 @@
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td class="Id">
-                                    <a href="{{ route('purchase.show', \Crypt::encrypt($purchase->id)) }}"
-                                        class="btn btn-outline-primary btnpurchase1">{{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}</a>
+                                    @can('show purchase')
+                                        <a href="{{ route('purchase.show', \Crypt::encrypt($purchase->id)) }}"
+                                            class="btn btn-outline-primary btnpurchase1">{{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}</a>
+                                    @else
+                                        {{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}
+                                    @endcan
 
                                 </td>
 
@@ -139,7 +143,7 @@
 
 
 
-                                @if (Gate::check('edit purchase') || Gate::check('delete purchase') || Gate::check('show purchase'))
+                                @if (Gate::check('edit purchase') || Gate::check('delete purchase') || Gate::check('show purchase') || Gate::check('convert purchase to grn'))
                                     <td class="Action">
                                         <span>
 
@@ -175,6 +179,7 @@
                                                         <span class="btn-inner--icon"><i class="ti ti-x"></i></span>
                                                     </a>
                                                 @endif
+                                                @can('convert purchase to grn')
                                                 @if($purchase->status == 6 && \Auth::user()->type == 'company' && !$purchase->grn_converted)
                                                     <a href="#"
                                                         data-url="{{ route('purchase.convert_to_grn', $purchase->id) }}"
@@ -186,6 +191,7 @@
                                                         <span class="btn-inner--icon"><i class="ti ti-file-import"></i></span>
                                                     </a>
                                                 @endif
+                                                @endcan
                                                 {{-- @can('delete purchase')
                                                     {!! Form::open([
                                                         'method' => 'DELETE',

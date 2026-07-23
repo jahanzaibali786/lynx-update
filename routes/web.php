@@ -1953,7 +1953,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('purchase/{id}/reject', [PurchaseController::class, 'reject'])->name('purchase.reject');
             Route::get('purchase/{id}/convert-to-grn', [PurchaseController::class, 'convertToGrn'])->name('purchase.convert_to_grn');
             Route::post('purchase/{id}/convert-to-grn', [PurchaseController::class, 'storeConvertedGrn'])->name('purchase.convert_to_grn.store');
-
+            Route::get('accounts/grn', [GrnController::class, 'accountsIndex'])->name('grn.accounts_index');
             Route::resource('branchpurchase', \App\Http\Controllers\BranchPurchaseController::class);
             Route::get('branchpurchase/create/{cid}', [\App\Http\Controllers\BranchPurchaseController::class, 'create'])->name('branchpurchase.create');
             Route::post('branchpurchase/vender', [\App\Http\Controllers\BranchPurchaseController::class, 'vender'])->name('branchpurchase.vender');

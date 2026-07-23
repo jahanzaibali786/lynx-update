@@ -12,7 +12,7 @@
             <tbody>
                 @forelse($purchases as $purchase)
                     <tr class="select-purchase" data-id="{{ $purchase->id }}" data-code="{{ \Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}" style="cursor:pointer">
-                        <td><button type="button" class="btn btn-sm btn-outline-primary text-light select-purchase-btn">{{ \Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}</button></td>
+                        <td><a type="button" class="btn btn-sm btn-outline-primary text-light select-purchase-btn">{{ \Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}</a></td>
                         <td>{{ $purchase->vender->name ?? '-' }}</td>
                         <td>{{ $purchase->purchase_date }}</td>
                         <td>{{ number_format($purchase->getTotal(), 2) }}</td>

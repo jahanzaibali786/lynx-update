@@ -19,6 +19,10 @@ class GrnController extends Controller
 {
     public function index(Request $request)
     {
+        if (!\Auth::user()->can('manage grn')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $user = \Auth::user();
         $query = Grn::with(['vendor', 'warehouse', 'branch', 'items.purchase'])
             ->where('created_by', $user->creatorId());
@@ -54,7 +58,7 @@ class GrnController extends Controller
     {
         $user = \Auth::user();
         
-        if (!in_array($user->type, ['company', 'accountant'])) {
+        if (!$user->can('show account grn')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -107,6 +111,10 @@ class GrnController extends Controller
 
     public function create(Request $request)
     {
+        if (!\Auth::user()->can('create grn')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         $viewData = $this->formData();
         if ($request->ajax()) {
             $html = view('grn.create', $viewData)->renderSections()['content'] ?? '';
@@ -117,6 +125,10 @@ class GrnController extends Controller
 
     public function store(Request $request)
     {
+        if (!\Auth::user()->can('create grn')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
         $data = $this->validatedData($request);
         $user = \Auth::user();
 
@@ -155,6 +167,10 @@ class GrnController extends Controller
 
     public function edit(Request $request, Grn $grn)
     {
+        if (!\Auth::user()->can('edit grn')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         $this->authorizeGrn($grn);
         if ($grn->status >= 5 && !in_array($grn->status, [9, 10])) {
             if ($request->ajax()) {
@@ -173,6 +189,10 @@ class GrnController extends Controller
 
     public function show(Grn $grn)
     {
+        if (!\Auth::user()->can('show grn')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $this->authorizeGrn($grn);
         $grn->load(['vendor', 'warehouse', 'items.product', 'items.purchase', 'items.purchaseProduct']);
 
@@ -181,6 +201,10 @@ class GrnController extends Controller
 
     public function update(Request $request, Grn $grn)
     {
+        if (!\Auth::user()->can('edit grn')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $this->authorizeGrn($grn);
         if ($grn->status >= 5 && !in_array($grn->status, [9, 10])) {
             return redirect()->route('grn.show', $grn->id)->with('error', __('Finalized GRN cannot be edited.'));
@@ -220,6 +244,10 @@ class GrnController extends Controller
 
     public function destroy(Grn $grn)
     {
+        if (!\Auth::user()->can('delete grn')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $this->authorizeGrn($grn);
 
         DB::beginTransaction();
@@ -244,7 +272,7 @@ class GrnController extends Controller
     {
         $this->authorizeGrn($grn);
 
-        if ($grn->status == 5 && \Auth::user()->type == 'company') {
+        if ($grn->status == 5 && \Auth::user()->can('finalize grn')) {
             DB::beginTransaction();
             try {
                 $grn->load('items.purchaseProduct');
@@ -294,7 +322,7 @@ class GrnController extends Controller
             return redirect()->back()->with('error', __('Only finalized GRN can be forwarded to Accounts.'));
         }
 
-        if (\Auth::user()->type != 'company') {
+        if (!\Auth::user()->can('forward grn to accounts')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -308,7 +336,9 @@ class GrnController extends Controller
     {
         $this->authorizeGrn($grn);
 
-        if ($grn->status != 7 || !in_array(\Auth::user()->type, ['company', 'accountant'])) {
+        if (
+            $grn->status != 7 || !\Auth::user()->can('account approve grn')
+        ) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -353,13 +383,13 @@ class GrnController extends Controller
     {
         $this->authorizeGrn($grn);
 
-        if ($grn->status == 5 && \Auth::user()->type == 'company') {
+        if ($grn->status == 5 ) {
             $grn->status = 9;
             $grn->save();
             return redirect()->back()->with('success', __('GRN rejected by HO and sent back.'));
         }
 
-        if ($grn->status == 7 && in_array(\Auth::user()->type, ['company', 'accountant'])) {
+        if ($grn->status == 7) {
             $grn->status = 10;
             $grn->save();
             return redirect()->back()->with('success', __('GRN rejected by Accounts and sent back.'));
@@ -571,6 +601,10 @@ class GrnController extends Controller
 
     public function draftPurchases()
     {
+        if (!\Auth::user()->can('create grn')) {
+            abort(403, __('Permission denied.'));
+        }
+
         $user = \Auth::user();
         $purchases = Purchase::with(['vender', 'items'])
             ->where('created_by', $user->creatorId())
@@ -589,6 +623,10 @@ class GrnController extends Controller
 
     public function purchaseItems($id, Request $request)
     {
+        if (!\Auth::user()->can('create grn') && !\Auth::user()->can('edit grn')) {
+            abort(403, __('Permission denied.'));
+        }
+
         $purchase = Purchase::with('items.products')->findOrFail($id);
 
         if ($purchase->created_by != \Auth::user()->creatorId()) {
@@ -715,6 +753,10 @@ class GrnController extends Controller
 
     public function addVendorForm()
     {
+        if (!\Auth::user()->can('create grn')) {
+            abort(403, __('Permission denied.'));
+        }
+
         $data = $this->formData();
         return view('grn.add_vendor', [
             'vendorAccounts' => $data['vendorAccounts'],

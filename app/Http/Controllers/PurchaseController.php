@@ -45,6 +45,10 @@ class PurchaseController extends Controller
      */
     public function index(Request $request)
     {
+        if (!\Auth::user()->can('manage purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         // dropdown list (id => name)
         $vendorList = Vender::where('created_by', \Auth::user()->creatorId())
             ->pluck('name', 'id')
@@ -1432,7 +1436,11 @@ class PurchaseController extends Controller
 
     public function fwToHo($id)
     {
-        $purchase = Purchase::findOrFail($id);
+        if (!\Auth::user()->can('send purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $purchase = Purchase::where('created_by', \Auth::user()->creatorId())->findOrFail($id);
         $purchase->status = 5; // Fw to Ho
         $purchase->save();
         return redirect()->back()->with('success', __('Purchase forwarded to Head Office.'));
@@ -1440,7 +1448,7 @@ class PurchaseController extends Controller
 
     public function finalize($id)
     {
-        $purchase = Purchase::findOrFail($id);
+        $purchase = Purchase::where('created_by', \Auth::user()->creatorId())->findOrFail($id);
         if ($purchase->status == 5 && \Auth::user()->type == 'company') {
             $purchase->status = 6; // Finalized
             $purchase->save();
@@ -1452,7 +1460,7 @@ class PurchaseController extends Controller
 
     public function reject($id)
     {
-        $purchase = Purchase::findOrFail($id);
+        $purchase = Purchase::where('created_by', \Auth::user()->creatorId())->findOrFail($id);
         if ($purchase->status == 5 && \Auth::user()->type == 'company') {
             $purchase->status = 0; // Draft
             $purchase->save();
@@ -1465,7 +1473,7 @@ class PurchaseController extends Controller
     {
         $purchase = Purchase::with('items.products')->findOrFail($id);
 
-        if ($purchase->status != 6 || \Auth::user()->type != 'company') {
+        if ($purchase->status != 6 || \Auth::user()->type != 'company' || !\Auth::user()->can('convert purchase to grn')) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
@@ -1491,7 +1499,7 @@ class PurchaseController extends Controller
     {
         $purchase = Purchase::with('items')->findOrFail($id);
 
-        if ($purchase->status != 6 || \Auth::user()->type != 'company' || $purchase->created_by != \Auth::user()->creatorId()) {
+        if ($purchase->status != 6 || \Auth::user()->type != 'company' || !\Auth::user()->can('convert purchase to grn') || $purchase->created_by != \Auth::user()->creatorId()) {
             return response()->json(['success' => false, 'message' => __('Permission denied.')], 401);
         }
 

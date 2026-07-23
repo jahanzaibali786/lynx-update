@@ -538,8 +538,6 @@ class BranchSeeder extends Seeder
             ['name' => 'show purchase'],
             ['name' => 'delete purchase'],
             ['name' => 'send purchase'],
-            ['name' => 'create payment purchase'],
-            ['name' => 'delete payment purchase'],
             ['name' => 'manage pos'],
             ['name' => 'manage contract type'],
             ['name' => 'create contract type'],

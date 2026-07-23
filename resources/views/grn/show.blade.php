@@ -78,7 +78,7 @@
                                                 <i class="ti ti-clock text-muted"></i>
                                             @endif
                                         </div>
-                                        @if(\Auth::user()->type == 'company')
+                                        @if(\Auth::user()->can('finalize grn'))
                                             <h6 class="my-3 @if($grn->status >= 7) text-success @elseif($grn->status == 6) text-info @else text-muted @endif">
                                                 {{__('Approval')}}
                                             </h6>
@@ -90,7 +90,7 @@
                                         <p class="text-muted text-sm mb-3">
                                             @if($grn->status >= 7)
                                                 <i class="ti ti-clock mr-2"></i>{{__('Finalized')}}
-                                            @elseif($grn->status == 6 && \Auth::user()->type == 'company')
+                                            @elseif($grn->status == 6 && \Auth::user()->can('finalize grn'))
                                                 <small>{{__('Pending your decision')}}</small>
                                             @elseif($grn->status == 6)
                                                 <small>{{__('Under review at Head Office')}}</small>
@@ -99,7 +99,7 @@
                                             @endif
                                         </p>
                                         <div class="timeline-action">
-                                            @if($grn->status == 5 && \Auth::user()->type == 'company')
+                                            @if($grn->status == 5)
                                                 <a href="{{ route('grn.finalize', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-success" onclick="return confirm('{{ __('Finalize this GRN? It will be ready to forward to Accounts.') }}')">
                                                     <span class="btn-inner--icon"><i class="ti ti-check mr-2"></i></span>{{__('Finalize')}}
                                                 </a>
@@ -129,7 +129,7 @@
                                         <p class="text-muted text-sm mb-3">
                                             @if($grn->status == 8)
                                                 <i class="ti ti-clock mr-2"></i>{{__('Approved')}}
-                                            @elseif($grn->status == 7 && in_array(\Auth::user()->type, ['company', 'accountant']))
+                                            @elseif($grn->status == 7 && \Auth::user()->can('account approve grn')))
                                                 <small>{{__('Pending Approval')}}</small>
                                             @elseif($grn->status == 7)
                                                 <small>{{__('Under review')}}</small>
@@ -140,18 +140,22 @@
                                             @endif
                                         </p>
                                         <div class="timeline-action">
-                                            @if($grn->status == 6 && \Auth::user()->type == 'company')
+                                            @if($grn->status == 6)
+                                                @can('forward grn to accounts')
                                                 <a href="{{ route('grn.fw_to_accounts', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-warning" onclick="return confirm('{{ __('Forward this GRN to Accounts?') }}')">
                                                     <span class="btn-inner--icon"><i class="ti ti-send mr-2"></i></span>{{__('Fw to Accounts')}}
                                                 </a>
+                                                @endcan
                                             @endif
-                                            @if($grn->status == 7 && in_array(\Auth::user()->type, ['company', 'accountant']))
+                                            @if($grn->status == 7 )
+                                                @can('account approve grn')
                                                 <a href="{{ route('grn.accounts_approve', $grn->id) }}" class="btn mx-1 btn-sm btn-success text-white" onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
                                                     <span class="btn-inner--icon"><i class="ti ti-checks mr-2"></i></span>{{__('Approve')}}
                                                 </a>
                                                 <a href="{{ route('grn.reject', $grn->id) }}" class="btn mx-1 btn-sm btn-danger text-white" onclick="return confirm('{{ __('Are you sure you want to reject this GRN?') }}')">
                                                     <span class="btn-inner--icon"><i class="ti ti-x mr-2"></i></span>{{__('Reject')}}
                                                 </a>
+                                                @endcan
                                             @endif
                                         </div>
                                     </div>
@@ -214,7 +218,7 @@
             </div>
 
             @php
-                $canReceiveProducts = $grn->status == 5 && \Auth::user()->type == 'company';
+                $canReceiveProducts = $grn->status == 5 && \Auth::user()->can('finalize grn');
             @endphp
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">

@@ -219,7 +219,9 @@
                                     <th>{{ __('Damaged Qty') }}</th>
                                     <th>{{ __('Total Qty') }}</th>
                                 @endcan
-                                <th>{{ __('Action') }}</th>
+                                @if (Gate::check('show product & service') || Gate::check('edit product & service') || Gate::check('delete product & service'))
+                                    <th>{{ __('Action') }}</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody id="product-service-table-body">

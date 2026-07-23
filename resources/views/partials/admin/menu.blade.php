@@ -1637,6 +1637,18 @@
                                             </li>
                                         </ul>
                                     </li>
+                                    @can('show account grn')
+                                    <li id="accounts-inventory" class="dash-item dash-hasmenu ">
+                                            <a class="dash-link {{ Request::segment(1) == 'accounts' && Request::segment(2) == 'grn' ? 'active dash-trigger' : '' }}"
+                                                href="#acc_inventory">{{ __('Inventory') }}</a>
+                                            <ul id="acc_inventory" class="dash-submenu">
+                                                <li class="dash-item ">
+                                                    <a class="dash-link {{ Request::route()->getName() == 'grn.accounts_index' ? ' active' : '' }}"
+                                                        href="{{ route('grn.accounts_index') }}">{{ __('GRN') }}</a>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    @endcan
                                     {{-- @if (Gate::check('manage customer') || Gate::check('manage proposal') || Gate::check('manage invoice') || Gate::check('manage revenue') || Gate::check('manage credit note'))
                                             <li class="dash-item dash-hasmenu ">
                                                 <a class="dash-link {{ Request::segment(1) == 'customer' || Request::segment(1) == 'proposal' || Request::segment(1) == 'invoice' || Request::segment(1) == 'revenue' || Request::segment(1) == 'credit-note' ? 'active dash-trigger' : '' }}"
@@ -2944,11 +2956,19 @@
                                         href="{{ route('store.index') }}">{{ __('Store') }}</a>
                                 </li>
                             @endcan
-                            @if (Gate::check('manage vender'))
+                            @can('manage purchase')
+                                <li class="dash-item">
+                                    <a class="dash-link  {{ Request::segment(1) == 'purchase' || Request::route()->getName() == 'purchase.index' || Request::route()->getName() == 'purchase.create' || Request::route()->getName() == 'purchase.edit' || Request::route()->getName() == 'purchase.show' ? ' active' : '' }}"
+                                        href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
+                                </li>
+                            @endcan
+                            @can('manage grn')
 								<li class="dash-item">
 	                                <a class="dash-link {{ Request::segment(1) == 'grn' || in_array(Request::route()->getName(), ['grn.index', 'grn.create', 'grn.edit', 'grn.show']) ? ' active' : '' }}"
 	                                    href="{{ route('grn.index') }}">{{ __('GRN') }}</a>
 	                            </li>
+                            @endcan
+                            @if (Gate::check('manage vender'))
                                 <li class="dash-item ">
                                     <a class="dash-link {{ Request::segment(1) == 'vender' ? 'active' : '' }}"
                                         href="{{ route('vender.index') }}">{{ __('Vendor/Supplier') }}</a>
@@ -2958,10 +2978,6 @@
 										href="{{ route('vendor-advance.index') }}">{{ __('Vendor Advance') }}</a>
 								</li>
                             @endif
-                            <li class="dash-item">
-                                <a class="dash-link  {{ Request::segment(1) == 'purchase' || Request::route()->getName() == 'purchase.index' || Request::route()->getName() == 'purchase.create' || Request::route()->getName() == 'purchase.edit' || Request::route()->getName() == 'purchase.show' ? ' active' : '' }}"
-                                    href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
-                            </li>
 							<li class="dash-item">
                                 <a class="dash-link {{ Request::segment(1) == 'branchpurchase' || in_array(Request::route()->getName(), ['branchpurchase.index', 'branchpurchase.create', 'branchpurchase.edit', 'branchpurchase.show']) ? ' active' : '' }}"
                                     href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a>
