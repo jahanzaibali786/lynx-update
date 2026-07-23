@@ -146,17 +146,8 @@
                             </a>
                             @endif
                         @endcan
-                        
-                        @if($grn->status == 7 )
-                            @can('account approve grn')
-                            <a href="{{ route('grn.accounts_approve', $grn->id) }}"
-                                class="mx-1 btn btn-sm btn-outline-success align-items-center" title="{{ __('Accounts Approve') }}"
-                                onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
-                                <i class="ti ti-checks"></i>
-                            </a>
-                            @endcan
-                        @endif
-                        @if($grn->status != 8)
+
+                    @if($grn->status != 7 )
                             @can('delete grn')
                             {{ Form::open(['route' => ['grn.destroy', $grn->id], 'method' => 'DELETE', 'class' => 'd-inline']) }}
                                 <button type="submit" class="mx-1 btn btn-sm btn-outline-info"

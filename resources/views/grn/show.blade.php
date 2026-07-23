@@ -201,12 +201,20 @@
                             <small class="text-muted d-block">{{ __('Reference No') }}</small>
                             <strong>{{ $grn->reference_no ?? '-' }}</strong>
                         </div>
-                        @if($grn->purchase_order_id)
+                        @if($grn->purchase_order)
                             <div class="col-md-3 mb-3">
                                 <small class="text-muted d-block">{{ __('Purchase Order') }}</small>
-                                <strong>{{ $grn->purchase_order_id }}</strong>
+                                <strong>{{ $grn->purchase_order }}</strong>
                             </div>
                         @endif
+                        <div class="col-md-3 mb-3">
+                            <small class="text-muted d-block">{{ __('Added By') }}</small>
+                            <strong>{{ optional($grn->addedBy)->name ?? '-' }}</strong>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <small class="text-muted d-block">{{ __('Approved By') }}</small>
+                            <strong>{{ optional($grn->approvedBy)->name ?? __('Pending') }}</strong>
+                        </div>
                         <div class="col-md-12">
                             <small class="text-muted d-block">{{ __('Remarks') }}</small>
                             <span>{{ $grn->remarks ?? '-' }}</span>

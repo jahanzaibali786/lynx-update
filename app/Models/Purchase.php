@@ -11,6 +11,9 @@ class Purchase extends Model
 {
     use HasFactory;
 
+    public const STATUS_FINALIZED = 6;
+    public const STATUS_FULLY_RECEIVED = 7;
+
     protected $fillable = [
         'purchase_id',
         'vender_id',
@@ -31,6 +34,7 @@ class Purchase extends Model
         'Paid',
         'Fw to Ho',
         'Finalized',
+        'Fully Received',
     ];
     public function vender()
     {

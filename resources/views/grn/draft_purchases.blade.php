@@ -35,8 +35,8 @@
             var code = $row.data('code');
             var id = $row.data('id');
 
-            $('input[name="purchase_order_id"]').val(code);
-            $('input[name="purchase_order_id"]').data('purchase-id', id);
+            $('input[name="purchase_order_id"]').val(id);
+            $('input[name="purchase_order"]').val(code);
             $('#commonModalOver').modal('hide');
 
             $('#grn-items-table tbody tr[data-purchase-item="true"]').remove();
@@ -52,11 +52,17 @@
                     if (items && items.length) {
                         items.forEach(function(item) {
                             addRow({
+                                purchase_id: item.purchase_id,
+                                purchase_product_id: item.purchase_product_id,
+                                purchase_order_no: item.purchase_order_no,
                                 product_id: item.product_id,
+                                ordered_quantity: item.ordered_quantity,
+                                received_quantity: item.received_quantity,
                                 quantity: item.quantity,
+                                available_quantity: item.available_quantity,
                                 price: item.price,
                                 description: item.description,
-                                source: 'Purchase'
+                                source: item.purchase_order_no
                             }, true, false);
                             $('#grn-items-table tbody tr:last').attr('data-purchase-item', 'true');
                         });

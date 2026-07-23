@@ -433,7 +433,7 @@
                     <div class="col-md-3">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div>
-                                <label for="purchase_order_id" class="form-label mb-0">
+                                <label for="purchase_order" class="form-label mb-0">
                                     Purchase Order <span class="text-danger">*</span>
                                 </label>
                             </div>
@@ -441,18 +441,18 @@
                             <a href="#"
                             class="small"
                             data-ajax-popup-over="true"
-                            data-url="http://localhost/lynx/grn/draft-purchases"
+                            data-url="{{ route('grn.draft_purchases') }}"
                             data-title="Link Purchase">
                                 Link Purchase
                             </a>
                         </div>
-                        {{ Form::text('purchase_order_id', old('purchase_order_id', $isEdit ? $grn->purchase_order_id : ($formDefaults['purchase_order_id'] ?? '')), ['class' => 'form-control', 'required' => 'required']) }}
+                        {{ Form::hidden('purchase_order_id', old('purchase_order_id', $isEdit ? $grn->purchase_order_id : ($formDefaults['purchase_order_id'] ?? '')), ['id' => 'purchase_order_id']) }}
+                        {{ Form::text('purchase_order', old('purchase_order', $isEdit ? $grn->purchase_order : ($formDefaults['purchase_order'] ?? '')), ['id' => 'purchase_order', 'class' => 'form-control', 'required' => 'required']) }}
                      
                     </div>
                     <div class="col-md-3">
                         {{ Form::label('warehouse_id', __('Store'), ['class' => 'form-label']) }}
                         <select name="warehouse_id" id="warehouse_id" class="form-control select" required>
-                            <option value="">{{ __('Select Store') }}</option>
                             @foreach ($warehouseRecords as $warehouse)
                                 <option value="{{ $warehouse->id }}" data-branch="{{ $warehouse->owned_by }}"
                                     {{ (string) old('warehouse_id', $isEdit ? $grn->warehouse_id : ($formDefaults['warehouse_id'] ?? '')) === (string) $warehouse->id ? 'selected' : '' }}>

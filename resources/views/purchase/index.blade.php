@@ -138,6 +138,9 @@
                                     @elseif($purchase->status == 6)
                                         <span
                                             class="purchase_status badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                    @elseif($purchase->status == 7)
+                                        <span
+                                            class="purchase_status badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
                                     @endif
                                 </td>
 
@@ -156,7 +159,7 @@
                                                         <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                                     </a>
                                                 @endcan
-                                                @can('edit purchase')
+                                                @can('edit purchase' && $purchase->status != 7)
                                                     <a href="#"
                                                         data-url="{{ route('purchase.edit', \Crypt::encrypt($purchase->id)) }}"
                                                         data-size="modal-fullscreen" data-ajax-popup="true"
@@ -165,7 +168,7 @@
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
                                                 @endcan
-                                                @if($purchase->status == 5 && \Auth::user()->type == 'company')
+                                                @if($purchase->status == 5 )
                                                     <a href="{{ route('purchase.finalize', $purchase->id) }}"
                                                         class="mx-1 btn btn-outline-success btn-sm align-items-center"
                                                         data-bs-title="{{ __('Approve') }}"
@@ -180,7 +183,7 @@
                                                     </a>
                                                 @endif
                                                 @can('convert purchase to grn')
-                                                @if($purchase->status == 6 && \Auth::user()->type == 'company' && !$purchase->grn_converted)
+                                                @if($purchase->status == 6  && !$purchase->grn_converted)
                                                     <a href="#"
                                                         data-url="{{ route('purchase.convert_to_grn', $purchase->id) }}"
                                                         data-size="modal-fullscreen"

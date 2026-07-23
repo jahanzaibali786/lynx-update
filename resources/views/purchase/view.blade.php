@@ -50,7 +50,7 @@
                                             <h6 class="text-primary my-3">{{__('Create Purchase')}}</h6>
                                             <p class="text-muted text-sm mb-3"><i class="ti ti-clock mr-2"></i>{{__('Created on ')}}{{\Auth::user()->dateFormat($purchase->purchase_date)}}</p>
                                             <div class="timeline-action">
-                                                @can('edit purchase')
+                                                @can('edit purchase' && $purchase->status != 7)
                                                     <a href="{{ route('purchase.edit',\Crypt::encrypt($purchase->id)) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{__('Edit')}}"><span class="btn-inner--icon"><i class="ti ti-pencil mr-2"></i></span>{{__('Edit')}}</a>
                                                 @endcan
                                             </div>
@@ -89,7 +89,7 @@
                                     <div class="timeline-step h-100">
                                         <div class="timeline-content">
                                             <div class="timeline-icons"><span class="timeline-dots"></span>
-                                                @if($purchase->status == 6)
+                                                @if($purchase->status >= 6)
                                                     <i class="ti ti-checks text-success"></i>
                                                 @elseif($purchase->status == 5 && \Auth::user()->type == 'company')
                                                     <i class="ti ti-hourglass-empty text-info"></i>
@@ -98,16 +98,16 @@
                                                 @endif
                                             </div>
                                             @if(\Auth::user()->type == 'company')
-                                                <h6 class="my-3 @if($purchase->status == 6) text-success @elseif($purchase->status == 5) text-info @else text-muted @endif">
+                                                <h6 class="my-3 @if($purchase->status >= 6) text-success @elseif($purchase->status == 5) text-info @else text-muted @endif">
                                                     {{__('Approval')}}
                                                 </h6>
                                             @else
-                                                <h6 class="my-3 @if($purchase->status == 6) text-success @else text-muted @endif">
+                                                <h6 class="my-3 @if($purchase->status >= 6) text-success @else text-muted @endif">
                                                     @if($purchase->status == 5) {{__('Under Approval')}} @else {{__('Approval')}} @endif
                                                 </h6>
                                             @endif
                                             <p class="text-muted text-sm mb-3">
-                                                @if($purchase->status == 6)
+                                                @if($purchase->status >= 6)
                                                     <i class="ti ti-clock mr-2"></i>{{__('Finalized')}}
                                                 @elseif($purchase->status == 5 && \Auth::user()->type == 'company')
                                                     <small>{{__('Pending your decision')}}</small>
@@ -138,8 +138,8 @@
                                             </div>
                                             <h6 class="text-primary my-3">{{__('Convert to GRN')}}</h6>
                                             <p class="text-muted text-sm mb-3">
-                                                @if($purchase->status == 6 && $purchase->grn_converted)
-                                                    <small>{{__('Converted')}}</small>
+                                                @if($purchase->status == 7 && $purchase->grn_converted)
+                                                    <small>{{__('Fully Received')}}</small>
                                                 @elseif($purchase->status == 6 && $purchase->items->sum('received_quantity') > 0)
                                                     <small>{{__('Partially Converted')}}</small>
                                                 @elseif($purchase->status == 6)
@@ -282,6 +282,8 @@
                                         @elseif($purchase->status == 5)
                                             <span class="badge bg-info p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
                                         @elseif($purchase->status == 6)
+                                            <span class="badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                        @elseif($purchase->status == 7)
                                             <span class="badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
                                         @endif
                                     </small>
