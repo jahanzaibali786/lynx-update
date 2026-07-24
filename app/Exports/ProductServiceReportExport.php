@@ -15,19 +15,24 @@ use Illuminate\Contracts\View\View;
 class ProductServiceReportExport implements FromView, WithEvents
 {
     protected $productServices;
+    protected $withAccounts;
 
-    public function __construct($productServices)
+    public function __construct($productServices, bool $withAccounts = false)
     {
         $this->productServices = $productServices;
+        $this->withAccounts = $withAccounts;
     }
 
     public function view(): View
     {
         $is_signature = false;
-        $report_name = __('Product Service Report');
+        $report_name = $this->withAccounts
+            ? __('Product Service With Account Report')
+            : __('Product Service Report');
 
         return view('productservice.exports.product_service_report', [
             'productServices' => $this->productServices,
+            'withAccounts' => $this->withAccounts,
             'is_signature' => $is_signature,
             'report_name' => $report_name,
         ]);

@@ -15,6 +15,9 @@ return new class extends Migration
 
             if (!Schema::hasColumn('grns', 'approved_by')) {
                 $table->unsignedBigInteger('approved_by')->nullable()->after('added_by')->index();
+            } 
+            if (!Schema::hasColumn('grns', 'voucher_id')) {
+                $table->unsignedBigInteger('voucher_id')->nullable()->after('approved_by')->index();
             }
         });
     }
@@ -28,6 +31,9 @@ return new class extends Migration
 
             if (Schema::hasColumn('grns', 'added_by')) {
                 $table->dropColumn('added_by');
+            }
+            if (Schema::hasColumn('grns', 'voucher_id')) {
+                $table->dropColumn('voucher_id');
             }
         });
     }

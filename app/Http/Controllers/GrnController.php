@@ -13,6 +13,7 @@ use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\warehouse;
 use App\Services\PurchaseReceivingService;
+use App\Services\GrnVoucherService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -20,10 +21,12 @@ use Illuminate\Validation\Rule;
 class GrnController extends Controller
 {
     private PurchaseReceivingService $purchaseReceiving;
+    private GrnVoucherService $grnVoucher;
 
-    public function __construct(PurchaseReceivingService $purchaseReceiving)
+    public function __construct(PurchaseReceivingService $purchaseReceiving, GrnVoucherService $grnVoucher)
     {
         $this->purchaseReceiving = $purchaseReceiving;
+        $this->grnVoucher = $grnVoucher;
     }
 
     public function index(Request $request)
@@ -207,7 +210,7 @@ class GrnController extends Controller
         }
 
         $this->authorizeGrn($grn);
-        $grn->load(['vendor', 'warehouse', 'addedBy', 'approvedBy', 'items.product', 'items.purchase', 'items.purchaseProduct']);
+        $grn->load(['vendor', 'warehouse', 'addedBy', 'approvedBy', 'voucher', 'items.product', 'items.purchase', 'items.purchaseProduct']);
 
         return view('grn.show', compact('grn'));
     }
@@ -269,11 +272,12 @@ class GrnController extends Controller
 
         $this->authorizeGrn($grn);
 
+        if ($grn->status == 8) {
+            return redirect()->back()->with('error', __('Accounts-approved GRN cannot be deleted. Reverse its voucher instead.'));
+        }
+
         DB::beginTransaction();
         try {
-            if ($grn->status == 8) {
-                $this->reverseStock($grn);
-            }
             $this->reversePurchaseReceived($grn);
             StockReport::where('type', 'grn')->where('type_id', $grn->id)->delete();
             $grn->items()->delete();
@@ -363,6 +367,11 @@ class GrnController extends Controller
 
         DB::beginTransaction();
         try {
+            $grn = Grn::whereKey($grn->id)->lockForUpdate()->firstOrFail();
+            if ($grn->status != 7) {
+                throw new \RuntimeException(__('GRN has already been processed.'));
+            }
+
             $grn->load('items.purchaseProduct');
 
             if ($grn->items->isEmpty()) {
@@ -370,15 +379,18 @@ class GrnController extends Controller
             }
 
             $this->applyStock($grn);
+            $voucher = $this->grnVoucher->createForApproval($grn);
 
             $grn->status = 8;
             $grn->approved_by = \Auth::id();
+            $grn->voucher_id = $voucher->id;
             $grn->save();
 
             DB::commit();
-            return redirect()->route('grn.show', $grn->id)->with('success', __('GRN approved by Accounts. Stock has been updated.'));
+            return redirect()->route('grn.show', $grn->id)->with('success', __('GRN approved by Accounts. Stock history and voucher have been created.'));
         } catch (\Throwable $e) {
             DB::rollBack();
+            dd($e->getMessage());
             \Log::error('accountsApprove failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return redirect()->back()->with('error', $e->getMessage());
         }
@@ -462,7 +474,6 @@ class GrnController extends Controller
     $products = ProductService::select('id', 'sku', 'name', 'purchase_price', 'purchase_description', 'description')
         ->where('created_by', $user->creatorId())
         ->where('type', '!=', 'service')
-        ->where('type', '!=', 'grn')
         ->orderBy('name')
         ->get();
 

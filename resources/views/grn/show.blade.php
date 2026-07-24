@@ -215,6 +215,14 @@
                             <small class="text-muted d-block">{{ __('Approved By') }}</small>
                             <strong>{{ optional($grn->approvedBy)->name ?? __('Pending') }}</strong>
                         </div>
+                        @if($grn->voucher)
+                            <div class="col-md-3 mb-3">
+                                <small class="text-muted d-block">{{ __('Voucher') }}</small>
+                                <a href="{{ route('journal-entry.show', $grn->voucher->id) }}">
+                                    <strong>{{ $grn->voucher->getVoucherNumber() }}</strong>
+                                </a>
+                            </div>
+                        @endif
                         <div class="col-md-12">
                             <small class="text-muted d-block">{{ __('Remarks') }}</small>
                             <span>{{ $grn->remarks ?? '-' }}</span>

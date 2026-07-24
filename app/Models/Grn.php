@@ -20,6 +20,7 @@ class Grn extends Model
         'created_by',
         'added_by',
         'approved_by',
+        'voucher_id',
     ];
 
     public static $statues = [
@@ -59,6 +60,11 @@ class Grn extends Model
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function voucher()
+    {
+        return $this->belongsTo(JournalEntry::class, 'voucher_id');
     }
 
     public function items()

@@ -42,7 +42,9 @@ class VenderController extends Controller
                 ->pluck('name', 'id');
     
             // base query
-            $query = Vender::where('created_by', \Auth::user()->creatorId());
+            $query = Vender::with(['ChartAccount' => function ($accountQuery) {
+                $accountQuery->where('created_by', \Auth::user()->creatorId());
+            }])->where('created_by', \Auth::user()->creatorId());
     
             // filter by vendor id from dropdown
             if (!empty($_GET['vender'])) {
@@ -237,14 +239,21 @@ class VenderController extends Controller
 
     public function show($ids)
     {
+        if (!\Auth::user()->can('show vender')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         try {
             $id       = Crypt::decrypt($ids);
         } catch (\Throwable $th) {
             return redirect()->back()->with('error', __('Vendor Not Found.'));
         }
 
-        $id     = \Crypt::decrypt($ids);
-        $vendor = Vender::find($id);
+        $vendor = Vender::with(['ChartAccount' => function ($accountQuery) {
+            $accountQuery->where('created_by', \Auth::user()->creatorId());
+        }])
+            ->where('created_by', \Auth::user()->creatorId())
+            ->findOrFail($id);
 
         return view('vender.show', compact('vendor'));
     }

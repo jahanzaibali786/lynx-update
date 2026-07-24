@@ -60,6 +60,17 @@
                         </h6>
                     </div>
 
+                    <div class="mb-3">
+                        <p class="text-muted mb-1"><small>{{ __('Chart of Account') }}</small></p>
+                        <h6 class="mb-0 text-break">
+                            @if($vendor->ChartAccount)
+                                {{ $vendor->ChartAccount->code }} - {{ $vendor->ChartAccount->name }}
+                            @else
+                                -
+                            @endif
+                        </h6>
+                    </div>
+
                     @if(!empty($vendor->job_title))
                         <div class="mb-3">
                             <p class="text-muted mb-1"><small>{{__('Job Title')}}</small></p>

@@ -15,6 +15,11 @@
             <th>{{ __('Category') }}</th>
             <th>{{ __('SubCategory') }}</th>
             <th>{{ __('Unit') }}</th>
+            @if($withAccounts ?? false)
+                <th>{{ __('Sale Account') }}</th>
+                <th>{{ __('Purchase Account') }}</th>
+                <th>{{ __('Inventory Asset Account') }}</th>
+            @endif
             @can('show quantity product & service')
                 <th>{{ __('New Qty') }}</th>
                 <th>{{ __('Used Qty') }}</th>
@@ -50,6 +55,11 @@
                 <td>{{ optional($productService->category)->name }}</td>
                 <td>{{ optional($productService->subcategory)->name }}</td>
                 <td>{{ optional($productService->unit())->name }}</td>
+                @if($withAccounts ?? false)
+                    <td>{{ optional($productService->saleAccount)->name ?? '-' }}</td>
+                    <td>{{ optional($productService->expenseAccount)->name ?? '-' }}</td>
+                    <td>{{ optional($productService->inventoryAssetAccount)->name ?? '-' }}</td>
+                @endif
                 @can('show quantity product & service')
                     @if ($productService->type === 'product')
                         <td>{{ $productService->quantity ?? 0 }}</td>
