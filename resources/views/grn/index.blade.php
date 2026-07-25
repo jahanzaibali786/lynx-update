@@ -10,11 +10,13 @@
 @endsection
 
 @section('action-btn')
+    @can('create grn')
     <div class="float-end">
         <a href="#" data-url="{{ route('grn.create') }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Create GRN') }}" class="btn mx-1 btn-sm btn-outline-primary">
             <span class="btn-inner--icon">{{ __('Create') }}</span>
         </a>
     </div>
+    @endcan
 @endsection
 
 @section('content')
@@ -73,9 +75,13 @@
                 <tr>
                     <td>{{ $loop->iteration }}</td>
                     <td>
-                        <a href="{{ route('grn.show', $grn->id) }}" class="btn btn-outline-primary btnpurchase1">
+                        @can('show grn')
+                            <a href="{{ route('grn.show', $grn->id) }}" class="btn btn-outline-primary btnpurchase1">
+                                GRN-{{ sprintf('%05d', $grn->grn_no) }}
+                            </a>
+                        @else
                             GRN-{{ sprintf('%05d', $grn->grn_no) }}
-                        </a>
+                        @endcan
                     </td>
                     <td>{{ optional($grn->warehouse)->name ?? '-' }}</td>
                     <td>{{ optional($grn->vendor)->name ?? '-' }}</td>
@@ -100,52 +106,56 @@
                         </span>
                     </td>
                     <td class="Action">
+                        @can('show grn')
                         <a href="{{ route('grn.show', $grn->id) }}"
                             class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Show') }}">
                             <i class="ti ti-eye"></i>
                         </a>
+                        @endcan
                         @if (in_array($grn->status, [0, 9, 10]))
+                            @can('edit grn')
                             <a href="#" data-url="{{ route('grn.edit', $grn->id) }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Edit GRN') }}"
                                 class="mx-1 btn btn-sm btn-outline-info align-items-center">
                                 <i class="ti ti-pencil"></i>
                             </a>
+                            @endcan
                             <a href="{{ route('grn.fw_to_ho', $grn->id) }}"
                                 class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Fw to Ho') }}">
                                 <i class="ti ti-mail-forward"></i>
                             </a>
                         @endif
-                        @if($grn->status == 5 && \Auth::user()->type == 'company')
+                        @if($grn->status == 5 && \Auth::user()->can('finalize grn'))
+                            
                             <a href="{{ route('grn.finalize', $grn->id) }}"
                                 class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Finalize') }}"
                                 onclick="return confirm('{{ __('Finalize this GRN? It will be ready to forward to Accounts.') }}')">
                                 <i class="ti ti-check"></i>
                             </a>
+                           
                             <a href="{{ route('grn.reject', $grn->id) }}"
                                 class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Reject') }}">
                                 <i class="ti ti-x"></i>
                             </a>
                         @endif
-                        @if($grn->status == 6 && \Auth::user()->type == 'company')
+                        @can('forward grn to accounts')
+                            @if($grn->status == 6 )
                             <a href="{{ route('grn.fw_to_accounts', $grn->id) }}"
                                 class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Fw to Accounts') }}"
                                 onclick="return confirm('{{ __('Forward this GRN to Accounts?') }}')">
                                 <i class="ti ti-send"></i>
                             </a>
-                        @endif
-                        @if($grn->status == 7 && in_array(\Auth::user()->type, ['company', 'accountant']))
-                            <a href="{{ route('grn.accounts_approve', $grn->id) }}"
-                                class="mx-1 btn btn-sm btn-outline-success align-items-center" title="{{ __('Accounts Approve') }}"
-                                onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
-                                <i class="ti ti-checks"></i>
-                            </a>
-                        @endif
-                        @if($grn->status != 8)
+                            @endif
+                        @endcan
+
+                    @if($grn->status != 7 )
+                            @can('delete grn')
                             {{ Form::open(['route' => ['grn.destroy', $grn->id], 'method' => 'DELETE', 'class' => 'd-inline']) }}
                                 <button type="submit" class="mx-1 btn btn-sm btn-outline-info"
                                     onclick="return confirm('{{ __('Are you sure you want to delete this GRN? Stock will be reversed.') }}')">
                                     <i class="ti ti-trash"></i>
                                 </button>
                             {{ Form::close() }}
+                            @endcan
                         @endif
                     </td>
                 </tr>

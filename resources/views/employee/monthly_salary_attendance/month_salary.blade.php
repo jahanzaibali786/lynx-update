@@ -28,6 +28,35 @@
             font-size: 13px;
         }
 
+        .probation-capsule {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 6px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: #16a34a;
+            color: #fff;
+            border: 1px solid #15803d;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1;
+            text-transform: uppercase;
+            box-shadow: 0 1px 4px rgba(22, 163, 74, 0.35);
+        }
+
+        .forward-accounts-btn {
+            background: var(--primary) !important;
+            border-color: var(--primary) !important;
+            color: #fff !important;
+            font-weight: 700;
+        }
+
+        .forward-accounts-btn:hover,
+        .forward-accounts-btn:focus {
+            background: var(--primary) !important;
+            color: #fff !important;
+        }
+
         .report-download-loader {
             position: fixed;
             right: 24px;
@@ -346,7 +375,7 @@
                 }
             });
 
-            document.querySelector('.pay-salary-btn').addEventListener('click', function(event) {
+            document.querySelector('.forward-accounts-btn').addEventListener('click', function(event) {
                 event.preventDefault();
                 if (monthlySalaryProcessing) {
                     return;
@@ -364,14 +393,14 @@
                 var selectedDate = document.querySelector('#date').value;
                 formData.append('date', selectedDate);
                 if (checkedCheckboxes.length > 0) {
-                    if (!startMonthlySalaryAction(this, 'Processing salary payment...')) {
+                    if (!startMonthlySalaryAction(this, 'Forwarding salary to accounts...')) {
                         return;
                     }
                     $.ajax({
                         headers: {
                             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
                         },
-                        url: "{{ route('salary.payments') }}",
+                        url: "{{ route('salary.forward_accounts') }}",
                         type: "POST",
                         data: formData,
                         processData: false,
@@ -381,8 +410,7 @@
                                 // alert(result.message);
                                 Swal.fire({
                                     icon: 'success',
-                                    title: 'Salary Paid',
-                                    html: result.error,
+                                    title: 'FWD TO Accounts',
                                     text: result.message,
                                     confirmButtonText: 'OK',
                                 }).then(() => {
@@ -422,7 +450,7 @@
                     Swal.fire({
                         icon: 'warning',
                         title: 'No Rows Selected',
-                        text: 'Please select at least one row to pay.',
+                        text: 'Please select at least one HR Final salary to forward to accounts.',
                         confirmButtonText: 'OK',
                     });
                 }
@@ -431,7 +459,7 @@
         // Check/uncheck all checkboxes
         if (document.getElementById('check-all')) {
             document.getElementById('check-all').addEventListener('change', function(event) {
-                var checkboxes = document.querySelectorAll('.row-checkbox');
+                var checkboxes = document.querySelectorAll('.row-checkbox:not(:disabled)');
                 checkboxes.forEach(function(checkbox) {
                     checkbox.checked = event.target.checked;
                 });
@@ -939,6 +967,9 @@
         $salaryGeneratedCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary))->count();
         $salaryPendingCount = $datas->filter(fn($row) => empty($row->employeemonthlysalary))->count();
         $salaryUnpaidCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'unpaid')->count();
+        $salaryFwdAccountCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'fwd_to_account')->count();
+        $salaryAccountApprovedCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'account_approved')->count();
+        $salaryReturnedHrCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'returned_to_hr')->count();
         $salaryPaidCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'paid')->count();
         $salaryFinalCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && $row->employeemonthlysalary->sal_final)->count();
         $salaryHoldCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && $row->employeemonthlysalary->on_hold)->count();
@@ -1002,6 +1033,7 @@
                                             data-bs-toggle="tooltip" data-bs-toggle="{{ __('Apply') }}">
                                             <span class="btn-inner--icon">Search</span>
                                         </a>
+                                        @if(\Auth::user()->type == 'company')
                                         <a href="#" class="btn btn-sm btn-outline-success generate-btn salary-action-btn"
                                             data-bs-toggle="tooltip" data-bs-title="Generate">
                                             <span class="btn-inner--icon">Generate</span>
@@ -1010,9 +1042,9 @@
                                             data-bs-toggle="tooltip" data-bs-title="Hold / UnHold">
                                             <span class="btn-inner--icon">Hold / UnHold</span>
                                         </a>
-                                        <a href="#" class="btn btn-sm btn-outline-danger pay-salary-btn salary-action-btn"
-                                            data-bs-toggle="tooltip" data-bs-title="Pay Salary">
-                                            <span class="btn-inner--icon">Pay Salary</span>
+                                        <a href="#" class="btn btn-sm btn-outline-primary forward-accounts-btn salary-action-btn"
+                                            data-bs-toggle="tooltip" data-bs-title="FWD TO Accounts">
+                                            <span class="btn-inner--icon">FWD TO Accounts</span>
                                         </a>
                                         <a href="#" class="btn btn-sm btn-outline-danger delete-salary-btn salary-action-btn"
                                             data-bs-toggle="tooltip" data-bs-title="RollBack Salary">
@@ -1026,6 +1058,7 @@
                                             data-bs-toggle="tooltip" data-bs-title="UnFinalize Salary">
                                             <span class="btn-inner--icon">UnFinalize</span>
                                         </a>
+                                        @endif
                                         {{-- <a href="{{ route('emp-month-sal-attendance.index') }}"
                                             class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip"
                                             data-bs-title="{{ __('Reset') }}">
@@ -1051,6 +1084,9 @@
                     <span class="badge bg-light text-dark">{{ __('Pending Generate') }} <span class="badge-count">{{ $salaryPendingCount }}</span></span>
                     <span class="badge bg-info">{{ __('Generated') }} <span class="badge-count">{{ $salaryGeneratedCount }}</span></span>
                     <span class="badge bg-warning text-dark">{{ __('Unpaid') }} <span class="badge-count">{{ $salaryUnpaidCount }}</span></span>
+                    <span class="badge bg-dark">{{ __('FWD TO Accounts') }} <span class="badge-count">{{ $salaryFwdAccountCount }}</span></span>
+                    <span class="badge bg-primary">{{ __('Account Approved') }} <span class="badge-count">{{ $salaryAccountApprovedCount }}</span></span>
+                    <span class="badge bg-warning text-dark">{{ __('Returned to HR') }} <span class="badge-count">{{ $salaryReturnedHrCount }}</span></span>
                     <span class="badge bg-success">{{ __('Paid') }} <span class="badge-count">{{ $salaryPaidCount }}</span></span>
                     <span class="badge bg-primary">{{ __('Final') }} <span class="badge-count">{{ $salaryFinalCount }}</span></span>
                     <span class="badge bg-danger">{{ __('On Hold') }} <span class="badge-count">{{ $salaryHoldCount }}</span></span>
@@ -1111,6 +1147,21 @@
                     @foreach ($datas as $data)
                         @php
                             $date = request()->query('date') ? request()->query('date') : date('Y-m-d');
+                            $salaryStatus = trim(strtolower(optional($data->employeemonthlysalary)->status ?? ''));
+                            $isFwdToAccount = $salaryStatus === 'fwd_to_account';
+                            $isAccountApproved = $salaryStatus === 'account_approved';
+                            $salaryMonthNumber = !empty($data->for_month_of)
+                                ? \Carbon\Carbon::parse($data->for_month_of)->month
+                                : null;
+                            $employee = $data->employee;
+                            $departmentName = strtolower(optional(optional($employee)->department)->name ?? '');
+                            $probationEnd = !empty(optional($employee)->probation_end)
+                                ? \Carbon\Carbon::parse($employee->probation_end)
+                                : null;
+                            $showProbationBadge = in_array($salaryMonthNumber, [6, 7])
+                                && str_contains($departmentName, 'academic')
+                                && $probationEnd
+                                && $probationEnd->gt(\Carbon\Carbon::parse($data->for_month_of)->endOfMonth());
                             $arrears = \App\Models\EmployeeMonthlySalary::where('employee_id', $data->employee->id)
                                 ->whereMonth('salary_date', '<', date('m', strtotime($date)))
                                 ->whereYear('salary_date', '<', date('Y', strtotime($date)))
@@ -1120,7 +1171,13 @@
                         <tr data-employee-id="{{ optional($data->employee)->id }}"
                             style="
                                 color:
-                                @if (isset($data->employeemonthlysalary) && $data->employeemonthlysalary->sal_final) green;
+                                @if(isset($data->employeemonthlysalary) && $salaryStatus == 'fwd_to_account')
+                                    #111827;
+                                @elseif(isset($data->employeemonthlysalary) && $salaryStatus == 'account_approved')
+                                    #0d6efd;
+                                @elseif(isset($data->employeemonthlysalary) && $salaryStatus == 'returned_to_hr')
+                                    #b45309;
+                                @elseif (isset($data->employeemonthlysalary) && $data->employeemonthlysalary->sal_final) green;
                                 @elseif(isset($data->employeemonthlysalary) && trim(strtolower($data->employeemonthlysalary->status)) == 'unpaid')
                                     blue;
                                 @elseif(isset($data->employeemonthlysalary) && trim(strtolower($data->employeemonthlysalary->status)) == 'paid')
@@ -1133,7 +1190,8 @@
                                     value="{{ optional($data->employee)->id }}"
                                     data-id="{{ $data->id }}"
                                     data-employee-id="{{ optional($data->employee)->id }}"
-                                    data-date="{{ $data->for_month_of }}">
+                                    data-date="{{ $data->for_month_of }}"
+                                    {{ ($isFwdToAccount || $isAccountApproved) ? 'disabled' : '' }}>
                             </td>
                             <td>{{ $loop->iteration }}</td>
                             <td class="font-style">
@@ -1153,7 +1211,12 @@
                                     {{ $data->employee->employee_id }}
                                 @endif
                             </td>
-                            <td class="font-style">{{ !empty($data) ? $data->employee->name : '' }}</td>
+                            <td class="font-style">
+                                {{ !empty($data) ? $data->employee->name : '' }}
+                                @if ($showProbationBadge)
+                                    <span class="probation-capsule">{{ __('Probation') }}</span>
+                                @endif
+                            </td>
                             <td>{{ !empty($data) ? date('M-Y', strtotime($data->for_month_of)) : '' }}</td>
                             <td>{{ !empty($data) ? $data->working_days : '' }}</td>
                             <td>{{ !empty($data->employeemonthlysalary) ? $data->employeemonthlysalary->basics : '0' }}
@@ -1234,6 +1297,12 @@ foreach ($heads as $scale_head) {
                             <td>
                                 @if (!empty($data->employeemonthlysalary) && $data->employeemonthlysalary->on_hold == 1)
                                     <span class="badge bg-danger">{{ __('On Hold') }}</span>
+                                @elseif (!empty($data->employeemonthlysalary) && $salaryStatus == 'fwd_to_account')
+                                    <span class="badge bg-dark">{{ __('FWD TO Accounts') }}</span>
+                                @elseif (!empty($data->employeemonthlysalary) && $salaryStatus == 'account_approved')
+                                    <span class="badge bg-primary">{{ __('Account Approved') }}</span>
+                                @elseif (!empty($data->employeemonthlysalary) && $salaryStatus == 'returned_to_hr')
+                                    <span class="badge bg-warning text-dark">{{ __('Returned to HR') }}</span>
                                 @elseif (!empty($data->employeemonthlysalary) && $data->employeemonthlysalary->sal_final == 1)
                                     <span class="badge bg-primary">{{ __('Final') }}</span>
                                 @elseif (!empty($data->employeemonthlysalary) && trim(strtolower($data->employeemonthlysalary->status ?? '')) == 'paid')

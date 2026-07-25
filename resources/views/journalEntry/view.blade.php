@@ -7,16 +7,7 @@
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item"><a href="{{ route('journal-entry.index') }}">{{ __('Journal Entry') }}</a></li>
     <li class="breadcrumb-item">
-        @php
-            $breadcrumbType = strtoupper($journalEntry->voucher_type ?? 'JV');
-            $breadcrumbMethod = [
-                'BRV' => 'BRVNumberFormat',
-                'BPV' => 'BPVNumberFormat',
-                'CRV' => 'CRVNumberFormat',
-                'CPV' => 'CPVNumberFormat',
-            ][$breadcrumbType] ?? 'journalNumberFormat';
-        @endphp
-        {{ Auth::user()->$breadcrumbMethod($journalEntry->journal_id) }}
+        {{ $journalEntry->getVoucherNumber() }}
     </li>
 @endsection
 @push('script-page')
@@ -96,12 +87,12 @@
 @section('action-btn')
  
     <div class="float-end" style='display:flex; gap:5px;'>
+        <a href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="btn btn-sm btn-primary"
+            title="{{ __('Voucher Print') }}" data-original-title="{{ __('Voucher Print') }}">
+            <span class="btn-inner--icon"><i class="ti ti-printer"></i> {{ __('Voucher Print') }}</span>
+        </a>
         <a href="#" class="btn btn-sm btn-primary" onclick="printDiv()"
             title="{{ __('Print') }}" data-original-title="{{ __('Print') }}">
-            <span class="btn-inner--icon">Pdf / Print</span>
-        </a>
-        <a href="#" class="btn btn-sm btn-primary" onclick="saveAsPDF()"
-            title="{{ __('Download') }}" data-original-title="{{ __('Download') }}">
             <span class="btn-inner--icon">Pdf / Print</span>
         </a>
 
@@ -110,13 +101,7 @@
 @section('content')
     @php
         $voucherType = strtoupper($journalEntry->voucher_type ?? 'JV');
-        $numberMethod = [
-            'BRV' => 'BRVNumberFormat',
-            'BPV' => 'BPVNumberFormat',
-            'CRV' => 'CRVNumberFormat',
-            'CPV' => 'CPVNumberFormat',
-        ][$voucherType] ?? 'journalNumberFormat';
-        $voucherNumber = \Auth::user()->$numberMethod($journalEntry->journal_id);
+        $voucherNumber = $journalEntry->getVoucherNumber();
     @endphp
     <div class="row" id="printableArea">
         <div class="col-12">
@@ -138,13 +123,13 @@
                             </div>
                             <div class="row">
                                 <div class="col-md-6">
-                                    {{-- <small class="font-style">
+                                    <small class="font-style">
                                         <strong>{{__('To')}} :</strong><br>
                                         {{!empty($settings['company_name'])?$settings['company_name']:''}}<br>
                                         {{!empty($settings['company_telephone'])?$settings['company_telephone']:''}}<br>
                                         {{!empty($settings['company_address'])?$settings['company_address']:''}}<br>
                                         {{!empty($settings['company_city'])?$settings['company_city']:'' .', '}}  {{!empty($settings['company_state'])?$settings['company_state']:'' .', '}}  {{!empty($settings['company_country'])?$settings['company_country']:'' .'.'}}
-                                    </small> --}}
+                                    </small>
                                 </div>
                                 <div class="col-md-6 text-end">
                                     <small>
@@ -152,13 +137,84 @@
                                         {{ $voucherNumber }}
                                     </small><br>
                                     <small>
-                                        <strong>{{ __('Voucher Ref') }} :</strong>
+                                        <strong>{{ __('Invoice No / Reference') }} :</strong>
                                         {{ $journalEntry->reference }}
                                     </small> <br>
                                     <small>
                                         <strong>{{ __('Voucher Date') }} :</strong>
                                         {{ \Auth::user()->dateFormat($journalEntry->date) }}
                                     </small>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-3">
+                                    <small><strong>{{ __('Status') }} :</strong>
+                                        {{ $journalEntry->status ?? __('Draft') }}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small><strong>{{ __('Payment Mode') }} :</strong>
+                                        {{ $journalEntry->payment_mode ?? ($journalEntry->mode ?? '-') }}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small><strong>{{ __('Bank Account') }} :</strong>
+                                        {{ optional($journalEntry->bank)->bank_name ?? '-' }}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small><strong>{{ __('Transaction No') }} :</strong>
+                                        {{ $journalEntry->transaction_no ?? '-' }}</small>
+                                </div>
+                                <div class="col-md-3 mt-1">
+                                    <small><strong>{{ __('Cheque No') }} :</strong>
+                                        {{ $journalEntry->cheque_no ?? '-' }}</small>
+                                </div>
+                                <div class="col-md-3 mt-1">
+                                    <small><strong>{{ __('Cheque Date') }} :</strong>
+                                        {{ !empty($journalEntry->cheque_date) ? \Auth::user()->dateFormat($journalEntry->cheque_date) : '-' }}</small>
+                                </div>
+                                <div class="col-md-3 mt-1">
+                                    <small><strong>{{ __('Approved At') }} :</strong>
+                                        {{ !empty($journalEntry->approved_at) ? \Auth::user()->dateFormat($journalEntry->approved_at) : '-' }}</small>
+                                </div>
+                                <div class="col-md-3 mt-1">
+                                    <small><strong>{{ __('Attachment') }} :</strong>
+                                        @if (!empty($journalEntry->attachment))
+                                            <a href="{{ asset($journalEntry->attachment) }}" target="_blank">{{ __('View') }}</a>
+                                        @else
+                                            -
+                                        @endif
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Payee and Receiver Details -->
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <div class="card bg-light border-0">
+                                        <div class="card-body p-3">
+                                            <h6 class="text-primary font-weight-bold mb-2">{{ __('Payee Details') }}</h6>
+                                            <ul class="list-unstyled mb-0" style="font-size: 0.85rem; line-height: 1.6;">
+                                                <li><strong>{{ __('Account Title') }}:</strong> {{ $journalEntry->payee_account_title ?? '-' }}</li>
+                                                <li><strong>{{ __('Account No') }}:</strong> {{ $journalEntry->payee_account_no ?? '-' }}</li>
+                                                <li><strong>{{ __('CNIC') }}:</strong> {{ $journalEntry->payee_cnic ?? '-' }}</li>
+                                                <li><strong>{{ __('Contact') }}:</strong> {{ $journalEntry->payee_contact ?? '-' }}</li>
+                                                <li><strong>{{ __('Email') }}:</strong> {{ $journalEntry->payee_email ?? '-' }}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card bg-light border-0">
+                                        <div class="card-body p-3">
+                                            <h6 class="text-primary font-weight-bold mb-2">{{ __('Receiver Details') }}</h6>
+                                            <ul class="list-unstyled mb-0" style="font-size: 0.85rem; line-height: 1.6;">
+                                                <li><strong>{{ __('Name') }}:</strong> {{ $journalEntry->receiver_name ?? '-' }}</li>
+                                                <li><strong>{{ __('CNIC') }}:</strong> {{ $journalEntry->receiver_cnic ?? '-' }}</li>
+                                                <li><strong>{{ __('Contact') }}:</strong> {{ $journalEntry->receiver_contact ?? '-' }}</li>
+                                                <li><strong>{{ __('Email') }}:</strong> {{ $journalEntry->receiver_email ?? '-' }}</li>
+                                                <li><strong>{{ __('Payment Date') }}:</strong> {{ !empty($journalEntry->payment_date) ? \Auth::user()->dateFormat($journalEntry->payment_date) : '-' }}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -170,6 +226,8 @@
                                             <tr>
                                                 <th data-width="40" class="text-dark">#</th>
                                                 <th class="text-dark">{{ __('Account') }}</th>
+                                                <th class="text-dark">{{ __('Ref No') }}</th>
+                                                <th class="text-dark">{{ __('Date') }}</th>
                                                 <th class="text-dark wrap-td">{{ __('Memo') }}</th>
                                                 <th class="text-dark wrap-td">{{ __('Description') }}</th>
                                                 <th class="text-dark">{{ __('Debit') }}</th>
@@ -181,6 +239,12 @@
                                                 <tr>
                                                     <td>{{ $key + 1 }}</td>
                                                     <td>{{ !empty($account->accounts) ? $account->accounts->code . ' - ' . $account->accounts->name : '' }}
+                                                    </td>
+                                                    <td>
+                                                        {{ !empty($account->ref_no) ? $account->ref_no : '-' }}
+                                                    </td>
+                                                    <td>
+                                                        {{ !empty($account->tra_date) ? \Auth::user()->dateFormat($account->tra_date) : '-' }}
                                                     </td>
                                                     <td class="wrap-td">
                                                         {{ !empty($account->memo) ? $account->memo : '-' }}
@@ -207,7 +271,7 @@
                                             <tfoot>
 
                                                 <tr>
-                                                    <td colspan="3"></td>
+                                                    <td colspan="5"></td>
                                                     <td><b>{{ __('Total') }}</b></td>
                                                     <td><b>{{ \Auth::user()->priceFormat($journalEntry->totalDebit()) }}</b></td>
                                                     <td><b>{{ \Auth::user()->priceFormat($journalEntry->totalCredit()) }}</b></td>

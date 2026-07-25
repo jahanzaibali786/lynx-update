@@ -668,9 +668,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 if ($salary) {
                     $employeeName = optional($attendance->employee)->name ?: $attendance->employee_id;
                     $salaryMonth = Carbon::parse($salary->salary_date)->format('M-Y');
-                    if (trim(strtolower($salary->status ?? 'unpaid')) === 'paid') {
+                    if (in_array(trim(strtolower($salary->status ?? 'unpaid')), ['paid', 'fwd_to_account', 'account_approved'], true)) {
                         return response()->json([
-                            'error' => "Salary already paid for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. Paid salary cannot be unfinalized.",
+                            'error' => "Salary already paid/forwarded/approved by accounts for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. It cannot be unfinalized.",
                         ]);
                     }
 
@@ -1491,9 +1491,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 ->whereYear('for_month_of', $salaryDate->year)
                 ->first();
 
-            if (trim(strtolower($emp_sal->status ?? 'unpaid')) !== 'unpaid') {
+            if (!in_array(trim(strtolower($emp_sal->status ?? 'unpaid')), ['unpaid', 'returned_to_hr'], true)) {
                 \DB::rollBack();
-                return redirect()->back()->with('error', 'Paid salary can not be edited.');
+                return redirect()->back()->with('error', 'Paid, approved or forwarded salary can not be edited.');
             }
 
             if ((int) optional($salaryAttendance)->gm_final === 1) {
@@ -1757,6 +1757,484 @@ class EmployeeMonthlySalaryAttendance extends Controller
             ]);
         } catch (\Exception $e) {
             \DB::rollback();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function forwardToAccounts(Request $request)
+    {
+        $ids = $request->input('employee_ids');
+        $date = $this->normalizeRequestMonthDate($request);
+
+        if (!$date) {
+            return response()->json(['success' => false, 'message' => __('Please select month.')]);
+        }
+
+        if (!$ids) {
+            return response()->json(['success' => false, 'message' => __('No entries selected for forward to accounts.')]);
+        }
+
+        $month = date('m', strtotime($date));
+        $year = date('Y', strtotime($date));
+        $errors = [];
+        $forwardedIds = [];
+
+        \DB::beginTransaction();
+        try {
+            foreach ($ids as $id) {
+                $salary = EmployeeMonthlySalary::with('employee')
+                    ->where('employee_id', $id)
+                    ->whereMonth('salary_date', $month)
+                    ->whereYear('salary_date', $year)
+                    ->first();
+
+                if (!$salary) {
+                    $errors[] = __('Salary not found for employee ID: ' . $id);
+                    continue;
+                }
+
+                $attendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $id)
+                    ->whereMonth('for_month_of', $month)
+                    ->whereYear('for_month_of', $year)
+                    ->first();
+
+                $employeeName = optional($salary->employee)->name ?: $id;
+                $salaryStatus = trim(strtolower((string) ($salary->status ?? 'unpaid')));
+
+                if ($salaryStatus === 'fwd_to_account') {
+                    $errors[] = __('Salary already forwarded to accounts for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ($salaryStatus === 'account_approved') {
+                    $errors[] = __('Account manager approved salary cannot be forwarded again for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ($salaryStatus === 'paid') {
+                    $errors[] = __('Paid salary cannot be forwarded again for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if (!$attendance || (int) $attendance->gm_final !== 1) {
+                    $errors[] = __('Salary must be HR Final before forwarding to accounts for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ((int) $salary->sal_final !== 1) {
+                    $errors[] = __('Salary must be finalized before forwarding to accounts for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ((int) $salary->on_hold === 1) {
+                    $errors[] = __('On hold salary cannot be forwarded to accounts for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salary->status = 'fwd_to_account';
+                $salary->save();
+                $forwardedIds[] = $salary->id;
+            }
+
+            if (empty($forwardedIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was forwarded to accounts.'),
+                ]);
+            }
+
+            \DB::commit();
+            $message = __('Salary forwarded to accounts successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function accountingSalary(Request $request)
+    {
+        $date = $this->normalizeRequestMonthDate($request);
+        if (!$date) {
+            $date = now()->startOfMonth()->format('Y-m-d');
+            $request->merge(['date' => $date]);
+        }
+
+        $monthDate = Carbon::parse($date)->startOfMonth();
+        $branches = $request->input('branches');
+        $departmentId = $request->input('department_id');
+        $designationId = $request->input('designation_id');
+        $paymode = $request->input('paymode');
+
+        $departments = Department::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+        $departments->prepend('All', 'all');
+        $designations = Designation::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+        $designations->prepend('All', 'all');
+
+        if (\Auth::user()->type == 'company') {
+            $branchesList = User::where('type', 'branch')->pluck('name', 'id');
+            $branchesList->prepend(\Auth::user()->name, \Auth::user()->id);
+            $branchesList->prepend('Select Branch', '');
+        } else {
+            $branchesList = User::where('id', \Auth::user()->ownedId())->pluck('name', 'id');
+            $branchesList->prepend('Select Branch', '');
+        }
+
+        $query = EmployeeMonthlySalary::with([
+            'employee',
+            'employee.userbranch',
+            'employee.department',
+            'employee.designation',
+        ])
+            ->whereIn('status', ['fwd_to_account', 'account_approved'])
+            ->where('on_hold', 0)
+            ->whereYear('salary_date', $monthDate->year)
+            ->whereMonth('salary_date', $monthDate->month);
+
+        if (\Auth::user()->type == 'company') {
+            $query->where('created_by', \Auth::user()->creatorId());
+        } else {
+            $query->where('owned_by', \Auth::user()->ownedId());
+        }
+
+        if ($branches) {
+            $query->where('owned_by', $branches);
+        }
+
+        if ($paymode && $paymode != 'all') {
+            $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
+        }
+
+        if ($departmentId && $departmentId != 'all') {
+            $query->whereHas('employee', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            });
+        }
+
+        if ($designationId && $designationId != 'all') {
+            $query->whereHas('employee', function ($q) use ($designationId) {
+                $q->where('designation_id', $designationId);
+            });
+        }
+
+        $salaries = $query->get()
+            ->sortBy(fn($salary) => strtolower(optional($salary->employee)->name ?? ''))
+            ->values();
+
+        return view('employee.monthly_salary_attendance.accounting_salary', compact(
+            'branchesList',
+            'departments',
+            'designations',
+            'date',
+            'salaries'
+        ));
+    }
+
+    public function accountingSalaryApprove(Request $request)
+    {
+        $ids = array_filter((array) $request->input('salary_ids', []));
+
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => __('Please select at least one salary.')]);
+        }
+
+        $errors = [];
+        $approvedIds = [];
+
+        \DB::beginTransaction();
+        try {
+            $salaries = EmployeeMonthlySalary::with('employee')
+                ->whereIn('id', $ids)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($salaries as $salary) {
+                $employeeName = optional($salary->employee)->name ?: $salary->employee_id;
+                $salaryStatus = trim(strtolower((string) ($salary->status ?? 'unpaid')));
+
+                if ($salaryStatus !== 'fwd_to_account') {
+                    $errors[] = __('Salary is not pending accounts approval for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ((int) $salary->on_hold === 1) {
+                    $errors[] = __('On hold salary cannot be approved for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salaryDate = Carbon::parse($salary->salary_date);
+                $attendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $salary->employee_id)
+                    ->whereYear('for_month_of', $salaryDate->year)
+                    ->whereMonth('for_month_of', $salaryDate->month)
+                    ->first();
+
+                if (!$attendance || (int) $attendance->gm_final !== 1 || (int) $salary->sal_final !== 1) {
+                    $errors[] = __('Salary must be HR Final and Salary Final before accounts approval for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salary->status = 'account_approved';
+                $salary->save();
+                $approvedIds[] = $salary->id;
+            }
+
+            if (empty($approvedIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was approved.'),
+                ]);
+            }
+
+            \DB::commit();
+            $message = __('Salary approved by accounts manager successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function accountingSalaryReturn(Request $request)
+    {
+        $ids = array_filter((array) $request->input('salary_ids', []));
+
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => __('Please select at least one salary.')]);
+        }
+
+        $errors = [];
+        $returnedIds = [];
+
+        \DB::beginTransaction();
+        try {
+            $salaries = EmployeeMonthlySalary::with('employee')
+                ->whereIn('id', $ids)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($salaries as $salary) {
+                $employeeName = optional($salary->employee)->name ?: $salary->employee_id;
+                $salaryStatus = trim(strtolower((string) ($salary->status ?? 'unpaid')));
+
+                if (!in_array($salaryStatus, ['fwd_to_account', 'account_approved'], true)) {
+                    $errors[] = __('Only forwarded or accounts approved salary can be returned for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salaryDate = Carbon::parse($salary->salary_date);
+                ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $salary->employee_id)
+                    ->whereYear('for_month_of', $salaryDate->year)
+                    ->whereMonth('for_month_of', $salaryDate->month)
+                    ->update(['gm_final' => 0]);
+
+                $salary->status = 'returned_to_hr';
+                $salary->sal_final = 0;
+                $salary->save();
+                $returnedIds[] = $salary->id;
+            }
+
+            if (empty($returnedIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was returned to HR.'),
+                ]);
+            }
+
+            \DB::commit();
+            $message = __('Salary returned to HR Admin successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function accountingSalaryPayModal(Request $request)
+    {
+        $ids = array_filter((array) $request->input('salary_ids', []));
+
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => __('Please select at least one salary.')], 422);
+        }
+
+        $selectedCount = count($ids);
+        $salaries = EmployeeMonthlySalary::with('employee')
+            ->whereIn('id', $ids)
+            ->where('status', 'account_approved')
+            ->where('on_hold', 0)
+            ->get();
+
+        if ($salaries->isEmpty() || $salaries->count() !== $selectedCount) {
+            return response()->json(['success' => false, 'message' => __('Only accounts approved salaries can be paid.')], 422);
+        }
+
+        $bankAccounts = BankAccount::where(function ($q) {
+                $q->where('created_by', \Auth::user()->creatorId())
+                    ->orWhere('owned_by', \Auth::user()->ownedId());
+            })
+            ->orderBy('bank_name')
+            ->get()
+            ->mapWithKeys(function ($bank) {
+                $label = trim($bank->bank_name . ' - ' . $bank->holder_name . ' (' . $bank->account_number . ')');
+                return [$bank->id => $label];
+            });
+        $bankAccounts->prepend('Select Bank Account', '');
+
+        return view('employee.monthly_salary_attendance.accounting_salary_pay_modal', [
+            'salaries' => $salaries,
+            'bankAccounts' => $bankAccounts,
+            'salaryIds' => $salaries->pluck('id')->all(),
+            'totalAmount' => $salaries->sum('net_pay'),
+        ]);
+    }
+
+    public function accountingSalaryPay(Request $request)
+    {
+        $request->validate([
+            'salary_ids' => 'required|array|min:1',
+            'salary_ids.*' => 'integer',
+            'bank_id' => 'required|integer',
+            'payment_date' => 'required|date',
+            'reference' => 'nullable|string|max:191',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $bank = BankAccount::where('id', $request->bank_id)
+            ->where(function ($q) {
+                $q->where('created_by', \Auth::user()->creatorId())
+                    ->orWhere('owned_by', \Auth::user()->ownedId());
+            })
+            ->first();
+
+        if (!$bank || empty($bank->chart_account_id)) {
+            return response()->json(['success' => false, 'message' => __('Please select a valid bank account with chart account.')]);
+        }
+
+        $errors = [];
+        $paidIds = [];
+
+        \DB::beginTransaction();
+        try {
+            $salaries = EmployeeMonthlySalary::with('employee')
+                ->whereIn('id', $request->salary_ids)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($salaries as $salary) {
+                $employeeName = optional($salary->employee)->name ?: $salary->employee_id;
+
+                if (trim(strtolower((string) $salary->status)) !== 'account_approved') {
+                    $errors[] = __('Salary is not approved by accounts manager for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ((int) $salary->on_hold === 1) {
+                    $errors[] = __('On hold salary cannot be paid for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $attendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $salary->employee_id)
+                    ->whereYear('for_month_of', Carbon::parse($salary->salary_date)->year)
+                    ->whereMonth('for_month_of', Carbon::parse($salary->salary_date)->month)
+                    ->first();
+
+                if (!$attendance || (int) $attendance->gm_final !== 1) {
+                    $errors[] = __('Salary must be HR Final before payment for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salarydetail = EmployeePayscaleDetail::where('employee_id', $salary->employee_id)->latest()->first();
+                if (!$salarydetail || empty($salarydetail->net_payable_account)) {
+                    $errors[] = __('Net payable account not found for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $reference = $request->reference ?: 'SAL-' . $salary->id;
+
+                $payment = SalaryPayment::create([
+                    'employee_id' => $salary->employee_id,
+                    'salary_id' => $salary->id,
+                    'net_pay' => round($salary->net_pay),
+                    'bank_id' => $bank->id,
+                    'account_number' => $salary->account_number ?: $salarydetail->account_number,
+                    'payment_method' => $salary->paymode ?: $salarydetail->paymode,
+                    'reference' => $reference,
+                    'description' => $request->description ?: 'Salary paid for ' . $employeeName . ' (Salary ID: ' . $salary->id . ') for the month of ' . date('F Y', strtotime($salary->salary_date)),
+                    'owned_by' => optional($salary->employee)->owned_by ?: $salary->owned_by,
+                    'created_by' => optional($salary->employee)->created_by ?: $salary->created_by,
+                ]);
+
+                $journalData = [
+                    'date' => $request->payment_date,
+                    'reference' => $reference,
+                    'employee_name' => $employeeName,
+                    'no' => $salary->id,
+                    'salary_month' => date('F Y', strtotime($salary->salary_date)),
+                    'id' => $salary->id,
+                    'category' => 'salary',
+                    'user_id' => optional($salary->employee)->user_id,
+                    'user_type' => 'employee',
+                    'owned_by' => optional($salary->employee)->owned_by ?: $salary->owned_by,
+                    'created_by' => optional($salary->employee)->created_by ?: $salary->created_by,
+                    'accounts' => [
+                        [
+                            'account_id' => $bank->chart_account_id,
+                            'name' => 'Bank Account Credit against salary ' . $salary->id . ' of ' . $employeeName,
+                            'debit' => 0,
+                            'credit' => round($salary->net_pay),
+                        ],
+                        [
+                            'account_id' => $salarydetail->net_payable_account,
+                            'name' => 'Net Salary Payable',
+                            'debit' => round($salary->net_pay),
+                            'credit' => 0,
+                        ],
+                    ],
+                ];
+
+                $voucher = Utility::Salarybrvvoucher($journalData);
+
+                $salary->status = 'paid';
+                $salary->paid_date = $request->payment_date;
+                $salary->save();
+
+                $payment->journal_id = $voucher;
+                $payment->save();
+                $paidIds[] = $salary->id;
+            }
+
+            if (empty($paidIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was paid.'),
+                ]);
+            }
+
+            \DB::commit();
+            $message = __('Salary paid successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
     }

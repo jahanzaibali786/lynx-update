@@ -213,6 +213,7 @@
                             <th>Admission Date</th>
                             <th>Reg Type</th>
                             <th>Class</th>
+                            <th>Section</th>
                             <th>Monthly Fee</th>
                             @foreach ($heads as $head)
                                 <th>{{ $head->fee_head }}</th>
@@ -238,6 +239,7 @@
                                     </td>
                                     <td>{{ $stu['registration_type'] }}</td>
                                     <td>{{ $stu['class_name'] }}</td>
+                                    <td>{{ $stu['section_name'] }}</td>
                                     <td>{{ round($stu['total_amount']) }}</td>
 
                                     @foreach ($heads as $head)

@@ -945,7 +945,7 @@ $('#submitBtnSection1').click(function() {
                             </div>
                             <div style="flex: 1;">
                                 {{ Form::label('discount_policy', __('Discount Policy'), ['class' => 'form-label']) }}
-                                {{ Form::text('discount_policy', @$concession->concession->title, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                                {{ Form::text('discount_policy', @$concession->concession->title, ['class' => 'form-control', 'disabled' => 'disabled']) }}
                                 {{ Form::text('discount_policy_id', @$concession->concession_id, ['hidden' => 'hidden', 'class' => 'form-control']) }}
                             </div>
                         </div>

@@ -25,6 +25,7 @@
                             <thead>
                             <tr class="table_heads">
                                 <th> {{__('Journal ID')}}</th>
+                                <th> {{__('Category Type')}}</th>
                                 <th> {{__('Date')}}</th>
                                 <th> {{__('Amount')}}</th>
                                 <th> {{__('Description')}}</th>
@@ -37,6 +38,7 @@
                                     <td class="Id">
                                         <a href="{{ route('journal-entry.show',$journalEntry->id) }}" class="btn btn-outline-primary">{{ AUth::user()->journalNumberFormat($journalEntry->journal_id) }}</a>
                                     </td>
+                                    <td>{{ !empty($journalEntry->categoryType) ? $journalEntry->categoryType->name : '-' }}</td>
                                     <td>{{ Auth::user()->dateFormat($journalEntry->date) }}</td>
                                     <td>
                                         {{ \Auth::user()->priceFormat($journalEntry->totalCredit())}}
@@ -45,11 +47,11 @@
                                     <td>
                                     <div class="action-btn  ms-2">
                                         @can('edit journal entry')
-                                            
-                                                <a data-bs-toggle="{{__('Edit Journal')}}" href="{{ route('journal-entry.edit',[$journalEntry->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center"  data-bs-title="{{__('Edit')}}" data-bs-title="{{__('Edit')}}">
-                                                   <span class="btn-inner--icon"> <i class="ti ti-pencil"></i> </span>
-                                                </a>
-                                            
+                                             @if($journalEntry->is_system_generated == 0)
+                                                 <a data-bs-toggle="{{__('Edit Journal')}}" href="{{ route('journal-entry.edit',[$journalEntry->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-primary align-items-center"  data-bs-title="{{__('Edit')}}" data-bs-title="{{__('Edit')}}">
+                                                    <span class="btn-inner--icon"> <i class="ti ti-pencil"></i> </span>
+                                                 </a>
+                                             @endif
                                         @endcan
                                         @can('delete journal entry')
                                                 

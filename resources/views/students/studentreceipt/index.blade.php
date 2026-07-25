@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
         integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script src="{{ asset('js/jquery.min.js') }}"></script>
+    <script src="{{ asset('js/jquery.min.js') }}"></script>l
     <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
     <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
 @endpush
@@ -439,8 +439,8 @@
             dueDate: '', // 'YYYY-MM-DD'
             totalAmount: 0,
             concession: 0,
-            paidAmount: 0,
             lateFeeAmount: 0,
+            paidAmount: 0,
         };
 
         // ── PHP-side auth flag passed to JS ───────────────────────────────
@@ -622,7 +622,7 @@
             // (NOT whether they're already at 50% — late fee keeps growing until they cross 50%)
             const baseTotal = currentChallanMeta.totalAmount - (currentChallanMeta.lateFeeAmount || 0);
             const totalPayable = baseTotal - currentChallanMeta.concession;
-            if (totalPayable <= 0) return 0;
+                        if (totalPayable <= 0) return 0;
 
             const alreadyPaid = currentChallanMeta.paidAmount;
 
@@ -732,11 +732,11 @@
                             challanType: detail.challan_type || detail.challanType || detail.type ||
                                 '',
                             dueDate: detail.due_date || detail.dueDate || '',
+                            lateFeeAmount: parseFloat(response.challan_late_fee) || 0,
                             totalAmount: parseFloat(detail.total_amount) || 0,
                             concession: parseFloat(detail.concession_amount) || 0,
                             paidAmount: parseFloat(detail.paid_amount) || 0,
                             dailyLateFee: parseFloat(response.daily_late_fee) || 120,
-                            lateFeeAmount: parseFloat(response.challan_late_fee) || 0,
                         };
                         // DEBUG — open browser console to see what fields your API returns
                         console.log('[LateFee] challan detail keys:', Object.keys(detail));

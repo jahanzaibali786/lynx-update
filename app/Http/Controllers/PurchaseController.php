@@ -29,6 +29,7 @@ use App\Models\WarehouseProduct;
 use App\Models\WarehouseTransfer;
 use Illuminate\Support\Facades\Crypt;
 use App\Models\warehouse;
+use App\Services\PurchaseReceivingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -38,6 +39,13 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class PurchaseController extends Controller
 {
+    private PurchaseReceivingService $purchaseReceiving;
+
+    public function __construct(PurchaseReceivingService $purchaseReceiving)
+    {
+        $this->purchaseReceiving = $purchaseReceiving;
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -45,6 +53,10 @@ class PurchaseController extends Controller
      */
     public function index(Request $request)
     {
+        if (!\Auth::user()->can('manage purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         // dropdown list (id => name)
         $vendorList = Vender::where('created_by', \Auth::user()->creatorId())
             ->pluck('name', 'id')
@@ -1432,7 +1444,11 @@ class PurchaseController extends Controller
 
     public function fwToHo($id)
     {
-        $purchase = Purchase::findOrFail($id);
+        if (!\Auth::user()->can('send purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $purchase = Purchase::where('created_by', \Auth::user()->creatorId())->findOrFail($id);
         $purchase->status = 5; // Fw to Ho
         $purchase->save();
         return redirect()->back()->with('success', __('Purchase forwarded to Head Office.'));
@@ -1440,7 +1456,7 @@ class PurchaseController extends Controller
 
     public function finalize($id)
     {
-        $purchase = Purchase::findOrFail($id);
+        $purchase = Purchase::where('created_by', \Auth::user()->creatorId())->findOrFail($id);
         if ($purchase->status == 5 && \Auth::user()->type == 'company') {
             $purchase->status = 6; // Finalized
             $purchase->save();
@@ -1452,7 +1468,7 @@ class PurchaseController extends Controller
 
     public function reject($id)
     {
-        $purchase = Purchase::findOrFail($id);
+        $purchase = Purchase::where('created_by', \Auth::user()->creatorId())->findOrFail($id);
         if ($purchase->status == 5 && \Auth::user()->type == 'company') {
             $purchase->status = 0; // Draft
             $purchase->save();
@@ -1465,7 +1481,12 @@ class PurchaseController extends Controller
     {
         $purchase = Purchase::with('items.products')->findOrFail($id);
 
-        if ($purchase->status != 6 || \Auth::user()->type != 'company') {
+        if (
+            $purchase->status != Purchase::STATUS_FINALIZED
+            || $purchase->grn_converted
+            || \Auth::user()->type != 'company'
+            || !\Auth::user()->can('convert purchase to grn')
+        ) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
@@ -1491,7 +1512,13 @@ class PurchaseController extends Controller
     {
         $purchase = Purchase::with('items')->findOrFail($id);
 
-        if ($purchase->status != 6 || \Auth::user()->type != 'company' || $purchase->created_by != \Auth::user()->creatorId()) {
+        if (
+            $purchase->status != Purchase::STATUS_FINALIZED
+            || $purchase->grn_converted
+            || \Auth::user()->type != 'company'
+            || !\Auth::user()->can('convert purchase to grn')
+            || $purchase->created_by != \Auth::user()->creatorId()
+        ) {
             return response()->json(['success' => false, 'message' => __('Permission denied.')], 401);
         }
 
@@ -1501,12 +1528,13 @@ class PurchaseController extends Controller
             'warehouse_id' => 'required|integer',
             'grn_date' => 'required|date',
             'reference_no' => 'required|string|max:191',
-            'purchase_order_id' => 'required|string|max:1000',
+            'purchase_order' => 'required|string|max:1000',
+            'purchase_order_id' => 'required|integer|in:' . $purchase->id,
             'remarks' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer|exists:product_services,id',
             'items.*.purchase_id' => 'nullable|integer|exists:purchases,id',
-            'items.*.purchase_product_id' => 'nullable|integer|exists:purchase_products,id',
+            'items.*.purchase_product_id' => 'required|integer|exists:purchase_products,id',
             'items.*.purchase_order_no' => 'nullable|string|max:191',
             'items.*.ordered_quantity' => 'nullable|numeric|min:0',
             'items.*.condition' => 'required|in:new,used,damaged',
@@ -1527,11 +1555,13 @@ class PurchaseController extends Controller
                 'warehouse_id' => $request->warehouse_id,
                 'grn_date' => $request->grn_date,
                 'reference_no' => $request->reference_no,
+                'purchase_order' => $request->purchase_order,
                 'purchase_order_id' => $request->purchase_order_id,
                 'remarks' => $request->remarks,
                 'status' => $user->type == 'company' ? 5 : 0,
                 'owned_by' => $user->creatorId(),
                 'created_by' => $user->creatorId(),
+                'added_by' => $user->id,
             ]);
 
             foreach ($request->items as $item) {
@@ -1539,7 +1569,7 @@ class PurchaseController extends Controller
                     'grn_id' => $grn->id,
                     'purchase_id' => $item['purchase_id'] ?? $purchase->id,
                     'purchase_product_id' => $item['purchase_product_id'] ?? null,
-                    'purchase_order_no' => $item['purchase_order_no'] ?? $request->purchase_order_id,
+                    'purchase_order_no' => $item['purchase_order_no'] ?? $request->purchase_order,
                     'product_id' => $item['product_id'],
                     'condition' => $item['condition'],
                     'ordered_quantity' => (float) ($item['ordered_quantity'] ?? 0),
@@ -1555,6 +1585,8 @@ class PurchaseController extends Controller
                 }
             }
 
+            $grn->load('items');
+            $this->purchaseReceiving->book($grn);
 
             DB::commit();
             return response()->json([
@@ -1618,12 +1650,7 @@ class PurchaseController extends Controller
 
         $purchaseOrderNo = $user->purchaseNumberFormat($purchase->purchase_id);
         $initialItems = $purchase->items->map(function ($item) use ($purchase, $purchaseOrderNo) {
-            $pending = \App\Models\GrnItem::query()
-                ->join('grns', 'grns.id', '=', 'grn_items.grn_id')
-                ->where('grn_items.purchase_product_id', $item->id)
-                ->whereIn('grns.status', [0, 5, 6, 7])
-                ->sum('grn_items.quantity');
-            $remaining = max(0, (float) $item->quantity - (float) ($item->received_quantity ?? 0) - (float) $pending);
+            $remaining = $this->purchaseReceiving->remaining($item);
 
             if ($remaining <= 0) {
                 return null;
@@ -1649,7 +1676,8 @@ class PurchaseController extends Controller
             'warehouse_id' => $purchase->warehouse_id,
             'grn_date' => date('Y-m-d'),
             'reference_no' => $user->purchaseNumberFormat($purchase->purchase_id),
-            'purchase_order_id' => $user->purchaseNumberFormat($purchase->purchase_id),
+            'purchase_order' => $user->purchaseNumberFormat($purchase->purchase_id),
+            'purchase_order_id' => $purchase->id,
             'remarks' => __('Converted from Purchase') . ' ' . $user->purchaseNumberFormat($purchase->purchase_id),
         ];
 

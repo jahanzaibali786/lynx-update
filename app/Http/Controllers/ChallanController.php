@@ -915,17 +915,13 @@ public function legacyShow($id, Request $request)
         $daysOverdue = $today->diffInDays($dueDate);
 
         // OL payment type grace rule
-        // Exactly 1 day late => exempt
-        if (strtoupper($receiveType) == 'OL' && $daysOverdue == 1) {
-            return;
-        }
-
         // 50% payment exemption — exclude existing late fee from total
         $existingLateFeeTotal = ChallanHead::where('challan_id', $challan->id)
             ->whereHas('feeHead', fn($q) => $q->where('fee_head', 'LIKE', '%LATE FEE%'))
             ->sum('price');
         $baseTotal = $challan->total_amount - $existingLateFeeTotal;
         $totalPayable = $baseTotal - ($challan->concession_amount ?? 0);
+
 
         if ($totalPayable > 0) {
 
@@ -1405,7 +1401,7 @@ public function legacyShow($id, Request $request)
             $total = 0;
             $concession = 0;
             $item = [];
-            $session = Session::orderBy('id', 'Desc')->where('active_status', '1')->where('created_by', '=', \Auth::user()->creatorId())->first();
+            // $session = Session::orderBy('id', 'Desc')->where('active_status', '1')->where('created_by', '=', \Auth::user()->creatorId())->first();
             $student = StudentRegistration::where('id', $request->input('student_id'))->first();
 
             $challan = new Challans;
@@ -1420,7 +1416,7 @@ public function legacyShow($id, Request $request)
             $challan->issue_date = $request->input('issueDate');
             $challan->due_date = $request->input('dueDate');
             $challan->status = 'Issued';
-            $challan->session_id = $session->id;
+            $challan->session_id = $student->session_id;
             $challan->owned_by = $student->owned_by;
             $challan->created_by = $student->created_by;
             $challan->save();
@@ -1839,7 +1835,6 @@ public function legacyShow($id, Request $request)
                 'chart_account' => $account->chartAccount ? strtolower($account->chartAccount->name) : ''
             ];
         }
-
         // Calculate existing late fee total for 50% check exclusion
         $lateFeeHead = FeeHead::where('fee_head', 'LIKE', '%LATE FEE%')->first();
         $lateFeeAmount = 0;
@@ -1851,9 +1846,9 @@ public function legacyShow($id, Request $request)
 
         return response()->json([
             'challandetail' => $challandata,
-            'challan_late_fee' => $lateFeeAmount,
             'previousUnpaidChallans' => $previousUnpaidChallans,
             'headsData' => $headsData,
+            'challan_late_fee' => $lateFeeAmount,
             'accounts' => $accountsFormatted,
             'account_all' => $accountAllFormatted,
             'accounts_data' => $accountsData,
@@ -3367,8 +3362,9 @@ public function paidchallan(Request $request)
                 ->whereHas('feeHead', fn($q) => $q->where('fee_head', 'LIKE', '%LATE FEE%'))
                 ->sum('price');
             $baseTotal = $invoicePayment->total_amount - $lateFeeTotal;
+            
             $isfiftypercent = false;
-            if ($invoicePayment->paid_amount >= ($baseTotal - $invoicePayment->concession_amount) / 2) {
+            if ($invoicePayment->paid_amount >= ($invoicePayment->total_amount - $invoicePayment->concession_amount) / 2) {
                 $isfiftypercent = true;
             }
             if (!$isfiftypercent && $invoicePayment->student->register_option != 2) {

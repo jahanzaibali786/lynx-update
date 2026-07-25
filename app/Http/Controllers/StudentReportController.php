@@ -2391,14 +2391,22 @@ class StudentReportController extends Controller
         // Loop branches
         foreach ($branchesToProcess as $branchId => $branchName) {
 
+            $query = Challans::with([
+                'student',
+                'enrollstudent',
+                'class',
+                'enrollstudent.section'
+            ]);
             if ($user->type == 'company') {
-                $query = Challans::with('student', 'enrollstudent', 'class', 'enrollstudent.section')
-                    ->where('created_by', $user->id);
+                $query->where('created_by', $user->id)
+                    ->whereHas('enrollstudent', function ($q) use ($user) {
+                        $q->where('owned_by', $user->id);
+                    });
             } else {
-                $query = Challans::with('student', 'enrollstudent', 'class', 'enrollstudent.section')
-                    ->where('owned_by', $user->id);
+                $query->whereHas('enrollstudent', function ($q) use ($user) {
+                    $q->where('owned_by', $user->id);
+                });
             }
-
             $query
                 // Admission challans will not be included in this report
                 ->whereNotIn('challans.challan_type', [
@@ -6576,7 +6584,7 @@ public function monthlyprechallanreport(Request $request)
 
         if ($request->filled('date')) {
 
-            $studentsList = $baseQ->with(['registeroption', 'class', 'section', 'enrollment'])->get();
+            $studentsList = $baseQ->with(['registeroption', 'class', 'enrollment.section', 'enrollment'])->get();
             $studentIds = $studentsList->pluck('id')->all();
 
             // ─────────────────────────────────────────────
@@ -7042,7 +7050,6 @@ public function monthlyprechallanreport(Request $request)
                         // dd($headDetails);
     
                         $tuitionStudentCount++;
-
                         return [
                             'student_id' => $student->id,
                             'roll_no' => $student->roll_no,
@@ -7052,7 +7059,7 @@ public function monthlyprechallanreport(Request $request)
                             'registration_type' => $student->registeroption->name ?? 'N/A',
                             'challan_type_short' => $challanTypeShort,
                             'class_name' => $student->class->name ?? 'N/A',
-                            'section_name' => $student->section->name ?? 'N/A',
+                            'section_name' => $student->enrollment->section->name ?? 'N/A',
                             'concession_category' => $concession && $concession->concession
                                 ? $concession->concession->title
                                 : 'No Concession',

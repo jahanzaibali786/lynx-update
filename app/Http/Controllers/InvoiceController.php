@@ -509,6 +509,7 @@ class InvoiceController extends Controller
     }
 
 
+    
     public function create($customerId)
     {
         if (\Auth::user()->can('create invoice')) {
@@ -922,6 +923,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
+
 
 
     function invoiceNumber()
@@ -2213,4 +2215,5 @@ class InvoiceController extends Controller
         });
         return response()->json($items);
     }
+
 }

@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ isset($journalEntry) ? __('Voucher Edit') : __('Journal Entry Create') }}
+    {{ isset($journalEntry) ? __('Journal Voucher Edit') : __('Journal Voucher Create') }}
 @endsection
 
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('Double Entry') }}</li>
     <li class="breadcrumb-item">{{ __('Vouchers') }}</li>
-    <li class="breadcrumb-item">{{ __('Journal Entry') }}</li>
+    <li class="breadcrumb-item">{{ __('Journal Voucher') }}</li>
 @endsection
 
 @push('script-page')
@@ -39,7 +39,7 @@
         // ─── State ────────────────────────────────────────────────────────────────────
         var journalEntries = @json($journalItems ?? []);
         var rowCounter = 0;
-        var MAX_OPEN_ROWS = 4;
+        var MAX_OPEN_ROWS = 10;
 
         // ─── Static data from Blade ───────────────────────────────────────────────────
         var BRANCHES = @json($branches);
@@ -76,7 +76,8 @@
 
         function cleanSelectLabel(value) {
             value = (value || '').trim();
-            if (!value || /^[-—\s]+$/.test(value) || /^[-—\s]*(select|branch|department|designation|employee|student|vendor)[-—\s]*$/i.test(value)) {
+            if (!value || /^[-—\s]+$/.test(value) ||
+                /^[-—\s]*(select|branch|department|designation|employee|student|vendor)[-—\s]*$/i.test(value)) {
                 return '';
             }
             return value;
@@ -105,8 +106,36 @@
             return (parseFloat(value) || 0).toFixed(2);
         }
 
+        function uniqueJournalEntries(entries) {
+            var seen = {};
+            return (entries || []).filter(function(entry) {
+                var key = [
+                    entry.account_id,
+                    entry.debit,
+                    entry.credit,
+                    entry.desc,
+                    entry.types,
+                    entry.userType,
+                    entry.userId,
+                    entry.ref_no,
+                    entry.tra_date,
+                    JSON.stringify(entry.meta || {})
+                ].join('|');
+
+                if (seen[key]) {
+                    return false;
+                }
+                seen[key] = true;
+                return true;
+            });
+        }
+
         $(function() {
-            if (journalEntries.length) {
+            journalEntries = uniqueJournalEntries(journalEntries);
+
+            if (journalEntries.length && !$('#inline-entry-tbody').data('existing-loaded')) {
+                $('#inline-entry-tbody').data('existing-loaded', true);
+                $('#inline-entry-tbody tr.confirmed-row').remove();
                 $('#empty-row').hide();
                 $.each(journalEntries, function(_, entry) {
                     entry.debit = parseFloat(entry.debit) || 0;
@@ -116,19 +145,101 @@
                 renderHiddenInputs();
                 updateTotals();
             }
+            toggleChequeFields();
+            toggleHeaderPartyFields();
         });
 
+        function toggleChequeFields() {
+            var mode = ($('#payment_mode').val() || '').toLowerCase();
+            var isCheque = mode === 'chq' || mode === 'check' || mode === 'cheque';
+            $('.cheque-field-wrap').toggle(isCheque);
+            $('.cheque-field-wrap :input').prop('disabled', !isCheque);
+            if (!isCheque) {
+                $('.cheque-field-wrap :input').val('');
+            }
+        }
+
+        function toggleHeaderPartyFields() {
+            var partyType = $('#user_type').val() || '';
+            $('.party-select-wrap').each(function() {
+                var isActive = $(this).data('party') === partyType;
+                $(this).toggle(isActive);
+                $(this).find('select').prop('disabled', !isActive);
+                if (!isActive) {
+                    $(this).find('select').val('');
+                }
+            });
+            $('#user_id').val($('.party-select-wrap:visible select').val() || '');
+        }
+
+        $(document).off('change', '#payment_mode').on('change', '#payment_mode', toggleChequeFields);
+        $(document).off('change', '#user_type').on('change', '#user_type', toggleHeaderPartyFields);
+        $(document).off('change', '.party-id-select').on('change', '.party-id-select', function() {
+            $('#user_id').val($(this).val() || '');
+        });
+
+        function setHeaderPartyOptions(selector, placeholder, rows) {
+            var select = $(selector);
+            destroyCustomSelect(select[0]);
+
+            var opts = '<option value="">' + placeholder + '</option>';
+            $.each(rows || [], function(_, row) {
+                opts += '<option value="' + row.id + '">' + row.name + '</option>';
+            });
+
+            select.html(opts).val('');
+            if (typeof CustomSelect !== 'undefined') {
+                select[0].customSelectInstance = CustomSelect.create(select[0]);
+            }
+        }
+
+        function clearHeaderPartySelection() {
+            $('#user_type').val('');
+            $('#user_id').val('');
+            $('.party-id-select').val('');
+            toggleHeaderPartyFields();
+        }
+
+        function loadHeaderPartyData(branchId) {
+            setHeaderPartyOptions('select[name="customer_user_id"]', 'Select Customer', []);
+            setHeaderPartyOptions('select[name="vendor_user_id"]', 'Select Vendor', []);
+            setHeaderPartyOptions('select[name="employee_user_id"]', 'Select Employee', []);
+            setHeaderPartyOptions('select[name="student_user_id"]', 'Select Student', []);
+
+            if (!branchId) {
+                return;
+            }
+
+            $.ajax({
+                url: '{{ route('getVoucherParties') }}',
+                type: 'GET',
+                data: {
+                    branch_id: branchId
+                },
+                success: function(r) {
+                    setHeaderPartyOptions('select[name="customer_user_id"]', 'Select Customer', r.customers);
+                    setHeaderPartyOptions('select[name="vendor_user_id"]', 'Select Vendor', r.vendors);
+                    setHeaderPartyOptions('select[name="employee_user_id"]', 'Select Employee', r.employees);
+                    setHeaderPartyOptions('select[name="student_user_id"]', 'Select Student', r.students);
+                    toggleHeaderPartyFields();
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load party data', 'error');
+                }
+            });
+        }
+
         // ─── Voucher number ───────────────────────────────────────────────────────────
-        $(document).on('change', '#voucher_type, #branches', function() {
+        $(document).off('change', '#voucher_type, #branches, #voucher_series').on('change', '#voucher_type, #branches, #voucher_series', function() {
             var currentType = ($('#voucher_type').val() || 'jv').toUpperCase();
             journalEntries.forEach(function(entry) {
                 entry.types = currentType;
             });
             renderHiddenInputs();
-            getVoucherNumber($('#voucher_type').val(), $('#branches').val());
+            getVoucherNumber($('#voucher_type').val(), $('#branches').val(), $('#voucher_series').val());
         });
 
-        function getVoucherNumber(vt, bid) {
+        function getVoucherNumber(vt, bid, vs) {
             var labels = {
                 jv: 'Journal Number',
                 cpv: 'Cash Payment Voucher Number',
@@ -139,12 +250,14 @@
             $('#journal-number').text(labels[vt] || 'Journal Number');
             $('#journal-number-inp').val('');
             if (!vt) return;
+            toggleHeaderPartyFields();
             $.ajax({
                 url: '{{ route('getVoucherNumber') }}',
                 type: 'GET',
                 data: {
                     voucher_type: vt,
-                    branch_id: bid
+                    branch_id: bid,
+                    voucher_series: vs || 'SYSTEM'
                 },
                 success: function(r) {
                     $('#journal-number-inp').val(r.voucher_number);
@@ -155,8 +268,14 @@
             });
         }
 
+        @if(!isset($journalEntry))
+        getVoucherNumber($('#voucher_type').val(), $('#branches').val(), 'MANUAL');
+        @endif
+
         // ─── Add line button ──────────────────────────────────────────────────────────
-        $(document).on('click', '#addAccountBtn', function() {
+        $(document).off('click', '#addAccountBtn').on('click', '#addAccountBtn', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
             var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
             if (openRows >= MAX_OPEN_ROWS) {
                 show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS +
@@ -179,6 +298,24 @@
                 '</select>' +
                 '<div class="path-pill" id="path-pill-' + rid + '"></div>' +
                 '<div id="catcell-' + rid + '" class="catcell-wrap"></div>' +
+                '</td>' +
+
+                // Type column (using datalist)
+                '<td class="col-type">' +
+                '<input type="text" class="form-control form-control-sm row-types" list="type-options" data-rid="' + rid +
+                '" placeholder="Type" value="' + ($('#voucher_type').val() || 'jv').toUpperCase() + '">' +
+                '</td>' +
+
+                // Ref No
+                '<td class="col-ref">' +
+                '<input type="text" class="form-control form-control-sm row-ref" data-rid="' + rid +
+                '" placeholder="Ref No">' +
+                '</td>' +
+
+                // Date
+                '<td class="col-tradate">' +
+                '<input type="date" class="form-control form-control-sm row-tradate" data-rid="' + rid +
+                '" value="' + ($('input[name="date"]').val() || '') + '">' +
                 '</td>' +
 
                 // ② Debit
@@ -217,7 +354,7 @@
         }
 
         // ─── Account change → render category fields ──────────────────────────────────
-        $(document).on('change', '.row-account', function() {
+        $(document).off('change', '.row-account').on('change', '.row-account', function() {
             var rid = $(this).data('rid');
             var opt = $(this).find('option:selected');
             var cat = opt.data('category') || 'general';
@@ -302,8 +439,10 @@
             }
         }
 
-        $(document).on('change', '#branches', function() {
+        $(document).off('change', '#branches').on('change', '#branches', function() {
             var selectedBranch = $(this).val();
+            clearHeaderPartySelection();
+            loadHeaderPartyData(selectedBranch);
             $('.hr-branch, .stu-branch, .inv-branch').each(function() {
                 $(this).val(selectedBranch);
                 refreshCustomSelect(this);
@@ -316,12 +455,12 @@
             });
         });
 
-        $(document).on('change', '.hr-branch', function() {
+        $(document).off('change', '.hr-branch').on('change', '.hr-branch', function() {
             var rid = $(this).data('rid');
             $('.hr-desig[data-rid="' + rid + '"]').trigger('change');
         });
 
-        $(document).on('change', '.hr-dept', function() {
+        $(document).off('change', '.hr-dept').on('change', '.hr-dept', function() {
             var rid = $(this).data('rid');
             var deptId = $(this).val();
 
@@ -358,7 +497,7 @@
             });
         });
 
-        $(document).on('change', '.hr-desig', function() {
+        $(document).off('change', '.hr-desig').on('change', '.hr-desig', function() {
             var rid = $(this).data('rid');
             var deptId = $('.hr-dept[data-rid="' + rid + '"]').val();
             var desigId = $(this).val();
@@ -393,7 +532,7 @@
             });
         });
 
-        $(document).on('change', '.stu-branch', function() {
+        $(document).off('change', '.stu-branch').on('change', '.stu-branch', function() {
             var rid = $(this).data('rid'),
                 bid = $(this).val();
 
@@ -423,7 +562,7 @@
             });
         });
 
-        $(document).on('change', '.inv-branch', function() {
+        $(document).off('change', '.inv-branch').on('change', '.inv-branch', function() {
             var rid = $(this).data('rid'),
                 bid = $(this).val();
 
@@ -453,7 +592,7 @@
             });
         });
         // ─── Debit / Credit mutual exclusion ─────────────────────────────────────────
-        $(document).on('input', '.row-debit', function() {
+        $(document).off('input', '.row-debit').on('input', '.row-debit', function() {
             var rid = $(this).data('rid');
             if (parseFloat($(this).val()) > 0) {
                 $('.row-credit[data-rid="' + rid + '"]').val('').prop('disabled', true);
@@ -461,7 +600,7 @@
                 $('.row-credit[data-rid="' + rid + '"]').prop('disabled', false);
             }
         });
-        $(document).on('input', '.row-credit', function() {
+        $(document).off('input', '.row-credit').on('input', '.row-credit', function() {
             var rid = $(this).data('rid');
             if (parseFloat($(this).val()) > 0) {
                 $('.row-debit[data-rid="' + rid + '"]').val('').prop('disabled', true);
@@ -471,9 +610,15 @@
         });
 
         // ─── Confirm row ──────────────────────────────────────────────────────────────
-        $(document).on('click', '.confirm-row-btn', function() {
+        $(document).off('click', '.confirm-row-btn').on('click', '.confirm-row-btn', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
             var rid = $(this).data('rid');
             var tr = $('tr[data-row-id="' + rid + '"]');
+            if (!tr.length || tr.data('confirming')) {
+                return;
+            }
+            tr.data('confirming', true);
             var cat = tr.attr('data-cat') || 'general';
             var accSel = $('.row-account[data-rid="' + rid + '"]');
             var accOpt = accSel.find('option:selected');
@@ -481,13 +626,17 @@
             var path = accOpt.data('path') || accOpt.text();
             var debit = parseFloat($('.row-debit[data-rid="' + rid + '"]').val()) || 0;
             var credit = parseFloat($('.row-credit[data-rid="' + rid + '"]').val()) || 0;
+            var refNo = ($('.row-ref[data-rid="' + rid + '"]').val() || '').trim();
+            var traDate = $('.row-tradate[data-rid="' + rid + '"]').val() || null;
             var desc = ($('.row-desc[data-rid="' + rid + '"]').val() || '').trim();
 
             if (!accId) {
+                tr.data('confirming', false);
                 show_toastr('error', 'Please select an account.', 'error');
                 return;
             }
             if (debit === 0 && credit === 0) {
+                tr.data('confirming', false);
                 show_toastr('error', 'Enter a debit or credit amount.', 'error');
                 return;
             }
@@ -505,10 +654,7 @@
                     employee_id: $('.hr-emp[data-rid="' + rid + '"]').val(),
                     employee_name: $('.hr-emp[data-rid="' + rid + '"] option:selected').text(),
                 };
-                metaLabel = [meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]
-                    .filter(function(v) {
-                        return v && !v.startsWith('—');
-                    }).join(' › ');
+                metaLabel = joinMemoParts([meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]);
             } else if (cat === 'student') {
                 meta = {
                     branch_id: $('.stu-branch[data-rid="' + rid + '"]').val(),
@@ -516,10 +662,7 @@
                     student_id: $('.stu-student[data-rid="' + rid + '"]').val(),
                     student_name: $('.stu-student[data-rid="' + rid + '"] option:selected').text(),
                 };
-                metaLabel = [meta.branch_name, meta.student_name]
-                    .filter(function(v) {
-                        return v && !v.startsWith('—');
-                    }).join(' › ');
+                metaLabel = joinMemoParts([meta.branch_name, meta.student_name]);
             } else if (cat === 'inventory') {
                 meta = {
                     branch_id: $('.inv-branch[data-rid="' + rid + '"]').val(),
@@ -527,41 +670,34 @@
                     vendor_id: $('.inv-vendor[data-rid="' + rid + '"]').val(),
                     vendor_name: $('.inv-vendor[data-rid="' + rid + '"] option:selected').text(),
                 };
-                metaLabel = [meta.branch_name, meta.vendor_name]
-                    .filter(function(v) {
-                        return v && !v.startsWith('—');
-                    }).join(' › ');
+                metaLabel = joinMemoParts([meta.branch_name, meta.vendor_name]);
             }
 
-            var userType = '',
-                userId = '';
+            var userType = '', userId = '';
             if (cat === 'hr') {
-                metaLabel = joinMemoParts([meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]);
                 userType = meta.employee_id ? 'Employee' : '';
                 userId = meta.employee_id || '';
             } else if (cat === 'student') {
-                metaLabel = joinMemoParts([meta.branch_name, meta.student_name]);
                 userType = meta.student_id ? 'Student' : '';
                 userId = meta.student_id || '';
             } else if (cat === 'inventory') {
-                metaLabel = joinMemoParts([meta.branch_name, meta.vendor_name]);
-                userType = meta.vendor_id ? 'Vender' : '';
+                userType = meta.vendor_id ? 'Vendor' : '';
                 userId = meta.vendor_id || '';
             }
 
-            var lineMemo = metaLabel ? '→ ' + metaLabel : '';
-
             var entry = {
-                id: Date.now(),
+                id: Date.now() + parseInt(rid || 0),
                 account_id: accId,
                 path,
                 cat,
                 meta,
                 metaLabel,
-                lineMemo,
+                lineMemo: metaLabel ? '→ ' + metaLabel : '',
                 userType,
                 userId,
-                types: ($('#voucher_type').val() || 'jv').toUpperCase(),
+                types: ($('.row-types[data-rid="' + rid + '"]').val() || ($('#voucher_type').val() || 'jv').toUpperCase()).toUpperCase(),
+                ref_no: refNo,
+                tra_date: traDate,
                 debit,
                 credit,
                 desc
@@ -581,12 +717,13 @@
                 general: '<span class="cat-badge cat-general">General</span>'
             };
             var meta = e.metaLabel ? '<div class="entry-meta">&#8594; ' + e.metaLabel + '</div>' : '';
-            var dr = e.debit ? '<span class="text-danger fw-semibold">' + e.debit.toFixed(2) + '</span>' :
-                '<span class="text-muted">—</span>';
-            var cr = e.credit ? '<span class="text-primary fw-semibold">' + e.credit.toFixed(2) + '</span>' :
-                '<span class="text-muted">—</span>';
+            var dr = e.debit ? '<span class="text-danger fw-semibold">' + e.debit.toFixed(2) + '</span>' : '<span class="text-muted">—</span>';
+            var cr = e.credit ? '<span class="text-primary fw-semibold">' + e.credit.toFixed(2) + '</span>' : '<span class="text-muted">—</span>';
             return '<tr data-entry-id="' + e.id + '" class="confirmed-row">' +
                 '<td>' + (badges[e.cat] || '') + '<code class="account-path">' + e.path + '</code>' + meta + '</td>' +
+                '<td>' + (e.types || '—') + '</td>' +
+                '<td>' + (e.ref_no || '—') + '</td>' +
+                '<td>' + (e.tra_date || '—') + '</td>' +
                 '<td class="text-right">' + dr + '</td>' +
                 '<td class="text-right">' + cr + '</td>' +
                 '<td style="font-size:13px;color:#6c757d;">' + (e.desc || '—') + '</td>' +
@@ -600,13 +737,13 @@
         }
 
         // ─── Discard open row ─────────────────────────────────────────────────────────
-        $(document).on('click', '.discard-row-btn', function() {
+        $(document).off('click', '.discard-row-btn').on('click', '.discard-row-btn', function() {
             $('tr[data-row-id="' + $(this).data('rid') + '"]').remove();
             checkEmptyState();
         });
 
         // ─── Remove confirmed entry ───────────────────────────────────────────────────
-        $(document).on('click', '.remove-entry-btn', function(e) {
+        $(document).off('click', '.remove-entry-btn').on('click', '.remove-entry-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             if (!confirm('Remove this entry?')) return;
@@ -629,6 +766,8 @@
                 appendHidden(w, p + '[debit]', e.debit);
                 appendHidden(w, p + '[credit]', e.credit);
                 appendHidden(w, p + '[description]', e.desc);
+                appendHidden(w, p + '[ref_no]', e.ref_no);
+                appendHidden(w, p + '[tra_date]', e.tra_date);
                 appendHidden(w, p + '[category]', e.cat);
                 appendHidden(w, p + '[memo]', e.lineMemo);
                 appendHidden(w, p + '[user_type]', e.userType);
@@ -672,51 +811,53 @@
         // Escape → discard new row  OR  cancel edit
         // Backspace/Delete (on empty input) → cancel edit only (don't discard a new row mid-fill)
 
-        $(document).on('keydown', '.row-account, .row-debit, .row-credit, .row-desc, .catcell-wrap select', function(e) {
+        $(document).off('keydown', '.row-account, .row-debit, .row-credit, .row-desc, .catcell-wrap select').on('keydown',
+            '.row-account, .row-debit, .row-credit, .row-desc, .catcell-wrap select',
+            function(e) {
 
-            var rid = $(this).data('rid') || $(this).closest('[data-rid]').data('rid');
-            if (!rid) return;
+                var rid = $(this).data('rid') || $(this).closest('[data-rid]').data('rid');
+                if (!rid) return;
 
-            // SHIFT + ENTER => Confirm current row + add new row
-            if (e.key === 'Enter' && e.shiftKey) {
-                e.preventDefault();
+                // SHIFT + ENTER => Confirm current row + add new row
+                if (e.key === 'Enter' && e.shiftKey) {
+                    e.preventDefault();
 
-                var confirmBtn = $('.confirm-row-btn[data-rid="' + rid + '"]');
+                    var confirmBtn = $('.confirm-row-btn[data-rid="' + rid + '"]');
 
-                // Confirm current row first
-                confirmBtn.trigger('click');
+                    // Confirm current row first
+                    confirmBtn.trigger('click');
 
-                // Add new row after short delay
-                setTimeout(function() {
-                    var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
+                    // Add new row after short delay
+                    setTimeout(function() {
+                        var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
 
-                    if (openRows < MAX_OPEN_ROWS) {
-                        appendInlineRow();
+                        if (openRows < MAX_OPEN_ROWS) {
+                            appendInlineRow();
 
-                        // Focus first field of newly added row
-                        $('#inline-entry-tbody tr[data-row-id]:last')
-                            .find('.row-account')
-                            .focus();
-                    }
-                }, 100);
+                            // Focus first field of newly added row
+                            $('#inline-entry-tbody tr[data-row-id]:last')
+                                .find('.row-account')
+                                .focus();
+                        }
+                    }, 100);
 
-            }
+                }
 
-            // ENTER => Confirm row only
-            else if (e.key === 'Enter') {
-                e.preventDefault();
-                $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+                // ENTER => Confirm row only
+                else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
 
-            }
+                }
 
-            // ESC => Discard row
-            else if (e.key === 'Escape') {
-                e.preventDefault();
-                $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
-            }
-        });
+                // ESC => Discard row
+                else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
+                }
+            });
 
-        $(document).on('keydown', '.edit-debit, .edit-credit', function(e) {
+        $(document).off('keydown', '.edit-debit, .edit-credit').on('keydown', '.edit-debit, .edit-credit', function(e) {
             var id = $(this).data('id');
             if (!id) return;
 
@@ -735,7 +876,7 @@
             }
         });
 
-        $(document).on('keydown', '.edit-desc', function(e) {
+        $(document).off('keydown', '.edit-desc').on('keydown', '.edit-desc', function(e) {
             var id = $(this).data('id');
             if (!id) return;
 
@@ -749,7 +890,7 @@
         });
 
         // ─── Edit confirmed entry (make debit/credit editable inline) ────────────────
-        $(document).on('click', '.edit-entry-btn', function(e) {
+        $(document).off('click', '.edit-entry-btn').on('click', '.edit-entry-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var entry = journalEntries.find(function(e) {
@@ -759,32 +900,47 @@
 
             var tr = $('tr[data-entry-id="' + id + '"]');
 
-            // Replace debit/credit/description tds with editable inputs.
+            // Replace debit/credit/description/ref/date tds with editable inputs.
             var drVal = entry.debit || '';
             var crVal = entry.credit || '';
             var descVal = entry.desc || '';
+            var typeVal = entry.types || '';
+            var refVal = entry.ref_no || '';
+            var dateVal = entry.tra_date || '';
 
-            // td index: 0=account, 1=debit, 2=credit, 3=desc, 4=actions
+            // td index: 0=account, 1=type, 2=ref_no, 3=tra_date, 4=debit, 5=credit, 6=desc, 7=actions
             // Whichever has a value is enabled; the other is disabled.
             // Both enable again once the filled one is cleared.
             var drDisabled = (drVal === '' && crVal !== '') ? 'disabled' : '';
             var crDisabled = (crVal === '' && drVal !== '') ? 'disabled' : '';
 
             tr.find('td').eq(1).html(
+                '<input type="text" class="form-control form-control-sm edit-types" list="type-options" ' +
+                'value="' + typeVal + '" placeholder="Type" data-id="' + id + '">'
+            );
+            tr.find('td').eq(2).html(
+                '<input type="text" class="form-control form-control-sm edit-ref" ' +
+                'value="' + refVal + '" placeholder="Ref No" data-id="' + id + '">'
+            );
+            tr.find('td').eq(3).html(
+                '<input type="date" class="form-control form-control-sm edit-tradate" ' +
+                'value="' + dateVal + '" data-id="' + id + '">'
+            );
+            tr.find('td').eq(4).html(
                 '<input type="number" class="form-control form-control-sm edit-debit" ' +
                 'value="' + drVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 drDisabled + ' style="width:90px;">'
             );
-            tr.find('td').eq(2).html(
+            tr.find('td').eq(5).html(
                 '<input type="number" class="form-control form-control-sm edit-credit" ' +
                 'value="' + crVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 crDisabled + ' style="width:90px;">'
             );
-            tr.find('td').eq(3).html(
+            tr.find('td').eq(6).html(
                 '<input type="text" class="form-control form-control-sm edit-desc" ' +
                 'value="' + $('<div>').text(descVal).html() + '" placeholder="Description" data-id="' + id + '">'
             );
-            tr.find('td').eq(4).html(
+            tr.find('td').eq(7).html(
                 '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id +
                 '" title="Save"><i class="ti ti-check"></i></a>' +
                 '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id +
@@ -795,7 +951,7 @@
         // Debit/credit mutual exclusion in edit mode
         // — field with a value stays enabled and locks the other
         // — clearing the value re-enables both
-        $(document).on('input', '.edit-debit', function() {
+        $(document).off('input', '.edit-debit').on('input', '.edit-debit', function() {
             var val = $(this).val();
             var other = $(this).closest('tr').find('.edit-credit');
             if (val !== '' && parseFloat(val) >= 0) {
@@ -804,7 +960,7 @@
                 other.prop('disabled', false);
             }
         });
-        $(document).on('input', '.edit-credit', function() {
+        $(document).off('input', '.edit-credit').on('input', '.edit-credit', function() {
             var val = $(this).val();
             var other = $(this).closest('tr').find('.edit-debit');
             if (val !== '' && parseFloat(val) >= 0) {
@@ -815,10 +971,13 @@
         });
 
         // Save edit
-        $(document).on('click', '.save-edit-btn', function(e) {
+        $(document).off('click', '.save-edit-btn').on('click', '.save-edit-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var tr = $('tr[data-entry-id="' + id + '"]');
+            var typeVal = (tr.find('.edit-types').val() || '').trim().toUpperCase();
+            var refVal = (tr.find('.edit-ref').val() || '').trim();
+            var dateVal = tr.find('.edit-tradate').val() || null;
             var debit = parseFloat(tr.find('.edit-debit').val()) || 0;
             var credit = parseFloat(tr.find('.edit-credit').val()) || 0;
             var desc = (tr.find('.edit-desc').val() || '').trim();
@@ -829,6 +988,9 @@
             var entry = journalEntries.find(function(e) {
                 return e.id === id;
             });
+            entry.types = typeVal;
+            entry.ref_no = refVal;
+            entry.tra_date = dateVal;
             entry.debit = debit;
             entry.credit = credit;
             entry.desc = desc;
@@ -838,7 +1000,7 @@
         });
 
         // Cancel edit — just redraw the locked row as-is
-        $(document).on('click', '.cancel-edit-btn', function(e) {
+        $(document).off('click', '.cancel-edit-btn').on('click', '.cancel-edit-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var entry = journalEntries.find(function(e) {
@@ -847,40 +1009,40 @@
             $('tr[data-entry-id="' + id + '"]').replaceWith(buildLockedRow(entry));
         });
 
-        // ─── Form submit ──────────────────────────────────────────────────────────────
-        $(document).on('submit', '#journal-form', function(e) {
-            e.preventDefault();
+        // ─── Pre-Submit Validation Check ──────────────────────────────────────────────
+        $(document).off('submit', '#journal-form').on('submit', '#journal-form', function(e) {
             var d = parseFloat($('.totalDebit').text()) || 0;
             var c = parseFloat($('.totalCredit').text()) || 0;
             if (journalEntries.length === 0) {
                 show_toastr('error', 'Please confirm at least one account entry.', 'error');
-                return;
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                return false;
             }
             if (d !== c) {
                 show_toastr('error', 'Total Debit (' + d.toFixed(2) + ') ≠ Total Credit (' + c.toFixed(2) + ').',
                     'error');
-                return;
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                return false;
             }
-            $.ajax({
-                url: $(this).attr('action'),
-                type: 'POST',
-                data: new FormData(this),
-                processData: false,
-                contentType: false,
-                success: function(r) {
-                    if (r.status === 'success') {
-                        show_toastr('success', r.message, 'success');
-                        if (r.redirect) setTimeout(function() {
-                            window.location.href = r.redirect;
-                        }, 300);
-                    } else {
-                        show_toastr('error', r.message, 'error');
+            toggleHeaderPartyFields();
+        });
+
+        // ─── Initialize Global AJAX Handler ───────────────────────────────────────────
+        $(document).ready(function() {
+            if (typeof ajaxModalForm === 'function') {
+                ajaxModalForm({
+                    formSelector: '.ajax-modal-form',
+                    onSuccess: function(response) {
+                        if (response.redirect) {
+                            setTimeout(function() {
+                                window.location.href = response.redirect;
+                            }, 1000);
+                        }
                     }
-                },
-                error: function(xhr) {
-                    show_toastr('error', xhr.responseJSON?.message || 'Unexpected error.', 'error');
-                }
-            });
+                });
+            }
         });
     </script>
 
@@ -895,10 +1057,17 @@
             table-layout: auto;
         }
 
-        /* Column sizing */
         #inline-entry-table .col-debit,
         #inline-entry-table .col-credit {
             width: 100px;
+        }
+
+        #inline-entry-table .col-ref {
+            width: 100px;
+        }
+
+        #inline-entry-table .col-tradate {
+            width: 120px;
         }
 
         #inline-entry-table .col-desc {
@@ -1044,12 +1213,16 @@
         $displayVoucherNumber = $voucherNumber ?? \Auth::user()->journalNumberFormat($journalId);
         $transactionDate = $journalEntry->date ?? now()->toDateString();
         $voucherAmount = $isEdit ? max($journalEntry->totalDebit(), $journalEntry->totalCredit()) : 0;
+        $selectedPaymentMode = $journalEntry->payment_mode ?? ($journalEntry->mode ?? '');
+        $selectedPartyType = $journalEntry->user_type ?? '';
+        $selectedPartyId = $journalEntry->user_id ?? '';
     @endphp
-    {{ Form::open(['url' => $isEdit ? route('journal-entry.update', $journalEntry->id) : url('journal-entry'), 'class' => 'w-100', 'id' => 'journal-form']) }}
+    {{ Form::open(['url' => $isEdit ? route('journal-entry.update', $journalEntry->id) : url('journal-entry'), 'class' => 'w-100 ajax-modal-form', 'id' => 'journal-form', 'files' => true]) }}
     @if ($isEdit)
         @method('PUT')
     @endif
     <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
+    <input type="hidden" name="is_system_generated" value="{{ $journalEntry->is_system_generated ?? 0 }}">
     <div id="hidden-inputs"></div>
 
     {{-- ── Header card ────────────────────────────────────────────────────────── --}}
@@ -1058,13 +1231,13 @@
             <div class="card">
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('branches', __('Branch'), ['class' => 'form-label']) }}
                                 {{ Form::select('branches', $branches, $selectedBranch, ['class' => 'form-control', 'id' => 'branches']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('voucher_type', __('Voucher Type'), ['class' => 'form-label']) }}
                                 {{ Form::select(
@@ -1081,37 +1254,57 @@
                                 ) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                        <input type="hidden" name="voucher_series" id="voucher_series" value="MANUAL">
+
+                        <div class="col-lg- 3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('journal_number', __('Journal Number'), ['class' => 'form-label', 'id' => 'journal-number']) }}
                                 <input type="text" class="form-control" id="journal-number-inp"
                                     value="{{ $displayVoucherNumber }}" readonly>
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('category_type_id', __('Voucher Category Type'), ['class' => 'form-label']) }}
+                                {{ Form::select('category_type_id', $voucherCategoryTypes, $journalEntry->category_type_id ?? null, [
+                                    'class' => 'form-control',
+                                    'id' => 'category_type_id',
+                                ]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('date', __('Transaction Date'), ['class' => 'form-label']) }}
                                 {{ Form::date('date', $transactionDate, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                          <!-- Payment Date -->
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
-                                {{ Form::label('mode', __('Payment Mode'), ['class' => 'form-label']) }}
+                                {{ Form::label('payment_date', __('Payment Date'), ['class' => 'form-label']) }}
+                                {{ Form::date('payment_date', $journalEntry->payment_date ?? null, ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payment_mode', __('Payment Mode'), ['class' => 'form-label']) }}
                                 {{ Form::select(
-                                    'mode',
+                                    'payment_mode',
                                     [
+                                        '' => 'Select Payment Mode',
                                         'dd' => 'DD',
                                         'cd' => 'CD',
+                                        'online' => 'Online',
                                         'bank-transfer' => 'Bank Transfer',
                                         'chq' => 'Cheque',
                                         'others' => 'Others',
                                     ],
-                                    null,
-                                    ['class' => 'form-control'],
+                                    $selectedPaymentMode,
+                                    ['class' => 'form-control', 'id' => 'payment_mode'],
                                 ) }}
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('amount', __('Amount'), ['class' => 'form-label']) }}
                                 <input type="number" class="form-control" id="voucher-amount-display"
@@ -1120,15 +1313,159 @@
                                     value="{{ number_format($voucherAmount, 2, '.', '') }}">
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-6">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
                                 {{ Form::text('reference', $journalEntry->reference ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
-                        <div class="col-lg-8 col-md-6">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
-                                {{ Form::label('narration', __('Narration'), ['class' => 'form-label']) }}
+                                {{ Form::label('transaction_no', __('Transaction No'), ['class' => 'form-label']) }}
+                                {{ Form::text('transaction_no', $journalEntry->transaction_no ?? '', ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('user_type', __('Party Type'), ['class' => 'form-label']) }}
+                                {{ Form::select(
+                                    'user_type',
+                                    [
+                                        '' => 'Select Party Type',
+                                        'Customer' => 'Customer',
+                                        'Vender' => 'Vendor',
+                                        'Employee' => 'Employee',
+                                        'Student' => 'Student',
+                                    ],
+                                    $selectedPartyType,
+                                    ['class' => 'form-control', 'id' => 'user_type'],
+                                ) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Customer">
+                            <div class="form-group">
+                                {{ Form::label('customer_user_id', __('Customer'), ['class' => 'form-label']) }}
+                                {{ Form::select('customer_user_id', $customers ?? [], $selectedPartyType == 'Customer' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Vender">
+                            <div class="form-group">
+                                {{ Form::label('vendor_user_id', __('Vendor'), ['class' => 'form-label']) }}
+                                {{ Form::select('vendor_user_id', $vendors ?? [], in_array($selectedPartyType, ['Vender', 'Vendor']) ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Employee">
+                            <div class="form-group">
+                                {{ Form::label('employee_user_id', __('Employee'), ['class' => 'form-label']) }}
+                                {{ Form::select('employee_user_id', $employees ?? [], $selectedPartyType == 'Employee' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Student">
+                            <div class="form-group">
+                                {{ Form::label('student_user_id', __('Student'), ['class' => 'form-label']) }}
+                                {{ Form::select('student_user_id', $students ?? [], $selectedPartyType == 'Student' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <input type="hidden" name="user_id" id="user_id" value="{{ $selectedPartyId }}">
+                        <div class="col-lg-3 col-md-3 cheque-field-wrap">
+                            <div class="form-group">
+                                {{ Form::label('cheque_no', __('Cheque No'), ['class' => 'form-label']) }}
+                                {{ Form::text('cheque_no', $journalEntry->cheque_no ?? '', ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 cheque-field-wrap">
+                            <div class="form-group">
+                                {{ Form::label('cheque_date', __('Cheque Date'), ['class' => 'form-label']) }}
+                                {{ Form::date('cheque_date', $journalEntry->cheque_date ?? null, ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('attachment', __('Attachment'), ['class' => 'form-label']) }}
+                                {{ Form::file('attachment', ['class' => 'form-control']) }}
+                                @if ($isEdit && !empty($journalEntry->attachment))
+                                    <a href="{{ asset($journalEntry->attachment) }}" target="_blank"
+                                        class="d-inline-block mt-1">
+                                        {{ __('View Attachment') }}
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                        <!-- Payee & Receiver details -->
+                        <div class="col-lg-12 col-md-12"><hr></div>
+                        
+                      
+                        <div class="col-lg-8 col-md-6"></div>
+
+                        <!-- Payee Details -->
+                        <div class="col-lg-12 col-md-12">
+                            <h5 class="text-primary mt-2 mb-3">{{ __('Payee Details') }}</h5>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_account_title', __('Payee Account Title'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_account_title', $journalEntry->payee_account_title ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Account Title')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_account_no', __('Payee Account No'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_account_no', $journalEntry->payee_account_no ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Account Number')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_cnic', __('Payee CNIC'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_cnic', $journalEntry->payee_cnic ?? '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_contact', __('Payee Contact'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_contact', $journalEntry->payee_contact ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_email', __('Payee Email'), ['class' => 'form-label']) }}
+                                {{ Form::email('payee_email', $journalEntry->payee_email ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                            </div>
+                        </div>
+
+                        <!-- Receiver Details -->
+                        <div class="col-lg-12 col-md-12">
+                            <h5 class="text-primary mt-3 mb-3">{{ __('Receiver Details') }}</h5>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_name', __('Receiver Name'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_name', $journalEntry->receiver_name ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Receiver Name')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_cnic', __('Receiver CNIC'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_cnic', $journalEntry->receiver_cnic ?? '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_contact', __('Receiver Contact'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_contact', $journalEntry->receiver_contact ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_email', __('Receiver Email'), ['class' => 'form-label']) }}
+                                {{ Form::email('receiver_email', $journalEntry->receiver_email ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-12 col-md-12"><hr></div>
+
+                        <div class="col-lg-12 col-md-12">
+                            <div class="form-group">
+                                {{ Form::label('narration', __('Note for Payment'), ['class' => 'form-label']) }}
                                 {{ Form::textarea('narration', $journalEntry->description ?? '', ['class' => 'form-control', 'rows' => '2']) }}
                             </div>
                         </div>
@@ -1150,6 +1487,9 @@
                         <thead>
                             <tr>
                                 <th class="col-account">{{ __('Account') }}</th>
+                                <th class="col-type">{{ __('Memo') }}</th>
+                                <th class="col-ref">{{ __('Ref No') }}</th>
+                                <th class="col-tradate">{{ __('Date') }}</th>
                                 <th class="col-debit text-right">{{ __('Debit') }}</th>
                                 <th class="col-credit text-right">{{ __('Credit') }}</th>
                                 <th class="col-desc">{{ __('Description') }}</th>
@@ -1158,14 +1498,14 @@
                         </thead>
                         <tbody id="inline-entry-tbody">
                             <tr id="empty-row">
-                                <td colspan="5" class="text-center text-muted py-4" style="font-size:13px;">
+                                <td colspan="8" class="text-center text-muted py-4" style="font-size:13px;">
                                     Click <strong>+ Add Account Line</strong> below to start adding entries.
                                 </td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr class="add-row-footer">
-                                <td colspan="7">
+                                <td colspan="8">
                                     <button style="color: #fff !important;" type="button" id="addAccountBtn"
                                         class="btn btn-outline-primary btn-sm">
                                         <i class="ti ti-plus" style="color: #fff !important;"></i>
@@ -1174,7 +1514,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="2"></td>
+                                <td colspan="5"></td>
                                 <td class="text-right">
                                     <strong>{{ __('Total Credit') }} ({{ \Auth::user()->currencySymbol() }})</strong>
                                 </td>
@@ -1182,7 +1522,7 @@
                                 <td></td>
                             </tr>
                             <tr>
-                                <td colspan="2"></td>
+                                <td colspan="5"></td>
                                 <td class="text-right">
                                     <strong>{{ __('Total Debit') }} ({{ \Auth::user()->currencySymbol() }})</strong>
                                 </td>
@@ -1197,10 +1537,24 @@
     </div>
 
     <div class="modal-footer">
-        <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('journal-entry.index') }}';"
-            class="btn btn-light">
+        <input type="button" value="{{ __('Cancel') }}"
+            onclick="location.href = '{{ route('journal-entry.index') }}';" class="btn btn-light">
         <input type="submit" value="{{ $isEdit ? __('Update') : __('Save') }}" class="btn btn-outline-primary">
     </div>
+
+    <datalist id="type-options">
+        <option value="JV">
+        <option value="CPV">
+        <option value="BPV">
+        <option value="CRV">
+        <option value="BRV">
+        <option value="Expense">
+        <option value="Purchase">
+        <option value="Salary">
+        <option value="Payment">
+        <option value="Challan">
+        <option value="Challan Payment">
+    </datalist>
 
     {{ Form::close() }}
 @endsection

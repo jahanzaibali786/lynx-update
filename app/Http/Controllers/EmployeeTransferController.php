@@ -580,6 +580,7 @@ public function print($id)
             $employee->owned_by = $employee_transfers->branch_to_id;
             $employee->branch_id = $employee_transfers->branch_to_id;
             $employee->department_id = $employee_transfers->department_to_id;
+            $employee->designation_id = $employee_transfers->designation_to_id;
             $employee->save();
             \DB::commit();
 

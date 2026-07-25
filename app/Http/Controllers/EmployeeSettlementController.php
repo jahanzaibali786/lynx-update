@@ -226,10 +226,11 @@ class EmployeeSettlementController extends Controller
         } else {
             $service_tenure = $months . ' Months';
         }
-        $payscale = @$employee->employee_payscale_details->last();
-        $settlementDays = $this->calculateFinalSettlementDays($employee);
-        $total_days = $settlementDays['working_days'];
-        $total_days_in_month = $settlementDays['days_in_month'];
+         $payscale = @$employee->employee_payscale_details->last();
+            $settlementDays = $this->calculateFinalSettlementDays($employee);
+            $total_days = $settlementDays['working_days'];
+            $total_days_in_month = $settlementDays['days_in_month'];
+
         $security_amnt = 0;
         if($request->adjustment_labels){
             //get sec lebel
@@ -718,7 +719,6 @@ class EmployeeSettlementController extends Controller
                 $head->earned_value = ($head->head_value * $settlementDays['working_days']) / $settlementDays['days_in_month'];
                 $head->save();
             }
-
             $employee_final_settlement->status = 1;
             $employee_final_settlement->save();
             $employee->is_res_ter =  1;
@@ -731,7 +731,6 @@ class EmployeeSettlementController extends Controller
             return redirect()->back()->with('error', $e->getMessage());
         }
     }
-
     private function calculateFinalSettlementDays(Employee $employee): array
     {
         $resignDate = Carbon::parse($employee->resignation->last_attendance_date);

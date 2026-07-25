@@ -411,13 +411,18 @@
                         {{ Form::date('grn_date', old('grn_date', $isEdit ? $grn->grn_date : ($formDefaults['grn_date'] ?? date('Y-m-d'))), ['class' => 'form-control', 'required' => 'required']) }}
                     </div>
                     <div class="col-md-3">
-                        {{ Form::label('vendor_id', __('Vendor'), ['class' => 'form-label']) }}
-                        {{ Form::select('vendor_id', $vendors, old('vendor_id', $isEdit ? $grn->vendor_id : ($formDefaults['vendor_id'] ?? '')), ['class' => 'form-control select custom-select', 'id' => 'grn_vendor_id', 'required' => 'required']) }}
-                        @if($showAddVendorLink)
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div>
+                                {{ Form::label('vendor_id', __('Vendor'), ['class' => 'form-label']) }}   
+                            </div> 
+                            @if($showAddVendorLink)
                             <div class="text-xs mt-1">
                                 <a href="#" data-ajax-popup-over="true" data-url="{{ route('grn.add_vendor_form') }}" data-title="{{ __('Add Vendor') }}">{{ __('Add Vendor') }}</a>
                             </div>
-                        @endif
+                            @endif
+                        </div>
+                        {{ Form::select('vendor_id', $vendors, old('vendor_id', $isEdit ? $grn->vendor_id : ($formDefaults['vendor_id'] ?? '')), ['class' => 'form-control select custom-select', 'id' => 'grn_vendor_id', 'required' => 'required']) }}
+                     
                     </div>
                     <div class="col-md-3">
                         {{ Form::label('reference_no', __('Reference No'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
@@ -426,18 +431,28 @@
                 </div>
                 <div class="row mt-3">
                     <div class="col-md-3">
-                        {{ Form::label('purchase_order_id', __('Purchase Order'), ['class' => 'form-label']) }}<span class="text-danger">*</span>
-                        {{ Form::text('purchase_order_id', old('purchase_order_id', $isEdit ? $grn->purchase_order_id : ($formDefaults['purchase_order_id'] ?? '')), ['class' => 'form-control', 'required' => 'required']) }}
-                        @if($showPurchaseLink)
-                            <div class="text-xs mt-1">
-                                <a href="#" data-ajax-popup-over="true" data-url="{{ route('grn.draft_purchases') }}" data-title="{{ __('Link Purchase') }}">{{ __('Link Purchase') }}</a>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div>
+                                <label for="purchase_order" class="form-label mb-0">
+                                    Purchase Order <span class="text-danger">*</span>
+                                </label>
                             </div>
-                        @endif
+
+                            <a href="#"
+                            class="small"
+                            data-ajax-popup-over="true"
+                            data-url="{{ route('grn.draft_purchases') }}"
+                            data-title="Link Purchase">
+                                Link Purchase
+                            </a>
+                        </div>
+                        {{ Form::hidden('purchase_order_id', old('purchase_order_id', $isEdit ? $grn->purchase_order_id : ($formDefaults['purchase_order_id'] ?? '')), ['id' => 'purchase_order_id']) }}
+                        {{ Form::text('purchase_order', old('purchase_order', $isEdit ? $grn->purchase_order : ($formDefaults['purchase_order'] ?? '')), ['id' => 'purchase_order', 'class' => 'form-control', 'required' => 'required']) }}
+                     
                     </div>
                     <div class="col-md-3">
                         {{ Form::label('warehouse_id', __('Store'), ['class' => 'form-label']) }}
                         <select name="warehouse_id" id="warehouse_id" class="form-control select" required>
-                            <option value="">{{ __('Select Store') }}</option>
                             @foreach ($warehouseRecords as $warehouse)
                                 <option value="{{ $warehouse->id }}" data-branch="{{ $warehouse->owned_by }}"
                                     {{ (string) old('warehouse_id', $isEdit ? $grn->warehouse_id : ($formDefaults['warehouse_id'] ?? '')) === (string) $warehouse->id ? 'selected' : '' }}>

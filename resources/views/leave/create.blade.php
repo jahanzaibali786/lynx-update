@@ -180,7 +180,8 @@
                 {{ Form::select('leave_reason', [
                         'sick_leave' => __('Sick Leave'),
                         'domestic_problem' => __('Domestic Problem'),
-                        'maternity' => __('Maternity')
+                        'maternity' => __('Maternity'),
+                        'other' => __('Other')
                     ], null, ['class' => 'form-control', 'required' => 'required', 'placeholder' => __('Select Leave Reason')]) }}
             </div>
         </div>
@@ -199,6 +200,27 @@
 {{Form::close()}}
 <script>
     if (window.jQuery && typeof ajaxModalForm === 'function') {
+        $(document).on('change', '#start_date', function() {
+            var startDate = $(this).val();
+            $('#end_date').attr('min', startDate || '');
+
+            if (startDate && $('#end_date').val() && $('#end_date').val() < startDate) {
+                $('#end_date').val(startDate).trigger('change');
+            }
+        });
+
+        $(document).on('submit', '#leave-create-form', function(e) {
+            var startDate = $('#start_date').val();
+            var endDate = $('#end_date').val();
+
+            if (startDate && endDate && endDate < startDate) {
+                e.preventDefault();
+                show_toastr('error', '{{ __('End Date must be greater than or equal to Start Date.') }}', 'error');
+                $('#end_date').focus();
+                return false;
+            }
+        });
+
         ajaxModalForm({
             formSelector: '#leave-create-form',
             submitText: '{{ __('Processing...') }}',
@@ -206,14 +228,37 @@
             showToast: false,
             onSuccess: function(response, $form) {
                 if (response && response.row_html) {
-                    $('.datatable tbody').prepend(response.row_html);
+                    var $tbody = $('.datatable tbody');
+                    $tbody.prepend(response.row_html);
+                    $tbody.find('tr').each(function(index) {
+                        $(this).find('td:first').text(index + 1);
+                    });
                 }
 
                 show_toastr('success', (response && response.message) || '{{ __('Leave successfully created.') }}',
                     'success');
-                closeActiveBootstrapModal();
-                if ($form && $form[0]) {
-                    $form[0].reset();
+
+                var $employee = $('#employee_id');
+                if ($employee.length) {
+                    $employee.val('');
+                    $employee.find('option:selected').prop('selected', false);
+                    $employee.find('option[value=""]').prop('selected', true);
+
+                    if ($employee[0] && $employee[0].customSelectInstance) {
+                        try {
+                            $employee[0].customSelectInstance.destroy();
+                        } catch (e) {}
+                        delete $employee[0].customSelectInstance;
+                    }
+
+                    $employee.next('.custom-select-wrapper').remove();
+                    $employee.addClass('custom-select').show();
+
+                    if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
+                        window.CustomSelect.create($employee[0]);
+                    }
+
+                    $employee.trigger('change');
                 }
             }
         });

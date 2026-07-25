@@ -226,7 +226,7 @@
                             <tr><td class="label">Security Deposit</td><td class="rvalue">Rs. {{ number_format($securityDeposit, 2) }}</td></tr>
                             <tr><td class="label">Security Deposit Date</td><td class="rvalue">{{ $securityDepositDate ?: 'N/A' }}</td></tr>
                             <tr><td class="label">Last Billing Generated</td><td class="rvalue">{{ $lastBilling ? strtoupper(\Carbon\Carbon::parse($lastBilling->fee_month)->format('M Y')) : '-' }}</td></tr>
-                            <tr><td class="label">Fee Paid Upto</td><td class="rvalue">{{ $lastReceiptDate ?  \Carbon\Carbon::parse($lastReceiptDate)->format('d M Y') : 'N/A' }}</td></tr>
+                            <tr><td class="label">Fee Paid Upto</td><td class="rvalue">{{ $lastBillingPaid ?  \Carbon\Carbon::parse($lastBillingPaid->fee_month)->format('M Y') : 'N/A' }}</td></tr>
                         </table>
                     </td>
                     <td style="width:50%;">
@@ -252,7 +252,7 @@
                             <tr><td class="label">Payable / Receivable</td><td class="rvalue">Rs. {{ number_format($netBalance, 2) }}</td></tr>
                             <tr><td class="label">Excess Fee Refund</td><td class="rvalue">Rs. {{ number_format($excessRefund, 2) }}</td></tr>
                             <tr><td class="label">Other Refund</td><td class="rvalue">Rs. 0.00</td></tr>
-                            <tr class="net-row"><td class="label">Net Payable / Receivable</td><td class="rvalue">Rs. {{ number_format($netBalance, 2) }}</td></tr>
+                            <tr class="net-row"><td class="label">Net Payable / Receivable</td><td class="rvalue">Rs. {{ number_format(abs($netBalance), 2) }}</td></tr>
                         </table>
                     </td>
                     <td style="width:50%;">

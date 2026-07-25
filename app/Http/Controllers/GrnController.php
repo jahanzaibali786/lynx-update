@@ -12,13 +12,26 @@ use App\Models\StockReport;
 use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\warehouse;
+use App\Services\PurchaseReceivingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class GrnController extends Controller
 {
+    private PurchaseReceivingService $purchaseReceiving;
+
+    public function __construct(PurchaseReceivingService $purchaseReceiving)
+    {
+        $this->purchaseReceiving = $purchaseReceiving;
+    }
+
     public function index(Request $request)
     {
+        if (!\Auth::user()->can('manage grn')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $user = \Auth::user();
         $query = Grn::with(['vendor', 'warehouse', 'branch', 'items.purchase'])
             ->where('created_by', $user->creatorId());
@@ -54,7 +67,7 @@ class GrnController extends Controller
     {
         $user = \Auth::user();
         
-        if (!in_array($user->type, ['company', 'accountant'])) {
+        if (!$user->can('show account grn')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -107,6 +120,10 @@ class GrnController extends Controller
 
     public function create(Request $request)
     {
+        if (!\Auth::user()->can('create grn')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         $viewData = $this->formData();
         if ($request->ajax()) {
             $html = view('grn.create', $viewData)->renderSections()['content'] ?? '';
@@ -117,6 +134,10 @@ class GrnController extends Controller
 
     public function store(Request $request)
     {
+        if (!\Auth::user()->can('create grn')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
         $data = $this->validatedData($request);
         $user = \Auth::user();
 
@@ -130,14 +151,18 @@ class GrnController extends Controller
                 'warehouse_id' => $data['warehouse_id'],
                 'grn_date' => $data['grn_date'],
                 'reference_no' => $data['reference_no'] ?? null,
+                'purchase_order' => $data['purchase_order'],
                 'purchase_order_id' => $data['purchase_order_id'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'status' => 0,
                 'owned_by' => $ownedBy,
                 'created_by' => $user->creatorId(),
+                'added_by' => $user->id,
             ]);
 
             $this->storeItems($grn, $data['items']);
+            $grn->load('items');
+            $this->applyPurchaseReceived($grn);
 
             DB::commit();
             if ($request->ajax()) {
@@ -155,6 +180,10 @@ class GrnController extends Controller
 
     public function edit(Request $request, Grn $grn)
     {
+        if (!\Auth::user()->can('edit grn')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         $this->authorizeGrn($grn);
         if ($grn->status >= 5 && !in_array($grn->status, [9, 10])) {
             if ($request->ajax()) {
@@ -173,14 +202,22 @@ class GrnController extends Controller
 
     public function show(Grn $grn)
     {
+        if (!\Auth::user()->can('show grn')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $this->authorizeGrn($grn);
-        $grn->load(['vendor', 'warehouse', 'items.product', 'items.purchase', 'items.purchaseProduct']);
+        $grn->load(['vendor', 'warehouse', 'addedBy', 'approvedBy', 'items.product', 'items.purchase', 'items.purchaseProduct']);
 
         return view('grn.show', compact('grn'));
     }
 
     public function update(Request $request, Grn $grn)
     {
+        if (!\Auth::user()->can('edit grn')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $this->authorizeGrn($grn);
         if ($grn->status >= 5 && !in_array($grn->status, [9, 10])) {
             return redirect()->route('grn.show', $grn->id)->with('error', __('Finalized GRN cannot be edited.'));
@@ -189,11 +226,15 @@ class GrnController extends Controller
 
         DB::beginTransaction();
         try {
+            $grn->load('items');
+            $this->reversePurchaseReceived($grn);
+
             $grn->update([
                 'vendor_id' => $data['vendor_id'],
                 'warehouse_id' => $data['warehouse_id'],
                 'grn_date' => $data['grn_date'],
                 'reference_no' => $data['reference_no'] ?? null,
+                'purchase_order' => $data['purchase_order'],
                 'purchase_order_id' => $data['purchase_order_id'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'owned_by' => $this->resolveOwnedBy($request),
@@ -203,6 +244,8 @@ class GrnController extends Controller
             StockReport::where('type', 'grn')->where('type_id', $grn->id)->delete();
 
             $this->storeItems($grn, $data['items']);
+            $grn->load('items');
+            $this->applyPurchaseReceived($grn);
 
             DB::commit();
             if ($request->ajax()) {
@@ -220,14 +263,18 @@ class GrnController extends Controller
 
     public function destroy(Grn $grn)
     {
+        if (!\Auth::user()->can('delete grn')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $this->authorizeGrn($grn);
 
         DB::beginTransaction();
         try {
             if ($grn->status == 8) {
                 $this->reverseStock($grn);
-                $this->reversePurchaseReceived($grn);
             }
+            $this->reversePurchaseReceived($grn);
             StockReport::where('type', 'grn')->where('type_id', $grn->id)->delete();
             $grn->items()->delete();
             $grn->delete();
@@ -244,7 +291,7 @@ class GrnController extends Controller
     {
         $this->authorizeGrn($grn);
 
-        if ($grn->status == 5 && \Auth::user()->type == 'company') {
+        if ($grn->status == 5 && \Auth::user()->can('finalize grn')) {
             DB::beginTransaction();
             try {
                 $grn->load('items.purchaseProduct');
@@ -294,7 +341,7 @@ class GrnController extends Controller
             return redirect()->back()->with('error', __('Only finalized GRN can be forwarded to Accounts.'));
         }
 
-        if (\Auth::user()->type != 'company') {
+        if (!\Auth::user()->can('forward grn to accounts')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -308,7 +355,9 @@ class GrnController extends Controller
     {
         $this->authorizeGrn($grn);
 
-        if ($grn->status != 7 || !in_array(\Auth::user()->type, ['company', 'accountant'])) {
+        if (
+            $grn->status != 7 || !\Auth::user()->can('account approve grn')
+        ) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -320,10 +369,10 @@ class GrnController extends Controller
                 throw new \Exception(__('Please add at least one item before approving GRN.'));
             }
 
-            $this->applyPurchaseReceived($grn);
             $this->applyStock($grn);
 
             $grn->status = 8;
+            $grn->approved_by = \Auth::id();
             $grn->save();
 
             DB::commit();
@@ -353,13 +402,13 @@ class GrnController extends Controller
     {
         $this->authorizeGrn($grn);
 
-        if ($grn->status == 5 && \Auth::user()->type == 'company') {
+        if ($grn->status == 5 ) {
             $grn->status = 9;
             $grn->save();
             return redirect()->back()->with('success', __('GRN rejected by HO and sent back.'));
         }
 
-        if ($grn->status == 7 && in_array(\Auth::user()->type, ['company', 'accountant'])) {
+        if ($grn->status == 7) {
             $grn->status = 10;
             $grn->save();
             return redirect()->back()->with('success', __('GRN rejected by Accounts and sent back.'));
@@ -375,7 +424,14 @@ class GrnController extends Controller
             'warehouse_id' => 'required|integer',
             'grn_date' => 'required|date',
             'reference_no' => 'required|string|max:191',
-            'purchase_order_id' => 'required|string|max:1000',
+            'purchase_order' => 'required|string|max:1000',
+            'purchase_order_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('purchases', 'id')->where(function ($query) {
+                    $query->where('created_by', \Auth::user()->creatorId());
+                }),
+            ],
             'remarks' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer|exists:product_services,id',
@@ -400,7 +456,7 @@ class GrnController extends Controller
             ->prepend('Select Vendor', '');
 
         $warehouseRecords = $this->warehouseRecords();
-        $warehouses = $warehouseRecords->pluck('name', 'id')->prepend('Select Store', '');
+        $warehouses = $warehouseRecords->pluck('name', 'id');
         $nextGrnNumber = $this->nextGrnNumber($user->creatorId());
 
     $products = ProductService::select('id', 'sku', 'name', 'purchase_price', 'purchase_description', 'description')
@@ -571,10 +627,15 @@ class GrnController extends Controller
 
     public function draftPurchases()
     {
+        if (!\Auth::user()->can('create grn')) {
+            abort(403, __('Permission denied.'));
+        }
+
         $user = \Auth::user();
         $purchases = Purchase::with(['vender', 'items'])
             ->where('created_by', $user->creatorId())
-            ->where('status', 6)
+            ->where('status', Purchase::STATUS_FINALIZED)
+            ->where('grn_converted', false)
             ->orderBy('created_at', 'desc')
             ->get()
             ->filter(function ($purchase) {
@@ -589,10 +650,18 @@ class GrnController extends Controller
 
     public function purchaseItems($id, Request $request)
     {
+        if (!\Auth::user()->can('create grn') && !\Auth::user()->can('edit grn')) {
+            abort(403, __('Permission denied.'));
+        }
+
         $purchase = Purchase::with('items.products')->findOrFail($id);
 
         if ($purchase->created_by != \Auth::user()->creatorId()) {
             abort(403, __('Permission denied.'));
+        }
+
+        if ($purchase->status != Purchase::STATUS_FINALIZED || $purchase->grn_converted) {
+            return response()->json([], 422);
         }
 
         $items = $purchase->items->map(function ($item) use ($purchase, $request) {
@@ -623,16 +692,7 @@ class GrnController extends Controller
 
     private function remainingPurchaseItemQuantity(PurchaseProduct $item, $exceptGrnId = null): float
     {
-        $ordered = (float) $item->quantity;
-        $received = (float) ($item->received_quantity ?? 0);
-        $pending = GrnItem::query()
-            ->join('grns', 'grns.id', '=', 'grn_items.grn_id')
-            ->where('grn_items.purchase_product_id', $item->id)
-            ->whereIn('grns.status', [0, 5, 6, 7])
-            ->when($exceptGrnId, fn($q) => $q->where('grn_items.grn_id', '!=', $exceptGrnId))
-            ->sum('grn_items.quantity');
-
-        return max(0, $ordered - $received - (float) $pending);
+        return $this->purchaseReceiving->remaining($item, $exceptGrnId ? (int) $exceptGrnId : null);
     }
 
     private function syncPurchaseOrderText(Grn $grn): void
@@ -646,75 +706,27 @@ class GrnController extends Controller
             ->all();
 
         if (!empty($orders)) {
-            $grn->purchase_order_id = implode(', ', $orders);
+            $grn->purchase_order = implode(', ', $orders);
             $grn->save();
         }
     }
 
     private function applyPurchaseReceived(Grn $grn): void
     {
-        foreach ($grn->items as $item) {
-            if (!$item->purchase_product_id) {
-                continue;
-            }
-
-            $purchaseItem = PurchaseProduct::lockForUpdate()->find($item->purchase_product_id);
-            if (!$purchaseItem) {
-                continue;
-            }
-
-            $remaining = max(0, (float) $purchaseItem->quantity - (float) ($purchaseItem->received_quantity ?? 0));
-            $quantity = (float) $item->quantity;
-
-            if ($quantity > $remaining) {
-                throw new \Exception(__('GRN received quantity exceeds remaining purchase quantity.'));
-            }
-
-            $purchaseItem->received_quantity = (float) ($purchaseItem->received_quantity ?? 0) + $quantity;
-            $purchaseItem->save();
-        }
-
-        $this->refreshLinkedPurchaseConversionFlags($grn);
+        $this->purchaseReceiving->book($grn);
     }
 
     private function reversePurchaseReceived(Grn $grn): void
     {
-        foreach ($grn->items as $item) {
-            if (!$item->purchase_product_id) {
-                continue;
-            }
-
-            $purchaseItem = PurchaseProduct::lockForUpdate()->find($item->purchase_product_id);
-            if (!$purchaseItem) {
-                continue;
-            }
-
-            $purchaseItem->received_quantity = max(0, (float) ($purchaseItem->received_quantity ?? 0) - (float) $item->quantity);
-            $purchaseItem->save();
-        }
-
-        $this->refreshLinkedPurchaseConversionFlags($grn);
-    }
-
-    private function refreshLinkedPurchaseConversionFlags(Grn $grn): void
-    {
-        $purchaseIds = $grn->items->pluck('purchase_id')->filter()->unique();
-
-        foreach ($purchaseIds as $purchaseId) {
-            $purchase = Purchase::with('items')->find($purchaseId);
-            if (!$purchase) {
-                continue;
-            }
-
-            $purchase->grn_converted = $purchase->items->every(function ($item) {
-                return (float) ($item->received_quantity ?? 0) >= (float) $item->quantity;
-            });
-            $purchase->save();
-        }
+        $this->purchaseReceiving->release($grn);
     }
 
     public function addVendorForm()
     {
+        if (!\Auth::user()->can('create grn')) {
+            abort(403, __('Permission denied.'));
+        }
+
         $data = $this->formData();
         return view('grn.add_vendor', [
             'vendorAccounts' => $data['vendorAccounts'],

@@ -32,9 +32,25 @@
         //         }
         //     });
         // });
+        function rebuildChartAccountCustomSelect(selectElement) {
+            if (!selectElement || !window.CustomSelect) {
+                return;
+            }
+
+            if (selectElement.customSelectInstance && typeof selectElement.customSelectInstance.destroy === 'function') {
+                selectElement.customSelectInstance.destroy();
+            }
+
+            $(selectElement).nextAll('.custom-select-wrapper').remove();
+            selectElement.style.display = '';
+            window.CustomSelect.create(selectElement);
+        }
+
         $(document).on('change', '#sub_type', function() {
             $('.acc_check').removeClass('d-none');
             var type = $(this).val();
+            var parentSelect = document.getElementById('parent');
+
             $.ajax({
                 url: '{{ route('charofAccount.subType') }}',
                 type: 'POST',
@@ -48,6 +64,8 @@
                         $('#parent').append('<option value="' + key + '">' + value +
                             '</option>');
                     });
+
+                    rebuildChartAccountCustomSelect(parentSelect);
                 }
             });
         });
@@ -256,8 +274,11 @@
                                             </td>
                                             <td>{{ !empty($account->subType) ? $account->subType->name : '-' }}</td>
                                             <td>
-                                                {{ Form::select('category', $categories, !empty($account->category) ? $account->category : null, ['class' => 'form-control select', 'required' => 'required', 'data-id' => $account->id]) }}
-
+                                                @can('edit chart of account')
+                                                    {{ Form::select('category', $categories, !empty($account->category) ? $account->category : null, ['class' => 'form-control select', 'required' => 'required', 'data-id' => $account->id]) }}
+                                                @else
+                                                    {{ !empty($account->category) && isset($categories[$account->category]) ? $categories[$account->category] : '-' }}
+                                                @endcan
                                             </td>
                                             <td>{{ !empty($account->parentAccount) ? $account->parentAccount->name : '-' }}
                                             </td>
@@ -295,6 +316,7 @@
                                                         <a href="#"
                                                             class="mx-1 btn btn-sm align-items-center btn-outline-primary"
                                                             data-url="{{ route('chart-of-account.edit', $account->id) }}"
+                                                            data-size="lg"
                                                             data-ajax-popup="true" title="{{ __('Edit Account') }}"
                                                             data-bs-title="{{ __('Edit') }}"><span class="btn-inner--icon">
                                                                 <i class="ti ti-pencil"></i>

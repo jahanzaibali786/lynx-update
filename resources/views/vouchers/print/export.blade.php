@@ -1,11 +1,38 @@
 @php
+    if (!function_exists('pathToUrl')) {
+        function pathToUrl($path) {
+            if (empty($path)) return '';
+            if (strpos($path, 'http') === 0 || strpos($path, '//') === 0) {
+                return $path;
+            }
+            $path = str_replace('\\', '/', $path);
+            if (strpos($path, '/public/') !== false) {
+                $parts = explode('/public/', $path);
+                return asset(end($parts));
+            }
+            if (strpos($path, 'wamp64/www/lynx/') !== false) {
+                $parts = explode('wamp64/www/lynx/', $path);
+                $subParts = explode('/', end($parts));
+                if ($subParts[0] === 'public') {
+                    array_shift($subParts);
+                }
+                return asset(implode('/', $subParts));
+            }
+            $publicPath = str_replace('\\', '/', public_path());
+            if (strpos($path, $publicPath) === 0) {
+                return asset(substr($path, strlen($publicPath)));
+            }
+            return $path;
+        }
+    }
+
     $entryCount = max(1, $accounts->count());
     $entryRowHeight = match (true) {
-        $entryCount <= 2 => 34,
-        $entryCount <= 4 => 28,
-        $entryCount <= 6 => 23,
-        $entryCount <= 10 => 18,
-        default => 15,
+        $entryCount <= 2 => 30,
+        $entryCount <= 4 => 25,
+        $entryCount <= 6 => 20,
+        $entryCount <= 10 => 15,
+        default => 12,
     };
     $fontSectionHeading = '15px';
     $fontLabel = '14px';
@@ -27,10 +54,111 @@
     <style>
         body {
             margin: 0;
-            padding: 0;
+            padding: 20px;
             font-family: Arial, sans-serif;
             font-size: {{ $fontData }};
             color: #000000;
+            background-color: #f4f6f9;
+        }
+
+        .school-title {
+            margin: 0;
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 30px;
+            font-weight: 600;
+            letter-spacing: .5px;
+        }
+        .school-title-image {
+            width: 245px;
+            max-width: 100%;
+            height: auto;
+            display: inline-block;
+        }
+
+        .print-container {
+            max-width: 900px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 30px;
+            background: #fff;
+            position: relative;
+        }
+        .voucher-watermark {
+            position: absolute;
+            left: 50%;
+            top: 48%;
+            width: 340px;
+            height: auto;
+            opacity: 0.12;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            pointer-events: none;
+        }
+        .voucher-content {
+            position: relative;
+            z-index: 1;
+        }
+        .btn-print {
+            background-color: #6a1b9a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+        .btn-print:hover {
+            background-color: #8e24aa;
+            color: white;
+        }
+        .btn-back {
+            background-color: #f8f9fa;
+            color: #212529;
+            border: 1px solid #dee2e6;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-left: 10px;
+            display: inline-flex;
+            align-items: center;
+        }
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
+            body {
+                padding: 0;
+                background-color: #fff;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .print-container {
+                border: none;
+                padding: 0;
+                max-width: 100%;
+                width: 100%;
+                overflow: hidden;
+            }
+            .voucher-content {
+                width: 100%;
+                zoom: 0.8;
+                transform: none;
+                transform-origin: initial;
+            }
+            .voucher-watermark {
+                top: 45%;
+                width: 300px;
+                opacity: 0.12;
+            }
+            .no-print {
+                display: none !important;
+            }
         }
 
         table {
@@ -88,11 +216,11 @@
             font-size: {{ $fontHeaderVoucherNumber }};
             font-weight: bold;
             white-space: nowrap;
-            text-decoration: underline;
+            /* text-decoration: underline; */
         }
 
         .line {
-            border-bottom: 0.5px solid #9a9a9a;
+            border-bottom: 0.5px solid #dddddd;
             white-space: normal;
         }
 
@@ -170,43 +298,58 @@
             color: #cfcfcf;
             font-size: {{ $fontStamp }};
             font-weight: bold;
-            letter-spacing: 4px;
+            letter-spacing: 5px;
             opacity: 0.35;
-            transform: rotate(-12deg);
+            transform: rotate(-15deg);
             text-align: center;
         }
     </style>
 </head>
 <body>
-<div class="page">
-    <table>
-        <tr>
-            <td style="width:35%; height:72px; vertical-align:top;">
-                @if(!empty($titleLogo))
-                    <img src="{{ $titleLogo }}" style="width:230px; height:60px;">
-                @endif
-            </td>
-            <td style="width:35%;"></td>
-            <td style="width:30%; text-align:right; vertical-align:top;">
-                @if(!empty($headerLogo))
-                    <img src="{{ $headerLogo }}" width="95" height="65" style="width:95px; height:65px;"><br>
-                @endif
-            </td>
-        </tr>
-    </table>
+    <div class="container text-center mb-4 no-print" style="margin-bottom: 20px; text-align: center; margin-top: 10px;">
+        <button onclick="window.print();" class="btn-print">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle; margin-right: 5px;">
+                <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
+                <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/>
+            </svg>
+            {{ __('Print Voucher') }}
+        </button>
+        <a href="{{ route('journal-entry.index') }}" class="btn-back">{{ __('Back to List') }}</a>
+    </div>
+
+    <div class="print-container">
+        @if(!empty($watermarkLogo))
+            <img src="{{ pathToUrl($watermarkLogo) }}" class="voucher-watermark" alt="">
+        @endif
+        <div class="page voucher-content">
+            <table>
+                <tr>
+                    <td style="width:35%; height:72px; vertical-align:top;">
+                        @if(!empty($titleLogo))
+                            <img src="{{ pathToUrl($titleLogo) }}" style="width:230px; height:60px;">
+                        @endif
+                    </td>
+                    <td style="width:35%;"></td>
+                    <td style="width:30%; text-align:right; vertical-align:top;">
+                        @if(!empty($headerLogo))
+                            <img src="{{ asset('assets/images/lynx2.jpg') }}" width="95" height="65" style="width:95px; height:65px;"><br>
+                        @endif
+                    </td>
+                </tr>
+            </table>
 
     <table style="margin-top:4px;">
         <tr>
             <td style="width:66%; vertical-align:top;" class="table-strong">{{ $data['voucher_title'] ?? '' }}</td>
             <td style="width:34%; vertical-align:top;">
-                <table align="right" style="width:100%; position:relative !important; left:100px !important;">
+                <table align="right" style="width:70%; position:relative !important;">
                     <tr>
                         <td style="width:29%; text-align:left;" class="label">Date:</td>
                         <td style="width:71%; text-align:left;" class="data-value">{{ $data['date'] ?? '' }}</td>
                     </tr>
                     <tr>
-                        <td style="text-align:left;" class="voucher-meta-label">{{ $data['voucher_type'] ?? '' }} no:</td>
-                        <td style="text-align:left;" class="voucher-meta-number">{{ $data['voucher_number'] ?? '' }}</td>
+                        <td style="text-align:left; width:40%;" class=" voucher-meta-label">{{ $data['voucher_type'] ?? '' }} no:</td>
+                        <td style="text-align:left; width:60%; border-bottom: 1px solid #000;" class="voucher-meta-number">{{ $data['voucher_number'] ?? '' }}</td>
                     </tr>
                 </table>
             </td>
@@ -283,7 +426,7 @@
     <table style="margin-top:5px;">
         <tr>
             <td style="width:18%;" class="label">Amount in Words:</td>
-            <td style="width:82%;" class="data-value">{{ $data['amount_words'] ?? '' }}-</td>
+            <td style="width:82%; font-size:14px">{{ $data['amount_words'] ?? '' }}-</td>
         </tr>
     </table>
 
@@ -293,7 +436,7 @@
             <td></td>
         </tr>
         <tr>
-            <td colspan="2" style="height:46px; vertical-align:top; padding-top:6px;" class="data-value">
+            <td colspan="2" style="height:46px; vertical-align:top; padding-top:5px; font-size:{{ $fontEntryData }}">
                 {{ $data['note'] ?? '' }}
             </td>
         </tr>
@@ -306,25 +449,25 @@
         </tr>
     </table>
     <table style="margin-top:8px;">
-        @foreach($receiverRows as $label)
+        @foreach($receiverRows as $receiverRow)
             @php
-                $isSignatureRow = stripos($label, 'Signature') !== false;
+                $isSignatureRow = stripos($receiverRow[0], 'Signature') !== false;
             @endphp
             <tr>
-                <td style="width:14%; height:{{ $isSignatureRow ? 42 : 21 }}px; vertical-align:{{ $isSignatureRow ? 'bottom' : 'middle' }};" class="label">{{ $label }}</td>
-                <td style="width:32%;" class="line"></td>
+                <td style="width:14%; height:{{ $isSignatureRow ? 42 : 21 }}px; vertical-align:{{ $isSignatureRow ? 'bottom' : 'middle' }};" class="label">{{ $receiverRow[0] }}</td>
+                <td style="width:32%; height:{{ $isSignatureRow ? 42 : 21 }}px; vertical-align:{{ $isSignatureRow ? 'bottom' : 'middle' }};" class="line data-value">{{ $receiverRow[1] }}</td>
                 <td style="width:58%;"></td>
             </tr>
         @endforeach
     </table>
 
-    <table style="margin-top:32px;">
+    <table style="margin-top:25px;">
         <tr>
             <td style="width:25%; {{ $sectionTitleStyle }}" class="section-title">Authorization:</td>
             <td></td>
         </tr>
     </table>
-    <table style="margin-top:50px;">
+    <table style="margin-top:20px;">
         <tr>
             <td style="width:29%; height:48px;" class="signature-text"></td>
             <td style="width:6%;"></td>
@@ -374,7 +517,7 @@
             </td>
         </tr>
     </table>
-    <table style="margin-top:6px;">
+    <table style="margin-top:25px;">
         <tr>
             <td style="width:65%;"></td>
             <td style="width:35%; height:34px; text-align:center; vertical-align:middle;">
@@ -382,6 +525,7 @@
             </td>
         </tr>
     </table>
+</div>
 </div>
 </body>
 </html>

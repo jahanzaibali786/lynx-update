@@ -38,6 +38,7 @@
             <th>#</th>
             <th>{{__('Chart Of Account')}}</th>
             <th>{{__('Name')}}</th>
+            <th>{{__('Type')}}</th>
             <th>{{__('Bank')}}</th>
             <th>{{__('Account Number')}}</th>
             <th>{{__('Current Balance')}}</th>
@@ -52,6 +53,7 @@
             <td>{{ $loop->iteration }}</td>
             <td>{{ (!empty($account->chartAccount)?$account->chartAccount->name :'-') }}</td>
             <td>{{ $account->holder_name }}</td>
+            <td>{{ $account->type == 'head_imprest' ? 'Head Imprest' : ucfirst($account->type ?? 'normal') }}</td>
             <td>{{ $account->bank_name }}</td>
             <td>{{ $account->account_number }}</td>
             <td>{{ \Auth::user()->priceFormat($account->opening_balance) }}</td>

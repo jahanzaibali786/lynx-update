@@ -41,7 +41,13 @@ class VoucherPrintExport implements FromView, WithColumnWidths, WithEvents
                 ['Bank Name:', $this->data['payment']['bank_name'] ?? ''],
                 ['Invoice No:', $this->data['payment']['invoice_no'] ?? ''],
             ],
-            'receiverRows' => ['Name:', 'CNIC no:', 'Contact:', 'Email:', 'Signature:'],
+            'receiverRows' => [
+                ['Name:', $this->data['receiver']['name'] ?? ''],
+                ['CNIC no:', $this->data['receiver']['cnic'] ?? ''],
+                ['Contact:', $this->data['receiver']['contact'] ?? ''],
+                ['Email:', $this->data['receiver']['email'] ?? ''],
+                ['Signature:', ''],
+            ],
             'titleLogo' => $this->firstExistingPath([
                 public_path('assets/image/lynxheadertext.png'),
                 public_path('assets/images/lynxheadertext.png'),
@@ -49,6 +55,7 @@ class VoucherPrintExport implements FromView, WithColumnWidths, WithEvents
                 public_path('assets/images/lynxheadertext.webp'),
             ]),
             'headerLogo' => $this->data['header_logo'] ?? '',
+            'watermarkLogo' => $this->data['watermark_logo'] ?? '',
         ]);
     }
 

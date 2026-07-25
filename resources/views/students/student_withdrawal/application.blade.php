@@ -741,7 +741,7 @@
         <div class="row d-flex justify-content-end mt-1 ">
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
-                    {{ Form::label('beneficiary_name', __('Beneficiary Name'), ['class' => 'form-label']) }}
+                    {{ Form::label('beneficiary_name', __('Cheque infavor of'), ['class' => 'form-label']) }}
                     {{ Form::text('beneficiary_name', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>

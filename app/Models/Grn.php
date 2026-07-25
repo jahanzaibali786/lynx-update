@@ -12,11 +12,14 @@ class Grn extends Model
         'warehouse_id',
         'grn_date',
         'reference_no',
+        'purchase_order',
         'purchase_order_id',
         'remarks',
         'status',
         'owned_by',
         'created_by',
+        'added_by',
+        'approved_by',
     ];
 
     public static $statues = [
@@ -46,6 +49,16 @@ class Grn extends Model
     public function branch()
     {
         return $this->belongsTo(User::class, 'owned_by');
+    }
+
+    public function addedBy()
+    {
+        return $this->belongsTo(User::class, 'added_by');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function items()

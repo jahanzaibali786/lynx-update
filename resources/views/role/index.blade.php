@@ -10,6 +10,14 @@
 @endsection
 @section('action-btn')
     <div class="float-end">
+        @if(in_array(\Auth::user()->type, ['company', 'super admin']))
+            <a href="#" data-size="xl" data-url="{{ route('user.permissions.edit') }}" data-ajax-popup="true" data-bs-title="{{__('Assign User Permissions')}}" class="btn btn-sm btn-outline-secondary me-1">
+                {{ __('User Permissions') }}
+            </a>
+            <a href="#" data-size="lg" data-url="{{ route('permissions.create') }}" data-ajax-popup="true" data-bs-title="{{__('Create New Permission')}}" class="btn btn-sm btn-outline-secondary me-1">
+                {{ __('Create Permission') }}
+            </a>
+        @endif
         <a href="#" data-size="lg" data-url="{{ route('roles.create') }}" data-ajax-popup="true"  data-bs-title="{{__('Create New Role')}}" class="btn btn-sm btn-primary">
             Create
         </a>

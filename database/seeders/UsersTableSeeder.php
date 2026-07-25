@@ -342,6 +342,30 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'show product & service',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
+                'name' => 'show product sale price',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
+                'name' => 'show product purchase price',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
+                'name' => 'show product quantity',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'manage customer',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -3012,6 +3036,18 @@ class UsersTableSeeder extends Seeder
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
+             [
+                'name' => 'show account grn',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
+                'name' => 'account approve grn',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
             [
                 'name' => 'create contract',
                 'guard_name' => 'web',
@@ -3060,6 +3096,7 @@ class UsersTableSeeder extends Seeder
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
+            
         ];
 
         Permission::insert($arrPermissions);
@@ -3193,6 +3230,10 @@ class UsersTableSeeder extends Seeder
             ['name' => 'create product & service'],
             ['name' => 'delete product & service'],
             ['name' => 'edit product & service'],
+            ['name' => 'show product & service'],
+            ['name' => 'show product sale price'],
+            ['name' => 'show product purchase price'],
+            ['name' => 'show product quantity'],
             ['name' => 'manage constant tax'],
             ['name' => 'create constant tax'],
             ['name' => 'edit constant tax'],
@@ -3651,7 +3692,13 @@ class UsersTableSeeder extends Seeder
             ['name' => 'create webhook'],
             ['name' => 'edit webhook'],
             ['name' => 'delete webhook'],
-
+            ['name' => 'manage head imprest'],
+            ['name' => 'create head imprest'],
+            ['name' => 'show head imprest'],
+            ['name' => 'edit head imprest'],
+            ['name' => 'delete head imprest'],
+            ['name' => 'submit head imprest'],
+            ['name' => 'approve head imprest'],
         ];
 
         $companyRole->givePermissionTo($companyPermissions);

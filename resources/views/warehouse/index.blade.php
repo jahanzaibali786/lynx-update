@@ -9,6 +9,7 @@
     <li class="breadcrumb-item">{{ __('Store') }}</li>
 @endsection
 @section('action-btn')
+    @can('create warehouse')
     <div class="float-end">
         <a href="#" data-size="lg" data-url="{{ route('store.create') }}" data-ajax-popup="true"
             data-bs-title="{{ __('Create') }}" data-bs-toggle="{{ __('Create Store') }}"
@@ -17,6 +18,7 @@
         </a>
 
     </div>
+    @endcan
 @endsection
 
 @section('content')

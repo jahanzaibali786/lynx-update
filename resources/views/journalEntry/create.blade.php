@@ -98,7 +98,7 @@
 
         }
 
-        $(document).on('keyup', '.debit', function () {
+        $(document).off('keyup', '.debit').on('keyup', '.debit', function () {
             var el = $(this).parent().parent().parent().parent();
             var debit = $(this).val();
             var credit = 0;
@@ -125,7 +125,7 @@
             }
         })
 
-        $(document).on('keyup', '.credit', function () {
+        $(document).off('keyup', '.credit').on('keyup', '.credit', function () {
             var el = $(this).parent().parent().parent().parent();
             var credit = $(this).val();
             var debit = 0;
@@ -155,55 +155,41 @@
             return parseFloat(text) || 0;
         }
 
-           // Form submission handler
-           $(document).on('submit', '#journal-form', function(e) {
-            e.preventDefault(); // Stop default form submission
+            // ─── Pre-Submit Validation Check ──────────────────────────────────────────────
+            $(document).off('submit', '#journal-form').on('submit', '#journal-form', function(e) {
+                let totalDebit = parseCleanNumber('.totalDebit');
+                let totalCredit = parseCleanNumber('.totalCredit');
 
-            let form = $(this);
-            let totalDebit = parseCleanNumber('.totalDebit');
-            let totalCredit = parseCleanNumber('.totalCredit');
-
-            if (totalDebit !== totalCredit) {
-                show_toastr('error', 'Total Debit and Total Credit must be equal', 'error');
-                return; // Don't proceed
-            }
-
-            let url = form.attr('action');
-            let method = form.attr('method') || 'POST';
-            let formData = new FormData(this);
-
-            $.ajax({
-                url: form.attr('action'),
-                type: form.attr('method'),
-                data: new FormData(this),
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    if (response.status === 'success') {
-                        show_toastr('success', response.message, 'success');
-                        if (response.redirect) {
-                            setTimeout(function() {
-                                location.reload();
-                                window.location.href = response.redirect;
-                            }, 300);
-                        }
-                    } else {
-                        show_toastr('error', response.message, 'error');
-                    }
-                },
-                error: function(xhr) {
-                    let msg = xhr.responseJSON?.message || 'Unexpected error occurred.';
-                    show_toastr('error', msg, 'error');
+                if (totalDebit !== totalCredit) {
+                    show_toastr('error', 'Total Debit and Total Credit must be equal', 'error');
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    return false;
                 }
             });
-        });
+
+            // ─── Initialize Global AJAX Handler ───────────────────────────────────────────
+            $(document).ready(function() {
+                if (typeof ajaxModalForm === 'function') {
+                    ajaxModalForm({
+                        formSelector: '.ajax-modal-form',
+                        onSuccess: function(response) {
+                            if (response.redirect) {
+                                setTimeout(function() {
+                                    window.location.href = response.redirect;
+                                }, 1000);
+                            }
+                        }
+                    });
+                }
+            });
     </script>
     
 @endpush
 
 @section('content')
 
-    {{ Form::open(array('url' => 'journal-entry','class'=>'w-100','id'=>'journal-form')) }}
+    {{ Form::open(array('url' => 'journal-entry','class'=>'w-100 ajax-modal-form','id'=>'journal-form')) }}
     <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
     <div class="row mt-4">
         <div class="col-xl-12">
@@ -229,12 +215,91 @@
                             {{ Form::text('reference', '', array('class' => 'form-control')) }}
                         </div>
                     </div>
+                    <!-- Payee & Receiver details -->
+                    <div class="col-lg-12 col-md-12"><hr></div>
+                    
+                    <!-- Payment Date -->
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payment_date', __('Payment Date'), ['class' => 'form-label']) }}
+                            {{ Form::date('payment_date', null, ['class' => 'form-control']) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-8 col-md-6"></div>
+
+                    <!-- Payee Details -->
+                    <div class="col-lg-12 col-md-12">
+                        <h5 class="text-primary mt-2 mb-3">{{ __('Payee Details') }}</h5>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_account_title', __('Payee Account Title'), ['class' => 'form-label']) }}
+                            {{ Form::text('payee_account_title', '', ['class' => 'form-control', 'placeholder' => __('Enter Account Title')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_account_no', __('Payee Account No'), ['class' => 'form-label']) }}
+                            {{ Form::text('payee_account_no', '', ['class' => 'form-control', 'placeholder' => __('Enter Account Number')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_cnic', __('Payee CNIC'), ['class' => 'form-label']) }}
+                            {{ Form::text('payee_cnic', '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_contact', __('Payee Contact'), ['class' => 'form-label']) }}
+                            {{ Form::text('payee_contact', '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('payee_email', __('Payee Email'), ['class' => 'form-label']) }}
+                            {{ Form::email('payee_email', '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6"></div>
+
+                    <!-- Receiver Details -->
+                    <div class="col-lg-12 col-md-12">
+                        <h5 class="text-primary mt-3 mb-3">{{ __('Receiver Details') }}</h5>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('receiver_name', __('Receiver Name'), ['class' => 'form-label']) }}
+                            {{ Form::text('receiver_name', '', ['class' => 'form-control', 'placeholder' => __('Enter Receiver Name')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('receiver_cnic', __('Receiver CNIC'), ['class' => 'form-label']) }}
+                            {{ Form::text('receiver_cnic', '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('receiver_contact', __('Receiver Contact'), ['class' => 'form-label']) }}
+                            {{ Form::text('receiver_contact', '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            {{ Form::label('receiver_email', __('Receiver Email'), ['class' => 'form-label']) }}
+                            {{ Form::email('receiver_email', '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                        </div>
+                    </div>
+                    <div class="col-lg-8 col-md-6"></div>
+                    <div class="col-lg-12 col-md-12"><hr></div>
+
                     <div class="col-lg-8 col-md-8">
                         <div class="form-group">
                             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}
                             {{ Form::textarea('description', '', array('class' => 'form-control','rows'=>'2')) }}
+                        </div>
                     </div>
-                </div>
             </div>
         </div>
             </div>
@@ -258,6 +323,8 @@
                             <thead>
                             <tr>
                                 <th>{{__('Account')}}</th>
+                                <th>{{__('Ref No')}}</th>
+                                <th>{{__('Date')}}</th>
                                 <th>{{__('Debit')}}</th>
                                 <th>{{__('Credit')}} </th>
                                 <th>{{__('Description')}}</th>
@@ -280,6 +347,17 @@
                                             @endforeach
                                         @endforeach
                                     </select>
+                                </td>
+
+                                <td>
+                                    <div class="form-group">
+                                        {{ Form::text('ref_no','', array('class' => 'form-control','placeholder'=>__('Ref No'))) }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="form-group">
+                                        {{ Form::date('tra_date',date('Y-m-d'), array('class' => 'form-control')) }}
+                                    </div>
                                 </td>
 
                                 <td>
@@ -307,11 +385,15 @@
                             <tr>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td></td>
                                 <td class="text-end"><strong>{{__('Total Credit')}} ({{\Auth::user()->currencySymbol()}})</strong></td>
                                 <td class="text-end totalCredit">0.00</td>
                             </tr>
                             <tr>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>

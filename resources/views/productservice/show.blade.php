@@ -121,10 +121,12 @@
                         <small class="text-muted d-block">{{ __('Description on Purchase Transactions') }}</small>
                         <span>{{ $productService->purchase_description ?: '-' }}</span>
                     </div>
-                    <div class="mb-3">
-                        <small class="text-muted d-block">{{ __('Cost') }}</small>
-                        <span>{{ \Auth::user()->priceFormat($productService->purchase_price) }}</span>
-                    </div>
+                    @can('show purchase price product & service')
+                        <div class="mb-3">
+                            <small class="text-muted d-block">{{ __('Cost') }}</small>
+                            <span>{{ \Auth::user()->priceFormat($productService->purchase_price) }}</span>
+                        </div>
+                    @endcan
                     <div>
                         <small class="text-muted d-block">{{ __('COGS Account') }}</small>
                         <span>{{ $accountName($productService->expenseAccount) }}</span>
@@ -143,10 +145,12 @@
                         <small class="text-muted d-block">{{ __('Description on Sales Transactions') }}</small>
                         <span>{{ $productService->sales_description ?: '-' }}</span>
                     </div>
-                    <div class="mb-3">
-                        <small class="text-muted d-block">{{ __('Sales Price') }}</small>
-                        <span>{{ \Auth::user()->priceFormat($productService->sale_price) }}</span>
-                    </div>
+                    @can('show sale price product & service')
+                        <div class="mb-3">
+                            <small class="text-muted d-block">{{ __('Sales Price') }}</small>
+                            <span>{{ \Auth::user()->priceFormat($productService->sale_price) }}</span>
+                        </div>
+                    @endcan
                     <div>
                         <small class="text-muted d-block">{{ __('Income Account') }}</small>
                         <span>{{ $accountName($productService->saleAccount) }}</span>
@@ -165,31 +169,33 @@
                         <small class="text-muted d-block">{{ __('Inventory Asset Account') }}</small>
                         <span>{{ $accountName($productService->inventoryAssetAccount) }}</span>
                     </div>
-                    @if($productService->type == 'product')
-                        <div class="row">
-                            <div class="col-md-3">
-                                <small class="text-muted d-block">{{ __('New') }}</small>
-                                <span>{{ $productService->quantity }}</span>
+                    @can('show quantity product & service')
+                        @if($productService->type == 'product')
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <small class="text-muted d-block">{{ __('New') }}</small>
+                                    <span>{{ $productService->quantity }}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted d-block">{{ __('Used') }}</small>
+                                    <span>{{ $productService->used_quantity }}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted d-block">{{ __('Damaged') }}</small>
+                                    <span>{{ $productService->damaged_quantity }}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted d-block">{{ __('Total') }}</small>
+                                    <span>{{ $productService->quantity + $productService->used_quantity + $productService->damaged_quantity }}</span>
+                                </div>
                             </div>
-                            <div class="col-md-3">
-                                <small class="text-muted d-block">{{ __('Used') }}</small>
-                                <span>{{ $productService->used_quantity }}</span>
+                        @else
+                            <div>
+                                <small class="text-muted d-block">{{ __('Quantity') }}</small>
+                                <span>-</span>
                             </div>
-                            <div class="col-md-3">
-                                <small class="text-muted d-block">{{ __('Damaged') }}</small>
-                                <span>{{ $productService->damaged_quantity }}</span>
-                            </div>
-                            <div class="col-md-3">
-                                <small class="text-muted d-block">{{ __('Total') }}</small>
-                                <span>{{ $productService->quantity + $productService->used_quantity + $productService->damaged_quantity }}</span>
-                            </div>
-                        </div>
-                    @else
-                        <div>
-                            <small class="text-muted d-block">{{ __('Quantity') }}</small>
-                            <span>-</span>
-                        </div>
-                    @endif
+                        @endif
+                    @endcan
                 </div>
             </div>
         </div>
@@ -205,24 +211,28 @@
                             <thead>
                                 <tr>
                                     <th>{{ __('Warehouse') }}</th>
-                                    <th>{{ __('New') }}</th>
-                                    <th>{{ __('Used') }}</th>
-                                    <th>{{ __('Damaged') }}</th>
-                                    <th>{{ __('Total') }}</th>
+                                    @can('show quantity product & service')
+                                        <th>{{ __('New') }}</th>
+                                        <th>{{ __('Used') }}</th>
+                                        <th>{{ __('Damaged') }}</th>
+                                        <th>{{ __('Total') }}</th>
+                                    @endcan
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse($warehouseProducts as $warehouseProduct)
                                     <tr>
                                         <td>{{ optional($warehouseProduct->warehousedetail)->name ?? '-' }}</td>
-                                        <td>{{ $warehouseProduct->quantity }}</td>
-                                        <td>{{ $warehouseProduct->used_quantity }}</td>
-                                        <td>{{ $warehouseProduct->damaged_quantity }}</td>
-                                        <td>{{ $warehouseProduct->quantity + $warehouseProduct->used_quantity + $warehouseProduct->damaged_quantity }}</td>
+                                        @can('show quantity product & service')
+                                            <td>{{ $warehouseProduct->quantity }}</td>
+                                            <td>{{ $warehouseProduct->used_quantity }}</td>
+                                            <td>{{ $warehouseProduct->damaged_quantity }}</td>
+                                            <td>{{ $warehouseProduct->quantity + $warehouseProduct->used_quantity + $warehouseProduct->damaged_quantity }}</td>
+                                        @endcan
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center">{{ __('Product not select in warehouse') }}</td>
+                                        <td colspan="{{ Gate::check('show quantity product & service') ? 5 : 1 }}" class="text-center">{{ __('Product not select in warehouse') }}</td>
                                     </tr>
                                 @endforelse
                             </tbody>

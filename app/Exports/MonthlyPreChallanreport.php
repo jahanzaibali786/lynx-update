@@ -69,7 +69,8 @@ class MonthlyPreChallanreport implements FromView, WithEvents
             // H = Billing Month
             // J onward = numeric amount columns
             $classColIndex   = Coordinate::columnIndexFromString('G');
-            $dateColIndex    = Coordinate::columnIndexFromString('H');
+            $sectionColIndex = Coordinate::columnIndexFromString('H');
+            $dateColIndex    = Coordinate::columnIndexFromString('I');
             $numericStartCol = Coordinate::columnIndexFromString('J');
 
             // Page setup
@@ -173,91 +174,163 @@ class MonthlyPreChallanreport implements FromView, WithEvents
             $sheet->getColumnDimension('F')->setWidth(12);
             $sheet->getColumnDimension('G')->setWidth(18);
             $sheet->getColumnDimension('H')->setWidth(14);
-            $sheet->getColumnDimension('I')->setWidth(12);
-            $sheet->getColumnDimension($highestColumn)->setWidth(16);
+$sheet->getColumnDimension('H')->setWidth(15); // Section
+$sheet->getColumnDimension('I')->setWidth(14); // Billing Month
+$sheet->getColumnDimension($highestColumn)->setWidth(16);
 
             // General data styling
-            if ($lastDataRow >= 9) {
-                $sheet->getStyle("A9:{$highestColumn}{$lastDataRow}")
-                    ->getFont()
-                    ->setSize(8);
+           if ($lastDataRow >= 9) {
 
-                $sheet->getStyle("A9:C{$lastDataRow}")
-                    ->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    $sheet->getStyle("A9:{$highestColumn}{$lastDataRow}")
+        ->getFont()
+        ->setSize(8);
 
-                $sheet->getStyle("D9:G{$lastDataRow}")
-                    ->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_LEFT)
-                    ->setWrapText(true);
+    // Center
+    $sheet->getStyle("A9:C{$lastDataRow}")
+        ->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                $sheet->getStyle("H9:I{$lastDataRow}")
-                    ->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    // Left align Student/Father/Register/Class/Section
+    $sheet->getStyle("D9:H{$lastDataRow}")
+        ->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+        ->setWrapText(true);
 
-                // G column must stay Class text
-                $sheet->getStyle("G9:G{$lastDataRow}")
-                    ->getNumberFormat()
-                    ->setFormatCode('@');
+    // Billing Month
+    $sheet->getStyle("I9:I{$lastDataRow}")
+        ->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                // H column is Billing Month
-                $sheet->getStyle("H9:H{$lastDataRow}")
-                    ->getNumberFormat()
-                    ->setFormatCode('MMM-YY');
+    /*
+    |--------------------------------------------------------------------------
+    | Text Columns
+    |--------------------------------------------------------------------------
+    */
 
-                // Numeric columns start from J
-                $numericColStartLetter = Coordinate::stringFromColumnIndex($numericStartCol);
-                $numericRange = "{$numericColStartLetter}9:{$highestColumn}{$lastDataRow}";
+    // Class
+    $sheet->getStyle("G9:G{$lastDataRow}")
+        ->getNumberFormat()
+        ->setFormatCode('@');
 
-                $sheet->getStyle($numericRange)
-                    ->getAlignment()
-                    ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+    // Section
+    $sheet->getStyle("H9:H{$lastDataRow}")
+        ->getNumberFormat()
+        ->setFormatCode('@');
 
-                $sheet->getStyle($numericRange)
-                    ->getNumberFormat()
-                    ->setFormatCode('#,##0');
+    /*
+    |--------------------------------------------------------------------------
+    | Billing Month
+    |--------------------------------------------------------------------------
+    */
 
-                // Prepare correct billing month value
-                try {
-                    $carbonDate = \Carbon\Carbon::createFromFormat('Y-m', trim($this->dateInput))
-                        ->startOfMonth()
-                        ->setTime(12, 0, 0);
-                } catch (\Exception $e) {
-                    $carbonDate = \Carbon\Carbon::parse($this->dateInput)
-                        ->startOfMonth()
-                        ->setTime(12, 0, 0);
-                }
+    $sheet->getStyle("I9:I{$lastDataRow}")
+        ->getNumberFormat()
+        ->setFormatCode('MMM-YY');
 
-                $excelDateSerial = ExcelDate::PHPToExcel($carbonDate->timestamp);
+    /*
+    |--------------------------------------------------------------------------
+    | Numeric Columns (J onwards)
+    |--------------------------------------------------------------------------
+    */
 
-                // Only update actual student rows, not branch total/grand total rows
-                for ($row = 9; $row <= $lastDataRow; $row++) {
-                    $rollNo = $sheet->getCell("C{$row}")->getValue();
+    $numericColStartLetter = Coordinate::stringFromColumnIndex($numericStartCol);
 
-                    if (!empty($rollNo) && is_numeric($rollNo)) {
-                        // Billing month in H
-                        $sheet->getCellByColumnAndRow($dateColIndex, $row)
-                            ->setValue($excelDateSerial);
+    $numericRange = "{$numericColStartLetter}9:{$highestColumn}{$lastDataRow}";
 
-                        // Keep class as text in G
-                        $classValue = $sheet->getCellByColumnAndRow($classColIndex, $row)->getValue();
-                        $sheet->getCellByColumnAndRow($classColIndex, $row)
-                            ->setValueExplicit($classValue, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                    }
-                }
+    $sheet->getStyle($numericRange)
+        ->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-                // Convert only amount columns from J onward to numbers
-                for ($col = $numericStartCol; $col <= $highestColumnIndex; $col++) {
-                    for ($row = 9; $row <= $lastDataRow; $row++) {
-                        $rawValue = $sheet->getCellByColumnAndRow($col, $row)->getValue();
+    $sheet->getStyle($numericRange)
+        ->getNumberFormat()
+        ->setFormatCode('#,##0');
 
-                        if ($rawValue !== null && $rawValue !== '' && is_numeric($rawValue)) {
-                            $sheet->getCellByColumnAndRow($col, $row)
-                                ->setValue((float) $rawValue);
-                        }
-                    }
-                }
+    /*
+    |--------------------------------------------------------------------------
+    | Billing Month Value
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+
+        $carbonDate = \Carbon\Carbon::createFromFormat(
+            'Y-m',
+            trim($this->dateInput)
+        )
+            ->startOfMonth()
+            ->setTime(12, 0, 0);
+
+    } catch (\Exception $e) {
+
+        $carbonDate = \Carbon\Carbon::parse($this->dateInput)
+            ->startOfMonth()
+            ->setTime(12, 0, 0);
+    }
+
+    $excelDateSerial = ExcelDate::PHPToExcel($carbonDate->timestamp);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Populate Billing Month & Keep Text Columns as String
+    |--------------------------------------------------------------------------
+    */
+
+    for ($row = 9; $row <= $lastDataRow; $row++) {
+
+        $rollNo = $sheet->getCell("C{$row}")->getValue();
+
+        if (!empty($rollNo) && is_numeric($rollNo)) {
+
+            // Billing Month -> Column I
+            $sheet->getCell("I{$row}")
+                ->setValue($excelDateSerial);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Force Class & Section to Text
+            |--------------------------------------------------------------------------
+            */
+
+            $classValue = $sheet->getCell("G{$row}")->getValue();
+
+            $sheet->setCellValueExplicit(
+                "G{$row}",
+                $classValue,
+                \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+            );
+
+            $sectionValue = $sheet->getCell("H{$row}")->getValue();
+
+            $sheet->setCellValueExplicit(
+                "H{$row}",
+                $sectionValue,
+                \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+            );
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Convert Amount Columns Only (J onwards)
+    |--------------------------------------------------------------------------
+    */
+
+    for ($col = $numericStartCol; $col <= $highestColumnIndex; $col++) {
+
+        for ($row = 9; $row <= $lastDataRow; $row++) {
+
+            $value = $sheet
+                ->getCellByColumnAndRow($col, $row)
+                ->getValue();
+
+            if ($value !== null && $value !== '' && is_numeric($value)) {
+
+                $sheet->getCellByColumnAndRow($col, $row)
+                    ->setValue((float) $value);
             }
+        }
+    }
+}
 
             // Last column right aligned
             $sheet->getStyle("{$highestColumn}9:{$highestColumn}{$lastDataRow}")

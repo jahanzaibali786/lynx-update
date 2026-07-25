@@ -163,6 +163,7 @@
             // Move up the DOM tree
             parent = parent.parentElement;
 
+            
             // Limit how far we look up (stop at table row, form, or body)
             if (parent && (parent.tagName === 'TR' || parent.tagName === 'TABLE' || parent.tagName === 'FORM' || parent.tagName === 'BODY')) {
                 break;
@@ -235,7 +236,7 @@
 
             this.displayText = document.createElement('span');
 
-            // Get placeholder text - explicit placeholder attribute takes priority
+           // Get placeholder text - explicit placeholder attribute takes priority
             let placeholderText = this.originalSelect.getAttribute('placeholder') || 'Select .....';
             if (!this.originalSelect.getAttribute('placeholder')) {
                 const labelText = findNearestLabel(this.originalSelect);

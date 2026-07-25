@@ -283,7 +283,6 @@ $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true
             show_toastr('Error', data.error, 'error')
         }
     });
-
 });
 
 function injectContentWithScripts(target, html) {
@@ -315,7 +314,6 @@ function injectContentWithScripts(target, html) {
 $(document).on('hidden.bs.modal', '#commonModal', function () {
     $('#commonModal .body').empty();
 });
-
 
 function arrayToJson(form) {
     var data = $(form).serializeArray();
@@ -367,6 +365,16 @@ function taskCheckbox() {
 
 
 function commonLoader() {
+    
+    // Fix tooltips inside page-header action buttons:
+    // These sit in an overflow-constrained container, so force them to
+    // render on <body> with bottom placement to avoid misplacement.
+    document.querySelectorAll('.page-block .float-end [data-bs-toggle="tooltip"]').forEach(function(el) {
+        // Dispose any existing tooltip instance first
+        var existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) { existing.dispose(); }
+        new bootstrap.Tooltip(el, { container: 'body', placement: 'bottom' });
+    });
     $('[data-bs-toggle="tooltip"]').tooltip();
     if ($('[data-toggle="tags"]').length > 0) {
         $('[data-toggle="tags"]').tagsinput({ tagClass: "badge badge-primary" });
@@ -787,6 +795,7 @@ $(document).on('click', 'a[data-ajax-popup-over="true"], button[data-ajax-popup-
         }
     });
 });
+
 
 
 

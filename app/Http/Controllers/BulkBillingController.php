@@ -66,7 +66,7 @@ class BulkBillingController extends Controller
         return view('bulk-billing.create', compact('branches', 'accounts', 'accountsData', 'feeHeads', 'sessions'));
     }
 
-    public function getStudents($branchId)
+     public function getStudents($branchId)
     {
         $students = StudentRegistration::where('owned_by', $branchId)
             ->whereIn('student_status', ['Enrolled', 'Withdrawal'])
@@ -85,6 +85,7 @@ class BulkBillingController extends Controller
 
         return response()->json($list);
     }
+
 
     public function getFeeStructure($studentId, $month)
     {

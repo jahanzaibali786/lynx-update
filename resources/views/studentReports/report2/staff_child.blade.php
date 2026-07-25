@@ -114,7 +114,7 @@
                         </tr>
                         @php $bsr = 1; @endphp
                         @foreach ($students as $student)
-                            @php
+                             @php
                                 $headId = $head->id ?? 0;
 
                                 $feeStructure = $student->fee_structure
@@ -147,8 +147,6 @@
                                                     ->where('head_id', $headId)
                                                     ->latest('id')
                                                     ->first();
-
-                                                // dd($policyHead);
 
                                     $discountPct = (float) ($policyHead->percentage ?? 0);
                                     $discAmnt = ($amount * $discountPct) / 100;

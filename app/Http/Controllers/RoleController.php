@@ -33,7 +33,7 @@ class RoleController extends Controller
         if(\Auth::user()->can('create role'))
         {
             $user = \Auth::user();
-            if($user->type == 'super admin')
+            if($user->type == 'super admin' || $user->type == 'company')
             {
                 $permissions = Permission::all()->pluck('name', 'id')->toArray();
             }
@@ -47,7 +47,9 @@ class RoleController extends Controller
                 $permissions = $permissions->pluck('name', 'id')->toArray();
             }
 
-            return view('role.create', ['permissions' => $permissions]);
+            $customPermissions = $this->customPermissions($permissions);
+
+            return view('role.create', compact('permissions', 'customPermissions'));
         }
         else
         {
@@ -106,7 +108,7 @@ class RoleController extends Controller
         {
 
             $user = \Auth::user();
-            if($user->type == 'super admin')
+            if($user->type == 'super admin' || $user->type == 'company')
             {
                 $permissions = Permission::all()->pluck('name', 'id')->toArray();
             }
@@ -120,7 +122,9 @@ class RoleController extends Controller
                 $permissions = $permissions->pluck('name', 'id')->toArray();
             }
 
-            return view('role.edit', compact('role', 'permissions'));
+            $customPermissions = $this->customPermissions($permissions);
+
+            return view('role.edit', compact('role', 'permissions', 'customPermissions'));
         }
         else
         {
@@ -194,5 +198,51 @@ class RoleController extends Controller
         }
 
 
+    }
+
+    private function customPermissions(array $permissions): array
+    {
+        $modules = [
+            'user', 'role', 'client', 'product & service', 'constant unit', 'constant tax', 'constant category',
+            'company settings', 'permission', 'language', 'crm dashboard', 'lead', 'pipeline', 'lead stage',
+            'source', 'label', 'deal', 'stage', 'task', 'form builder', 'form response', 'contract',
+            'contract type', 'project dashboard', 'project', 'milestone', 'grant chart', 'project stage',
+            'timesheet', 'expense', 'project task', 'activity', 'CRM activity', 'project task stage',
+            'bug report', 'bug status', 'hrm dashboard', 'employee', 'employee profile', 'department',
+            'designation', 'branch', 'document type', 'document', 'payslip type', 'allowance', 'commission',
+            'allowance option', 'loan option', 'deduction option', 'loan', 'saturation deduction',
+            'other payment', 'overtime', 'set salary', 'pay slip', 'company policy', 'appraisal',
+            'goal tracking', 'goal type', 'indicator', 'event', 'meeting', 'training', 'trainer',
+            'training type', 'award', 'award type', 'resignation', 'travel', 'promotion', 'complaint',
+            'warning', 'termination', 'termination type', 'job application', 'job application note',
+            'job onBoard', 'job category', 'job', 'job stage', 'custom question', 'interview schedule',
+            'estimation', 'holiday', 'transfer', 'announcement', 'leave', 'leave type', 'attendance',
+            'account dashboard', 'proposal', 'invoice', 'bill', 'revenue', 'payment', 'proposal product',
+            'invoice product', 'bill product', 'goal', 'credit note', 'debit note', 'bank account',
+            'bank transfer', 'daily cash closing', 'transaction', 'customer', 'vender', 'constant custom field', 'assets',
+            'chart of account', 'journal entry', 'journal voucher', 'report', 'warehouse', 'purchase', 'pos', 'barcode',
+            'companybranch', 'space', 'spacetype', 'chair', 'clientuser', 'ismail', 'vistor',
+        ];
+
+        $actions = [
+            'view', 'add', 'move', 'manage', 'create', 'edit', 'delete', 'show', 'send',
+            'print', 'submit', 'approve',
+            'create payment', 'delete payment', 'income', 'expense', 'income vs expense',
+            'loss & profit', 'tax', 'invoice', 'bill', 'duplicate', 'balance sheet',
+            'ledger', 'trial balance',
+        ];
+
+        $standardPermissions = [];
+        foreach ($modules as $module) {
+            foreach ($actions as $action) {
+                $standardPermissions[] = $action . ' ' . $module;
+            }
+        }
+
+        return collect($permissions)
+            ->reject(function ($permissionName) use ($standardPermissions) {
+                return in_array($permissionName, $standardPermissions, true);
+            })
+            ->toArray();
     }
 }

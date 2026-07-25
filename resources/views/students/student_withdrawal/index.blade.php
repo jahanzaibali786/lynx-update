@@ -137,7 +137,7 @@
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                             <div class="btn-box">
                                 {{ Form::label('status', __('Status'),['class'=>'form-label'])}}
-                                {{ Form::select('status', $status, isset($_GET['status']) ? $_GET['status'] : 'pending', ['class' => 'form-control select']) }}
+                                {{ Form::select('status', $status, isset($_GET['status']) ? $_GET['status'] : 'draft', ['class' => 'form-control select']) }}
                             </div>
                         </div>
                         <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">

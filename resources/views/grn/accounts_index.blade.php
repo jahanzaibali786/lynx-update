@@ -99,20 +99,26 @@
                         </span>
                     </td>
                     <td class="Action">
+                        @can('show grn')
                         <a href="{{ route('grn.show', $grn->id) }}"
                             class="mx-1 btn btn-sm btn-outline-info align-items-center" title="{{ __('Show') }}">
                             <i class="ti ti-eye"></i>
                         </a>
+                        @endcan
                         @if($grn->status == 7)
+                        @can('account approve grn')
                         <a href="{{ route('grn.accounts_approve', $grn->id) }}"
-                            class="mx-1 btn btn-sm btn-success text-white align-items-center" title="{{ __('Approve') }}"
+                            class="mx-1 btn btn-sm btn-outline-success text-white align-items-center" title="{{ __('Approve') }}"
                             onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
-                            <i class="ti ti-checks"></i>
+                            <span class="btn-inner--icon"><i class="ti ti-checks"></i></span>
                         </a>
+                        @endcan
                         <a href="{{ route('grn.reject', $grn->id) }}"
-                            class="mx-1 btn btn-sm btn-danger text-white align-items-center" title="{{ __('Reject') }}"
+                            class="mx-1 btn btn-sm btn-outline-danger text-white align-items-center" title="{{ __('Reject') }}"
                             onclick="return confirm('{{ __('Are you sure you want to reject this GRN?') }}')">
+                            <span class="btn-inner--icon">
                             <i class="ti ti-x"></i>
+                            </span>
                         </a>
                         @endif
                     </td>

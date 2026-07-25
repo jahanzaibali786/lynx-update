@@ -803,6 +803,7 @@ class Utility extends Model
             '2' => 'Inventory Asset',
             '3' => 'Non-current Asset',
             '4' => 'Receivables',
+            '5' => 'Bank',
         ],
         'liabilities' => [
             '1' => 'Current Liabilities',
@@ -823,6 +824,7 @@ class Utility extends Model
         'expenses' => [
             '1' => 'Payroll Expenses',
             '2' => 'General and Administrative expenses',
+            '3' => 'Head Imprest',
         ],
 
     ];
@@ -3349,13 +3351,30 @@ class Utility extends Model
             'edit warehouse',
             'show warehouse',
             'delete warehouse',
+            'manage product & service',
+            'create product & service',
+            'show product & service',
+            'edit product & service',
+            'delete product & service',
+            'show sale price product & service',
+            'show purchase price product & service',
+            'show quantity product & service',
             'manage purchase',
             'create purchase',
             'edit purchase',
             'show purchase',
             'delete purchase',
             'send purchase',
-            'create payment purchase',
+            'convert purchase to grn',
+            'manage grn',
+            'create grn',
+            'show grn',
+            'edit grn',
+            'delete grn',
+            'finalize grn',
+            'forward grn to accounts',
+            'show account grn',
+            'account approve grn',
             'manage pos',
             'manage contract type',
             'create contract type',
@@ -3368,6 +3387,29 @@ class Utility extends Model
             'create webhook',
             'edit webhook',
             'delete webhook',
+            'manage accounting permissions',
+            'show chart of account balance',
+            'manage journal voucher',
+            'create journal voucher',
+            'show journal voucher',
+            'edit journal voucher',
+            'delete journal voucher',
+            'print journal voucher',
+            'submit journal voucher',
+            'approve journal voucher',
+            'manage daily cash closing',
+            'create daily cash closing',
+            'show daily cash closing',
+            'edit daily cash closing',
+            'delete daily cash closing',
+            'approve daily cash closing',
+             'manage head imprest',
+            'create head imprest',
+            'show head imprest',
+            'edit head imprest',
+            'delete head imprest',
+            'submit head imprest',
+            'approve head imprest',
 
         ];
         foreach ($arrPermissions as $ap) {
@@ -3405,13 +3447,30 @@ class Utility extends Model
             'edit warehouse',
             'show warehouse',
             'delete warehouse',
+            'manage product & service',
+            'create product & service',
+            'show product & service',
+            'edit product & service',
+            'delete product & service',
+            'show sale price product & service',
+            'show purchase price product & service',
+            'show quantity product & service',
             'manage purchase',
             'create purchase',
             'edit purchase',
             'show purchase',
             'delete purchase',
             'send purchase',
-            'create payment purchase',
+            'convert purchase to grn',
+            'manage grn',
+            'create grn',
+            'show grn',
+            'edit grn',
+            'delete grn',
+            'finalize grn',
+            'forward grn to accounts',
+            'show account grn',
+            'account approve grn',
             'manage pos',
             'manage contract type',
             'create contract type',
@@ -3424,6 +3483,29 @@ class Utility extends Model
             'create webhook',
             'edit webhook',
             'delete webhook',
+            'manage accounting permissions',
+            'show chart of account balance',
+            'manage journal voucher',
+            'create journal voucher',
+            'show journal voucher',
+            'edit journal voucher',
+            'delete journal voucher',
+            'print journal voucher',
+            'submit journal voucher',
+            'approve journal voucher',
+            'manage daily cash closing',
+            'create daily cash closing',
+            'show daily cash closing',
+            'edit daily cash closing',
+            'delete daily cash closing',
+            'approve daily cash closing',
+             'manage head imprest',
+            'create head imprest',
+            'show head imprest',
+            'edit head imprest',
+            'delete head imprest',
+            'submit head imprest',
+            'approve head imprest',
         ];
         foreach ($companyNewPermission as $op) {
             // check if permission is not assign to owner then assign.
@@ -6976,6 +7058,7 @@ class Utility extends Model
             $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['discount'];
             $journalItem->save();
             $payable += ((floatval($data['items'][$i]['quantity']) * floatval($data['items'][$i]['price'])) - $data['items'][$i]['discount']);
+
         }
 
         if (! empty($data['vender_account'])) {
@@ -6985,7 +7068,7 @@ class Utility extends Model
             $journalItem->account = $data['vender_account'];
             $journalItem->description = 'payable of study pack';
             $journalItem->debit = 0;
-            $journalItem->credit = $payable;
+            $journalItem->credit = $payable + $tax;
             $journalItem->branch_id = $data['owned_by'];
             $journalItem->save();
         } else {
@@ -7012,7 +7095,7 @@ class Utility extends Model
                 $journalItem->account = @$account->id;
                 $journalItem->description = 'payable study pack';
                 $journalItem->debit = 0;
-                $journalItem->credit = $payable;
+                $journalItem->credit = $payable + $tax;
                 $journalItem->branch_id = $data['owned_by'];
                 $journalItem->save();
             }
