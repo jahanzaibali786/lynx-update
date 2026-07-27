@@ -200,16 +200,34 @@
                 $row.find('.item-select').focus();
             } else if ((parseFloat($row.find('.qty-input').val()) || 0) <= 0) {
                 $row.find('.qty-input').focus();
+            } else if (!isValidGrnPrice($row.find('.price-input').val())) {
+                $row.find('.price-input').focus();
             } else {
                 $row.find('.condition-select').focus();
             }
         }
 
+        function isValidGrnPrice(value) {
+            if (value === '' || value === null || typeof value === 'undefined') {
+                return true;
+            }
+
+            const price = Number(value);
+
+            return Number.isFinite(price) && price >= 0;
+        }
+
         function lockRow($row) {
             const product = $row.find('.item-select').val();
             const qty = parseFloat($row.find('.qty-input').val()) || 0;
+            const priceValue = $row.find('.price-input').val();
             if (!product || qty <= 0) {
                 show_toastr('error', 'Please select item and quantity.', 'error');
+                return false;
+            }
+            if (!isValidGrnPrice(priceValue)) {
+                show_toastr('error', 'Cost must be zero or greater.', 'error');
+                $row.find('.price-input').focus();
                 return false;
             }
             $row.addClass('grn-row-locked');

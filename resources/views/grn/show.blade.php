@@ -191,7 +191,7 @@
                         </div>
                         <div class="col-md-3 mb-3">
                             <small class="text-muted d-block">{{ __('Vendor') }}</small>
-                            <strong>{{ optional($grn->vendor)->name ?? '-' }}</strong>
+                            <strong>{{ optional($grn->vendor)->display_name ?? '-' }}</strong>
                         </div>
                         <div class="col-md-3 mb-3">
                             <small class="text-muted d-block">{{ __('Store') }}</small>

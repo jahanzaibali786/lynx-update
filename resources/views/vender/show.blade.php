@@ -7,7 +7,7 @@
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
     <li class="breadcrumb-item"><a href="{{route('vender.index')}}">{{__('Vendor')}}</a></li>
-    <li class="breadcrumb-item">{{$vendor['name']}}</li>
+    <li class="breadcrumb-item">{{ $vendor->display_name }}</li>
 
 @endsection
 

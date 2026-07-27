@@ -2181,30 +2181,45 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
-    public function draftBranchPurchases(\Illuminate\Http\Request $request)
+    public function draftDemandOrders(\Illuminate\Http\Request $request)
     {
+        if (!\Auth::user()->can('convert demand order to invoice')) {
+            abort(403, __('Permission denied.'));
+        }
+
         $storeToId = $request->get('store_to');
         if (!$storeToId) {
-            $purchases = collect();
+            $demandOrders = collect();
         } else {
-            $warehouse = \App\Models\Warehouse::find($storeToId);
+            $warehouse = \App\Models\Warehouse::where('created_by', \Auth::user()->creatorId())
+                ->find($storeToId);
             if ($warehouse && $warehouse->owned_by) {
-                $purchases = \App\Models\BranchPurchase::with('vender')
+                $demandOrders = \App\Models\DemandOrder::with('vender')
+                    ->where('created_by', \Auth::user()->creatorId())
                     ->where('branch_id', $warehouse->owned_by)
+                    ->where('status', 6)
                     ->where('invoice_converted', 0)
                     ->orderBy('created_at', 'desc')
                     ->get();
             } else {
-                $purchases = collect();
+                $demandOrders = collect();
             }
         }
-        return view('invoice.draft_branch_purchases', compact('purchases'));
+        return view('invoice.draft_demand_orders', compact('demandOrders'));
     }
 
-    public function branchPurchaseItems($id)
+    public function demandOrderItems($id)
     {
-        $purchase = \App\Models\BranchPurchase::with('items.product')->findOrFail($id);
-        $items = $purchase->items->map(function ($item) {
+        if (!\Auth::user()->can('convert demand order to invoice')) {
+            abort(403, __('Permission denied.'));
+        }
+
+        $demandOrder = \App\Models\DemandOrder::with('items.product')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('status', 6)
+            ->where('invoice_converted', 0)
+            ->findOrFail($id);
+        $items = $demandOrder->items->map(function ($item) {
             return [
                 'product_id' => $item->product_id,
                 'quantity' => $item->quantity,

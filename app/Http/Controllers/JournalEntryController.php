@@ -17,6 +17,7 @@ use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\ProductServiceCategory;
 use App\Http\Requests\StoreJournalVoucherRequest;
+use App\Services\ChartOfAccountOptionsService;
 use App\Services\JournalVoucherService;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -721,17 +722,8 @@ class JournalEntryController extends Controller
         }
 
         $departments = Department::all();
-        $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name,chart_of_accounts.id, chart_of_accounts.code, chart_of_accounts.parent, chart_of_accounts.category'))
-            ->where('parent', '=', 0)
-            ->where('created_by', \Auth::user()->creatorId())->get()
-            ->toarray();
-
-        $subAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id, chart_of_accounts.code, chart_of_accounts.category, chart_of_account_parents.account'));
-        $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
-        $subAccounts->where('chart_of_accounts.parent', '!=', 0);
-        $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-        $subAccounts = $subAccounts->get()->toArray();
-
+        $accountOptions = app(ChartOfAccountOptionsService::class)
+            ->forCreator((int) \Auth::user()->creatorId());
         $journalId = $this->journalNumber();
         $bankAccountQuery = BankAccount::query()->where('created_by', \Auth::user()->creatorId());
         if (\Schema::hasColumn('bank_accounts', 'owned_by')) {
@@ -754,10 +746,7 @@ class JournalEntryController extends Controller
             ->pluck('name', 'id');
         $customers->prepend('Select Customer', '');
 
-        $vendors = Vender::where('created_by', \Auth::user()->creatorId())
-            ->orderBy('name')
-            ->pluck('name', 'id');
-        $vendors->prepend('Select Vendor', '');
+        $vendors = Vender::optionsForCreator(\Auth::user()->creatorId());
 
         $employeeQuery = Employee::query();
         if (\Schema::hasColumn('employees', 'owned_by')) {
@@ -786,7 +775,7 @@ class JournalEntryController extends Controller
             ->pluck('name', 'id');
         $voucherCategoryTypes->prepend('Select Voucher Category Type', '');
 
-        return compact('branches', 'departments', 'chartAccounts', 'subAccounts', 'journalId', 'bankAccounts', 'customers', 'vendors', 'employees', 'students', 'voucherCategoryTypes');
+        return compact('branches', 'departments', 'accountOptions', 'journalId', 'bankAccounts', 'customers', 'vendors', 'employees', 'students', 'voucherCategoryTypes');
     }
 
     private function canCreateVoucherType($voucherType): bool
@@ -1134,7 +1123,16 @@ class JournalEntryController extends Controller
         if (\Schema::hasColumn('venders', 'owned_by')) {
             $vendorQuery->where('owned_by', $branchId);
         }
-        $vendors = $vendorQuery->orderBy('name')->get(['id', 'name']);
+        $vendors = $vendorQuery->orderBy('company_name')
+            ->orderBy('name')
+            ->get(['id', 'company_name', 'name'])
+            ->map(function ($vendor) {
+                return [
+                    'id' => $vendor->id,
+                    'name' => $vendor->display_name,
+                ];
+            })
+            ->values();
 
         $employeeQuery = Employee::query();
         if (\Schema::hasColumn('employees', 'branch_id')) {

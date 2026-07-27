@@ -5,9 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class BranchPurchaseItem extends Model
+class DemandOrderItem extends Model
 {
     use HasFactory;
+
+    protected $table = 'branch_purchase_items';
 
     protected $fillable = [
         'branch_purchase_id',
@@ -20,9 +22,9 @@ class BranchPurchaseItem extends Model
         'description',
     ];
 
-    public function branchPurchase()
+    public function demandOrder()
     {
-        return $this->belongsTo('App\Models\BranchPurchase', 'branch_purchase_id', 'id');
+        return $this->belongsTo(DemandOrder::class, 'branch_purchase_id', 'id');
     }
 
     public function product()

@@ -1378,8 +1378,14 @@ class EmployeeReportsController extends Controller
     public function transferreport(Request $request)
     {
         $selectedBranch = $request->input('branches');
-        $datefrom = $request->input('datefrom');
-        $dateto = $request->input('dateto');
+        $today = Carbon::today();
+        $fiscalStartYear = $today->month >= 7 ? $today->year : $today->year - 1;
+        $datefrom = $request->filled('datefrom')
+            ? $request->input('datefrom')
+            : Carbon::create($fiscalStartYear, 7, 1)->toDateString();
+        $dateto = $request->filled('dateto')
+            ? $request->input('dateto')
+            : Carbon::create($fiscalStartYear + 1, 6, 30)->toDateString();
         $type = $request->input('type');
         $status = $request->input('status');
 
@@ -1394,10 +1400,10 @@ class EmployeeReportsController extends Controller
         } else {
             $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
             $branches->prepend('Select Branch', '');
+            $selectedBranch = $userOwnedId;
         }
 
-        // Start base query
-        $transfersQuery = EmployeeTransfer::query();
+        $transfersQuery = EmployeeTransfer::where('created_by', $userCreatorId);
 
         // Apply branch filters only if selected
         if (!empty($selectedBranch)) {
@@ -1414,20 +1420,18 @@ class EmployeeReportsController extends Controller
             }
         }
 
-        // Apply date filter if both dates provided
-        if (!empty($datefrom) && !empty($dateto)) {
-            $startDate = \Carbon\Carbon::parse($datefrom)->startOfMonth()->format('Y-m-d');
-            $endDate = \Carbon\Carbon::parse($dateto)->endOfMonth()->format('Y-m-d');
-            $transfersQuery->whereBetween('transfer_date', [$startDate, $endDate]);
-        }
+        $startDate = Carbon::parse($datefrom)->startOfMonth()->toDateString();
+        $endDate = Carbon::parse($dateto)->endOfMonth()->toDateString();
+        $transfersQuery->whereBetween('transfer_date', [$startDate, $endDate]);
 
         // Apply status filter
-        if (!empty($status)) {
+        if ($status !== null && $status !== '') {
             $transfersQuery->where('status', $status);
         }
 
-        // Final get
-        $transfers = $transfersQuery->orderBy('id')->get();
+        $transfers = $transfersQuery
+            ->orderByDesc('id')
+            ->get();
 
         if ($transfers->isEmpty()) {
             return redirect()->back()->with('error', 'No transfers found for the selected criteria');
@@ -1463,8 +1467,6 @@ class EmployeeReportsController extends Controller
         // $pdfContent = $pdf->output();
         // $base64Pdf = base64_encode($pdfContent);
 
-        $startDate = \Carbon\Carbon::parse($datefrom)->startOfMonth()->format('Y-m-d');
-        $endDate = \Carbon\Carbon::parse($dateto)->endOfMonth()->format('Y-m-d');
         if ($request->has('export') && $request->export == 'excel') {
             $request->merge(['date_from' => $startDate]);
             $request->merge(['date_to' => $endDate]);

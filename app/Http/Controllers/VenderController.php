@@ -37,9 +37,8 @@ class VenderController extends Controller
     {
         if (\Auth::user()->can('manage vender')) {
     
-            // dropdown list (id => name)
-            $vendorList = Vender::where('created_by', \Auth::user()->creatorId())
-                ->pluck('name', 'id');
+            // dropdown list (id => company name - vendor name)
+            $vendorList = Vender::optionsForCreator(\Auth::user()->creatorId(), null);
     
             // base query
             $query = Vender::with(['ChartAccount' => function ($accountQuery) {
@@ -53,7 +52,11 @@ class VenderController extends Controller
     
             // optional: text search by name
             if (!empty($_GET['name'])) {
-                $query->where('name', 'like', '%' . $_GET['name'] . '%');
+                $search = $_GET['name'];
+                $query->where(function ($vendorQuery) use ($search) {
+                    $vendorQuery->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('company_name', 'like', '%' . $search . '%');
+                });
             }
     
             // paginate results
@@ -220,7 +223,9 @@ class VenderController extends Controller
                     'message' => __('Vendor successfully created.'),
                     'vendor' => [
                         'id' => $vender->id,
-                        'name' => $vender->name,
+                        'name' => $vender->display_name,
+                        'company_name' => $vender->company_name,
+                        'vendor_name' => $vender->name,
                     ],
                 ]);
             }
@@ -719,7 +724,19 @@ class VenderController extends Controller
     }
     public function getVendors(Request $request)
     {
-        $vendors = Vender::where('created_by', \Auth::user()->creatorId())->get();
+        $vendors = Vender::where('created_by', \Auth::user()->creatorId())
+            ->orderBy('company_name')
+            ->orderBy('name')
+            ->get(['id', 'company_name', 'name'])
+            ->map(function ($vendor) {
+                return [
+                    'id' => $vendor->id,
+                    'name' => $vendor->display_name,
+                    'company_name' => $vendor->company_name,
+                    'vendor_name' => $vendor->name,
+                ];
+            })
+            ->values();
 
         return response()->json($vendors);
     }

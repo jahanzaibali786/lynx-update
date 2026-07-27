@@ -18,7 +18,7 @@
                         <td class="Id">
                             {{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}
                         </td>
-                        <td> {{ !empty($purchase->vender) ? $purchase->vender->name : '' }} </td>
+                        <td> {{ !empty($purchase->vender) ? $purchase->vender->display_name : '' }} </td>
                         <td>{{ !empty($purchase->category) ? $purchase->category->name : '' }}</td>
                         <td>{{ Auth::user()->dateFormat($purchase->purchase_date) }}</td>
                         <td>{{ \Auth::user()->priceFormat($purchase->getTotal()) }}</td>
@@ -71,7 +71,7 @@
                     <tr style="font-size: 0.7rem;">
                         <td class="Id" style="width: 20%;">
                             {{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}</td> 
-                        <td style="width: 15%;"> {{ !empty($purchase->vender) ? $purchase->vender->name : '' }} </td>
+                        <td style="width: 15%;"> {{ !empty($purchase->vender) ? $purchase->vender->display_name : '' }} </td>
                         <td style="width: 20%;">{{ !empty($purchase->category) ? $purchase->category->name : '' }}</td>
                         <td style="width: 15%;">{{ Auth::user()->dateFormat($purchase->purchase_date) }}</td>
                         <td style="width: 15%;">{{ \Auth::user()->priceFormat($purchase->getTotal()) }}</td>

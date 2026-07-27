@@ -446,7 +446,7 @@ $(document).ready(function() {
                         <div class="col-md-6">
                             <div class="form-group">
                                 {{ Form::label('vender_id', __('Vendor'),['class'=>'form-label']) }}
-                                {{ Form::text('', $purchase->vender->name ?? '', ['class' => 'form-control', 'disabled' => true]) }}
+                                {{ Form::text('', $purchase->vender->display_name ?? '', ['class' => 'form-control', 'disabled' => true]) }}
                                 {{ Form::hidden('vender_id', $purchase->vender_id) }}
                             </div>
                             <div id="vender_detail" class="d-block text-start">

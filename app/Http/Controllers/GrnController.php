@@ -44,10 +44,7 @@ class GrnController extends Controller
         }
 
         $warehouses = $this->warehouseOptions();
-        $vendors = Vender::where('created_by', $user->creatorId())
-            ->orderBy('name')
-            ->pluck('name', 'id')
-            ->prepend('Select Vendor', '');
+        $vendors = Vender::optionsForCreator($user->creatorId());
 
         if ($request->filled('warehouse_id')) {
             $query->where('warehouse_id', $request->warehouse_id);
@@ -83,10 +80,7 @@ class GrnController extends Controller
         }
 
         $warehouses = $this->warehouseOptions();
-        $vendors = Vender::where('created_by', $user->creatorId())
-            ->orderBy('name')
-            ->pluck('name', 'id')
-            ->prepend('Select Vendor', '');
+        $vendors = Vender::optionsForCreator($user->creatorId());
 
         if ($request->filled('warehouse_id')) {
             $query->where('warehouse_id', $request->warehouse_id);
@@ -462,10 +456,7 @@ class GrnController extends Controller
     {
         $user = \Auth::user();
 
-        $vendors = Vender::where('created_by', $user->creatorId())
-            ->orderBy('name')
-            ->pluck('name', 'id')
-            ->prepend('Select Vendor', '');
+        $vendors = Vender::optionsForCreator($user->creatorId());
 
         $warehouseRecords = $this->warehouseRecords();
         $warehouses = $warehouseRecords->pluck('name', 'id');
@@ -564,7 +555,7 @@ class GrnController extends Controller
                 'condition' => $item['condition'],
                 'ordered_quantity' => (float) ($item['ordered_quantity'] ?? 0),
                 'quantity' => $quantity,
-                'price' => $item['price'] ?? 0,
+                'price' => !isset($item['price']) || $item['price'] === '' ? 0 : $item['price'],
                 'description' => $item['description'] ?? null,
             ]);
 

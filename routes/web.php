@@ -726,8 +726,8 @@ Route::group(['middleware' => ['verified']], function () {
 			Route::resource('grn', GrnController::class);
 
 
-            Route::get('invoice/draft-branch-purchases', [InvoiceController::class, 'draftBranchPurchases'])->name('invoice.draft_branch_purchases');
-            Route::get('invoice/branch-purchase-items/{id}', [InvoiceController::class, 'branchPurchaseItems'])->name('invoice.branch_purchase_items');
+            Route::get('invoice/draft-demand-orders', [InvoiceController::class, 'draftDemandOrders'])->name('invoice.draft_demand_orders');
+            Route::get('invoice/demand-order-items/{id}', [InvoiceController::class, 'demandOrderItems'])->name('invoice.demand_order_items');
             Route::resource('invoice', InvoiceController::class);
             Route::get('invoice/create/{cid}', [InvoiceController::class, 'create'])->name('invoice.create');
             Route::post('company_contract', [InvoiceController::class, 'companycontract'])->name('company_contract');
@@ -1954,15 +1954,15 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('purchase/{id}/convert-to-grn', [PurchaseController::class, 'convertToGrn'])->name('purchase.convert_to_grn');
             Route::post('purchase/{id}/convert-to-grn', [PurchaseController::class, 'storeConvertedGrn'])->name('purchase.convert_to_grn.store');
             Route::get('accounts/grn', [GrnController::class, 'accountsIndex'])->name('grn.accounts_index');
-            Route::resource('branchpurchase', \App\Http\Controllers\BranchPurchaseController::class);
-            Route::get('branchpurchase/create/{cid}', [\App\Http\Controllers\BranchPurchaseController::class, 'create'])->name('branchpurchase.create');
-            Route::post('branchpurchase/vender', [\App\Http\Controllers\BranchPurchaseController::class, 'vender'])->name('branchpurchase.vender');
-            Route::post('branchpurchase/product', [\App\Http\Controllers\BranchPurchaseController::class, 'product'])->name('branchpurchase.product');
-            Route::get('branchpurchase/{id}/fw_to_ho', [\App\Http\Controllers\BranchPurchaseController::class, 'fwToHo'])->name('branchpurchase.fw_to_ho');
-            Route::post('branchpurchase/{id}/finalize', [\App\Http\Controllers\BranchPurchaseController::class, 'finalize'])->name('branchpurchase.finalize');
-            Route::get('branchpurchase/{id}/reject', [\App\Http\Controllers\BranchPurchaseController::class, 'reject'])->name('branchpurchase.reject');
-            Route::get('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'convertToInvoice'])->name('branchpurchase.convert_to_invoice');
-            Route::post('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'storeConvertedInvoice'])->name('branchpurchase.convert_to_invoice.store');
+            Route::resource('demand-order', \App\Http\Controllers\DemandOrderController::class)->except(['create']);
+            Route::get('demand-order/create/{cid}', [\App\Http\Controllers\DemandOrderController::class, 'create'])->name('demand-order.create');
+            Route::post('demand-order/vender', [\App\Http\Controllers\DemandOrderController::class, 'vender'])->name('demand-order.vender');
+            Route::post('demand-order/product', [\App\Http\Controllers\DemandOrderController::class, 'product'])->name('demand-order.product');
+            Route::get('demand-order/{id}/fw_to_ho', [\App\Http\Controllers\DemandOrderController::class, 'fwToHo'])->name('demand-order.fw_to_ho');
+            Route::post('demand-order/{id}/finalize', [\App\Http\Controllers\DemandOrderController::class, 'finalize'])->name('demand-order.finalize');
+            Route::get('demand-order/{id}/reject', [\App\Http\Controllers\DemandOrderController::class, 'reject'])->name('demand-order.reject');
+            Route::get('demand-order/{id}/convert-to-invoice', [\App\Http\Controllers\DemandOrderController::class, 'convertToInvoice'])->name('demand-order.convert_to_invoice');
+            Route::post('demand-order/{id}/convert-to-invoice', [\App\Http\Controllers\DemandOrderController::class, 'storeConvertedInvoice'])->name('demand-order.convert_to_invoice.store');
 
         }
 
@@ -2496,7 +2496,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('employee-leave-report', [EmployeeReportsController::class, 'empleaveReport'])->name('empleaveReport');
 			Route::get('employee-profile-report', [EmployeeReportsController::class, 'employeeProfileReport'])->name('employee_profile_report');
             //employee Transfer
-            Route::get('employee-transfer-approval/{id}', [EmployeeTransferController::class, 'approve'])->name('employee-transfer.approve');
+            Route::match(['get', 'post'], 'employee-transfer-approval/{id}', [EmployeeTransferController::class, 'approve'])->name('employee-transfer.approve');
             Route::resource('employee-transfer', EmployeeTransferController::class);
             Route::get('employee-transfer-print/{id}', [EmployeeTransferController::class, 'print'])->name('employee-transfer.print');
             //employee Advance

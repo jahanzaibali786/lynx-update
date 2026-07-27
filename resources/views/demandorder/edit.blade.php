@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ __('Branch Purchase Edit') }}
+    {{ __('Edit Demand Order') }}
 @endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a></li>
-    <li class="breadcrumb-item">{{ __('Branch Purchase Edit') }}</li>
+    <li class="breadcrumb-item"><a href="{{ route('demand-order.index') }}">{{ __('Demand Order') }}</a></li>
+    <li class="breadcrumb-item">{{ __('Edit Demand Order') }}</li>
 @endsection
 @section('content')
     <style>
@@ -33,7 +33,7 @@ var MAX_OPEN_ROWS = 10;
 var csrfToken = '{{ csrf_token() }}';
 var productUrl = '{{ route("purchase.product") }}';
 var currencySymbol = '{{ \Auth::user()->currencySymbol() }}';
-var existingItems = {!! json_encode($branchPurchase->items) !!};
+var existingItems = {!! json_encode($demandOrder->items) !!};
 
 var PRODUCT_OPTS = '<option value="">— Select Item —</option>';
 @if(isset($product_services) && count($product_services) > 0)
@@ -321,7 +321,7 @@ $(document).on('keydown', '.edit-quantity', function(e) {
     else if (e.key === 'Escape') { e.preventDefault(); $('.cancel-edit-btn[data-id="' + id + '"]').trigger('click'); }
 });
 
-$(document).on('submit', '#branchpurchase-form', function(e) {
+$(document).on('submit', '#demand-order-form', function(e) {
     if (purchaseItems.length === 0) { e.preventDefault(); show_toastr('error', 'Please add at least one item.', 'error'); return false; }
 });
 
@@ -352,13 +352,13 @@ $(document).on('click', '#remove', function() {
 
 $(document).ready(function() {
     if (typeof ajaxModalForm !== 'undefined') {
-        ajaxModalForm({ formSelector: '.branchpurchase-ajax-form', submitText: '{{ __("Updating...") }}', onSuccess: function (r) { $.ajax({ url: window.location.href, cache: false, dataType: 'html', success: function(html) { var el = new DOMParser().parseFromString(html, 'text/html').getElementById('content-area'); if (el) { document.getElementById('content-area').innerHTML = el.innerHTML; try { common_bind(); commonLoader(); } catch(e){} } else { location.reload(); } }, error: function() { location.reload(); } }); } });
+        ajaxModalForm({ formSelector: '.demand-order-ajax-form', submitText: '{{ __("Updating...") }}', onSuccess: function (r) { $.ajax({ url: window.location.href, cache: false, dataType: 'html', success: function(html) { var el = new DOMParser().parseFromString(html, 'text/html').getElementById('content-area'); if (el) { document.getElementById('content-area').innerHTML = el.innerHTML; try { common_bind(); commonLoader(); } catch(e){} } else { location.reload(); } }, error: function() { location.reload(); } }); } });
     }
 });
 </script>
 
     <div class="row">
-        {{ Form::model($branchPurchase, ['route' => ['branchpurchase.update', $branchPurchase->id], 'method' => 'PUT', 'class' => 'w-100 branchpurchase-ajax-form', 'id' => 'branchpurchase-form', 'novalidate' => true]) }}
+        {{ Form::model($demandOrder, ['route' => ['demand-order.update', $demandOrder->id], 'method' => 'PUT', 'class' => 'w-100 demand-order-ajax-form', 'id' => 'demand-order-form', 'novalidate' => true]) }}
         <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
         <div id="hidden-inputs"></div>
         <div class="col-12">
@@ -368,7 +368,7 @@ $(document).ready(function() {
                         <div class="col-md-6">
                             <div class="form-group" id="branch-box">
                                 {{ Form::label('branch_id', __('Branch'), ['class' => 'form-label']) }}
-                                {{ Form::select('branch_id', $branches, null, ['class' => 'form-control select', 'id' => 'branch_id', 'data-url' => route('branchpurchase.vender'), 'required' => 'required']) }}
+                                {{ Form::select('branch_id', $branches, null, ['class' => 'form-control select', 'id' => 'branch_id', 'data-url' => route('demand-order.vender'), 'required' => 'required']) }}
                             </div>
                             <div id="branch_detail" class="d-none"></div>
                         </div>
@@ -382,7 +382,7 @@ $(document).ready(function() {
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        {{ Form::label('purchase_number', __('Purchase Number'), ['class' => 'form-label']) }}
+                                        {{ Form::label('purchase_number', __('Demand Order Number'), ['class' => 'form-label']) }}
                                         <input type="text" class="form-control" value="{{ $purchase_number }}" readonly>
                                     </div>
                                 </div>
@@ -390,7 +390,7 @@ $(document).ready(function() {
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        {{ Form::label('purchase_date', __('Purchase Date'), ['class' => 'form-label']) }}
+                                        {{ Form::label('purchase_date', __('Demand Order Date'), ['class' => 'form-label']) }}
                                         {{ Form::date('purchase_date', null, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
                                 </div>
@@ -451,7 +451,7 @@ $(document).ready(function() {
         </div>
 
         <div class="modal-footer">
-            <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('branchpurchase.index') }}';" class="btn btn-outline-light">
+            <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('demand-order.index') }}';" class="btn btn-outline-light">
             <input type="submit" value="{{ __('Update') }}" class="btn btn-outline-primary">
         </div>
         {{ Form::close() }}

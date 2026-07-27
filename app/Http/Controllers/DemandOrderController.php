@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BranchPurchase;
-use App\Models\BranchPurchaseItem;
+use App\Models\DemandOrder;
+use App\Models\DemandOrderItem;
 use App\Models\CustomField;
 use App\Models\Invoice;
 use App\Models\InvoiceProduct;
@@ -17,13 +17,18 @@ use App\Models\warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
-class BranchPurchaseController extends Controller
+class DemandOrderController extends Controller
 {
     public function index(Request $request)
     {
         $user = \Auth::user();
         $creatorId = $user->creatorId();
+
+        if (!$user->can('manage demand order')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
 
         if ($user->type == 'company') {
             $branchList = User::where('created_by', $creatorId)
@@ -38,7 +43,7 @@ class BranchPurchaseController extends Controller
                 ->pluck('name', 'id');
         }
 
-        $query = BranchPurchase::where('created_by', $creatorId);
+        $query = DemandOrder::where('created_by', $creatorId);
 
         if ($user->type != 'company') {
             $query->where('branch_id', $user->id);
@@ -46,17 +51,17 @@ class BranchPurchaseController extends Controller
             $query->where('branch_id', $request->branch);
         }
 
-        $branchPurchases = $query->paginate(25);
-        $status = BranchPurchase::$statues;
+        $demandOrders = $query->paginate(25);
+        $status = DemandOrder::$statues;
 
-        return view('branchpurchase.index', compact('branchPurchases', 'status', 'branchList'));
+        return view('demandorder.index', compact('demandOrders', 'status', 'branchList'));
     }
 
     public function create($branchId = 0)
     {
         $user = \Auth::user();
 
-        if ($user->type == 'company' && !$user->can('create purchase')) {
+        if (!$user->can('create demand order')) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
@@ -66,7 +71,7 @@ class BranchPurchaseController extends Controller
 
         $customFields = CustomField::where('created_by', '=', $user->creatorId())->where('module', '=', 'purchase')->get();
 
-        $purchase_number = $user->purchaseNumberFormat($this->branchPurchaseNumber());
+        $purchase_number = $user->purchaseNumberFormat($this->demandOrderNumber());
 
         if ($user->type == 'company') {
             $branches = User::where('created_by', $user->creatorId())
@@ -88,57 +93,50 @@ class BranchPurchaseController extends Controller
         $product_services->prepend('Select Item', '');
 
         if (request()->ajax()) {
-            return view('branchpurchase.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse'))->renderSections()['content'] ?? '';
+            return view('demandorder.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse'))->renderSections()['content'] ?? '';
         }
 
-        return view('branchpurchase.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse'));
+        return view('demandorder.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse'));
     }
 
     public function store(Request $request)
     {
         $user = \Auth::user();
 
-        if ($user->type == 'company' && !$user->can('create purchase')) {
+        if (!$user->can('create demand order')) {
             if ($request->ajax()) {
                 return response()->json(['success' => false, 'message' => __('Permission denied.')]);
             }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        DB::beginTransaction();
-        try {
-            $validator = \Validator::make(
-                $request->all(),
-                [
-                    'branch_id' => 'required',
-                    'warehouse_id' => 'required',
-                    'purchase_date' => 'required',
-                    'items' => 'required',
-                ]
-            );
-            if ($validator->fails()) {
-                $messages = $validator->getMessageBag();
-                if ($request->ajax()) {
-                    return response()->json(['success' => false, 'message' => $messages->first()]);
-                }
-                return redirect()->back()->with('error', $messages->first());
+        $validator = \Validator::make($request->all(), $this->demandOrderRules(true));
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $messages->first()]);
             }
 
-            $branchPurchase = new BranchPurchase();
-            $branchPurchase->branch_purchase_no = $this->branchPurchaseNumber();
-            $branchPurchase->branch_id = $request->branch_id;
-            $branchPurchase->warehouse_id = $request->warehouse_id;
-            $branchPurchase->purchase_date = $request->purchase_date;
-            $branchPurchase->category_id = $request->category_id;
-            $branchPurchase->status = 5;
-            $branchPurchase->created_by = $user->creatorId();
-            $branchPurchase->owned_by = $user->ownedId();
-            $branchPurchase->save();
+            return redirect()->back()->with('error', $messages->first());
+        }
+
+        DB::beginTransaction();
+        try {
+            $demandOrder = new DemandOrder();
+            $demandOrder->branch_purchase_no = $this->demandOrderNumber();
+            $demandOrder->branch_id = $user->type == 'branch' ? $user->id : $request->branch_id;
+            $demandOrder->warehouse_id = $request->warehouse_id;
+            $demandOrder->purchase_date = $request->purchase_date;
+            $demandOrder->category_id = $request->category_id;
+            $demandOrder->status = 5;
+            $demandOrder->created_by = $user->creatorId();
+            $demandOrder->owned_by = $user->ownedId();
+            $demandOrder->save();
 
             $products = $request->items;
             for ($i = 0; $i < count($products); $i++) {
-                $item = new BranchPurchaseItem();
-                $item->branch_purchase_id = $branchPurchase->id;
+                $item = new DemandOrderItem();
+                $item->branch_purchase_id = $demandOrder->id;
                 $item->product_id = $products[$i]['item'];
                 $item->quantity = $products[$i]['quantity'] ?? 0;
                 $item->tax = $products[$i]['tax'] ?? 0;
@@ -150,9 +148,9 @@ class BranchPurchaseController extends Controller
 
             DB::commit();
             if ($request->ajax()) {
-                return response()->json(['success' => true, 'message' => __('Branch Purchase successfully created and sent to Head Office.')]);
+                return response()->json(['success' => true, 'message' => __('Demand Order successfully created and sent to Head Office.')]);
             }
-            return redirect()->route('branchpurchase.show', Crypt::encrypt($branchPurchase->id))->with('success', __('Branch Purchase successfully created and sent to Head Office.'));
+            return redirect()->route('demand-order.show', Crypt::encrypt($demandOrder->id))->with('success', __('Demand Order successfully created and sent to Head Office.'));
         } catch (\Exception $e) {
             DB::rollback();
             if ($request->ajax()) {
@@ -167,28 +165,32 @@ class BranchPurchaseController extends Controller
         $user = \Auth::user();
         $creatorId = $user->creatorId();
 
-        try {
-            $id = Crypt::decrypt($ids);
-        } catch (\Throwable $th) {
-            return redirect()->back()->with('error', __('Branch Purchase Not Found.'));
-        }
-
-        $branchPurchase = BranchPurchase::find($id);
-
-        if (!$branchPurchase || $branchPurchase->created_by != $creatorId) {
+        if (!$user->can('show demand order')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($user->type == 'company' && $user->can('show purchase')) {
-            $branch = $branchPurchase->branchUser;
-            $iteams = $branchPurchase->items;
-            return view('branchpurchase.view', compact('branchPurchase', 'branch', 'iteams'));
+        try {
+            $id = Crypt::decrypt($ids);
+        } catch (\Throwable $th) {
+            return redirect()->back()->with('error', __('Demand Order Not Found.'));
         }
 
-        if ($user->type == 'branch' && $branchPurchase->branch_id == $user->id) {
-            $branch = $branchPurchase->branchUser;
-            $iteams = $branchPurchase->items;
-            return view('branchpurchase.view', compact('branchPurchase', 'branch', 'iteams'));
+        $demandOrder = DemandOrder::find($id);
+
+        if (!$demandOrder || $demandOrder->created_by != $creatorId) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if ($user->type == 'company') {
+            $branch = $demandOrder->branchUser;
+            $iteams = $demandOrder->items;
+            return view('demandorder.view', compact('demandOrder', 'branch', 'iteams'));
+        }
+
+        if ($user->type == 'branch' && $demandOrder->branch_id == $user->id) {
+            $branch = $demandOrder->branchUser;
+            $iteams = $demandOrder->items;
+            return view('demandorder.view', compact('demandOrder', 'branch', 'iteams'));
         }
 
         return redirect()->back()->with('error', __('Permission denied.'));
@@ -197,33 +199,34 @@ class BranchPurchaseController extends Controller
     public function edit($idsd)
     {
         $user = \Auth::user();
+
+        if (!$user->can('edit demand order')) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
         $idwww = Crypt::decrypt($idsd);
-        $branchPurchase = BranchPurchase::find($idwww);
+        $demandOrder = DemandOrder::find($idwww);
 
-        if (!$branchPurchase || $branchPurchase->created_by != $user->creatorId()) {
+        if (!$demandOrder || $demandOrder->created_by != $user->creatorId()) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        if ($user->type == 'company' && !$user->can('edit purchase')) {
-            return response()->json(['error' => __('Permission denied.')], 401);
-        }
-
-        if ($user->type == 'branch' && $branchPurchase->branch_id != $user->id) {
+        if ($user->type == 'branch' && $demandOrder->branch_id != $user->id) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
         $canEditCurrentStatus = (
-            $user->type == 'company' && in_array($branchPurchase->status, [0, 5])
+            $user->type == 'company' && in_array($demandOrder->status, [0, 5])
         ) || (
-            $user->type == 'branch' && $branchPurchase->branch_id == $user->id && $branchPurchase->status == 0
+            $user->type == 'branch' && $demandOrder->branch_id == $user->id && $demandOrder->status == 0
         );
 
         if (!$canEditCurrentStatus) {
-            return response()->json(['error' => __('Branch Purchase cannot be edited in current status.')], 401);
+            return response()->json(['error' => __('Demand Order cannot be edited in current status.')], 401);
         }
 
         $warehouse = warehouse::where('owned_by', $user->creatorId())->get()->pluck('name', 'id');
-        $purchase_number = $user->purchaseNumberFormat($branchPurchase->branch_purchase_no);
+        $purchase_number = $user->purchaseNumberFormat($demandOrder->branch_purchase_no);
 
         if ($user->type == 'company') {
             $branches = User::where('created_by', $user->creatorId())
@@ -241,32 +244,34 @@ class BranchPurchaseController extends Controller
             ->where('created_by', $user->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
 
         if (request()->ajax()) {
-            return view('branchpurchase.edit', compact('branches', 'product_services', 'branchPurchase', 'warehouse', 'purchase_number'))->renderSections()['content'] ?? '';
+            return view('demandorder.edit', compact('branches', 'product_services', 'demandOrder', 'warehouse', 'purchase_number'))->renderSections()['content'] ?? '';
         }
 
-        return view('branchpurchase.edit', compact('branches', 'product_services', 'branchPurchase', 'warehouse', 'purchase_number'));
+        return view('demandorder.edit', compact('branches', 'product_services', 'demandOrder', 'warehouse', 'purchase_number'));
     }
 
     public function update(Request $request, $id)
     {
         $user = \Auth::user();
-        $branchPurchase = BranchPurchase::find($id);
 
-        if (!$branchPurchase || $branchPurchase->created_by != $user->creatorId()) {
+        if (!$user->can('edit demand order')) {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
+
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $demandOrder = DemandOrder::find($id);
+
+        if (!$demandOrder || $demandOrder->created_by != $user->creatorId()) {
             if ($request->ajax()) {
                 return response()->json(['success' => false, 'message' => __('Permission denied.')]);
             }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($user->type == 'company' && !$user->can('edit purchase')) {
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
-            }
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if ($user->type == 'branch' && $branchPurchase->branch_id != $user->id) {
+        if ($user->type == 'branch' && $demandOrder->branch_id != $user->id) {
             if ($request->ajax()) {
                 return response()->json(['success' => false, 'message' => __('Permission denied.')]);
             }
@@ -274,48 +279,44 @@ class BranchPurchaseController extends Controller
         }
 
         $canEditCurrentStatus = (
-            $user->type == 'company' && in_array($branchPurchase->status, [0, 5])
+            $user->type == 'company' && in_array($demandOrder->status, [0, 5])
         ) || (
-            $user->type == 'branch' && $branchPurchase->branch_id == $user->id && $branchPurchase->status == 0
+            $user->type == 'branch' && $demandOrder->branch_id == $user->id && $demandOrder->status == 0
         );
 
         if (!$canEditCurrentStatus) {
             if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => __('Branch Purchase cannot be edited in current status.')]);
+                return response()->json(['success' => false, 'message' => __('Demand Order cannot be edited in current status.')]);
             }
-            return redirect()->route('branchpurchase.index')->with('error', __('Branch Purchase cannot be edited in current status.'));
+            return redirect()->route('demand-order.index')->with('error', __('Demand Order cannot be edited in current status.'));
+        }
+
+        $validator = \Validator::make($request->all(), $this->demandOrderRules(false));
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $messages->first()]);
+            }
+
+            return redirect()->route('demand-order.index')->with('error', $messages->first());
         }
 
         DB::beginTransaction();
         try {
-            $validator = \Validator::make(
-                $request->all(),
-                [
-                    'branch_id' => 'required',
-                    'purchase_date' => 'required',
-                    'items' => 'required',
-                ]
-            );
-            if ($validator->fails()) {
-                $messages = $validator->getMessageBag();
-                if ($request->ajax()) {
-                    return response()->json(['success' => false, 'message' => $messages->first()]);
-                }
-                return redirect()->route('branchpurchase.index')->with('error', $messages->first());
-            }
+            $demandOrder->branch_id = $user->type == 'branch' ? $user->id : $request->branch_id;
+            $demandOrder->purchase_date = $request->purchase_date;
+            $demandOrder->category_id = $request->category_id;
+            $demandOrder->save();
 
-            $branchPurchase->branch_id = $request->branch_id;
-            $branchPurchase->purchase_date = $request->purchase_date;
-            $branchPurchase->category_id = $request->category_id;
-            $branchPurchase->save();
-
-            $oldItems = BranchPurchaseItem::where('branch_purchase_id', $branchPurchase->id)->get();
+            $oldItems = DemandOrderItem::where('branch_purchase_id', $demandOrder->id)->get();
             $newItemIds = [];
 
             foreach ($request->items as $product) {
                 $itemId = $product['id'] ?? 0;
                 // Treat as new item if ID is 0, '0', or doesn't exist in DB
-                $item = ($itemId > 0) ? BranchPurchaseItem::find($itemId) : null;
+                $item = ($itemId > 0)
+                    ? DemandOrderItem::where('branch_purchase_id', $demandOrder->id)->find($itemId)
+                    : null;
                 if ($item) {
                     if (isset($product['item'])) $item->product_id = $product['item'];
                     $item->quantity = $product['quantity'];
@@ -326,8 +327,8 @@ class BranchPurchaseController extends Controller
                     $item->save();
                     $newItemIds[] = $item->id;
                 } else {
-                    $item = new BranchPurchaseItem();
-                    $item->branch_purchase_id = $branchPurchase->id;
+                    $item = new DemandOrderItem();
+                    $item->branch_purchase_id = $demandOrder->id;
                     $item->product_id = $product['item'];
                     $item->quantity = $product['quantity'];
                     $item->tax = $product['tax'] ?? 0;
@@ -347,9 +348,9 @@ class BranchPurchaseController extends Controller
 
             DB::commit();
             if ($request->ajax()) {
-                return response()->json(['success' => true, 'message' => __('Branch Purchase successfully updated.')]);
+                return response()->json(['success' => true, 'message' => __('Demand Order successfully updated.')]);
             }
-            return redirect()->route('branchpurchase.index')->with('success', __('Branch Purchase successfully updated.'));
+            return redirect()->route('demand-order.index')->with('success', __('Demand Order successfully updated.'));
         } catch (\Exception $e) {
             DB::rollback();
             if ($request->ajax()) {
@@ -359,30 +360,34 @@ class BranchPurchaseController extends Controller
         }
     }
 
-    public function destroy(BranchPurchase $branchPurchase)
+    public function destroy(DemandOrder $demandOrder)
     {
         $user = \Auth::user();
 
-        if ($branchPurchase->created_by != $user->creatorId()) {
+        if (!$user->can('delete demand order')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($user->type == 'company' && !$user->can('delete purchase')) {
+        if ($demandOrder->created_by != $user->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($user->type == 'branch' && $branchPurchase->branch_id != $user->id) {
+        if ($user->type == 'branch' && $demandOrder->branch_id != $user->id) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        BranchPurchaseItem::where('branch_purchase_id', $branchPurchase->id)->delete();
-        $branchPurchase->delete();
-        return redirect()->route('branchpurchase.index')->with('success', __('Branch Purchase successfully deleted.'));
+        if ($demandOrder->status == 6 || $demandOrder->invoice_converted) {
+            return redirect()->back()->with('error', __('Approved or converted Demand Orders cannot be deleted.'));
+        }
+
+        DemandOrderItem::where('branch_purchase_id', $demandOrder->id)->delete();
+        $demandOrder->delete();
+        return redirect()->route('demand-order.index')->with('success', __('Demand Order successfully deleted.'));
     }
 
-    function branchPurchaseNumber()
+    function demandOrderNumber()
     {
-        $latest = BranchPurchase::where('created_by', '=', \Auth::user()->creatorId())->latest()->first();
+        $latest = DemandOrder::where('created_by', '=', \Auth::user()->creatorId())->latest()->first();
         if (!$latest) {
             return 1;
         }
@@ -391,57 +396,69 @@ class BranchPurchaseController extends Controller
 
     public function fwToHo($id)
     {
+        if (!\Auth::user()->can('forward demand order')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         if (\Auth::user()->type == 'company' || \Auth::user()->type == 'admin') {
             return redirect()->back()->with('error', __('Only branch users can forward to Head Office.'));
         }
 
-        $branchPurchase = BranchPurchase::find($id);
-        if (!$branchPurchase || $branchPurchase->created_by != \Auth::user()->creatorId()) {
+        $demandOrder = DemandOrder::find($id);
+        if (!$demandOrder || $demandOrder->created_by != \Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($branchPurchase->status != 0) {
-            return redirect()->back()->with('error', __('Branch Purchase already forwarded.'));
+        if ($demandOrder->branch_id != \Auth::id()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        $branchPurchase->status = 5;
-        $branchPurchase->save();
+        if ($demandOrder->status != 0) {
+            return redirect()->back()->with('error', __('Demand Order already forwarded.'));
+        }
 
-        return redirect()->back()->with('success', __('Branch Purchase successfully forwarded to Head Office.'));
+        $demandOrder->status = 5;
+        $demandOrder->save();
+
+        return redirect()->back()->with('success', __('Demand Order successfully forwarded to Head Office.'));
     }
 
     public function finalize(Request $request, $id)
     {
+        if (!\Auth::user()->can('approve demand order')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         if (\Auth::user()->type != 'company') {
             return redirect()->back()->with('error', __('Only company users can finalize.'));
         }
 
-        $branchPurchase = BranchPurchase::find($id);
-        if (!$branchPurchase || $branchPurchase->created_by != \Auth::user()->creatorId()) {
+        $demandOrder = DemandOrder::find($id);
+        if (!$demandOrder || $demandOrder->created_by != \Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($branchPurchase->status != 5) {
-            return redirect()->back()->with('error', __('Branch Purchase must be in Fw to Ho status.'));
+        if ($demandOrder->status != 5) {
+            return redirect()->back()->with('error', __('Demand Order must be in Fw to Ho status.'));
         }
 
         DB::beginTransaction();
         try {
             if ($request->has('shipped_quantities')) {
                 foreach ($request->shipped_quantities as $itemId => $shippedQty) {
-                    $item = BranchPurchaseItem::find($itemId);
-                    if ($item && $item->branch_purchase_id == $branchPurchase->id) {
+                    $item = DemandOrderItem::find($itemId);
+                    if ($item && $item->branch_purchase_id == $demandOrder->id) {
                         $item->shipped_quantity = $shippedQty ?? $item->quantity;
                         $item->save();
                     }
                 }
             }
 
-            $branchPurchase->status = 6;
-            $branchPurchase->save();
+            $demandOrder->status = 6;
+            $demandOrder->save();
 
             DB::commit();
-            return redirect()->back()->with('success', __('Branch Purchase finalized successfully.'));
+            return redirect()->back()->with('success', __('Demand Order approved successfully.'));
         } catch (\Exception $e) {
             DB::rollback();
             return redirect()->back()->with('error', $e->getMessage());
@@ -450,41 +467,49 @@ class BranchPurchaseController extends Controller
 
     public function reject($id)
     {
+        if (!\Auth::user()->can('reject demand order')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         if (\Auth::user()->type != 'company') {
             return redirect()->back()->with('error', __('Only company users can reject.'));
         }
 
-        $branchPurchase = BranchPurchase::find($id);
-        if (!$branchPurchase || $branchPurchase->created_by != \Auth::user()->creatorId()) {
+        $demandOrder = DemandOrder::find($id);
+        if (!$demandOrder || $demandOrder->created_by != \Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($branchPurchase->status != 5) {
-            return redirect()->back()->with('error', __('Branch Purchase must be in Fw to Ho status.'));
+        if ($demandOrder->status != 5) {
+            return redirect()->back()->with('error', __('Demand Order must be in Fw to Ho status.'));
         }
 
-        $branchPurchase->status = 0;
-        $branchPurchase->save();
+        $demandOrder->status = 0;
+        $demandOrder->save();
 
-        return redirect()->back()->with('success', __('Branch Purchase rejected and returned to Draft.'));
+        return redirect()->back()->with('success', __('Demand Order rejected and returned to Draft.'));
     }
 
     public function convertToInvoice($id)
     {
+        if (!\Auth::user()->can('convert demand order to invoice')) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
         if (\Auth::user()->type != 'company') {
             return response()->json(['error' => __('Only company users can convert to Invoice.')], 401);
         }
 
-        $branchPurchase = BranchPurchase::with(['items.product', 'branchUser'])->find($id);
-        if (!$branchPurchase || $branchPurchase->created_by != \Auth::user()->creatorId()) {
+        $demandOrder = DemandOrder::with(['items.product', 'branchUser'])->find($id);
+        if (!$demandOrder || $demandOrder->created_by != \Auth::user()->creatorId()) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        if ($branchPurchase->status != 6) {
-            return response()->json(['error' => __('Branch Purchase must be finalized before conversion.')], 422);
+        if ($demandOrder->status != 6) {
+            return response()->json(['error' => __('Demand Order must be approved before conversion.')], 422);
         }
 
-        if ($branchPurchase->invoice_converted) {
+        if ($demandOrder->invoice_converted) {
             return response()->json(['error' => __('Already converted to Invoice.')], 422);
         }
 
@@ -503,11 +528,11 @@ class BranchPurchaseController extends Controller
             ->pluck('name', 'id');
         $product_services->prepend('Select Item', '');
 
-        $invoice_number = \Auth::user()->invoiceNumberFormat($this->branchPurchaseInvoiceNumber());
+        $invoice_number = \Auth::user()->invoiceNumberFormat($this->demandOrderInvoiceNumber());
         $issueDate = date('Y-m-d');
         $dueDate = date('Y-m-d');
-        $selectedStoreTo = $branchPurchase->warehouse_id;
-        $conversionItems = $branchPurchase->items->map(function ($item) {
+        $selectedStoreTo = $demandOrder->warehouse_id;
+        $conversionItems = $demandOrder->items->map(function ($item) {
             $product = $item->product;
             $quantity = (float) ($item->shipped_quantity ?: $item->quantity);
 
@@ -523,12 +548,12 @@ class BranchPurchaseController extends Controller
                 'unit' => $product && $product->unit() ? $product->unit()->name : '',
                 'amount' => ($quantity * (float) $item->price) - (float) ($item->discount ?? 0),
                 'description' => $item->description ?? '',
-                'source' => __('Branch Purchase'),
+                'source' => __('Demand Order'),
             ];
         })->values();
 
-        $view = view('branchpurchase.convert_to_invoice', compact(
-            'branchPurchase',
+        $view = view('demandorder.convert_to_invoice', compact(
+            'demandOrder',
             'mainStore',
             'storeTo',
             'product_services',
@@ -548,6 +573,10 @@ class BranchPurchaseController extends Controller
 
     public function storeConvertedInvoice(Request $request, $id)
     {
+        if (!\Auth::user()->can('convert demand order to invoice')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+        }
+
         if (\Auth::user()->type != 'company') {
             return response()->json(['success' => false, 'message' => __('Only company users can convert to Invoice.')]);
         }
@@ -556,16 +585,16 @@ class BranchPurchaseController extends Controller
             return response()->json(['success' => false, 'message' => __('Permission denied.')]);
         }
 
-        $branchPurchase = BranchPurchase::with('items')->find($id);
-        if (!$branchPurchase || $branchPurchase->created_by != \Auth::user()->creatorId()) {
+        $demandOrder = DemandOrder::with('items')->find($id);
+        if (!$demandOrder || $demandOrder->created_by != \Auth::user()->creatorId()) {
             return response()->json(['success' => false, 'message' => __('Permission denied.')]);
         }
 
-        if ($branchPurchase->status != 6) {
-            return response()->json(['success' => false, 'message' => __('Branch Purchase must be finalized before conversion.')]);
+        if ($demandOrder->status != 6) {
+            return response()->json(['success' => false, 'message' => __('Demand Order must be approved before conversion.')]);
         }
 
-        if ($branchPurchase->invoice_converted) {
+        if ($demandOrder->invoice_converted) {
             return response()->json(['success' => false, 'message' => __('Already converted to Invoice.')]);
         }
 
@@ -584,13 +613,13 @@ class BranchPurchaseController extends Controller
         DB::beginTransaction();
         try {
             $invoice = new Invoice();
-            $invoice->invoice_id = $this->branchPurchaseInvoiceNumber();
+            $invoice->invoice_id = $this->demandOrderInvoiceNumber();
             $invoice->customer_id = 0;
             $invoice->issue_date = $request->issue_date;
             $invoice->due_date = $request->due_date;
             $invoice->ref_number = $request->ref_number;
             $invoice->status = 0;
-            $invoice->category_id = $branchPurchase->category_id;
+            $invoice->category_id = $demandOrder->category_id;
             $invoice->from_store = $request->store_from;
             $invoice->to_store = $request->store_to;
             $invoice->owned_by = \Auth::user()->ownedId();
@@ -633,8 +662,8 @@ class BranchPurchaseController extends Controller
                 $newitems[$index]['prod_id'] = $invoiceProduct->id;
             }
 
-            $branchPurchase->invoice_converted = true;
-            $branchPurchase->save();
+            $demandOrder->invoice_converted = true;
+            $demandOrder->save();
 
             $data['id'] = $invoice->id;
             $data['no'] = $invoice->invoice_id;
@@ -651,7 +680,7 @@ class BranchPurchaseController extends Controller
             DB::commit();
             return response()->json([
                 'success' => true,
-                'message' => __('Branch Purchase successfully converted to Invoice.'),
+                'message' => __('Demand Order successfully converted to Invoice.'),
                 'redirect_url' => route('invoice.show', Crypt::encrypt($invoice->id)),
             ]);
         } catch (\Exception $e) {
@@ -660,7 +689,7 @@ class BranchPurchaseController extends Controller
         }
     }
 
-    private function branchPurchaseInvoiceNumber()
+    private function demandOrderInvoiceNumber()
     {
         $latest = Invoice::where('owned_by', '=', \Auth::user()->ownedId())->latest()->first();
 
@@ -673,13 +702,28 @@ class BranchPurchaseController extends Controller
 
     public function items(Request $request)
     {
-        $items = BranchPurchaseItem::where('branch_purchase_id', $request->branch_purchase_id)->get();
+        if (!\Auth::user()->can('show demand order')) {
+            abort(403, __('Permission denied.'));
+        }
+
+        $demandOrder = DemandOrder::where('created_by', \Auth::user()->creatorId())
+            ->when(\Auth::user()->type != 'company', function ($query) {
+                $query->where('branch_id', \Auth::id());
+            })
+            ->findOrFail($request->branch_purchase_id);
+        $items = $demandOrder->items;
+
         return response()->json($items);
     }
 
     public function product(Request $request)
     {
-        $product = ProductService::find($request->product_id);
+        if (!\Auth::user()->can('create demand order') && !\Auth::user()->can('edit demand order')) {
+            abort(403, __('Permission denied.'));
+        }
+
+        $product = ProductService::where('created_by', \Auth::user()->creatorId())
+            ->find($request->product_id);
         if ($product) {
             $taxes = [];
             if ($product->tax_id) {
@@ -703,7 +747,51 @@ class BranchPurchaseController extends Controller
 
     public function vender(Request $request)
     {
-        $branch = User::find($request->id);
-        return view('branchpurchase.branch_detail', compact('branch'));
+        if (!\Auth::user()->can('create demand order') && !\Auth::user()->can('edit demand order')) {
+            abort(403, __('Permission denied.'));
+        }
+
+        $branch = User::where('created_by', \Auth::user()->creatorId())
+            ->where('type', 'branch')
+            ->findOrFail($request->id);
+
+        return view('demandorder.branch_detail', compact('branch'));
+    }
+
+    private function demandOrderRules(bool $requireWarehouse): array
+    {
+        $creatorId = \Auth::user()->creatorId();
+        $rules = [
+            'branch_id' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->where(function ($query) use ($creatorId) {
+                    $query->where('created_by', $creatorId)->where('type', 'branch');
+                }),
+            ],
+            'purchase_date' => ['required', 'date'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item' => [
+                'required',
+                'integer',
+                Rule::exists('product_services', 'id')->where(function ($query) use ($creatorId) {
+                    $query->where('created_by', $creatorId)->where('type', '!=', 'service');
+                }),
+            ],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.price' => ['required', 'numeric', 'min:0'],
+        ];
+
+        if ($requireWarehouse) {
+            $rules['warehouse_id'] = [
+                'required',
+                'integer',
+                Rule::exists('warehouses', 'id')->where(function ($query) use ($creatorId) {
+                    $query->where('created_by', $creatorId)->orWhere('owned_by', $creatorId);
+                }),
+            ];
+        }
+
+        return $rules;
     }
 }

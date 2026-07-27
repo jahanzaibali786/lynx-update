@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ __('Convert Branch Purchase to Invoice') }}
+    {{ __('Convert Demand Order to Invoice') }}
 @endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('demand-order.index') }}">{{ __('Demand Order') }}</a></li>
     <li class="breadcrumb-item">{{ __('Convert to Invoice') }}</li>
 @endsection
 
@@ -85,7 +85,7 @@ $(function() {
 
     if (typeof ajaxModalForm !== 'undefined') {
         ajaxModalForm({
-            formSelector: '.branchpurchase-convert-form',
+            formSelector: '.demand-order-convert-form',
             submitText: '{{ __("Converting...") }}',
             closeOnSuccess: false,
             showToast: true,
@@ -374,7 +374,7 @@ $(document).on('keydown', '.edit-quantity, .edit-price, .edit-discount, .edit-ty
     else if (e.key === 'Escape') { e.preventDefault(); $('.cancel-edit-btn[data-id="' + id + '"]').trigger('click'); }
 });
 
-$(document).on('submit', '#branchpurchase-convert-form', function(e) {
+$(document).on('submit', '#demand-order-convert-form', function(e) {
     if ($('#items-tbody tr[data-row-id]').length > 0) {
         e.preventDefault();
         notify('error', 'Please confirm or discard open item rows before converting.');
@@ -390,7 +390,7 @@ $(document).on('submit', '#branchpurchase-convert-form', function(e) {
 </script>
 
 <div class="row">
-    {{ Form::open(['route' => ['branchpurchase.convert_to_invoice.store', $branchPurchase->id], 'method' => 'POST', 'class' => 'w-100 branchpurchase-convert-form', 'id' => 'branchpurchase-convert-form', 'novalidate' => true]) }}
+    {{ Form::open(['route' => ['demand-order.convert_to_invoice.store', $demandOrder->id], 'method' => 'POST', 'class' => 'w-100 demand-order-convert-form', 'id' => 'demand-order-convert-form', 'novalidate' => true]) }}
         <input type="hidden" name="_token" value="{{ csrf_token() }}">
         <input type="hidden" name="store_from" value="{{ $mainStore->id ?? '' }}">
         <div id="hidden-inputs"></div>
@@ -432,7 +432,7 @@ $(document).on('submit', '#branchpurchase-convert-form', function(e) {
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12">
                             <div class="form-group">
                                 {{ Form::label('ref_number', __('Ref Number'), ['class' => 'form-label']) }}
-                                {{ Form::text('ref_number', 'BP-' . \Auth::user()->purchaseNumberFormat($branchPurchase->branch_purchase_no), ['class' => 'form-control']) }}
+                                {{ Form::text('ref_number', 'DO-' . \Auth::user()->purchaseNumberFormat($demandOrder->branch_purchase_no), ['class' => 'form-control']) }}
                             </div>
                         </div>
                     </div>

@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ __('Branch Purchase Detail') }}
+    {{ __('Demand Order Detail') }}
 @endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a></li>
-    <li class="breadcrumb-item">{{ Auth::user()->purchaseNumberFormat($branchPurchase->branch_purchase_no) }}</li>
+    <li class="breadcrumb-item"><a href="{{ route('demand-order.index') }}">{{ __('Demand Order') }}</a></li>
+    <li class="breadcrumb-item">{{ Auth::user()->purchaseNumberFormat($demandOrder->branch_purchase_no) }}</li>
 @endsection
 
 @push('script-page')
@@ -44,11 +44,11 @@ $('#finalizeForm').on('submit', function(e) {
                                     <div class="timeline-icons"><span class="timeline-dots"></span>
                                         <i class="ti ti-plus text-primary"></i>
                                     </div>
-                                    <h6 class="text-primary my-3">{{ __('Create Purchase') }}</h6>
-                                    <p class="text-muted text-sm mb-3"><i class="ti ti-clock mr-2"></i>{{ __('Created on ') }}{{ \Auth::user()->dateFormat($branchPurchase->purchase_date) }}</p>
+                                    <h6 class="text-primary my-3">{{ __('Create Demand Order') }}</h6>
+                                    <p class="text-muted text-sm mb-3"><i class="ti ti-clock mr-2"></i>{{ __('Created on ') }}{{ \Auth::user()->dateFormat($demandOrder->purchase_date) }}</p>
                                     <div class="timeline-action">
-                                        @if(\Auth::user()->type == 'company' && Gate::check('edit purchase') && in_array($branchPurchase->status, [0, 5]) || \Auth::user()->type == 'branch' && $branchPurchase->branch_id == \Auth::user()->id && $branchPurchase->status == 0)
-                                                <a href="{{ route('branchpurchase.edit', Crypt::encrypt($branchPurchase->id)) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{ __('Edit') }}">
+                                        @if(Gate::check('edit demand order') && ((\Auth::user()->type == 'company' && in_array($demandOrder->status, [0, 5])) || (\Auth::user()->type == 'branch' && $demandOrder->branch_id == \Auth::user()->id && $demandOrder->status == 0)))
+                                                <a href="{{ route('demand-order.edit', Crypt::encrypt($demandOrder->id)) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{ __('Edit') }}">
                                                     <span class="btn-inner--icon"><i class="ti ti-pencil mr-2"></i></span>{{ __('Edit') }}
                                                 </a>
                                         @endif
@@ -64,17 +64,17 @@ $('#finalizeForm').on('submit', function(e) {
                                     </div>
                                     <h6 class="text-warning my-3">{{ __('Fw to Ho') }}</h6>
                                     <p class="text-muted text-sm mb-3">
-                                        @if($branchPurchase->status >= 5)
-                                            <i class="ti ti-clock mr-2"></i>{{ __('Forwarded on') }} {{ \Auth::user()->dateFormat($branchPurchase->updated_at) }}
-                                        @elseif($branchPurchase->status == 0)
+                                        @if($demandOrder->status >= 5)
+                                            <i class="ti ti-clock mr-2"></i>{{ __('Forwarded on') }} {{ \Auth::user()->dateFormat($demandOrder->updated_at) }}
+                                        @elseif($demandOrder->status == 0)
                                             <small>{{ __('Status') }} : {{ __('Draft') }}</small>
                                         @else
                                             <small>{{ __('Status') }} : {{ __('Not Forwarded') }}</small>
                                         @endif
                                     </p>
                                     <div class="timeline-action">
-                                        @if($branchPurchase->status == 0 && \Auth::user()->type != 'company')
-                                            <a href="{{ route('branchpurchase.fw_to_ho', $branchPurchase->id) }}" class="btn mx-1 btn-sm btn-outline-warning">
+                                        @if($demandOrder->status == 0 && \Auth::user()->type != 'company' && Gate::check('forward demand order'))
+                                            <a href="{{ route('demand-order.fw_to_ho', $demandOrder->id) }}" class="btn mx-1 btn-sm btn-outline-warning">
                                                 <span class="btn-inner--icon"><i class="ti ti-mail-forward mr-2"></i></span>{{ __('Fw to Ho') }}
                                             </a>
                                         @endif
@@ -86,40 +86,42 @@ $('#finalizeForm').on('submit', function(e) {
                             <div class="timeline-step h-100">
                                 <div class="timeline-content">
                                     <div class="timeline-icons"><span class="timeline-dots"></span>
-                                        @if($branchPurchase->status == 6)
+                                        @if($demandOrder->status == 6)
                                             <i class="ti ti-checks text-success"></i>
-                                        @elseif($branchPurchase->status == 5 && \Auth::user()->type == 'company')
+                                        @elseif($demandOrder->status == 5 && \Auth::user()->type == 'company')
                                             <i class="ti ti-hourglass-empty text-info"></i>
                                         @else
                                             <i class="ti ti-clock text-muted"></i>
                                         @endif
                                     </div>
                                     @if(\Auth::user()->type == 'company')
-                                        <h6 class="my-3 @if($branchPurchase->status == 6) text-success @elseif($branchPurchase->status == 5) text-info @else text-muted @endif">
+                                        <h6 class="my-3 @if($demandOrder->status == 6) text-success @elseif($demandOrder->status == 5) text-info @else text-muted @endif">
                                             {{ __('Approval') }}
                                         </h6>
                                     @else
-                                        <h6 class="my-3 @if($branchPurchase->status == 6) text-success @else text-muted @endif">
-                                            @if($branchPurchase->status == 5) {{ __('Under Approval') }} @else {{ __('Approval') }} @endif
+                                        <h6 class="my-3 @if($demandOrder->status == 6) text-success @else text-muted @endif">
+                                            @if($demandOrder->status == 5) {{ __('Under Approval') }} @else {{ __('Approval') }} @endif
                                         </h6>
                                     @endif
                                     <p class="text-muted text-sm mb-3">
-                                        @if($branchPurchase->status == 6)
-                                            <i class="ti ti-clock mr-2"></i>{{ __('Finalized') }}
-                                        @elseif($branchPurchase->status == 5 && \Auth::user()->type == 'company')
+                                        @if($demandOrder->status == 6)
+                                            <i class="ti ti-clock mr-2"></i>{{ __('Approved') }}
+                                        @elseif($demandOrder->status == 5 && \Auth::user()->type == 'company')
                                             <small>{{ __('Pending your decision') }}</small>
-                                        @elseif($branchPurchase->status == 5)
+                                        @elseif($demandOrder->status == 5)
                                             <small>{{ __('Under review at Head Office') }}</small>
                                         @else
                                             <small>{{ __('Awaiting forwarding') }}</small>
                                         @endif
                                     </p>
                                     <div class="timeline-action">
-                                        @if($branchPurchase->status == 5 && \Auth::user()->type == 'company')
+                                        @if($demandOrder->status == 5 && \Auth::user()->type == 'company' && Gate::check('approve demand order'))
                                             <a href="#" id="finalizeBtn" class="btn mx-1 btn-sm btn-outline-success">
-                                                <span class="btn-inner--icon"><i class="ti ti-check mr-2"></i></span>{{ __('Finalize') }}
+                                                <span class="btn-inner--icon"><i class="ti ti-check mr-2"></i></span>{{ __('Approve') }}
                                             </a>
-                                            <a href="{{ route('branchpurchase.reject', $branchPurchase->id) }}" class="btn mx-1 btn-sm btn-outline-danger">
+                                        @endif
+                                        @if($demandOrder->status == 5 && \Auth::user()->type == 'company' && Gate::check('reject demand order'))
+                                            <a href="{{ route('demand-order.reject', $demandOrder->id) }}" class="btn mx-1 btn-sm btn-outline-danger">
                                                 <span class="btn-inner--icon"><i class="ti ti-x mr-2"></i></span>{{ __('Reject') }}
                                             </a>
                                         @endif
@@ -135,18 +137,18 @@ $('#finalizeForm').on('submit', function(e) {
                                     </div>
                                     <h6 class="text-primary my-3">{{ __('Convert to Invoice') }}</h6>
                                     <p class="text-muted text-sm mb-3">
-                                        @if($branchPurchase->status == 6 && $branchPurchase->invoice_converted)
+                                        @if($demandOrder->status == 6 && $demandOrder->invoice_converted)
                                             <small>{{ __('Converted') }}</small>
-                                        @elseif($branchPurchase->status == 6)
+                                        @elseif($demandOrder->status == 6)
                                             <small>{{ __('Ready to convert') }}</small>
                                         @else
-                                            <small>{{ __('Finalize first') }}</small>
+                                            <small>{{ __('Approve first') }}</small>
                                         @endif
                                     </p>
                                     <div class="timeline-action">
-                                        @if($branchPurchase->status == 6 && \Auth::user()->type == 'company' && !$branchPurchase->invoice_converted)
+                                        @if($demandOrder->status == 6 && \Auth::user()->type == 'company' && !$demandOrder->invoice_converted && Gate::check('convert demand order to invoice') && Gate::check('create invoice'))
                                             <a href="#"
-                                                data-url="{{ route('branchpurchase.convert_to_invoice', $branchPurchase->id) }}"
+                                                data-url="{{ route('demand-order.convert_to_invoice', $demandOrder->id) }}"
                                                 data-size="modal-fullscreen"
                                                 data-ajax-popup="true"
                                                 data-bs-title="{{ __('Convert to Invoice') }}"
@@ -172,10 +174,10 @@ $('#finalizeForm').on('submit', function(e) {
                         <div class="invoice-print">
                             <div class="row invoice-title mt-2">
                                 <div class="col-xs-12 col-sm-12 col-nd-6 col-lg-6 col-12">
-                                    <h4>{{ __('Branch Purchase') }}</h4>
+                                    <h4>{{ __('Demand Order') }}</h4>
                                 </div>
                                 <div class="col-xs-12 col-sm-12 col-nd-6 col-lg-6 col-12 text-end">
-                                    <h4 class="invoice-number">{{ Auth::user()->purchaseNumberFormat($branchPurchase->branch_purchase_no) }}</h4>
+                                    <h4 class="invoice-number">{{ Auth::user()->purchaseNumberFormat($demandOrder->branch_purchase_no) }}</h4>
                                 </div>
                                 <div class="col-12">
                                     <hr>
@@ -188,7 +190,7 @@ $('#finalizeForm').on('submit', function(e) {
                                         <div class="me-4">
                                             <small>
                                                 <strong>{{ __('Issue Date') }} :</strong><br>
-                                                {{ \Auth::user()->dateFormat($branchPurchase->purchase_date) }}<br><br>
+                                                {{ \Auth::user()->dateFormat($demandOrder->purchase_date) }}<br><br>
                                             </small>
                                         </div>
                                     </div>
@@ -213,12 +215,12 @@ $('#finalizeForm').on('submit', function(e) {
                                 <div class="col">
                                     <small>
                                         <strong>{{ __('Status') }} :</strong><br>
-                                        @if($branchPurchase->status == 0)
-                                            <span class="badge bg-secondary p-2 px-3 rounded">{{ __(\App\Models\BranchPurchase::$statues[$branchPurchase->status]) }}</span>
-                                        @elseif($branchPurchase->status == 5)
-                                            <span class="badge bg-info p-2 px-3 rounded">{{ __(\App\Models\BranchPurchase::$statues[$branchPurchase->status]) }}</span>
-                                        @elseif($branchPurchase->status == 6)
-                                            <span class="badge bg-success p-2 px-3 rounded">{{ __(\App\Models\BranchPurchase::$statues[$branchPurchase->status]) }}</span>
+                                        @if($demandOrder->status == 0)
+                                            <span class="badge bg-secondary p-2 px-3 rounded">{{ __(\App\Models\DemandOrder::$statues[$demandOrder->status]) }}</span>
+                                        @elseif($demandOrder->status == 5)
+                                            <span class="badge bg-info p-2 px-3 rounded">{{ __(\App\Models\DemandOrder::$statues[$demandOrder->status]) }}</span>
+                                        @elseif($demandOrder->status == 6)
+                                            <span class="badge bg-success p-2 px-3 rounded">{{ __(\App\Models\DemandOrder::$statues[$demandOrder->status]) }}</span>
                                         @endif
                                     </small>
                                 </div>
@@ -295,13 +297,13 @@ $('#finalizeForm').on('submit', function(e) {
                                                 <tr>
                                                     <td colspan="7"></td>
                                                     <td class="text-end"><b>{{ __('Sub Total') }}</b></td>
-                                                    <td class="text-end">{{ \Auth::user()->priceFormat($branchPurchase->getSubTotal()) }}</td>
+                                                    <td class="text-end">{{ \Auth::user()->priceFormat($demandOrder->getSubTotal()) }}</td>
                                                     <td></td>
                                                 </tr>
                                                 <tr>
                                                     <td colspan="7"></td>
                                                     <td class="text-end"><b>{{ __('Discount') }}</b></td>
-                                                    <td class="text-end">{{ \Auth::user()->priceFormat($branchPurchase->getTotalDiscount()) }}</td>
+                                                    <td class="text-end">{{ \Auth::user()->priceFormat($demandOrder->getTotalDiscount()) }}</td>
                                                     <td></td>
                                                 </tr>
                                                 <tr>
@@ -319,7 +321,7 @@ $('#finalizeForm').on('submit', function(e) {
                                                 <tr>
                                                     <td colspan="7"></td>
                                                     <td class="blue-text text-end"><b>{{ __('Total') }}</b></td>
-                                                    <td class="blue-text text-end">{{ \Auth::user()->priceFormat($branchPurchase->getTotal()) }}</td>
+                                                    <td class="blue-text text-end">{{ \Auth::user()->priceFormat($demandOrder->getTotal()) }}</td>
                                                     <td></td>
                                                 </tr>
                                             </tfoot>
@@ -334,13 +336,13 @@ $('#finalizeForm').on('submit', function(e) {
         </div>
     </div>
 
-    @if($branchPurchase->status == 5 && \Auth::user()->type == 'company')
+    @if($demandOrder->status == 5 && \Auth::user()->type == 'company' && Gate::check('approve demand order'))
         <div class="modal fade" id="finalizeModal" tabindex="-1" role="dialog" aria-labelledby="finalizeModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
                 <div class="modal-content">
-                    {{ Form::open(['route' => ['branchpurchase.finalize', $branchPurchase->id], 'method' => 'POST', 'id' => 'finalizeForm']) }}
+                    {{ Form::open(['route' => ['demand-order.finalize', $demandOrder->id], 'method' => 'POST', 'id' => 'finalizeForm']) }}
                     <div class="modal-header">
-                        <h5 class="modal-title" id="finalizeModalLabel">{{ __('Finalize Branch Purchase - Enter Shipped Quantities') }}</h5>
+                        <h5 class="modal-title" id="finalizeModalLabel">{{ __('Approve Demand Order - Enter Shipped Quantities') }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
@@ -371,7 +373,7 @@ $('#finalizeForm').on('submit', function(e) {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
-                        <button type="submit" class="btn btn-outline-success">{{ __('Finalize') }}</button>
+                        <button type="submit" class="btn btn-outline-success">{{ __('Approve') }}</button>
                     </div>
                     {{ Form::close() }}
                 </div>

@@ -232,7 +232,7 @@ $(document).on('click', '.confirm-row-btn', function() {
     var subTotal = (quantity * price);
     var amount = subTotal;
 
-    var source = tr.data('purchase-item') ? 'Branch Purchase' : '';
+    var source = tr.data('purchase-item') ? 'Demand Order' : '';
 
     var entry = {
         id: Date.now(),
@@ -469,15 +469,15 @@ $(document).on('keydown', function(e) {
 });
 
 $(document).ready(function() {
-    function updateBranchPurchaseUrl() {
+    function updateDemandOrderUrl() {
         var storeTo = $('select[name="store_to"]').val();
-        var baseUrl = '{{ route("invoice.draft_branch_purchases") }}';
-        $('#link-branch-purchase-btn').attr('data-url', baseUrl + '?store_to=' + storeTo);
-        $('#link-branch-purchase-btn').data('url', baseUrl + '?store_to=' + storeTo);
+        var baseUrl = '{{ route("invoice.draft_demand_orders") }}';
+        $('#link-demand-order-btn').attr('data-url', baseUrl + '?store_to=' + storeTo);
+        $('#link-demand-order-btn').data('url', baseUrl + '?store_to=' + storeTo);
     }
     
-    $('select[name="store_to"]').on('change', updateBranchPurchaseUrl);
-    updateBranchPurchaseUrl();
+    $('select[name="store_to"]').on('change', updateDemandOrderUrl);
+    updateDemandOrderUrl();
 
     if (typeof ajaxModalForm !== 'undefined') {
         ajaxModalForm('.invoice-ajax-form', {
@@ -553,7 +553,9 @@ $(document).ready(function() {
                                         {{ Form::text('ref_number', '', ['class' => 'form-control']) }}
                                     </div>
                                     <div class="text-xs mt-1">
-                                        <a href="#" id="link-branch-purchase-btn" data-ajax-popup-over="true" data-url="{{ route('invoice.draft_branch_purchases') }}" data-title="{{ __('Link Branch Purchase') }}">{{ __('Link Branch Purchase') }}</a>
+                                        @can('convert demand order to invoice')
+                                            <a href="#" id="link-demand-order-btn" data-ajax-popup-over="true" data-url="{{ route('invoice.draft_demand_orders') }}" data-title="{{ __('Link Demand Order') }}">{{ __('Link Demand Order') }}</a>
+                                        @endcan
                                     </div>
                                 </div>
                             </div>

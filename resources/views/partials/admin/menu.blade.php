@@ -2978,10 +2978,12 @@
 										href="{{ route('vendor-advance.index') }}">{{ __('Vendor Advance') }}</a>
 								</li>
                             @endif
-							<li class="dash-item">
-                                <a class="dash-link {{ Request::segment(1) == 'branchpurchase' || in_array(Request::route()->getName(), ['branchpurchase.index', 'branchpurchase.create', 'branchpurchase.edit', 'branchpurchase.show']) ? ' active' : '' }}"
-                                    href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a>
-                            </li>
+							@can('manage demand order')
+								<li class="dash-item">
+                                    <a class="dash-link {{ Request::segment(1) == 'demand-order' || in_array(Request::route()->getName(), ['demand-order.index', 'demand-order.create', 'demand-order.edit', 'demand-order.show']) ? ' active' : '' }}"
+                                        href="{{ route('demand-order.index') }}">{{ __('Demand Order') }}</a>
+                                </li>
+							@endcan
                             
                             <li class="dash-item ">
                                 <a class="dash-link {{ Request::segment(1) == 'invoice' || Request::route()->getName() == 'invoice.index' || Request::route()->getName() == 'invoice.create' || Request::route()->getName() == 'invoice.edit' || Request::route()->getName() == 'invoice.show' ? ' active' : '' }}"

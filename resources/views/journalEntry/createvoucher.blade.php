@@ -47,21 +47,22 @@
 
         // Build account options HTML once (reused per row)
         var ACCOUNT_OPTS = '<option value="">— Select Account —</option>';
-        @foreach ($chartAccounts as $chartAccount)
-            ACCOUNT_OPTS += '<option value="{{ $chartAccount['id'] }}"' +
-                ' data-category="{{ $chartAccount['category'] ?? 'general' }}"' +
-                ' data-path="[{{ $chartAccount['code'] ?? $chartAccount['id'] }}] {{ addslashes($chartAccount['code_name']) }}">' +
-                '{{ addslashes($chartAccount['code_name']) }}</option>';
-            @foreach ($subAccounts as $subAccount)
-                @if ($chartAccount['id'] == $subAccount['account'])
-                    ACCOUNT_OPTS += '<option value="{{ $subAccount['id'] }}"' +
-                        ' data-category="{{ $subAccount['category'] ?? 'general' }}"' +
-                        ' data-path="[{{ $subAccount['code'] ?? $subAccount['id'] }}] {{ addslashes($chartAccount['code_name']) }} \u2192 {{ addslashes($subAccount['code_name']) }}">' +
-                        '\u00a0\u00a0\u00a0{{ addslashes($subAccount['code_name']) }}</option>';
-                @endif
-            @endforeach
-        @endforeach
+        @php
+            $ACCOUNT_OPTS = '<option value="">— Select Account —</option>';
 
+            foreach ($accountOptions as $account) {
+                $indent = str_repeat('&nbsp;&nbsp;&nbsp;', $account['level']);
+
+                $ACCOUNT_OPTS .=
+                    '<option value="' . e($account['id']) . '"' .
+                    ' data-category="' . e($account['category']) . '"' .
+                    ' data-path="' . e($account['path']) . '">' .
+                    $indent .
+                    e($account['code_name']) .
+                    '</option>';
+            }
+        @endphp
+        ACCOUNT_OPTS = @json($ACCOUNT_OPTS);
         // Build branch options HTML once
         var BRANCH_OPTS = '<option value="">— Branch —</option>';
         $.each(BRANCHES, function(id, name) {
@@ -1214,6 +1215,7 @@
         $transactionDate = $journalEntry->date ?? now()->toDateString();
         $voucherAmount = $isEdit ? max($journalEntry->totalDebit(), $journalEntry->totalCredit()) : 0;
         $selectedPaymentMode = $journalEntry->payment_mode ?? ($journalEntry->mode ?? '');
+        $selectedBankId = $journalEntry->bank_id ?? '';
         $selectedPartyType = $journalEntry->user_type ?? '';
         $selectedPartyId = $journalEntry->user_id ?? '';
     @endphp
@@ -1256,7 +1258,7 @@
                         </div>
                         <input type="hidden" name="voucher_series" id="voucher_series" value="MANUAL">
 
-                        <div class="col-lg- 3 col-md-3">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('journal_number', __('Journal Number'), ['class' => 'form-label', 'id' => 'journal-number']) }}
                                 <input type="text" class="form-control" id="journal-number-inp"
@@ -1302,6 +1304,12 @@
                                     $selectedPaymentMode,
                                     ['class' => 'form-control', 'id' => 'payment_mode'],
                                 ) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('bank_id', __('Bank Name'), ['class' => 'form-label']) }}
+                                {{ Form::select('bank_id', $bankAccounts, $selectedBankId, ['class' => 'form-control custom-select', 'id' => 'bank_id']) }}
                             </div>
                         </div>
                         <div class="col-lg-3 col-md-3">

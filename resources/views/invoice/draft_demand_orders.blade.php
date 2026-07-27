@@ -3,38 +3,38 @@
         <table class="table">
             <thead>
                 <tr>
-                    <th>{{ __('Purchase No') }}</th>
+                    <th>{{ __('Demand Order No') }}</th>
                     <th>{{ __('Branch') }}</th>
                     <th>{{ __('Date') }}</th>
                     <th>{{ __('Total') }}</th>
                 </tr>
             </thead>
             <tbody>
-                @forelse($purchases as $purchase)
+                @forelse($demandOrders as $demandOrder)
                     @php
-                        $formattedNo = Auth::user()->purchaseNumberFormat($purchase->branch_purchase_no);
+                        $formattedNo = Auth::user()->purchaseNumberFormat($demandOrder->branch_purchase_no);
                     @endphp
-                    <tr class="select-purchase" data-id="{{ $purchase->id }}" data-code="{{ $formattedNo }}" style="cursor:pointer">
-                        <td><button type="button" class="btn btn-sm btn-outline-primary text-light select-purchase-btn">{{ $formattedNo }}</button></td>
-                        <td>{{ $purchase->branch->name ?? '-' }}</td>
-                        <td>{{ $purchase->purchase_date }}</td>
-                        <td>{{ number_format($purchase->getTotal(), 2) }}</td>
+                    <tr class="select-demand-order" data-id="{{ $demandOrder->id }}" data-code="{{ $formattedNo }}" style="cursor:pointer">
+                        <td><button type="button" class="btn btn-sm btn-outline-primary text-light select-demand-order-btn">{{ $formattedNo }}</button></td>
+                        <td>{{ $demandOrder->branch->name ?? '-' }}</td>
+                        <td>{{ $demandOrder->purchase_date }}</td>
+                        <td>{{ number_format($demandOrder->getTotal(), 2) }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="text-center text-muted py-4">{{ __('No draft branch purchases found for this store.') }}</td>
+                        <td colspan="4" class="text-center text-muted py-4">{{ __('No approved Demand Orders found for this store.') }}</td>
                     </tr>
                 @endforelse
             </tbody>
         </table>
     </div>
     <script>
-        var _purchaseBusy = false;
-        $(document).on('click', '.select-purchase, .select-purchase-btn', function(e) {
-            if (_purchaseBusy) return;
-            _purchaseBusy = true;
+        var _demandOrderBusy = false;
+        $(document).on('click', '.select-demand-order, .select-demand-order-btn', function(e) {
+            if (_demandOrderBusy) return;
+            _demandOrderBusy = true;
 
-            var $row = $(this).closest('tr.select-purchase');
+            var $row = $(this).closest('tr.select-demand-order');
             var code = $row.data('code');
             var id = $row.data('id');
 
@@ -42,12 +42,12 @@
             $('#commonModalOver').modal('hide');
 
             if (!id) {
-                _purchaseBusy = false;
+                _demandOrderBusy = false;
                 return;
             }
 
             $.ajax({
-                url: '{{ url("invoice/branch-purchase-items") }}/' + id,
+                url: '{{ url("invoice/demand-order-items") }}/' + id,
                 success: function(items) {
                     if (items && items.length) {
                         items.forEach(function(item) {
@@ -60,7 +60,7 @@
                             var selectOptions = PRODUCT_OPTS;
                             var rowHtml = '<tr data-row-id="' + rid + '" class="inline-edit-row" data-purchase-item="true">' +
                                 '<td class="col-item">' +
-                                '<div style="margin-bottom: 2px;"><span class="badge bg-info" style="font-size: 10px;">Branch Purchase</span></div>' +
+                                '<div style="margin-bottom: 2px;"><span class="badge bg-info" style="font-size: 10px;">Demand Order</span></div>' +
                                 '<select class="form-control form-control-sm custom-select row-item" data-rid="' + rid + '">' +
                                 selectOptions +
                                 '</select>' +
@@ -98,7 +98,7 @@
                             $newRowItem.val(item.product_id);
                             
                             // Trigger change to load taxes, unit, and prices then we can confirm it 
-                            // wait, we already have quantity and price from branch purchase. We can trigger change to get taxes and then override price.
+                            // Keep the approved Demand Order quantity and price after loading product defaults.
                             $newRowItem.trigger('change');
                             setTimeout(function() {
                                 $('.row-quantity[data-rid="' + rid + '"]').val(item.quantity);
@@ -110,7 +110,7 @@
                     }
                 },
                 complete: function() {
-                    _purchaseBusy = false;
+                    _demandOrderBusy = false;
                 }
             });
         });

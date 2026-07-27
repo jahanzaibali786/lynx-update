@@ -84,7 +84,7 @@
                         @endcan
                     </td>
                     <td>{{ optional($grn->warehouse)->name ?? '-' }}</td>
-                    <td>{{ optional($grn->vendor)->name ?? '-' }}</td>
+                    <td>{{ optional($grn->vendor)->display_name ?? '-' }}</td>
                     <td>{{ \Auth::user()->dateFormat($grn->grn_date) }}</td>
                     <td>{{ $grn->reference_no ?? '-' }}</td>
                     <td>{{ \Auth::user()->priceFormat($grn->getSubTotal()) }}</td>

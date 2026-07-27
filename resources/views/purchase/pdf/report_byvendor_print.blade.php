@@ -37,7 +37,7 @@
     $purchasesByVendor = [];
     foreach ($purchases as $purchase) {
         $vendorId = $purchase->vender_id;
-        $vendorName = !empty($purchase->vender) ? $purchase->vender->name : 'Unknown Vendor';
+        $vendorName = !empty($purchase->vender) ? $purchase->vender->display_name : 'Unknown Vendor';
 
         if (!isset($purchasesByVendor[$vendorId])) {
             $purchasesByVendor[$vendorId] = [

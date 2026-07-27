@@ -70,10 +70,6 @@ Before using a package API, inspect the installed version:
 composer show vendor/package
 ```
 
-Before adding frontend tooling, inspect `package.json`, lock files, and the existing asset pipeline.
-
----
-
 ## 3. Sources of Truth
 
 Use this order when determining existing behavior:
@@ -81,11 +77,9 @@ Use this order when determining existing behavior:
 1. Current task requirements
 2. This `AGENTS.md` and applicable module-level `AGENTS.md`
 3. Automated tests
-4. Existing production code paths
-5. Database schema and migrations
-6. Configuration files
-7. `composer.lock` and package documentation matching the installed version
-8. Existing comments and old documentation
+4. Database schema and migrations
+5. Configuration files
+6. Existing comments and old documentation
 
 Do not trust comments, copied snippets, or stale documentation when they conflict with tested runtime behavior.
 
@@ -304,60 +298,7 @@ Do not scatter checks such as `role_id == 1` or `hasRole('Admin')` through busin
 
 Role checks are acceptable only when the role itself is the business concept, in role-management screens, compatibility code during migration, or a narrowly defined super-admin mechanism.
 
-### 8.4 Permission Naming Convention
-
-Use stable, lowercase, dot-separated permission names:
-
-```text
-module.action
-```
-
-Examples:
-
-```text
-dashboard.view
-students.view
-students.create
-students.update
-students.delete
-students.export
-fees.view
-fees.generate
-fees.collect
-fees.adjust
-fees.refund
-fees.export
-vouchers.view
-vouchers.create
-vouchers.post
-vouchers.reverse
-reports.trial-balance.view
-reports.profit-loss.view
-inventory.transfer
-inventory.adjust
-payroll.process
-roles.manage
-permissions.manage
-users.permissions.manage
-```
-
-Use business verbs consistently:
-
-* `view`
-* `create`
-* `update`
-* `delete`
-* `approve`
-* `post`
-* `reverse`
-* `export`
-* `import`
-* `assign`
-* `manage`
-
-Do not encode database IDs, branch IDs, user IDs, or UI labels into permission names.
-
-### 8.5 Guard Rules
+### 8.4 Guard Rules
 
 Use the existing authentication guard. For normal web users, this is typically `web`, but the agent must inspect `config/auth.php`, the User model, and existing permission records before creating permissions.
 
@@ -365,7 +306,7 @@ Do not create duplicate permissions under multiple guards unless the application
 
 Every role and permission operation must use a consistent `guard_name`.
 
-### 8.6 User Model
+### 8.5 User Model
 
 The authenticatable user model should use Spatie's `HasRoles` trait if it does not already.
 
@@ -380,7 +321,7 @@ Do not add the trait blindly. First inspect:
 
 Resolve conflicts explicitly and preserve backward compatibility.
 
-### 8.7 Policies and Record-Level Access
+### 8.6 Policies and Record-Level Access
 
 A permission answers: “May this user perform this type of action?”
 
@@ -400,7 +341,7 @@ Use the project's actual school, office, branch, or cluster relationship instead
 
 Never treat a global permission as permission to access every tenant's records.
 
-### 8.8 Tenant, Cluster, School, and Branch Isolation
+### 8.7 Tenant, Cluster, School, and Branch Isolation
 
 Role and permission checks do not replace data isolation.
 
@@ -418,7 +359,7 @@ Capability check + data-scope check
 
 A user with `fees.view` may view only the fee records allowed by their assigned organization scope.
 
-### 8.9 Super Admin
+### 8.8 Super Admin
 
 Use a single, explicit super-admin strategy.
 
@@ -441,7 +382,7 @@ Protect against:
 * Deleting protected system roles
 * Renaming protected roles without a migration plan
 
-### 8.10 Permission Administration
+### 8.9 Permission Administration
 
 Permission-management screens must themselves be protected by permissions such as:
 
@@ -465,7 +406,7 @@ Validate every submitted role and permission ID against the correct guard and al
 
 Use package methods such as `syncRoles()` and `syncPermissions()` carefully. Do not accidentally remove unrelated existing assignments.
 
-### 8.11 Auditing Permission Changes
+### 8.10 Auditing Permission Changes
 
 Every access-control change must be auditable.
 
@@ -482,7 +423,7 @@ Record at minimum:
 
 Do not log tokens, passwords, or unrelated personal data.
 
-### 8.12 Permission Cache
+### 8.11 Permission Cache
 
 Spatie caches permissions.
 
@@ -496,7 +437,7 @@ Application code should use package assignment methods so normal cache invalidat
 
 Do not directly manipulate Spatie pivot tables unless there is a documented migration requirement.
 
-### 8.13 Permission Seeders
+### 8.12 Permission Seeders
 
 Permission and protected-role seeders must be idempotent.
 
@@ -506,7 +447,7 @@ Do not delete unknown roles or permissions from production simply because they a
 
 Seeders must not reset administrators' assignments or wipe direct user permissions.
 
-### 8.14 Legacy Authorization Migration
+### 8.13 Legacy Authorization Migration
 
 The existing codebase may contain legacy `role_id` checks or custom authorization logic.
 
@@ -542,7 +483,7 @@ Use an incremental migration:
 8. Remove legacy checks only after coverage and migration verification.
 9. Avoid maintaining two permanent sources of truth.
 
-### 8.15 Permission Test Matrix
+### 8.14 Permission Test Matrix
 
 For every protected feature, test at minimum:
 
@@ -698,7 +639,7 @@ Examples:
 
 ```text
 JV-000245
-MJV-000041
+M-JV-000041
 ```
 
 Never mix sequences.
