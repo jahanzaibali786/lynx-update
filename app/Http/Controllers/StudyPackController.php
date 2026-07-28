@@ -35,26 +35,27 @@ class StudyPackController extends Controller
         $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name'), 'id')
             ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get();
         $class = array(
-            "DAYCARE" => "DAYCARE",
-            "PLAY GROUP" => "PLAY GROUP",
-            "PRE-NURSERY" => "PRE-NURSERY",
-            "NURSERY" => "NURSERY",
-            "KG" => "KG",
-            "GRADE-1" => "GRADE-1",
-            "GRADE-2" => "GRADE-2",
-            "GRADE-3" => "GRADE-3",
-            "GRADE-4" => "GRADE-4",
-            "GRADE-5" => "GRADE-5",
-            "GRADE-6" => "GRADE-6",
-            "GRADE-7" => "GRADE-7",
-            "MATRIC-8" => "MATRIC-8",
-            "MATRIC-9" => "MATRIC-9",
-            "MATRIC-10" => "MATRIC-10",
-            "IGCSE-8" => "IGCSE-8",
-            "IGCSE-9" => "IGCSE-9",
-            "IGCSE-10" => "IGCSE-10"
+                "DAYCARE" => "DAYCARE",
+                "PLAY GROUP" => "PLAY GROUP",
+                "PRE-NURSERY" => "PRE-NURSERY",
+                "NURSERY" => "NURSERY",
+                "KG" => "KG",
+                "EXTRA CARE/AFTER SCHOOL" => "EXTRA CARE/AFTER SCHOOL",
+                "GRADE-1" => "GRADE-1",
+                "GRADE-2" => "GRADE-2",
+                "GRADE-3" => "GRADE-3",
+                "GRADE-4" => "GRADE-4",
+                "GRADE-5" => "GRADE-5",
+                "GRADE-6" => "GRADE-6",
+                "GRADE-7" => "GRADE-7",
+                "MATRIC-8" => "MATRIC-8",
+                "MATRIC-9" => "MATRIC-9",
+                "MATRIC-10" => "MATRIC-10",
+                "IGCSE-8" => "IGCSE-8",
+                "IGCSE-9" => "IGCSE-9",
+                "IGCSE-10" => "IGCSE-10"
         );
-
+   
         return view('students.studypack.create', compact('session', 'product_services', 'class'));
     }
 

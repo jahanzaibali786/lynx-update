@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Grn;
 use App\Models\GrnItem;
+use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
+use App\Models\ProductServiceCategory;
 use App\Models\ProductService;
 use App\Models\Purchase;
 use App\Models\PurchaseProduct;
 use App\Models\StockReport;
 use App\Models\Utility;
+use App\Models\User;
 use App\Models\Vender;
 use App\Models\warehouse;
 use App\Services\PurchaseReceivingService;
@@ -59,8 +62,9 @@ class GrnController extends Controller
         }
 
         $grns = $query->latest()->get();
+        $statuses =GRN::$statues;
 
-        return view('grn.index', compact('grns', 'warehouses', 'vendors'));
+        return view('grn.index', compact('grns', 'warehouses', 'vendors','statuses'));
     }
 
     public function accountsIndex(Request $request)
@@ -349,7 +353,7 @@ class GrnController extends Controller
         return redirect()->back()->with('success', __('GRN forwarded to Accounts.'));
     }
 
-    public function accountsApprove(Grn $grn)
+    public function accountsApprove(Request $request, Grn $grn)
     {
         $this->authorizeGrn($grn);
 
@@ -358,6 +362,49 @@ class GrnController extends Controller
         ) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+
+        if ($request->isMethod('get')) {
+            try {
+                $grn->load(['vendor', 'warehouse', 'branch', 'items.product']);
+
+                if ($grn->items->isEmpty()) {
+                    return redirect()->back()->with('error', __('Please add at least one item before approving GRN.'));
+                }
+
+                $voucherPreview = $this->grnVoucher->previewLines($grn);
+                $chartAccountOptions = $this->chartAccountOptions();
+                $branchOptions = $this->branchOptions();
+                $bankAccounts = $this->bankAccountOptions();
+                $voucherCategoryTypes = $this->voucherCategoryTypeOptions();
+                $displayVoucherNumber = __('System generated on save');
+
+                return view('grn.accounts_approve', compact('grn', 'voucherPreview', 'chartAccountOptions', 'branchOptions', 'bankAccounts', 'voucherCategoryTypes', 'displayVoucherNumber'));
+            } catch (\Throwable $e) {
+                return redirect()->back()->with('error', $e->getMessage());
+            }
+        }
+
+        $request->validate([
+            'voucher_type' => ['required', Rule::in(['JV', 'CPV', 'BPV', 'CRV', 'BRV'])],
+            'branches' => ['required', 'integer'],
+            'date' => ['required', 'date'],
+            'payment_date' => ['nullable', 'date'],
+            'payment_mode' => ['nullable', 'string', 'max:50'],
+            'bank_id' => ['nullable', 'integer'],
+            'category_type_id' => ['nullable', 'integer'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'transaction_no' => ['nullable', 'string', 'max:255'],
+            'narration' => ['nullable', 'string'],
+            'accounts' => ['required', 'array'],
+            'accounts.*.account_id' => ['required', 'integer'],
+            'accounts.*.description' => ['nullable', 'string'],
+            'accounts.*.debit' => ['nullable', 'numeric', 'min:0'],
+            'accounts.*.credit' => ['nullable', 'numeric', 'min:0'],
+            'accounts.*.tra_date' => ['nullable', 'date'],
+            'accounts.*.ref_no' => ['nullable', 'string', 'max:255'],
+            'accounts.*.branch_id' => ['required', 'integer'],
+        ]);
 
         DB::beginTransaction();
         try {
@@ -373,7 +420,20 @@ class GrnController extends Controller
             }
 
             $this->applyStock($grn);
-            $voucher = $this->grnVoucher->createForApproval($grn);
+            $voucher = $this->grnVoucher->createForApproval($grn, [
+                'voucher_type' => $request->input('voucher_type', 'JV'),
+                'branches' => $request->input('branches'),
+                'date' => $request->input('date'),
+                'payment_date' => $request->input('payment_date'),
+                'payment_mode' => $request->input('payment_mode'),
+                'bank_id' => $request->input('bank_id'),
+                'category_type_id' => $request->input('category_type_id'),
+                'amount' => $request->input('amount'),
+                'reference' => $request->input('reference'),
+                'transaction_no' => $request->input('transaction_no'),
+                'narration' => $request->input('narration'),
+                'lines' => $request->input('accounts', []),
+            ]);
 
             $grn->status = 8;
             $grn->approved_by = \Auth::id();
@@ -384,7 +444,6 @@ class GrnController extends Controller
             return redirect()->route('grn.show', $grn->id)->with('success', __('GRN approved by Accounts. Stock history and voucher have been created.'));
         } catch (\Throwable $e) {
             DB::rollBack();
-            dd($e->getMessage());
             \Log::error('accountsApprove failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return redirect()->back()->with('error', $e->getMessage());
         }
@@ -509,6 +568,62 @@ class GrnController extends Controller
         }
 
         return $query->orderBy('name')->pluck('name', 'id')->prepend('Select Store', '');
+    }
+
+    private function chartAccountOptions(): array
+    {
+        return ChartOfAccount::select('id', DB::raw('CONCAT(code, " - ", name) AS code_name'))
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('is_enabled', 1)
+            ->orderBy('code')
+            ->pluck('code_name', 'id')
+            ->toArray();
+    }
+
+    private function branchOptions()
+    {
+        if (\Auth::user()->type == 'company') {
+            $branches = User::where('type', '=', 'branch')->where('is_active', '1')->get()->pluck('name', 'id');
+            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+
+            return $branches;
+        }
+
+        return User::where('id', '=', \Auth::user()->ownedId())->where('is_active', '1')->get()->pluck('name', 'id');
+    }
+
+    private function bankAccountOptions()
+    {
+        $bankAccountQuery = BankAccount::query()->where('created_by', \Auth::user()->creatorId());
+        if (\Schema::hasColumn('bank_accounts', 'owned_by')) {
+            $bankAccountQuery->orWhere('owned_by', \Auth::user()->ownedId());
+        }
+
+        $bankAccounts = $bankAccountQuery->orderBy('bank_name')
+            ->get()
+            ->mapWithKeys(function ($bank) {
+                $labelParts = array_filter([
+                    $bank->bank_name ?? null,
+                    $bank->holder_name ?? null,
+                    $bank->account_number ?? null,
+                ]);
+
+                return [$bank->id => implode(' - ', $labelParts)];
+            });
+        $bankAccounts->prepend('Select Bank Name', '');
+
+        return $bankAccounts;
+    }
+
+    private function voucherCategoryTypeOptions()
+    {
+        $voucherCategoryTypes = ProductServiceCategory::where('type', 'voucher')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->orderBy('name')
+            ->pluck('name', 'id');
+        $voucherCategoryTypes->prepend('Select Voucher Category Type', '');
+
+        return $voucherCategoryTypes;
     }
 
     private function warehouseRecords()

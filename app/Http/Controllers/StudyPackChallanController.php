@@ -41,18 +41,61 @@ class StudyPackChallanController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index(Request $request)
     {
+        $today = date('Y-m-d');
+        $defaultSession = Session::where('starting_date', '<=', $today)
+            ->where('ending_date', '>=', $today)
+            ->first();
+        if (!$defaultSession) {
+            $defaultSession = Session::orderBy('id', 'desc')->first();
+        }
+        $defaultSessionId = $defaultSession ? $defaultSession->id : '';
+
+        $filterSessionId = $request->input('session', $defaultSessionId);
+        $filterBranchId = $request->input('branches', 'all');
+        $filterClassId = $request->input('class', 'all');
+        $filterStatus = $request->input('status', '');
+
+        $query = StudyPackChallans::query();
+
+        if (\Auth::user()->type == 'company') {
+            $query->where('created_by', \Auth::user()->creatorId());
+        } else {
+            $query->where('owned_by', \Auth::user()->ownedId());
+        }
+
+        if (!empty($filterSessionId) && $filterSessionId !== 'all') {
+            $query->where('session_id', $filterSessionId);
+        }
+
+        if ($filterBranchId !== 'all') {
+            $query->where('branch_id', $filterBranchId);
+        }
+
+        if ($filterClassId !== 'all') {
+            $query->where('class_id', $filterClassId);
+        }
+
+        if ($filterStatus !== '') {
+            $query->where('status', $filterStatus);
+        }
+
+        $studypacks = $query->get();
+
         if (\Auth::user()->type == 'company') {
             $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
         } else {
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
         }
+        $branches->prepend('All Branches', 'all');
+
         $session = Session::get()->pluck('year', 'id');
-        $session->prepend('Select Session', '');
+        $session->prepend('All Sessions', 'all');
+
         $class = array(
-            '' => 'Select Class',
+            'all' => 'All Classes',
             "DAYCARE" => "DAYCARE",
             "PLAY GROUP" => "PLAY GROUP",
             "PRE-NURSERY" => "PRE-NURSERY",
@@ -72,9 +115,20 @@ class StudyPackChallanController extends Controller
             "IGCSE-9" => "IGCSE-9",
             "IGCSE-10" => "IGCSE-10"
         );
+
         $stdy_pack = [];
-        $studypacks = StudyPackChallans::get();
-        return view('students.studypackChallan.index', compact('studypacks', 'branches', 'class', 'stdy_pack', 'session'));
+        return view('students.studypackChallan.index', compact(
+            'studypacks',
+            'branches',
+            'class',
+            'stdy_pack',
+            'session',
+            'filterBranchId',
+            'filterSessionId',
+            'filterClassId',
+            'filterStatus',
+            'defaultSessionId'
+        ));
     }
 
     /**
@@ -124,6 +178,7 @@ class StudyPackChallanController extends Controller
                 $students[] = $request->student;
             }
             foreach ($students as $studentId) {
+                $studypackchallan = null;
                 $existingChallan = StudyPackChallans::where('student_id', $studentId)
                     ->where('owned_by', $branchId)
                     ->where('class_id', $classId)
@@ -147,6 +202,7 @@ class StudyPackChallanController extends Controller
                     $studypackchallan->status = 'Assigned';
                     $studypackchallan->owned_by = $studentdata->owned_by;
                     $studypackchallan->created_by = $studentdata->created_by;
+                    $studypackchallan->session_id = $request->session;
                     $studypackchallan->save();
                 }
                 $studypackitems = StudyPackItem::where('study_pack_id', $request->Studypack)->get();

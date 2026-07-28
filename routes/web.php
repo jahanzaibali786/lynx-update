@@ -718,7 +718,7 @@ Route::group(['middleware' => ['verified']], function () {
 			Route::get('grn/{grn}/fw-to-ho', [GrnController::class, 'fwToHo'])->name('grn.fw_to_ho');
 			Route::match(['get', 'post'], 'grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
             Route::get('grn/{grn}/fw-to-accounts', [GrnController::class, 'fwToAccounts'])->name('grn.fw_to_accounts');
-            Route::get('grn/{grn}/accounts-approve', [GrnController::class, 'accountsApprove'])->name('grn.accounts_approve');
+            Route::match(['get', 'post'], 'grn/{grn}/accounts-approve', [GrnController::class, 'accountsApprove'])->name('grn.accounts_approve');
             Route::get('grn/{grn}/reject', [GrnController::class, 'reject'])->name('grn.reject');
             Route::get('grn/draft-purchases', [GrnController::class, 'draftPurchases'])->name('grn.draft_purchases');
             Route::get('grn/purchase-items/{id}', [GrnController::class, 'purchaseItems'])->name('grn.purchase_items');

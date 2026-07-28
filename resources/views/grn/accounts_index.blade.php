@@ -108,8 +108,7 @@
                         @if($grn->status == 7)
                         @can('account approve grn')
                         <a href="{{ route('grn.accounts_approve', $grn->id) }}"
-                            class="mx-1 btn btn-sm btn-outline-success text-white align-items-center" title="{{ __('Approve') }}"
-                            onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
+                            class="mx-1 btn btn-sm btn-outline-success text-white align-items-center" title="{{ __('Review Voucher') }}">
                             <span class="btn-inner--icon"><i class="ti ti-checks"></i></span>
                         </a>
                         @endcan

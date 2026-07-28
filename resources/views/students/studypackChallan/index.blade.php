@@ -61,14 +61,14 @@
                         }
 
                         // Session select update (unchanged)
-                        $('#sessionselect').empty();
-                        $('#sessionselect').append($('<option>', {
+                        $('#session').empty();
+                        $('#session').append($('<option>', {
                             value: 'all',
                             text: 'All Session'
                         }));
                         for (var i = 0; i < result.session.length; i++) {
                             var session = result.session[i];
-                            $('#sessionselect').append($('<option>', {
+                            $('#session').append($('<option>', {
                                 value: session.id,
                                 text: session.title
                             }));
@@ -172,7 +172,40 @@
         }
     });
 }
+    function validateGenerateForm() {
+        var branch = $('#branches').val();
+        var session = $('#session').val();
+        var cls = $('#class_select').val();
+        var studypack = $('#stdy_select').val();
+        var student = $('#student_select').val();
+        var challanDate = $('#challan_date').val();
 
+        if (!branch || branch === 'all') {
+            alert('Please select a specific Branch to generate challans.');
+            return false;
+        }
+        if (!session || session === 'all') {
+            alert('Please select a specific Session to generate challans.');
+            return false;
+        }
+        if (!cls || cls === 'all') {
+            alert('Please select a specific Class to generate challans.');
+            return false;
+        }
+        if (!studypack) {
+            alert('Please select a StudyPack.');
+            return false;
+        }
+        if (!student) {
+            alert('Please select a Student.');
+            return false;
+        }
+        if (!challanDate) {
+            alert('Please select a Challan Date.');
+            return false;
+        }
+        return true;
+    }
     </script>
 @endpush
 @section('breadcrumb')
@@ -192,65 +225,63 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
         integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-    {{-- @if (\Auth::user()->type == 'company') --}}
+    
     <div class="row">
         <div class="col-sm-12">
-            <div class="mt-2" id="multiCollapseExample1">
-                <div class="card">
-                    <div class="card-body filter_change">
-                        <!-- {{ Form::open(['route' => ['class_wise_fee.index'], 'method' => 'GET', 'id' => 'class_wise_fee_submit']) }} -->
-                        {{ Form::open(['route' => ['studypackchallan.store'], 'method' => 'POST', 'id' => '']) }}
-                        <div class="row d-flex ">
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                <div class="btn-box">
-                                    {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                    {{ Form::select('branches', $branches, '', ['class' => 'form-control select', 'onchange' => 'branchcustomer(this.value)']) }}
-                                </div>
-                            </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                <div class="btn-box">
-                                    {{ Form::label('session', __('Session'), ['class' => 'form-label']) }}
-                                    {{ Form::select('session', $session, '', ['class' => 'form-control select', 'required' => 'required', 'id' => 'session']) }}
-                                </div>
-                            </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                <div class="btn-box">
-                                    {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}
-                                    {{ Form::select('class', $class, '', ['class' => 'form-control select custom-select', 'id' => 'class_select', 'required' => 'required', 'onchange' => 'classStudyPack(this.value)']) }}
-                                </div>
-                            </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                <div class="btn-box">
-                                    {{ Form::label('Studypack', __('StudyPack'), ['class' => 'form-label']) }}
-                                    {{ Form::select('Studypack', $stdy_pack, '', ['class' => 'form-control select', 'id' => 'stdy_select', 'required' => 'required']) }}
-                                </div>
-                            </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
-                                <div class="btn-box">
-                                    {{ Form::label('student', __('Students'), ['class' => 'form-label']) }}
-                                    {{ Form::select('student', [], 'all', ['class' => 'form-control select custom-select', 'id' => 'student_select', 'required' => 'required']) }}
-                                </div>
-                            </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
-                                <div class="btn-box">
-                                    {{ Form::label('challan_date', __('Challan Date'), ['class' => 'form-label']) }}<span
-                                        style="color: red">&nbsp;(for the month)</span>
-                                    {!! Form::date('challan_date', null, [
-                                        'class' => 'form-control',
-                                        'id' => 'challan_date',
-                                    ]) !!}
-                                </div>
-                            </div>
-                            <div class="col-auto float-end ms-2 mt-4 pt-3">
-                                <button type="submit" class="btn mx-1 btn-sm btn-primary">
-                                    <span class="btn-inner-icon">Generate Challan</span>
-                                </button>
-
+            <div class="card">
+                <div class="card-body filter_change">
+                    {{ Form::open(['route' => ['studypackchallan.index'], 'method' => 'GET', 'id' => 'studypack_challan_form']) }}
+                    @csrf
+                    <div class="row d-flex align-items-center">
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2 mb-3">
+                            <div class="btn-box">
+                                {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
+                                {{ Form::select('branches', $branches, $filterBranchId, ['class' => 'form-control select', 'onchange' => 'branchcustomer(this.value)', 'id' => 'branches']) }}
                             </div>
                         </div>
-                        {{ Form::close() }}
-
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2 mb-3">
+                            <div class="btn-box">
+                                {{ Form::label('session', __('Session'), ['class' => 'form-label']) }}
+                                {{ Form::select('session', $session, $filterSessionId, ['class' => 'form-control select', 'id' => 'session']) }}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2 mb-3">
+                            <div class="btn-box">
+                                {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}
+                                {{ Form::select('class', $class, $filterClassId, ['class' => 'form-control select custom-select', 'id' => 'class_select', 'onchange' => 'classStudyPack(this.value)']) }}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2 mb-3">
+                            <div class="btn-box">
+                                {{ Form::label('status', __('Status'), ['class' => 'form-label']) }}
+                                {{ Form::select('status', ['' => 'All Statuses', 'Assigned' => 'Assigned', 'Paid' => 'Paid', 'Partial Paid' => 'Partial Paid'], $filterStatus, ['class' => 'form-control select', 'id' => 'status']) }}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2 mb-3">
+                            <div class="btn-box">
+                                {{ Form::label('student', __('Students'), ['class' => 'form-label']) }}
+                                {{ Form::select('student', [], 'all', ['class' => 'form-control select custom-select', 'id' => 'student_select']) }}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2 mb-3">
+                            <div class="btn-box">
+                                {{ Form::label('Studypack', __('StudyPack'), ['class' => 'form-label']) }}
+                                {{ Form::select('Studypack', $stdy_pack, '', ['class' => 'form-control select', 'id' => 'stdy_select']) }}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2 mb-3">
+                            <div class="btn-box">
+                                {{ Form::label('challan_date', __('Challan Date'), ['class' => 'form-label']) }}<span style="color: red">&nbsp;(for the month)</span>
+                                {!! Form::date('challan_date', null, ['class' => 'form-control', 'id' => 'challan_date']) !!}
+                            </div>
+                        </div>
+                        <div class="col-auto mt-4 pt-1 mb-3 d-flex align-items-center gap-2">
+                            <button type="submit" class="btn btn-sm btn-primary">{{ __('Search') }}</button>
+                            <a href="{{ route('studypackchallan.index') }}" class="btn btn-sm btn-danger">{{ __('Reset') }}</a>
+                            <button type="submit" formmethod="POST" formaction="{{ route('studypackchallan.store') }}" class="btn btn-sm btn-success" onclick="return validateGenerateForm()">{{ __('Generate Challan') }}</button>
+                        </div>
                     </div>
+                    {{ Form::close() }}
                 </div>
             </div>
         </div>

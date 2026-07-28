@@ -45,9 +45,9 @@ class EmployeeTransferController extends Controller
                 $branches->prepend('Select Branch', '');
                 if (Auth::user()->type == 'Employee') {
                     $emp = Employee::where('user_id', '=', \Auth::user()->id)->first();
-                    $query = EmployeeTransfer::with('department', 'branch')->where('owned_by', '=', \Auth::user()->ownedId())->where('employee_id', '=', $emp->id);
+                    $query = EmployeeTransfer::with('department_from', 'department_to', 'branch_from', 'branch_to')->where('owned_by', '=', \Auth::user()->ownedId())->where('employee_id', '=', $emp->id);
                 } else {
-                    $query = EmployeeTransfer::with('department', 'branch')->where('owned_by', '=', \Auth::user()->ownedId());
+                    $query = EmployeeTransfer::with('department_from', 'department_to', 'branch_from', 'branch_to')->where('owned_by', '=', \Auth::user()->ownedId());
                 }
             }
             if (!empty($request->branches)) {
