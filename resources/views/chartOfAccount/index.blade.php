@@ -162,6 +162,13 @@
 
 @section('action-btn')
     <div class="float-end">
+        @can('manage chart of account')
+            <a href="{{ route('chart-of-account-sub-category.index') }}" class="btn mx-1 btn-sm btn-outline-secondary">
+                <span class="btn-inner--icon">
+                    {{ __('Sub Categories') }}
+                </span>
+            </a>
+        @endcan
         @can('create chart of account')
             <a href="#" data-url="{{ route('chart-of-account.create') }}" data-bs-title="{{ __('Create') }}" data-size="lg"
                 data-ajax-popup="true" class="btn mx-1 btn-sm btn-outline-primary">

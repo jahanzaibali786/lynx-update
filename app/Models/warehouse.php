@@ -16,6 +16,7 @@ class warehouse extends Model
         'address',
         'city',
         'city_zip',
+        'assigned_employee_id',
         'owned_by',
         'created_by',
     ];
@@ -35,5 +36,10 @@ class warehouse extends Model
     public function branch()
     {
         return $this->hasOne('App\Models\User', 'id', 'owned_by');
+    }
+
+    public function assignedEmployee()
+    {
+        return $this->belongsTo(Employee::class, 'assigned_employee_id');
     }
 }

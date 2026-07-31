@@ -15,6 +15,21 @@
         $selectedPaymode = collect($paymodes)->keys()->first(fn($key) => strtolower($key) === $normalizedPaymode);
         // Joining Date for min effect_from
         $joiningDate = \Carbon\Carbon::parse($employee->company_doj)->format('Y-m-d');
+        $payableAccountDefaults = [
+            'eobi_payable_account' => 'EOBI Payable (Employee)',
+            'pessi_payable_account' => 'Employer PESSI Payable',
+            'security_receive_account' => 'Employee Security Payable',
+            'other_dedu_payable_account' => 'Other Deduction Payable',
+            'advance_payable_account' => 'Employee Salary Advance',
+            'net_payable_account' => 'Net Salary Payable',
+        ];
+        $payableAccountIds = [];
+        foreach ($payableAccountDefaults as $field => $label) {
+            $matchedId = collect($payableaccounts)->search(function ($accountLabel) use ($label) {
+                return trim((string) $accountLabel) === $label;
+            });
+            $payableAccountIds[$field] = $matchedId === false ? '' : $matchedId;
+        }
     @endphp
 
     <div class="row">
@@ -31,7 +46,7 @@
 
         <div class="form-group col-md-4">
             {{ Form::label('accounts', __('Bank'), ['class' => 'form-label']) }}
-            {{ Form::select('accounts', $accounts, $hasPayscale ? $lastPayscaleDetail->account_id : '', ['class' => 'form-control select custom-select', 'required']) }}
+            {{ Form::select('accounts', $accounts->prepend('Select Account', ''), !empty($lastPayscaleDetail) ? $lastPayscaleDetail->account_id : '', ['class' => 'form-control select custom-select', 'required']) }}
         </div>
 
         <div class="form-group col-md-4">
@@ -177,7 +192,7 @@
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('eobi_payable_account', __('EOBI Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('eobi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->eobi_payable_account : '', ['class' => 'form-control select custom-select', 'required' => 'required']) }}
+            {{ Form::select('eobi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->eobi_payable_account : $payableAccountIds['eobi_payable_account'], ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         <div class="form-group col-md-2">
             {!! Form::label('pessi_percentage', __('PESSI %'), ['class' => 'form-label']) !!}
@@ -197,7 +212,7 @@
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('pessi_payable_account', __('PESSI Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('pessi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->pessi_payable_account : '', ['class' => 'form-control select custom-select', 'required' => 'required']) }}
+            {{ Form::select('pessi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->pessi_payable_account : $payableAccountIds['pessi_payable_account'], ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         {{-- //calculate tax button --}}
         <div class="form-group col-md-2">
@@ -238,7 +253,7 @@
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('security_receive_account', __('Security Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('security_receive_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->security_receive_account : '', ['class' => 'form-control select custom-select', 'required' => 'required']) }}
+            {{ Form::select('security_receive_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->security_receive_account : $payableAccountIds['security_receive_account'], ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_deduction', __('Other Deduction'), ['class' => 'form-label']) !!}
@@ -246,7 +261,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_dedu_payable_account', __('Deduction Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('other_dedu_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->other_dedu_payable_account : '', ['required' => 'required', 'class' => 'form-control select custom-select']) }}
+            {{ Form::select('other_dedu_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->other_dedu_payable_account : $payableAccountIds['other_dedu_payable_account'], ['required' => 'required', 'class' => 'form-control select custom-select']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance', __('Advance'), ['class' => 'form-label']) !!}
@@ -254,7 +269,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance_payable_account', __('Advance Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('advance_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->advance_payable_account : '', ['required' => 'required', 'class' => 'form-control select custom-select']) }}
+            {{ Form::select('advance_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->advance_payable_account : $payableAccountIds['advance_payable_account'], ['required' => 'required', 'class' => 'form-control select custom-select']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net', __('Net'), ['class' => 'form-label']) !!}
@@ -262,7 +277,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net_payable_account', __('Net Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('net_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->net_payable_account : '', ['required' => 'required', 'class' => 'form-control select custom-select', 'readonly' => 'readonly']) }}
+            {{ Form::select('net_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->net_payable_account : $payableAccountIds['net_payable_account'], ['required' => 'required', 'class' => 'form-control select custom-select', 'readonly' => 'readonly']) }}
         </div>
     </div>
 </div>

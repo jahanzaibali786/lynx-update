@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use App\Models\User;
 use App\Models\Utility;
 use App\Models\warehouse;
@@ -22,10 +23,14 @@ class WarehouseController extends Controller
     {
         if(\Auth::user()->can('manage warehouse')){
             $user    = \Auth::user();
-            $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
+            $branches = User::where('type', 'branch')
+                ->where('created_by', $user->creatorId())
+                ->get()
+                ->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);               
             $branches->prepend('Select Branch', '');
-            $query = warehouse::where('created_by', '=', $user->creatorId());
+            $query = warehouse::with(['branch', 'assignedEmployee'])
+                ->where('created_by', '=', $user->creatorId());
             if (!empty($request->branch)) {
                 $query->where('owned_by', '=', $request->branch);
             }
@@ -50,10 +55,14 @@ class WarehouseController extends Controller
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 
-        $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
+        $branches = User::where('type', 'branch')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->get()
+            ->pluck('name', 'id');
         $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+        $employeesByBranch = $this->employeesByBranch();
         // $branches->prepend('Select Branch', '');
-        return view('warehouse.create', compact('branches'));
+        return view('warehouse.create', compact('branches', 'employeesByBranch'));
 
     }
 
@@ -80,6 +89,7 @@ class WarehouseController extends Controller
                 [
                     'name' => 'required',
                     'branch_id' => 'required',
+                    'assigned_employee_id' => 'required|integer',
                 ]
             );
 
@@ -89,12 +99,17 @@ class WarehouseController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
+            if (!$this->employeeBelongsToBranch($request->assigned_employee_id, $request->branch_id)) {
+                return redirect()->back()->withInput()->with('error', __('Selected employee does not belong to the selected branch.'));
+            }
+
             $warehouse = new warehouse();
             $warehouse->name = $request->name;
             $warehouse->address = $request->address;
             $warehouse->city = $request->city;
             $warehouse->city_zip = $request->city_zip;
             $warehouse->owned_by = $request->branch_id;
+            $warehouse->assigned_employee_id = $request->assigned_employee_id;
             $warehouse->created_by = \Auth::user()->creatorId();
             $warehouse->save();
 
@@ -140,9 +155,13 @@ class WarehouseController extends Controller
         $warehouse = Warehouse::find($id);
         if (\Auth::user()->can('edit warehouse')) {
             if ($warehouse->created_by == \Auth::user()->creatorId()) {
-                $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
+                $branches = User::where('type', 'branch')
+                    ->where('created_by', \Auth::user()->creatorId())
+                    ->get()
+                    ->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-                return view('warehouse.edit', compact('warehouse', 'branches'));
+                $employeesByBranch = $this->employeesByBranch();
+                return view('warehouse.edit', compact('warehouse', 'branches', 'employeesByBranch'));
             } else {
                 return response()->json(['error' => __('Permission denied.')], 401);
             }
@@ -167,6 +186,7 @@ class WarehouseController extends Controller
                     [
                         'name' => 'required',
                         'branch_id' => 'required',
+                        'assigned_employee_id' => 'required|integer',
                     ]
                 );
                 if ($validator->fails()) {
@@ -175,11 +195,16 @@ class WarehouseController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
+                if (!$this->employeeBelongsToBranch($request->assigned_employee_id, $request->branch_id)) {
+                    return redirect()->back()->withInput()->with('error', __('Selected employee does not belong to the selected branch.'));
+                }
+
                 $warehouse->name = $request->name;
                 $warehouse->address = $request->address;
                 $warehouse->city = $request->city;
                 $warehouse->city_zip = $request->city_zip;
                 $warehouse->owned_by = $request->branch_id;
+                $warehouse->assigned_employee_id = $request->assigned_employee_id;
                 $warehouse->save();
 
                 return redirect()->route('store.index')->with('success', __('Store successfully updated.'));
@@ -219,6 +244,40 @@ class WarehouseController extends Controller
         $store = Warehouse::where('owned_by', '=', $request->branch_id)->get();
         return response()->json($store);
         // return $store;
+    }
+
+    private function employeesByBranch(): array
+    {
+        return Employee::select('id', 'name', 'branch_id', 'owned_by')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('user_id', '>', 0)
+            ->where('is_active', 1)
+            ->where('is_res_ter', 0)
+            ->orderBy('name')
+            ->get()
+            ->groupBy(function (Employee $employee) {
+                return (int) ($employee->owned_by ?: $employee->branch_id);
+            })
+            ->map(function ($employees) {
+                return $employees->map(function (Employee $employee) {
+                    return ['id' => $employee->id, 'name' => $employee->name];
+                })->values()->all();
+            })
+            ->all();
+    }
+
+    private function employeeBelongsToBranch($employeeId, $branchId): bool
+    {
+        return Employee::whereKey($employeeId)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('user_id', '>', 0)
+            ->where('is_active', 1)
+            ->where('is_res_ter', 0)
+            ->where(function ($query) use ($branchId) {
+                $query->where('owned_by', $branchId)
+                    ->orWhere('branch_id', $branchId);
+            })
+            ->exists();
     }
     public function print($id)
 {

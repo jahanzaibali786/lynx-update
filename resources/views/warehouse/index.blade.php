@@ -79,6 +79,7 @@
                             <th>{{ __('Name') }}</th>
                             <th>{{ __('Address') }}</th>
                             <th>{{ __('Branch') }}</th>
+                            <th>{{ __('Assigned Employee') }}</th>
                             <th>{{ __('City') }}</th>
                             <th>{{ __('Zip Code') }}</th>
                             <th>{{ __('Action') }}</th>
@@ -91,6 +92,7 @@
                                 <td>{{ $warehouse->name }}</td>
                                 <td>{{ $warehouse->address }}</td>
                                 <td>{{ $warehouse->branch->name ?? '' }}</td>
+                                <td>{{ $warehouse->assignedEmployee->name ?? '-' }}</td>
                                 <td>{{ $warehouse->city }}</td>
                                 <td>{{ $warehouse->city_zip }}</td>
 

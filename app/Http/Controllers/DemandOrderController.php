@@ -218,6 +218,8 @@ class DemandOrderController extends Controller
         $canEditCurrentStatus = (
             $user->type == 'company' && in_array($demandOrder->status, [0, 5])
         ) || (
+            $user->type == 'company' && $demandOrder->status == 6 && $this->demandOrderHasRemainingItems($demandOrder)
+        ) || (
             $user->type == 'branch' && $demandOrder->branch_id == $user->id && $demandOrder->status == 0
         );
 
@@ -281,6 +283,8 @@ class DemandOrderController extends Controller
         $canEditCurrentStatus = (
             $user->type == 'company' && in_array($demandOrder->status, [0, 5])
         ) || (
+            $user->type == 'company' && $demandOrder->status == 6 && $this->demandOrderHasRemainingItems($demandOrder)
+        ) || (
             $user->type == 'branch' && $demandOrder->branch_id == $user->id && $demandOrder->status == 0
         );
 
@@ -308,7 +312,7 @@ class DemandOrderController extends Controller
             $demandOrder->category_id = $request->category_id;
             $demandOrder->save();
 
-            $oldItems = DemandOrderItem::where('branch_purchase_id', $demandOrder->id)->get();
+            $oldItems = DemandOrderItem::where('branch_purchase_id', $demandOrder->id)->lockForUpdate()->get();
             $newItemIds = [];
 
             foreach ($request->items as $product) {
@@ -318,8 +322,21 @@ class DemandOrderController extends Controller
                     ? DemandOrderItem::where('branch_purchase_id', $demandOrder->id)->find($itemId)
                     : null;
                 if ($item) {
-                    if (isset($product['item'])) $item->product_id = $product['item'];
-                    $item->quantity = $product['quantity'];
+                    if (isset($product['item']) && (int) $product['item'] !== (int) $item->product_id && (float) ($item->shipped_quantity ?? 0) > 0) {
+                        throw new \RuntimeException(__('Shipped demand order items cannot change product.'));
+                    }
+
+                    if (isset($product['item'])) {
+                        $item->product_id = $product['item'];
+                    }
+
+                    $shippedQuantity = (float) ($item->shipped_quantity ?? 0);
+                    $requestedQuantity = (float) $product['quantity'];
+                    if ($requestedQuantity < $shippedQuantity) {
+                        throw new \RuntimeException(__('Quantity cannot be less than already shipped quantity.'));
+                    }
+
+                    $item->quantity = $requestedQuantity;
                     $item->tax = $product['tax'] ?? 0;
                     $item->discount = $product['discount'] ?? 0;
                     $item->price = $product['price'];
@@ -327,6 +344,10 @@ class DemandOrderController extends Controller
                     $item->save();
                     $newItemIds[] = $item->id;
                 } else {
+                    if (($product['id'] ?? 0) > 0) {
+                        throw new \RuntimeException(__('The selected demand order item could not be found.'));
+                    }
+
                     $item = new DemandOrderItem();
                     $item->branch_purchase_id = $demandOrder->id;
                     $item->product_id = $product['item'];
@@ -509,9 +530,9 @@ class DemandOrderController extends Controller
             return response()->json(['error' => __('Demand Order must be approved before conversion.')], 422);
         }
 
-        if ($demandOrder->invoice_converted) {
-            return response()->json(['error' => __('Already converted to Invoice.')], 422);
-        }
+            if ($demandOrder->invoice_converted) {
+                return response()->json(['error' => __('Already converted to Invoice.')], 422);
+            }
 
         if (!\Auth::user()->can('create invoice')) {
             return response()->json(['error' => __('Permission denied.')], 401);
@@ -533,14 +554,19 @@ class DemandOrderController extends Controller
         $dueDate = date('Y-m-d');
         $selectedStoreTo = $demandOrder->warehouse_id;
         $conversionItems = $demandOrder->items->map(function ($item) {
+            $shippedQuantity = (float) ($item->shipped_quantity ?? 0);
             $product = $item->product;
-            $quantity = (float) ($item->shipped_quantity ?: $item->quantity);
+            $quantity = max(0, (float) $item->quantity - $shippedQuantity);
 
             return [
                 'id' => $item->id,
+                'source_item_id' => $item->id,
                 'item_id' => $item->product_id,
                 'item_name' => $product ? trim(($product->sku ? $product->sku . ' - ' : '') . $product->name) : '',
                 'quantity' => $quantity,
+                'ordered_quantity' => (float) $item->quantity,
+                'shipped_quantity' => $shippedQuantity,
+                'remaining_quantity' => $quantity,
                 'price' => (float) $item->price,
                 'discount' => (float) ($item->discount ?? 0),
                 'tax' => $item->tax ?? '',
@@ -594,16 +620,14 @@ class DemandOrderController extends Controller
             return response()->json(['success' => false, 'message' => __('Demand Order must be approved before conversion.')]);
         }
 
-        if ($demandOrder->invoice_converted) {
-            return response()->json(['success' => false, 'message' => __('Already converted to Invoice.')]);
-        }
-
         $validator = \Validator::make($request->all(), [
             'issue_date' => 'required|date',
             'due_date' => 'required|date',
             'store_from' => 'required',
             'store_to' => 'required',
             'items' => 'required|array|min:1',
+            'items.*.source_item_id' => 'required|integer|exists:branch_purchase_items,id',
+            'items.*.item' => 'required|integer|exists:product_services,id',
         ]);
 
         if ($validator->fails()) {
@@ -612,6 +636,20 @@ class DemandOrderController extends Controller
 
         DB::beginTransaction();
         try {
+            $demandOrder = DemandOrder::whereKey($id)->lockForUpdate()->first();
+            if (!$demandOrder || $demandOrder->created_by != \Auth::user()->creatorId()) {
+                throw new \RuntimeException(__('Permission denied.'));
+            }
+
+            if ($demandOrder->status != 6) {
+                throw new \RuntimeException(__('Demand Order must be approved before conversion.'));
+            }
+
+            $demandItems = DemandOrderItem::where('branch_purchase_id', $demandOrder->id)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
             $invoice = new Invoice();
             $invoice->invoice_id = $this->demandOrderInvoiceNumber();
             $invoice->customer_id = 0;
@@ -630,8 +668,20 @@ class DemandOrderController extends Controller
             foreach ($request->items as $index => $item) {
                 $quantity = (float) ($item['quantity'] ?? 0);
                 $price = (float) ($item['price'] ?? 0);
-                if (empty($item['item']) || $quantity <= 0 || $price <= 0) {
+                $sourceItemId = (int) ($item['source_item_id'] ?? 0);
+                if (empty($item['item']) || $quantity <= 0 || $price <= 0 || !$sourceItemId || !isset($demandItems[$sourceItemId])) {
                     throw new \Exception(__('Please enter valid item, quantity and price for all rows.'));
+                }
+
+                $sourceItem = $demandItems[$sourceItemId];
+                if ((int) $sourceItem->product_id !== (int) $item['item']) {
+                    throw new \Exception(__('Invoice item must match the selected demand order item.'));
+                }
+
+                $shippedQuantity = (float) ($sourceItem->shipped_quantity ?? 0);
+                $remainingQuantity = max(0, (float) $sourceItem->quantity - $shippedQuantity);
+                if ($quantity > $remainingQuantity) {
+                    throw new \Exception(__('Invoice quantity cannot exceed the remaining demand order quantity.'));
                 }
 
                 $invoiceProduct = new InvoiceProduct();
@@ -658,11 +708,16 @@ class DemandOrderController extends Controller
                     $product->save();
                 }
 
+                $sourceItem->shipped_quantity = $shippedQuantity + $quantity;
+                $sourceItem->save();
+
                 Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $item['item'], $quantity);
                 $newitems[$index]['prod_id'] = $invoiceProduct->id;
+                $newitems[$index]['source_item_id'] = $sourceItemId;
             }
 
-            $demandOrder->invoice_converted = true;
+            $demandOrder->load('items');
+            $demandOrder->invoice_converted = $this->demandOrderHasRemainingItems($demandOrder) ? false : true;
             $demandOrder->save();
 
             $data['id'] = $invoice->id;
@@ -687,6 +742,15 @@ class DemandOrderController extends Controller
             DB::rollback();
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
+    }
+
+    private function demandOrderHasRemainingItems(DemandOrder $demandOrder): bool
+    {
+        $demandOrder->loadMissing('items');
+
+        return $demandOrder->items->contains(function ($item) {
+            return max(0, (float) $item->quantity - (float) ($item->shipped_quantity ?? 0)) > 0;
+        });
     }
 
     private function demandOrderInvoiceNumber()

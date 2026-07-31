@@ -8,7 +8,11 @@
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('branch_id', __('Branch'),['class'=>'form-label']) }}<span class="text-danger pl-1">*</span>
-            {{ Form::select('branch_id', $branches,null, array('class' => 'form-control ','required'=>'required')) }}
+            {{ Form::select('branch_id', $branches,null, array('class' => 'form-control','id'=>'store-branch-id','required'=>'required')) }}
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('assigned_employee_id', __('Assigned Employee'),['class'=>'form-label']) }}<span class="text-danger pl-1">*</span>
+            {{ Form::select('assigned_employee_id', [], null, array('class' => 'form-control','id'=>'store-assigned-employee-id','required'=>'required')) }}
         </div>
 
         <div class="form-group col-md-6">
@@ -31,3 +35,30 @@
     <input type="submit" value="{{__('Create')}}" class="btn  btn-outline-primary">
 </div>
 {{ Form::close() }}
+<script>
+    (function () {
+        var employeesByBranch = @json($employeesByBranch);
+        var selectedEmployee = @json(old('assigned_employee_id'));
+        var $branch = $('#store-branch-id');
+        var $employee = $('#store-assigned-employee-id');
+
+        function refreshStoreEmployees() {
+            var employees = employeesByBranch[$branch.val()] || [];
+            $employee.empty().append($('<option>', { value: '', text: @json(__('Select Employee')) }));
+
+            $.each(employees, function (index, employee) {
+                $employee.append($('<option>', {
+                    value: employee.id,
+                    text: employee.name,
+                    selected: String(employee.id) === String(selectedEmployee)
+                }));
+            });
+        }
+
+        $branch.off('change.storeEmployee').on('change.storeEmployee', function () {
+            selectedEmployee = '';
+            refreshStoreEmployees();
+        });
+        refreshStoreEmployees();
+    })();
+</script>

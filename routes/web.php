@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use App\Http\Controllers\AccountWiseFeeStructure;
 use App\Http\Controllers\ChallanController;
@@ -59,6 +59,7 @@ use App\Http\Controllers\ProductServiceCategoryController;
 use App\Http\Controllers\ProductServiceUnitController;
 use App\Http\Controllers\AdvanceTaxCollectionController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\StockTransferNoteController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\DebitNoteController;
 use App\Http\Controllers\BillController;
@@ -73,6 +74,7 @@ use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\CustomFieldController;
 use App\Http\Controllers\ChartOfAccountController;
+use App\Http\Controllers\ChartOfAccountSubTypeController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\StudentIncomeController;
 use App\Http\Controllers\ClientController;
@@ -737,6 +739,20 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('branch_customer', [InvoiceController::class, 'branchCustomer'])->name('branch.customer');
             Route::post('branch_vender', [InvoiceController::class, 'branchVender'])->name('branch.vendor');
 
+            Route::get('/customer/stock-transfer-note/{id}/', [StockTransferNoteController::class, 'invoiceLink'])->name('stock-transfer-note.link.copy');
+            Route::get('stock-transfer-note/create/{cid?}', [StockTransferNoteController::class, 'create'])->name('stock-transfer-note.create');
+            Route::get('stock-transfer-note/draft-demand-orders', [StockTransferNoteController::class, 'draftDemandOrders'])->name('stock-transfer-note.draft_demand_orders');
+            Route::get('stock-transfer-note/demand-order-items/{id}', [StockTransferNoteController::class, 'demandOrderItems'])->name('stock-transfer-note.demand_order_items');
+            Route::post('stock-transfer-note/product/destroy', [StockTransferNoteController::class, 'destroyProduct'])->name('stock-transfer-note.product.destroy');
+            Route::post('stock-transfer-note/product', [StockTransferNoteController::class, 'product'])->name('stock-transfer-note.product');
+            Route::get('stock-transfer-note/items', [StockTransferNoteController::class, 'items'])->name('stock-transfer-note.items');
+            Route::post('stock-transfer-note/{id}/forward-to-ho', [StockTransferNoteController::class, 'forwardToHo'])->name('stock-transfer-note.forward-to-ho');
+            Route::post('stock-transfer-note/{id}/reject-by-ho', [StockTransferNoteController::class, 'rejectByHo'])->name('stock-transfer-note.reject-by-ho');
+            Route::post('stock-transfer-note/{id}/approve-by-ho', [StockTransferNoteController::class, 'approveByHo'])->name('stock-transfer-note.approve-by-ho');
+            Route::post('stock-transfer-note/{id}/issue', [StockTransferNoteController::class, 'issue'])->name('stock-transfer-note.issue');
+            Route::get('stock-transfer-note/{id}/print', [StockTransferNoteController::class, 'print'])->name('stock-transfer-note.print');
+            Route::resource('stock-transfer-note', StockTransferNoteController::class)->except(['create']);
+
             //report
             Route::get('invoice-report', [InvoiceController::class, 'inv_rep'])->name('invoice.report');
             Route::get('invoice_rep-report', [InvoiceController::class, 'invoiceReport'])->name('invoice_rep.report');
@@ -943,6 +959,9 @@ Route::group(['middleware' => ['verified']], function () {
             ],
         ],
         function () {
+            Route::resource('chart-of-account-sub-category', ChartOfAccountSubTypeController::class)->parameters([
+                'chart-of-account-sub-category' => 'chartOfAccountSubType',
+            ])->except(['show']);
             Route::resource('chart-of-account', ChartOfAccountController::class);
 			Route::post('chart-of-account/update-category', [ChartOfAccountController::class, 'updateCategory'])->name('chart-of-account.updateCategory')->middleware(['auth', 'XSS', 'revalidate']);
         }
@@ -1954,15 +1973,15 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('purchase/{id}/convert-to-grn', [PurchaseController::class, 'convertToGrn'])->name('purchase.convert_to_grn');
             Route::post('purchase/{id}/convert-to-grn', [PurchaseController::class, 'storeConvertedGrn'])->name('purchase.convert_to_grn.store');
             Route::get('accounts/grn', [GrnController::class, 'accountsIndex'])->name('grn.accounts_index');
-            Route::resource('demand-order', \App\Http\Controllers\DemandOrderController::class)->except(['create']);
-            Route::get('demand-order/create/{cid}', [\App\Http\Controllers\DemandOrderController::class, 'create'])->name('demand-order.create');
-            Route::post('demand-order/vender', [\App\Http\Controllers\DemandOrderController::class, 'vender'])->name('demand-order.vender');
-            Route::post('demand-order/product', [\App\Http\Controllers\DemandOrderController::class, 'product'])->name('demand-order.product');
-            Route::get('demand-order/{id}/fw_to_ho', [\App\Http\Controllers\DemandOrderController::class, 'fwToHo'])->name('demand-order.fw_to_ho');
-            Route::post('demand-order/{id}/finalize', [\App\Http\Controllers\DemandOrderController::class, 'finalize'])->name('demand-order.finalize');
-            Route::get('demand-order/{id}/reject', [\App\Http\Controllers\DemandOrderController::class, 'reject'])->name('demand-order.reject');
-            Route::get('demand-order/{id}/convert-to-invoice', [\App\Http\Controllers\DemandOrderController::class, 'convertToInvoice'])->name('demand-order.convert_to_invoice');
-            Route::post('demand-order/{id}/convert-to-invoice', [\App\Http\Controllers\DemandOrderController::class, 'storeConvertedInvoice'])->name('demand-order.convert_to_invoice.store');
+            Route::resource('stock-transfer-order', \App\Http\Controllers\StockTransferOrderController::class)->except(['create']);
+            Route::get('stock-transfer-order/create/{cid}', [\App\Http\Controllers\StockTransferOrderController::class, 'create'])->name('stock-transfer-order.create');
+            Route::post('stock-transfer-order/vender', [\App\Http\Controllers\StockTransferOrderController::class, 'vender'])->name('stock-transfer-order.vender');
+            Route::post('stock-transfer-order/product', [\App\Http\Controllers\StockTransferOrderController::class, 'product'])->name('stock-transfer-order.product');
+            Route::get('stock-transfer-order/{id}/fw_to_ho', [\App\Http\Controllers\StockTransferOrderController::class, 'fwToHo'])->name('stock-transfer-order.fw_to_ho');
+            Route::post('stock-transfer-order/{id}/finalize', [\App\Http\Controllers\StockTransferOrderController::class, 'finalize'])->name('stock-transfer-order.finalize');
+            Route::get('stock-transfer-order/{id}/reject', [\App\Http\Controllers\StockTransferOrderController::class, 'reject'])->name('stock-transfer-order.reject');
+            Route::get('stock-transfer-order/{id}/convert-to-invoice', [\App\Http\Controllers\StockTransferOrderController::class, 'convertToInvoice'])->name('stock-transfer-order.convert_to_invoice');
+            Route::post('stock-transfer-order/{id}/convert-to-invoice', [\App\Http\Controllers\StockTransferOrderController::class, 'storeConvertedInvoice'])->name('stock-transfer-order.convert_to_invoice.store');
 
         }
 

@@ -84,7 +84,9 @@ $(function() {
     }
 });
 
-$(document).on('click', '#addItemBtn', function() {
+$(document).off('click', '#addItemBtn').on('click', '#addItemBtn', function(e) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
     var openRows = $('#items-tbody tr[data-row-id]').length;
     if (openRows >= MAX_OPEN_ROWS) {
         show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS + ' open).', 'warning');

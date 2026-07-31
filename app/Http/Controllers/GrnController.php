@@ -309,12 +309,12 @@ class GrnController extends Controller
                         throw new \Exception(__('Received quantity must be greater than zero.'));
                     }
 
-                    if ($item->purchase_product_id && $item->purchaseProduct) {
-                        $remaining = $this->remainingPurchaseItemQuantity($item->purchaseProduct, $grn->id);
-                        if ($receivedQty > $remaining) {
-                            throw new \Exception(__('Received quantity cannot exceed remaining purchase quantity.'));
-                        }
-                    }
+                    // if ($item->purchase_product_id && $item->purchaseProduct) {
+                    //     $remaining = $this->remainingPurchaseItemQuantity($item->purchaseProduct, $grn->id);
+                    //     if ($receivedQty > $remaining) {
+                    //         throw new \Exception(__('Received quantity cannot exceed remaining purchase quantity.'));
+                    //     }
+                    // }
 
                     $item->quantity = $receivedQty;
                     $item->save();
@@ -453,7 +453,7 @@ class GrnController extends Controller
     {
         $this->authorizeGrn($grn);
 
-        if ($grn->status != 0) {
+        if ($grn->status != 0 && $grn->status != 9 && $grn->status != 10) {
             return redirect()->back()->with('error', __('GRN cannot be forwarded from current status.'));
         }
 

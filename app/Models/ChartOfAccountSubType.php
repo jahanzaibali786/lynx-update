@@ -11,4 +11,9 @@ class ChartOfAccountSubType extends Model
         'type',
         'created_by',
     ];
+
+    public function accountType()
+    {
+        return $this->hasOne('App\Models\ChartOfAccountType', 'id', 'type');
+    }
 }

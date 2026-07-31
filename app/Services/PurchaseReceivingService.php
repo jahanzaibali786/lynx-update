@@ -55,9 +55,9 @@ class PurchaseReceivingService
             }
 
             $quantity = (float) $grnItem->quantity;
-            if ($quantity > $this->remaining($purchaseItem)) {
-                throw new \RuntimeException(__('GRN received quantity exceeds remaining purchase quantity.'));
-            }
+            // if ($quantity > $this->remaining($purchaseItem)) {
+            //     throw new \RuntimeException(__('GRN received quantity exceeds remaining purchase quantity.'));
+            // }
 
             $purchaseItem->received_quantity = (float) ($purchaseItem->received_quantity ?? 0) + $quantity;
             $purchaseItem->save();

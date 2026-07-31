@@ -33,7 +33,7 @@
                                         <h6 class="text-primary my-3">{{__('Create GRN')}}</h6>
                                         <p class="text-muted text-sm mb-3"><i class="ti ti-clock mr-2"></i>{{__('Created on ')}}{{\Auth::user()->dateFormat($grn->grn_date)}}</p>
                                         <div class="timeline-action">
-                                            @if($grn->status == 0)
+                                            @if($grn->status == 0 || $grn->status == 9 )
                                                 <a href="{{ route('grn.edit', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{__('Edit')}}"><span class="btn-inner--icon"><i class="ti ti-pencil mr-2"></i></span>{{__('Edit')}}</a>
                                             @endif
                                         </div>
@@ -57,7 +57,7 @@
                                             @endif
                                         </p>
                                         <div class="timeline-action">
-                                            @if($grn->status == 0)
+                                            @if($grn->status == 0 || $grn->status == 9 || $grn->status == 10)
                                                 <a href="{{ route('grn.fw_to_ho', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-warning">
                                                     <span class="btn-inner--icon"><i class="ti ti-mail-forward mr-2"></i></span>{{__('Fw to Ho')}}
                                                 </a>
@@ -263,11 +263,22 @@
                                 <th class="text-end">{{ __('Amount') }}</th>
                             </tr>
                         </thead>
+                        @php
+                            $totalOrdered = 0;
+                            $totalReceived = 0;
+                            $totalCost = 0;
+                            $subTotal = 0;
+                        @endphp
                         <tbody>
                             @foreach ($grn->items as $item)
                                 @php
                                     $orderedQty = (float) ($item->ordered_quantity ?: optional($item->purchaseProduct)->quantity ?: $item->quantity);
                                     $maxReceive = (float) $item->quantity;
+                                    $itemAmount = (float) ($item->quantity * $item->price);
+                                    $totalOrdered += $orderedQty;
+                                    $totalReceived += (float) $item->quantity;
+                                    $totalCost += (float) $item->price;
+                                    $subTotal += $itemAmount;
                                 @endphp
                                 <tr>
                                     <td>{{ $item->purchase_order_no ?? '-' }}</td>
@@ -280,14 +291,25 @@
                                     </td>
                                     <td class="text-end">{{ \Auth::user()->priceFormat($item->price) }}</td>
                                     <td>{{ $item->description ?? '-' }}</td>
-                                    <td class="text-end">{{ \Auth::user()->priceFormat($item->quantity * $item->price) }}</td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($itemAmount) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
                         <tfoot>
                             <tr>
-                                <th colspan="8" class="text-end">{{ __('Total') }}</th>
-                                <th class="text-end">{{ \Auth::user()->priceFormat($grn->getSubTotal()) }}</th>
+                                <th colspan="5" class="text-end">{{ __('Sub Total') }}</th>
+                                <th class="text-end">{{ number_format($totalReceived, 2) }}</th>
+                                <th class="text-end">{{ \Auth::user()->priceFormat($totalCost) }}</th>
+                                <th></th>
+                                <th class="text-end">{{ \Auth::user()->priceFormat($subTotal) }}</th>
+                            </tr>
+                            <tr>
+                                <th colspan="8" class="text-end">{{ __('Round Off') }}</th>
+                                <th class="text-end">{{ \Auth::user()->priceFormat($grn->getRoundOff()) }}</th>
+                            </tr>
+                            <tr>
+                                <th colspan="8" class="text-end">{{ __('Grand Total') }}</th>
+                                <th class="text-end fw-bold">{{ \Auth::user()->priceFormat($grn->getTotal()) }}</th>
                             </tr>
                         </tfoot>
                     </table>

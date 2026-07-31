@@ -1571,6 +1571,7 @@
                                     Request::segment(1) == 'payment-method' ||
                                     Request::segment(1) == 'custom-field' ||
                                     Request::segment(1) == 'chart-of-account-type' ||
+                                    Request::segment(1) == 'chart-of-account-sub-category' ||
                                     (Request::segment(1) == 'transaction' &&
                                         Request::segment(2) != 'ledger' &&
                                         Request::segment(2) != 'balance-sheet' &&
@@ -1739,6 +1740,10 @@
                                                     <a class="dash-link {{ Request::route()->getName() == 'chart-of-account.index' || Request::route()->getName() == 'chart-of-account.show' ? ' active' : '' }}"
                                                         href="{{ route('chart-of-account.index') }}">{{ __('Chart of Accounts') }}</a>
                                                 </li>
+                                                <li class="dash-item ">
+                                                    <a class="dash-link {{ Request::segment(1) == 'chart-of-account-sub-category' ? ' active' : '' }}"
+                                                        href="{{ route('chart-of-account-sub-category.index') }}">{{ __('Chart of Account Sub Categories') }}</a>
+                                                </li>
                                                 <li id="vouchers-id" class="dash-item dash-hasmenu ">
                                                     <a class="dash-link {{ Request::segment(1) == 'journal-entry' || Request::segment(1) == 'bank-recipt-voucher' || Request::segment(1) == 'bank-payment-voucher' || Request::segment(1) == 'cash-recipt-voucher' || Request::segment(1) == 'cash-payment-voucher' ? 'active dash-trigger' : '' }}"
                                                         href="#voucher">{{ __('Vouchers') }}</a>
@@ -1822,7 +1827,7 @@
                                             Gate::check('manage constant payment method') ||
                                             Gate::check('manage constant custom field'))
                                         <li class="dash-item">
-                                            <a class="dash-link  {{ Request::segment(1) == 'taxes' || Request::segment(1) == 'product-category' || Request::segment(1) == 'product-sub-category' || Request::segment(1) == 'product-unit' || Request::segment(1) == 'payment-method' || Request::segment(1) == 'custom-field' || Request::segment(1) == 'chart-of-account-type' ? 'active dash-trigger' : '' }}"
+                                            <a class="dash-link  {{ Request::segment(1) == 'taxes' || Request::segment(1) == 'product-category' || Request::segment(1) == 'product-sub-category' || Request::segment(1) == 'product-unit' || Request::segment(1) == 'payment-method' || Request::segment(1) == 'custom-field' || Request::segment(1) == 'chart-of-account-type' || Request::segment(1) == 'chart-of-account-sub-category' ? 'active dash-trigger' : '' }}"
                                                 href="{{ route('taxes.index') }}">{{ __('Accounting Setup') }}</a>
                                         </li>
                                     @endif
@@ -2978,10 +2983,16 @@
 										href="{{ route('vendor-advance.index') }}">{{ __('Vendor Advance') }}</a>
 								</li>
                             @endif
-							@can('manage demand order')
+							@can('manage stock transfer order')
 								<li class="dash-item">
-                                    <a class="dash-link {{ Request::segment(1) == 'demand-order' || in_array(Request::route()->getName(), ['demand-order.index', 'demand-order.create', 'demand-order.edit', 'demand-order.show']) ? ' active' : '' }}"
-                                        href="{{ route('demand-order.index') }}">{{ __('Demand Order') }}</a>
+                                    <a class="dash-link {{ Request::segment(1) == 'stock-transfer-order' || in_array(Request::route()->getName(), ['stock-transfer-order.index', 'stock-transfer-order.create', 'stock-transfer-order.edit', 'stock-transfer-order.show']) ? ' active' : '' }}"
+                                        href="{{ route('stock-transfer-order.index') }}">{{ __('Stock Transfer Order') }}</a>
+                                </li>
+                            @endcan
+                            @can('manage stock transfer note')
+                                <li class="dash-item ">
+                                    <a class="dash-link {{ in_array(Request::route()->getName(), ['stock-transfer-note.index', 'stock-transfer-note.create', 'stock-transfer-note.edit', 'stock-transfer-note.show']) ? ' active' : '' }}"
+                                        href="{{ route('stock-transfer-note.index') }}">{{ __('Stock Transfer Note') }}</a>
                                 </li>
 							@endcan
                             

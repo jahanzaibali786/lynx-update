@@ -323,7 +323,7 @@
                                             'method' => 'POST',
                                             'class' => 'employee-transfer-approval-form d-inline',
                                         ]) }}
-                                        <a type="submit" class="btn mx-1 btn-sm btn-outline-warning mx-3">
+                                        <a href="#" class="btn mx-1 btn-sm btn-outline-warning mx-3" onclick="$(this).closest('form').submit(); return false;">
                                             {{ __('Approve') }}
                                         </a>
                                         {{ Form::close() }}

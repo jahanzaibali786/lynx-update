@@ -95,6 +95,104 @@ function closeActiveBootstrapModal() {
     }
 }
 
+function refreshContentArea(url, onSuccess) {
+    $.ajax({
+        url: url || window.location.href,
+        cache: false,
+        dataType: 'html',
+        success: function (html) {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var el = doc.getElementById('content-area');
+
+            if (el && document.getElementById('content-area')) {
+                document.getElementById('content-area').innerHTML = el.innerHTML;
+
+                try {
+                    select2();
+                    summernote();
+                    daterange();
+                    if (typeof common_bind === 'function') {
+                        common_bind();
+                    }
+                    if (typeof commonLoader === 'function') {
+                        commonLoader();
+                    }
+                } catch (e) {}
+
+                if (typeof onSuccess === 'function') {
+                    onSuccess(html, el);
+                }
+                return;
+            }
+
+            if (typeof onSuccess === 'function') {
+                onSuccess(html, null);
+            }
+        },
+        error: function () {
+            if (typeof onSuccess === 'function') {
+                onSuccess(null, null);
+                return;
+            }
+        }
+    });
+}
+
+function triggerContentAreaRefresh(url, onSuccess) {
+    refreshContentArea(url, onSuccess);
+}
+
+$(document).on('click', '.stock-transfer-note-delete-btn', function (e) {
+    e.preventDefault();
+
+    var url = $(this).data('url');
+    if (!url) {
+        return;
+    }
+
+    if (!confirm($(this).data('confirm') || 'Are you sure?')) {
+        return;
+    }
+
+    $.ajax({
+        url: url,
+        type: 'POST',
+        data: {
+            _method: 'DELETE',
+            _token: $('meta[name="csrf-token"]').attr('content')
+        },
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            'Accept': 'application/json'
+        },
+        success: function (response) {
+            if (response && response.success) {
+                if (typeof show_toastr === 'function') {
+                    show_toastr('success', response.message || 'Deleted successfully.', 'success');
+                }
+                if (typeof triggerContentAreaRefresh === 'function') {
+                    triggerContentAreaRefresh(window.location.href);
+                }
+                return;
+            }
+
+            if (typeof show_toastr === 'function') {
+                show_toastr('error', (response && response.message) ? response.message : 'Unable to delete record.', 'error');
+            }
+        },
+        error: function (xhr) {
+            var message = 'Unable to delete record.';
+            if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+
+            if (typeof show_toastr === 'function') {
+                show_toastr('error', message, 'error');
+            }
+        }
+    });
+});
+
 function ajaxModalForm(options) {
     var settings = $.extend({
         formSelector: '.ajax-modal-form',

@@ -9,10 +9,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Spatie\GoogleCalendar\Event as GoogleEvent;
-use Illuminate\Support\Facades\Schema;
-
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Twilio\Rest\Client;
@@ -102,6 +101,8 @@ class Utility extends Model
             'color' => '',
             'SITE_RTL' => 'off',
             'purchase_prefix' => '#PUR',
+            'stock_transfer_order_prefix' => '#STO',
+            'stock_transfer_note_prefix' => '#STN',
             'purchase_color' => 'ffffff',
             'purchase_template' => 'template1',
             'pos_color' => 'ffffff',
@@ -604,7 +605,7 @@ class Utility extends Model
     //        return $taxes;
     //    }
 
-     public static function tax($taxes)
+    public static function tax($taxes)
     {
         if (empty($taxes)) {
             return [];
@@ -614,14 +615,13 @@ class Utility extends Model
         $taxes = [];
         foreach ($taxArr as $tax) {
             $taxModel = Tax::find($tax);
-            if (!empty($taxModel)) {
+            if (! empty($taxModel)) {
                 $taxes[] = $taxModel;
             }
         }
 
         return $taxes;
     }
-
 
     public static function taxRate($taxRate, $price, $quantity, $discount = 0)
     {
@@ -3366,15 +3366,15 @@ class Utility extends Model
             'delete purchase',
             'send purchase',
             'convert purchase to grn',
-            'manage demand order',
-            'create demand order',
-            'show demand order',
-            'edit demand order',
-            'delete demand order',
-            'forward demand order',
-            'approve demand order',
-            'reject demand order',
-            'convert demand order to invoice',
+            'manage stock transfer order',
+            'create stock transfer order',
+            'show stock transfer order',
+            'edit stock transfer order',
+            'delete stock transfer order',
+            'forward stock transfer order',
+            'approve stock transfer order',
+            'reject stock transfer order',
+            'convert stock transfer order',
             'manage grn',
             'create grn',
             'show grn',
@@ -3412,7 +3412,7 @@ class Utility extends Model
             'edit daily cash closing',
             'delete daily cash closing',
             'approve daily cash closing',
-             'manage head imprest',
+            'manage head imprest',
             'create head imprest',
             'show head imprest',
             'edit head imprest',
@@ -3471,15 +3471,15 @@ class Utility extends Model
             'delete purchase',
             'send purchase',
             'convert purchase to grn',
-            'manage demand order',
-            'create demand order',
-            'show demand order',
-            'edit demand order',
-            'delete demand order',
-            'forward demand order',
-            'approve demand order',
-            'reject demand order',
-            'convert demand order to invoice',
+            'manage stock transfer order',
+            'create stock transfer order',
+            'show stock transfer order',
+            'edit stock transfer order',
+            'delete stock transfer order',
+            'forward stock transfer order',
+            'approve stock transfer order',
+            'reject stock transfer order',
+            'convert stock transfer order to invoice',
             'manage grn',
             'create grn',
             'show grn',
@@ -3517,7 +3517,7 @@ class Utility extends Model
             'edit daily cash closing',
             'delete daily cash closing',
             'approve daily cash closing',
-             'manage head imprest',
+            'manage head imprest',
             'create head imprest',
             'show head imprest',
             'edit head imprest',
@@ -3913,11 +3913,21 @@ class Utility extends Model
             $stocks->owned_by = \Auth::user()->ownedId();
         }
 
-        if(isset($extra['warehouse_id'])) $stocks->warehouse_id = $extra['warehouse_id'];
-        if(isset($extra['unit_price'])) $stocks->unit_price = $extra['unit_price'];
-        if(isset($extra['sale_price'])) $stocks->sale_price = $extra['sale_price'];
-        if(isset($extra['remaining_qty'])) $stocks->remaining_qty = $extra['remaining_qty'];
-        if(isset($extra['condition'])) $stocks->condition = $extra['condition'];
+        if (isset($extra['warehouse_id'])) {
+            $stocks->warehouse_id = $extra['warehouse_id'];
+        }
+        if (isset($extra['unit_price'])) {
+            $stocks->unit_price = $extra['unit_price'];
+        }
+        if (isset($extra['sale_price'])) {
+            $stocks->sale_price = $extra['sale_price'];
+        }
+        if (isset($extra['remaining_qty'])) {
+            $stocks->remaining_qty = $extra['remaining_qty'];
+        }
+        if (isset($extra['condition'])) {
+            $stocks->condition = $extra['condition'];
+        }
 
         $stocks->save();
     }
@@ -4775,7 +4785,7 @@ class Utility extends Model
     public static function getChatGPTSettings()
     {
         $user = User::find(\Auth::user()->creatorId());
-        $plan = \App\Models\Plan::find($user->plan);
+        $plan = Plan::find($user->plan);
 
         return $plan;
     }
@@ -4894,10 +4904,10 @@ class Utility extends Model
         return $total;
     }
 
-     public static function formatVoucherNumber($number, $type = 'JV')
+    public static function formatVoucherNumber($number, $type = 'JV')
     {
         $prefixes = [
-            'JV' =>  'JV',
+            'JV' => 'JV',
             'BRV' => '#BRV',
             'BPV' => '#BPV',
             'CRV' => '#CRV',
@@ -4905,20 +4915,21 @@ class Utility extends Model
         ];
         $prefix = $prefixes[$type] ?? '';
 
-        return $prefix. sprintf("%05d", $number);
-    }
-    public static function VoucherRoute( $type = 'JV')
-    {
-       $routes = [
-        'JV'  => 'journal-entry.show',
-        'BRV' => 'bank-recipt-voucher.show',
-        'BPV' => 'bank-payment-voucher.show',
-        'CRV' => 'cash-recipt-voucher.show',
-        'CPV' => 'cash-payment-voucher.show',
-    ];
-        return $routes[$type] ?? null;
+        return $prefix.sprintf('%05d', $number);
     }
 
+    public static function VoucherRoute($type = 'JV')
+    {
+        $routes = [
+            'JV' => 'journal-entry.show',
+            'BRV' => 'bank-recipt-voucher.show',
+            'BPV' => 'bank-payment-voucher.show',
+            'CRV' => 'cash-recipt-voucher.show',
+            'CPV' => 'cash-payment-voucher.show',
+        ];
+
+        return $routes[$type] ?? null;
+    }
 
     public static function getAccountData($account_id, $start_date = null, $end_date = null, $type = null, $branch = null)
     {
@@ -4994,7 +5005,7 @@ class Utility extends Model
                 ->leftjoin('journal_entries', 'journal_entries.id', 'journal_items.journal')->where('journal_entries.created_by', '=', \Auth::user()->creatorId());
             $journalItems->where('journal_items.created_at', '>=', $start);
             $journalItems->where('journal_items.created_at', '<=', $end);
-            if (!empty($branch) && $branch != 'null') {
+            if (! empty($branch) && $branch != 'null') {
                 $journalItems->where('journal_entries.owned_by', '=', $branch);
             }
             $journalItems = $journalItems->get()->groupBy('journal');
@@ -5006,10 +5017,10 @@ class Utility extends Model
                 ->where('journal_entries.created_by', '=', \Auth::user()->creatorId())->where('account', $account_id);
             $journalItems->where('journal_items.created_at', '>=', $start);
             $journalItems->where('journal_items.created_at', '<=', $end);
-            if (!empty($branch) && $branch != 'null') {
+            if (! empty($branch) && $branch != 'null') {
                 $journalItems->where('journal_entries.owned_by', '=', $branch);
             }
-            $journalItems = $journalItems->orderBy('journal_items.created_at','asc')->get();
+            $journalItems = $journalItems->orderBy('journal_items.created_at', 'asc')->get();
             $type = 'other';
         }
         $data = [];
@@ -5634,7 +5645,7 @@ class Utility extends Model
                 $journalItem->entry_id = @$data['items'][$i]['prod_id'];
                 $journalItem->types = 'Challan';
                 $journalItem->credit = 0;
-                $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) ;
+                $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']);
                 $journalItem->save();
 
                 if ($data['items'][$i]['concession'] > 0) {
@@ -5721,7 +5732,8 @@ class Utility extends Model
             return 'error';
         }
     }
-     public static function bankTransferJvEntry($data)
+
+    public static function bankTransferJvEntry($data)
     {
         DB::beginTransaction();
 
@@ -5732,17 +5744,17 @@ class Utility extends Model
                 ->orderby('id', 'desc')
                 ->first();
 
-            if (!$latest) {
+            if (! $latest) {
                 $latest = 1;
             } else {
                 $latest = $latest->journal_id + 1;
             }
             // dd($data['date']);
-            $createdatJ = !empty($data['date'])
+            $createdatJ = ! empty($data['date'])
                 ? Carbon::parse($data['date'])->format('Y-m-d H:i:s')
                 : null;
 
-            $updatedatj = !empty($data['date'])
+            $updatedatj = ! empty($data['date'])
                 ? Carbon::parse($data['date'])->format('Y-m-d H:i:s')
                 : null;
             $journal = new JournalEntry;
@@ -5757,7 +5769,7 @@ class Utility extends Model
             $journal->user_type = @$data['user_type'];
             $journal->owned_by = $data['owned_by'];
             $journal->created_by = $data['created_by'];
-            //created at and updated at
+            // created at and updated at
             $journal->created_at = $createdatJ;
             $journal->updated_at = $updatedatj;
             $journal->save();
@@ -5768,7 +5780,7 @@ class Utility extends Model
             $journalItem->journal = $journal->id;
             $journalItem->account = $fromAccount->id;
             $journalItem->bank_id = $data['from_bank_id'];
-            $journalItem->description = 'Bank Transfer From : ' . @$data['from_bank_name'] .' To Bank : '. @$data['to_bank_name'];
+            $journalItem->description = 'Bank Transfer From : '.@$data['from_bank_name'].' To Bank : '.@$data['to_bank_name'];
             $journalItem->user_id = @$data['user_id'];
             $journalItem->user_type = @$data['user_type'];
             $journalItem->types = 'BankTransfer';
@@ -5783,18 +5795,16 @@ class Utility extends Model
             $journalItem->journal = $journal->id;
             $journalItem->account = $toAccount->id;
             $journalItem->bank_id = $data['to_bank_id'];
-            $journalItem->description = 'Bank Transfer From : ' . @$data['from_bank_name'] .' To Bank : '. @$data['to_bank_name'];
+            $journalItem->description = 'Bank Transfer From : '.@$data['from_bank_name'].' To Bank : '.@$data['to_bank_name'];
             $journalItem->user_id = @$data['user_id'];
             $journalItem->user_type = @$data['user_type'];
             $journalItem->types = 'BankTransfer';
             $journalItem->credit = 0;
             $journalItem->debit = $data['amount'];
-			$journalItem->branch_id = $data['owned_by'];
+            $journalItem->branch_id = $data['owned_by'];
             $journalItem->created_at = $createdatJ;
             $journalItem->updated_at = $updatedatj;
             $journalItem->save();
-
-
 
             DB::commit();
 
@@ -5808,6 +5818,7 @@ class Utility extends Model
             return 'error';
         }
     }
+
     // Salary jr voucher
     public static function Salaryjrentry($data)
     {
@@ -5855,7 +5866,7 @@ class Utility extends Model
                         'created_by' => $data['created_by'],
                     ]
                 );
-                $a=JournalItem::create([
+                $a = JournalItem::create([
                     'journal' => $journal->id,
                     'account' => $account->id,
                     'description' => $acc['name'].' against the salray no '.@$data['no'].' for the month of '.@$data['salary_month'],
@@ -5884,7 +5895,7 @@ class Utility extends Model
     {
         DB::beginTransaction();
         try {
-            $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->orderBy('id','Desc')->first();
+            $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->orderBy('id', 'Desc')->first();
             $latest = $latest ? $latest->journal_id + 1 : 1;
 
             $journal = new JournalEntry;
@@ -5910,7 +5921,7 @@ class Utility extends Model
                 if (! $account) {
                     dd($acc);
                 }
-                  $a=JournalItem::create([
+                $a = JournalItem::create([
                     'journal' => $journal->id,
                     'account' => $account->id,
                     'description' => $acc['name'].' against the salray no '.@$data['no'].' for the month of '.@$data['salary_month'],
@@ -6032,7 +6043,7 @@ class Utility extends Model
         DB::beginTransaction();
         try {
             $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->latest()->first();
-            if (!$latest) {
+            if (! $latest) {
                 $latest = 1;
             } else {
                 $latest = $latest->journal_id + 1;
@@ -6042,7 +6053,7 @@ class Utility extends Model
             $journal->journal_id = $latest;
             $journal->date = $data['date'];
             $journal->reference = $data['reference'];
-            $journal->description = 'Challan no : ' . @$data['no'];
+            $journal->description = 'Challan no : '.@$data['no'];
             $journal->reference_id = $data['id'];
             $journal->category = $data['category'];
             $journal->voucher_type = 'JV';
@@ -6060,7 +6071,7 @@ class Utility extends Model
                 $journalItem->journal = $journal->id;
                 $journalItem->account = @$account_name->id;
                 $journalItem->head = $data['items'][$i]['head'];
-                $journalItem->description = 'Adjust of Challan no : ' . @$data['no'];
+                $journalItem->description = 'Adjust of Challan no : '.@$data['no'];
                 $journalItem->credit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['concession'];
                 $journalItem->debit = 0;
                 $journalItem->user_id = @$data['user_id'];
@@ -6075,7 +6086,7 @@ class Utility extends Model
             $journalItem->journal = $journal->id;
             $journalItem->account = @$account_sec->id;
             $journalItem->head = $head->id;
-            $journalItem->description = 'Adjust on Challan no : ' . @$data['no'];
+            $journalItem->description = 'Adjust on Challan no : '.@$data['no'];
             $journalItem->credit = 0;
             $journalItem->debit = $data['total'];
             $journalItem->user_id = @$data['user_id'];
@@ -6255,7 +6266,7 @@ class Utility extends Model
                     'journal_id' => (JournalEntry::where('owned_by', $data['owned_by'])
                         ->where('voucher_type', $voucherType)
                         ->max('journal_id') ?? 0) + 1,
-                    'description' => 'Challan No: ' . $data['no'],
+                    'description' => 'Challan No: '.$data['no'],
                     'reference_id' => $data['prod_id'] ?? $data['recipt'],
                     'reference' => $data['reference'],
                     'category' => $data['category'],
@@ -6271,14 +6282,14 @@ class Utility extends Model
             foreach ($data['items'] as $item) {
                 $head = FeeHead::find($item['head']);
 
-                if (!$head) {
-                    throw new \Exception('FeeHead missing: ' . $item['head']);
+                if (! $head) {
+                    throw new \Exception('FeeHead missing: '.$item['head']);
                 }
 
                 $account = ChartOfAccount::find($head->receivable_account_id);
 
-                if (!$account) {
-                    throw new \Exception('Chart account missing for FeeHead: ' . $item['head']);
+                if (! $account) {
+                    throw new \Exception('Chart account missing for FeeHead: '.$item['head']);
                 }
 
                 $quantity = (float) $item['quantity'];
@@ -6304,11 +6315,11 @@ class Utility extends Model
                         'head' => $item['head'],
                         'entry_id' => $item['prod_id'] ?? null,
                         'bank_id' => $data['bank_id'],
-                    'user_id' => $data['user_id'] ?? null,
+                        'user_id' => $data['user_id'] ?? null,
                         'user_type' => 'Student',
                         'types' => 'Challan Payment',
                         'branch_id' => $data['branch_id'] ?? null,
-                        'description' => 'Receive of Challan no: ' . $data['no'] . ' - Bank: ' . $data['bank_name'],
+                        'description' => 'Receive of Challan no: '.$data['no'].' - Bank: '.$data['bank_name'],
                         'credit' => $lineCredit,
                         'debit' => 0,
                         'created_at' => $data['created_at'] ?? now(),
@@ -6338,7 +6349,7 @@ class Utility extends Model
                     'branch_id' => $data['branch_id'] ?? null,
                     'types' => 'Challan Payment',
                     'user_type' => 'Student',
-                    'description' => 'Receive of Challan no: ' . $data['no'] . ' - Bank: ' . $data['bank_name'],
+                    'description' => 'Receive of Challan no: '.$data['no'].' - Bank: '.$data['bank_name'],
                     'credit' => 0,
                     'debit' => $data['total'],
                     'created_at' => $data['created_at'] ?? now(),
@@ -6346,7 +6357,7 @@ class Utility extends Model
                 ]);
             }
 
-            if ($updateBankBalance && !empty($data['bank_id']) && $data['total'] > 0) {
+            if ($updateBankBalance && ! empty($data['bank_id']) && $data['total'] > 0) {
                 self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
             }
 
@@ -6373,7 +6384,7 @@ class Utility extends Model
                     'journal_id' => (JournalEntry::where('owned_by', $data['owned_by'])
                         ->where('voucher_type', $voucherType)
                         ->max('journal_id') ?? 0) + 1,
-                    'description' => 'Challan id: ' . $data['no'],
+                    'description' => 'Challan id: '.$data['no'],
                     'reference_id' => $data['prod_id'] ?? $data['recipt'],
                     'reference' => $data['reference'],
                     'category' => $data['category'],
@@ -6389,14 +6400,14 @@ class Utility extends Model
             foreach ($data['items'] as $item) {
                 $head = FeeHead::find($item['head']);
 
-                if (!$head) {
-                    throw new \Exception('FeeHead missing: ' . $item['head']);
+                if (! $head) {
+                    throw new \Exception('FeeHead missing: '.$item['head']);
                 }
 
                 $account = ChartOfAccount::find($head->receivable_account_id);
 
-                if (!$account) {
-                    throw new \Exception('Chart account missing for FeeHead: ' . $item['head']);
+                if (! $account) {
+                    throw new \Exception('Chart account missing for FeeHead: '.$item['head']);
                 }
 
                 $quantity = (float) $item['quantity'];
@@ -6426,7 +6437,7 @@ class Utility extends Model
                         'user_type' => $data['user_type'] ?? 'Student',
                         'types' => 'Challan Payment',
                         'branch_id' => $data['branch_id'] ?? null,
-                        'description' => 'Receive of Challan no: ' . $data['no'] . ' - Bank: ' . $data['bank_name'],
+                        'description' => 'Receive of Challan no: '.$data['no'].' - Bank: '.$data['bank_name'],
                         'credit' => $lineCredit,
                         'debit' => 0,
                         'created_at' => $data['created_at'] ?? now(),
@@ -6454,10 +6465,10 @@ class Utility extends Model
                     'account' => $data['account_id'],
                     'bank_id' => $data['bank_id'],
                     'branch_id' => $data['branch_id'] ?? null,
-					'user_type' => 'Student',
+                    'user_type' => 'Student',
                     'user_id' => $data['user_id'] ?? null,
                     'types' => 'Challan Payment',
-                    'description' => 'Receive of Challan no: ' . $data['no'] . ' - Bank: ' . $data['bank_name'],
+                    'description' => 'Receive of Challan no: '.$data['no'].' - Bank: '.$data['bank_name'],
                     'credit' => 0,
                     'debit' => $data['total'],
                     'created_at' => $data['created_at'] ?? now(),
@@ -6465,7 +6476,7 @@ class Utility extends Model
                 ]);
             }
 
-            if ($updateBankBalance && !empty($data['bank_id']) && $data['total'] > 0) {
+            if ($updateBankBalance && ! empty($data['bank_id']) && $data['total'] > 0) {
                 self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
             }
 
@@ -6473,205 +6484,205 @@ class Utility extends Model
         });
     }
 
-//     // BRV voucher
-// public static function brv_entry($data)
-// {
-//     return DB::transaction(function () use ($data) {
+    //     // BRV voucher
+    // public static function brv_entry($data)
+    // {
+    //     return DB::transaction(function () use ($data) {
 
-//         // Check if journal entry exists
-//         $journal = JournalEntry::firstOrCreate(
-//             [
-//                 'owned_by' => $data['owned_by'],
-//                 'voucher_type' => 'BRV',
-//                 'date' => $data['date'],
-//                 'reference' => $data['reference'],
-//                 'bank_id' => $data['bank_id'],
-//                 'user_id' => $data['user_id']
-//             ],
-//             [
-//                 'journal_id' => (JournalEntry::where('owned_by', $data['owned_by'])
-//                     ->where('voucher_type', 'BRV')
-//                     ->max('journal_id') ?? 0) + 1,
-//                 'description' => 'Challan No: '.$data['no'],
-//                 'reference_id' => $data['prod_id'] ?? $data['recipt'],
-//                 'category' => $data['category'],
-//                 'user_type' => 'Student',
-//                 'created_by' => $data['created_by']
-//             ]
-//         );
+    //         // Check if journal entry exists
+    //         $journal = JournalEntry::firstOrCreate(
+    //             [
+    //                 'owned_by' => $data['owned_by'],
+    //                 'voucher_type' => 'BRV',
+    //                 'date' => $data['date'],
+    //                 'reference' => $data['reference'],
+    //                 'bank_id' => $data['bank_id'],
+    //                 'user_id' => $data['user_id']
+    //             ],
+    //             [
+    //                 'journal_id' => (JournalEntry::where('owned_by', $data['owned_by'])
+    //                     ->where('voucher_type', 'BRV')
+    //                     ->max('journal_id') ?? 0) + 1,
+    //                 'description' => 'Challan No: '.$data['no'],
+    //                 'reference_id' => $data['prod_id'] ?? $data['recipt'],
+    //                 'category' => $data['category'],
+    //                 'user_type' => 'Student',
+    //                 'created_by' => $data['created_by']
+    //             ]
+    //         );
 
-//         StudentReceipt::where('id', $data['recipt'])->update(['voucher_id' => $journal->id]);
+    //         StudentReceipt::where('id', $data['recipt'])->update(['voucher_id' => $journal->id]);
 
-//         foreach ($data['items'] as $item) {
-//             $head = FeeHead::find($item['head']);
-//             if (!$head) dd('FeeHead missing', $item);
+    //         foreach ($data['items'] as $item) {
+    //             $head = FeeHead::find($item['head']);
+    //             if (!$head) dd('FeeHead missing', $item);
 
-//             $account = ChartOfAccount::find($head->receivable_account_id);
-//             if (!$account) dd('Account missing', $item);
+    //             $account = ChartOfAccount::find($head->receivable_account_id);
+    //             if (!$account) dd('Account missing', $item);
 
-//             $existingItem = JournalItem::where('journal', $journal->id)
-//                 ->where('account', $account->id)
-//                 ->where('head', $item['head'])
-//                 ->where('entry_id', $item['prod_id'] ?? null)
-//                 ->first();
+    //             $existingItem = JournalItem::where('journal', $journal->id)
+    //                 ->where('account', $account->id)
+    //                 ->where('head', $item['head'])
+    //                 ->where('entry_id', $item['prod_id'] ?? null)
+    //                 ->first();
 
-//             if (!$existingItem) {
-//                 $quantity = $item['quantity'];
-//                 $price = str_replace(',', '', $item['price']);
-//                 $concession = str_replace(',', '', $item['concession']);
-//                 if (!is_numeric($quantity) || !is_numeric($price) || !is_numeric($concession)) {
-//                     dd('Invalid numeric value', $item);
-//                 }
+    //             if (!$existingItem) {
+    //                 $quantity = $item['quantity'];
+    //                 $price = str_replace(',', '', $item['price']);
+    //                 $concession = str_replace(',', '', $item['concession']);
+    //                 if (!is_numeric($quantity) || !is_numeric($price) || !is_numeric($concession)) {
+    //                     dd('Invalid numeric value', $item);
+    //                 }
 
-//                 JournalItem::create([
-//                     'journal' => $journal->id,
-//                     'account' => $account->id,
-//                     'head' => $item['head'],
-//                     'entry_id' => $item['prod_id'] ?? null,
-//                     'bank_id' => $data['bank_id'],
-//                     'user_id' => $data['user_id'],
-//                     'user_type' => 'Student',
-//                     'types' => 'Challan Payment',
-//                     'branch_id' => $data['branch_id'] ?? null,
-//                     'description' => 'Receive of Challan no: '.$data['no'].'- Bank :'.$data['bank_name'],
-//                     'credit' => ((float)$quantity * (float)$price) - (float)$concession,
-//                     'debit' => 0
-//                 ]);
-//             }
-//         }
+    //                 JournalItem::create([
+    //                     'journal' => $journal->id,
+    //                     'account' => $account->id,
+    //                     'head' => $item['head'],
+    //                     'entry_id' => $item['prod_id'] ?? null,
+    //                     'bank_id' => $data['bank_id'],
+    //                     'user_id' => $data['user_id'],
+    //                     'user_type' => 'Student',
+    //                     'types' => 'Challan Payment',
+    //                     'branch_id' => $data['branch_id'] ?? null,
+    //                     'description' => 'Receive of Challan no: '.$data['no'].'- Bank :'.$data['bank_name'],
+    //                     'credit' => ((float)$quantity * (float)$price) - (float)$concession,
+    //                     'debit' => 0
+    //                 ]);
+    //             }
+    //         }
 
-//         $existingBankEntry = JournalItem::where('journal', $journal->id)
-//             ->where('account', $data['account_id'])
-//             ->where('bank_id', $data['bank_id'])
-//             ->where('types', 'Challan Payment')
-//             ->first();
+    //         $existingBankEntry = JournalItem::where('journal', $journal->id)
+    //             ->where('account', $data['account_id'])
+    //             ->where('bank_id', $data['bank_id'])
+    //             ->where('types', 'Challan Payment')
+    //             ->first();
 
-//         if ($existingBankEntry) {
-//             $existingBankEntry->debit += $data['total'];
-//             $existingBankEntry->save();
-//         } else {
-//             JournalItem::create([
-//                 'journal' => $journal->id,
-//                 'account' => $data['account_id'],
-//                 'bank_id' => $data['bank_id'],
-//                 'branch_id' => $data['branch_id'] ?? null,
-//                 'types' => 'Challan Payment',
-//                 'user_type' => 'Student',
-//                 'description' => 'Receive of Challan no: '.$data['no'].' - Bank :'.$data['bank_name'],
-//                 'credit' => 0,
-//                 'debit' => $data['total']
-//             ]);
-//         }
+    //         if ($existingBankEntry) {
+    //             $existingBankEntry->debit += $data['total'];
+    //             $existingBankEntry->save();
+    //         } else {
+    //             JournalItem::create([
+    //                 'journal' => $journal->id,
+    //                 'account' => $data['account_id'],
+    //                 'bank_id' => $data['bank_id'],
+    //                 'branch_id' => $data['branch_id'] ?? null,
+    //                 'types' => 'Challan Payment',
+    //                 'user_type' => 'Student',
+    //                 'description' => 'Receive of Challan no: '.$data['no'].' - Bank :'.$data['bank_name'],
+    //                 'credit' => 0,
+    //                 'debit' => $data['total']
+    //             ]);
+    //         }
 
-//         // Update Bank Balance
-//         if (isset($data['bank_id']) && $data['total'] > 0) {
-//             self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
-//         }
+    //         // Update Bank Balance
+    //         if (isset($data['bank_id']) && $data['total'] > 0) {
+    //             self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
+    //         }
 
-//         return true;
-//     });
-// }
+    //         return true;
+    //     });
+    // }
 
-// // CRV voucher
-// public static function crv_entry($data)
-// {
-//     return DB::transaction(function () use ($data) {
+    // // CRV voucher
+    // public static function crv_entry($data)
+    // {
+    //     return DB::transaction(function () use ($data) {
 
-//         // Check if journal entry exists
-//         $journal = JournalEntry::firstOrCreate(
-//             [
-//                 'owned_by' => $data['owned_by'],
-//                 'voucher_type' => 'CRV',
-//                 'date' => $data['date'],
-//                 'reference' => $data['reference'],
-//                 'bank_id' => $data['bank_id'],
-//                 'user_id' => $data['user_id']
-//             ],
-//             [
-//                 'journal_id' => (JournalEntry::where('owned_by', $data['owned_by'])
-//                     ->where('voucher_type', 'CRV')
-//                     ->max('journal_id') ?? 0) + 1,
-//                 'description' => 'Challan id: '.$data['no'],
-//                 'reference_id' => $data['prod_id'] ?? $data['recipt'],
-//                 'category' => $data['category'],
-//                 'user_type' => 'Student',
-//                 'created_by' => $data['created_by']
-//             ]
-//         );
+    //         // Check if journal entry exists
+    //         $journal = JournalEntry::firstOrCreate(
+    //             [
+    //                 'owned_by' => $data['owned_by'],
+    //                 'voucher_type' => 'CRV',
+    //                 'date' => $data['date'],
+    //                 'reference' => $data['reference'],
+    //                 'bank_id' => $data['bank_id'],
+    //                 'user_id' => $data['user_id']
+    //             ],
+    //             [
+    //                 'journal_id' => (JournalEntry::where('owned_by', $data['owned_by'])
+    //                     ->where('voucher_type', 'CRV')
+    //                     ->max('journal_id') ?? 0) + 1,
+    //                 'description' => 'Challan id: '.$data['no'],
+    //                 'reference_id' => $data['prod_id'] ?? $data['recipt'],
+    //                 'category' => $data['category'],
+    //                 'user_type' => 'Student',
+    //                 'created_by' => $data['created_by']
+    //             ]
+    //         );
 
-//         StudentReceipt::where('id', $data['recipt'])->update(['voucher_id' => $journal->id]);
+    //         StudentReceipt::where('id', $data['recipt'])->update(['voucher_id' => $journal->id]);
 
-//         foreach ($data['items'] as $item) {
-//             $head = FeeHead::find($item['head']);
-//             if (!$head) dd('FeeHead missing', $item);
+    //         foreach ($data['items'] as $item) {
+    //             $head = FeeHead::find($item['head']);
+    //             if (!$head) dd('FeeHead missing', $item);
 
-//             $account = ChartOfAccount::find($head->receivable_account_id);
-//             if (!$account) dd('Account missing', $item);
+    //             $account = ChartOfAccount::find($head->receivable_account_id);
+    //             if (!$account) dd('Account missing', $item);
 
-//             $existingItem = JournalItem::where('journal', $journal->id)
-//                 ->where('account', $account->id)
-//                 ->where('head', $item['head'])
-//                 ->where('entry_id', $item['prod_id'] ?? null)
-//                 ->first();
+    //             $existingItem = JournalItem::where('journal', $journal->id)
+    //                 ->where('account', $account->id)
+    //                 ->where('head', $item['head'])
+    //                 ->where('entry_id', $item['prod_id'] ?? null)
+    //                 ->first();
 
-//             if (!$existingItem) {
-//                 $quantity = $item['quantity'];
-//                 $price = str_replace(',', '', $item['price']);
-//                 $concession = str_replace(',', '', $item['concession']);
-//                 if (!is_numeric($quantity) || !is_numeric($price) || !is_numeric($concession)) {
-//                     dd('Invalid numeric value', $item);
-//                 }
+    //             if (!$existingItem) {
+    //                 $quantity = $item['quantity'];
+    //                 $price = str_replace(',', '', $item['price']);
+    //                 $concession = str_replace(',', '', $item['concession']);
+    //                 if (!is_numeric($quantity) || !is_numeric($price) || !is_numeric($concession)) {
+    //                     dd('Invalid numeric value', $item);
+    //                 }
 
-//                 JournalItem::create([
-//                     'journal' => $journal->id,
-//                     'account' => $account->id,
-//                     'head' => $item['head'],
-//                     'entry_id' => $item['prod_id'] ?? null,
-//                     'bank_id' => $data['bank_id'],
-//                     'user_id' => $data['user_id'],
-//                     'user_type' => $data['user_type'] ?? 'Student',
-//                     'types' => 'Challan Payment',
-//                     'branch_id' => $data['branch_id'] ?? null,
-//                     'description' => 'Receive of Challan no: '.$data['no'].'- Bank :' . $data['bank_name'],
-//                     'credit' => ((float)$quantity * (float)$price) - (float)$concession,
-//                     'debit' => 0
-//                 ]);
-//             }
-//         }
+    //                 JournalItem::create([
+    //                     'journal' => $journal->id,
+    //                     'account' => $account->id,
+    //                     'head' => $item['head'],
+    //                     'entry_id' => $item['prod_id'] ?? null,
+    //                     'bank_id' => $data['bank_id'],
+    //                     'user_id' => $data['user_id'],
+    //                     'user_type' => $data['user_type'] ?? 'Student',
+    //                     'types' => 'Challan Payment',
+    //                     'branch_id' => $data['branch_id'] ?? null,
+    //                     'description' => 'Receive of Challan no: '.$data['no'].'- Bank :' . $data['bank_name'],
+    //                     'credit' => ((float)$quantity * (float)$price) - (float)$concession,
+    //                     'debit' => 0
+    //                 ]);
+    //             }
+    //         }
 
-//         $existingBankEntry = JournalItem::where('journal', $journal->id)
-//             ->where('account', $data['account_id'])
-//             ->where('bank_id', $data['bank_id'])
-//             ->where('types', 'Challan Payment')
-//             ->first();
+    //         $existingBankEntry = JournalItem::where('journal', $journal->id)
+    //             ->where('account', $data['account_id'])
+    //             ->where('bank_id', $data['bank_id'])
+    //             ->where('types', 'Challan Payment')
+    //             ->first();
 
-//         if ($existingBankEntry) {
-//             $existingBankEntry->debit += $data['total'];
-//             $existingBankEntry->save();
-//         } else {
-//             JournalItem::create([
-//                 'journal' => $journal->id,
-//                 'account' => $data['account_id'],
-//                 'bank_id' => $data['bank_id'],
-//                 'branch_id' => $data['branch_id'] ?? null,
-//                 'types' => 'Challan Payment',
-//                 'description' => 'Receive of Challan no: '.$data['no'].'- Bank :' . $data['bank_name'],
-//                 'credit' => 0,
-//                 'debit' => $data['total']
-//             ]);
-//         }
+    //         if ($existingBankEntry) {
+    //             $existingBankEntry->debit += $data['total'];
+    //             $existingBankEntry->save();
+    //         } else {
+    //             JournalItem::create([
+    //                 'journal' => $journal->id,
+    //                 'account' => $data['account_id'],
+    //                 'bank_id' => $data['bank_id'],
+    //                 'branch_id' => $data['branch_id'] ?? null,
+    //                 'types' => 'Challan Payment',
+    //                 'description' => 'Receive of Challan no: '.$data['no'].'- Bank :' . $data['bank_name'],
+    //                 'credit' => 0,
+    //                 'debit' => $data['total']
+    //             ]);
+    //         }
 
-//         // Update Bank Balance
-//         if (isset($data['bank_id']) && $data['total'] > 0) {
-//             self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
-//         }
+    //         // Update Bank Balance
+    //         if (isset($data['bank_id']) && $data['total'] > 0) {
+    //             self::bankAccountBalance($data['bank_id'], $data['total'], 'credit');
+    //         }
 
-//         return true;
-//     });
-// }
+    //         return true;
+    //     });
+    // }
 
     // BPV voucher
- public static function bpv_entry($data)
+    public static function bpv_entry($data)
     {
         $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'BPV')->latest()->first();
         if (! $latest) {
@@ -6736,11 +6747,11 @@ class Utility extends Model
 
             return $journal->id;
         } elseif (@$data['category'] == 'Loan') {
- 			$journalItem = new JournalItem;
+            $journalItem = new JournalItem;
             $journalItem->journal = $journal->id;
             $journalItem->account = $data['account_id'];
             $journalItem->description = $data['description'];
-            $journalItem->user_id =  $data['user_id'];
+            $journalItem->user_id = $data['user_id'];
             $journalItem->user_type = 'Employee';
             $journalItem->bank_id = $data['bank_id'];
             $journalItem->credit = $data['amount'];
@@ -6756,12 +6767,12 @@ class Utility extends Model
             if (! empty($data['loan_account'])) {
                 $journalItem = new JournalItem;
                 $journalItem->journal = $journal->id;
-                $journalItem->user_id =  $data['user_id'];
+                $journalItem->user_id = $data['user_id'];
                 $journalItem->user_type = 'Employee';
                 $journalItem->account = $data['loan_account'];
                 $journalItem->description = $data['description'];
                 $journalItem->credit = 0;
-                $journalItem->debit = $data['amount'];              
+                $journalItem->debit = $data['amount'];
                 $journalItem->types = @$data['types'];
                 $journalItem->branch_id = $data['owned_by'];
                 $journalItem->save();
@@ -6769,7 +6780,6 @@ class Utility extends Model
                 $journalItem->updated_at = $data['created_at'] ?? $journal->created_at;
                 $journalItem->save();
             }
-
 
             return $journal->id;
         } elseif (@$data['category'] == 'Expanse') {
@@ -6890,7 +6900,7 @@ class Utility extends Model
             $journalItem->journal = $journal->id;
             $journalItem->account = $data['account_id'];
             $journalItem->description = $data['description'];
-            $journalItem->user_id =  $data['user_id'];
+            $journalItem->user_id = $data['user_id'];
             $journalItem->user_type = 'Employee';
             $journalItem->bank_id = $data['bank_id'];
             $journalItem->credit = $data['amount'];
@@ -6906,7 +6916,7 @@ class Utility extends Model
             if (! empty($data['loan_account'])) {
                 $journalItem = new JournalItem;
                 $journalItem->journal = $journal->id;
-                $journalItem->user_id =  $data['user_id'];
+                $journalItem->user_id = $data['user_id'];
                 $journalItem->user_type = 'Employee';
                 $journalItem->account = $data['loan_account'];
                 $journalItem->description = $data['description'];
@@ -6968,7 +6978,6 @@ class Utility extends Model
             return 'true';
         }
     }
-
 
     // jr voucher
     public static function jr_exp_entry($data)

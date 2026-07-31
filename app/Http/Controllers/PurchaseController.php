@@ -25,8 +25,6 @@ use App\Models\Transaction;
 use App\Models\Vender;
 use App\Models\User;
 use App\Models\Utility;
-use App\Models\WarehouseProduct;
-use App\Models\WarehouseTransfer;
 use Illuminate\Support\Facades\Crypt;
 use App\Models\warehouse;
 use App\Services\PurchaseReceivingService;
