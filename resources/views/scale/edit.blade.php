@@ -1,4 +1,4 @@
-{{Form::model($employeeScale,array('route' => array('employee_scale.update', $employeeScale->id), 'method' => 'PUT')) }}
+{{Form::model($employeeScale,array('route' => array('employee_scale.update', $employeeScale->id), 'method' => 'PUT', 'class' => 'employee-scale-ajax-form', 'id' => 'employeeScaleForm')) }}
 <div class="modal-body">
     <div class="row">
         <div class="col-md-6">

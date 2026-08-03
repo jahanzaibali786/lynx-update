@@ -812,12 +812,12 @@
                                         </li>
 
                                         <li class="dash-item     ">
-                                            @if (\Auth::user()->type == 'company')
+                                            @can('manage employee scale')
                                                 <a href="{{ route('employee_scale.index') }}"
                                                     class="dash-link {{ Request::segment(1) == 'employee_scale' ? 'active dash-trigger' : '' }}">
                                                     {{ __('Employee Scale') }}
                                                 </a>
-                                            @endif
+                                            @endcan
                                         </li>
 
                                         <li class="dash-item    ">

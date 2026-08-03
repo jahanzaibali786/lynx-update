@@ -8,50 +8,80 @@
 @endsection
 @push('script-page')
     <script>
-        function submitscale() {
-            var formData = $('#employeeScaleForm').serialize();
-
-            $.ajax({
-                url: $('#employeeScaleForm').attr('action'),
-                method: $('#employeeScaleForm').attr('method'),
-                data: formData,
-                success: function(response) {
-                    if (response.status === 'success') {
-                        show_toastr('success', 'Scale created Successfully', 'success');
-                        var depart_id = $('#dep_id').val();
-                        var is_adhoc_id = $('#is_adhoc').val();
-                        var effect = $('#effect_id').val();
-                        $('#employeeScaleForm')[0].reset();
-                        $('#dep_id').val(depart_id);
-                        $('#is_adhoc').val(is_adhoc_id);
-                        $('#effect_id').val(effect);
-                    } else {
-                        alert(response.message);
-                    }
-                },
-                error: function(xhr) {
-                    var response = xhr.responseJSON;
-                    if (response.status === 'error') {
-                        alert(response.message);
-                    } else {
-                        alert('An error occurred. Please try again.');
-                    }
-                },
-            });
-        }
-
         function printReport() {
             let form = document.getElementById('employee_scale_submit');
             let formData = new FormData(form);
             let queryString = new URLSearchParams(formData).toString();
             window.location.href = "{{ route('employee_scale.report') }}?" + queryString;
         }
+
+        function bindEmployeeScaleAjax() {
+            if (typeof ajaxModalForm === 'function') {
+                ajaxModalForm({
+                    formSelector: '.employee-scale-ajax-form',
+                    submitText: '{{ __("Saving...") }}',
+                    showToast: true,
+                    onSuccess: function(response) {
+                        if (!response || !response.success) {
+                            return;
+                        }
+
+                        var $tbody = $('#employee-scale-table-body');
+                        var rowHtml = response.row_html || '';
+                        var rowId = response.row_id || null;
+
+                        if (rowId && $('#employee-scale-row-' + rowId).length) {
+                            $('#employee-scale-row-' + rowId).replaceWith(rowHtml);
+                        } else if (rowHtml) {
+                            var $empty = $('#employee-scale-empty-row');
+                            if ($empty.length) {
+                                $empty.remove();
+                            }
+                            $tbody.prepend(rowHtml);
+                        }
+
+                        if (typeof ajaxDeleteForm === 'function') {
+                            ajaxDeleteForm({
+                                selector: '.employee-scale-delete',
+                                showToast: true,
+                                onSuccess: function(deleteResponse, $button) {
+                                    var deletedRowId = deleteResponse && deleteResponse.row_id ? deleteResponse.row_id : null;
+                                    if (deletedRowId) {
+                                        $('#employee-scale-row-' + deletedRowId).remove();
+                                    } else {
+                                        $button.closest('tr').remove();
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            if (typeof ajaxDeleteForm === 'function') {
+                ajaxDeleteForm({
+                    selector: '.employee-scale-delete',
+                    showToast: true,
+                    onSuccess: function(response, $button) {
+                        if (response && response.row_id) {
+                            $('#employee-scale-row-' + response.row_id).remove();
+                        } else {
+                            $button.closest('tr').remove();
+                        }
+                    }
+                });
+            }
+        }
+
+        $(document).ready(function() {
+            bindEmployeeScaleAjax();
+        });
     </script>
 @endpush
 
 @section('action-btn')
     <div class="float-end">
-        @can('create trainer')
+        @can('create employee scale')
             <a href="#" data-size="lg" data-url="{{ route('employee_scale.create') }}" data-ajax-popup="true"
                 data-bs-title="{{ __('Create') }}" data-bs-toggle="{{ __('Create New Employee Scale') }}"
                 class="btn mx-1 btn-sm btn-outline-primary">
@@ -154,7 +184,7 @@
             </div>
         </div>
     </div>
-    <div class="table-responsive">
+            <div class="table-responsive">
         <table class="datatable">
             <thead>
                 <tr class="table_heads">
@@ -175,77 +205,21 @@
                     <th>{{ __('Effect From') }}</th>
                     <th>{{ __('IsAdhoc') }}</th>
                     <th>{{ __('Status') }}</th>
-                    @if (Gate::check('edit trainer') || Gate::check('delete trainer') || Gate::check('show trainer'))
-                        <th>{{ __('Action') }}</th>
-                    @endif
+                                    @if (Gate::check('edit employee scale') || Gate::check('delete employee scale') || Gate::check('show employee scale'))
+                                        <th>{{ __('Action') }}</th>
+                                    @endif
                 </tr>
             </thead>
-            <tbody class="font-style">
-                @foreach ($employee_scales as $scale)
-                    @php
-                        $net_gross = 0;
-                    @endphp
-                    <tr>
-                        <td>{{ $scale->id }}</td>
-                        <td>{{ !empty($scale->scale_no) ? $scale->scale_no : '' }}</td>
-                        <td>{{ !empty($scale->department) ? $scale->department->name : '' }}</td>
-                        {{-- @php
-                            $net_gross = 0;
-                            $emplastscal = @$scale->employeepayScaledetailHeads->last();
-                            $employeedata = \App\Models\Employee::where(
-                                'employee_id',
-                                @$scale->employeepayScaledetailHeads->last()->employee_id,
-                            )->first();
-                        @endphp --}}
-                        @foreach ($heads as $account)
-                            @php
-                                $headValue = @$scale->employeeScaleHeads->firstWhere('head', $account->id);
-                                if ($account->head == 'Initial Basic') {
-                                    $headValue = @$scale->employeeScaleHeads->firstWhere('head', $account->id);
-                                    $basic = $headValue ? $headValue->head_value : 0;
-                                }
-                                $net_gross += $headValue ? $headValue->head_value : 0;
-                            @endphp
-                            <td>{{ $headValue ? $headValue->head_value : '-' }}</td>
-                        @endforeach
-                        <td>{{ $net_gross }}</td>
-                        {{-- <td>{{ isset($basic) ? ($basic * 8) / 100 : 0 }}</td> --}}
-                        {{-- <td>{{ @$employeedata->eobi ?? '-' }}</td> --}}
-                        {{-- <td>{{ @$emplastscal->itax ?? '-' }}</td> --}}
-                        {{-- <td>{{ @$emplastscal->net ?? '-' }}</td> --}}
-                        {{-- <td>{{ $basic }}</td> --}}
-                        <td>{{ date('d-M-Y', strtotime($scale->effect_from)) }}</td>
-                        <td>{{ $scale->adhoc == 1 ? 'Yes' : 'No' }}</td>
-                        <td>{{ $scale->status == '1' ? 'Active' : 'In-Active' }}</td>
-                        @if (Gate::check('edit trainer') || Gate::check('delete trainer') || Gate::check('show trainer'))
-                            <td>
-                                <div class="action-btn ms-2">
-                                    @can('edit trainer')
-                                        <a href="#" data-url="{{ route('employee_scale.edit', $scale->id) }}"
-                                            data-size="lg" data-ajax-popup="true" data-bs-toggle="Edit Employee Scale"
-                                            data-bs-title="{{ __('Edit Employee Scale') }}"
-                                            class="mx-1 btn mx-1 btn-sm btn-outline-primary">
-                                            <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                                        </a>
-                                    @endcan
-
-                                    {{-- @can('delete trainer')
-                                    {!! Form::open(['method' => 'DELETE', 'route' => ['employee_scale.destroy',
-                                    $scale->id],'id'=>'delete-form-'.$scale->id]) !!}
-
-                                    <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger bs-pass-para"
-                                        data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}"
-                                        data-confirm-yes="document.getElementById('delete-form-{{$scale->id}}').submit();"
-                                         data-bs-title="{{__('Delete')}}" data-bs-title="{{__('Delete')}}">
-                                        <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
-                                    </a>
-                                    {!! Form::close() !!}
-                                    @endcan --}}
-                                </div>
-                            </td>
-                        @endif
+            <tbody class="font-style" id="employee-scale-table-body">
+                @forelse ($employee_scales as $scale)
+                    @include('scale.row', ['scale' => $scale, 'heads' => $heads])
+                @empty
+                    <tr id="employee-scale-empty-row">
+                        <td colspan="{{ 7 + $heads->count() }}" class="text-center text-muted py-4">
+                            {{ __('No Employee Scale found.') }}
+                        </td>
                     </tr>
-                @endforeach
+                @endforelse
             </tbody>
         </table>
     </div>

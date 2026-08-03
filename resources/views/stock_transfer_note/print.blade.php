@@ -14,22 +14,16 @@
             color: #3c2f24;
         }
         .page {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 0 auto;
-    background: #fff;
-    border: 1px solid #6b5b4e;
-    box-sizing: border-box;
-
-    padding:
-        20mm     /* top */
-        12mm     /* right */
-        22mm     /* bottom */
-        12mm;    /* left */
-
-    position: relative;
-    overflow: visible;
-}
+            width: 841px;
+            min-height: 841px;
+            height: auto;
+            margin: 0 auto;
+            background: #fffdf7;
+            position: relative;
+            overflow: visible;
+            border: 1px solid #6b5b4e;
+            padding-bottom: 130px;
+        }
         .paper-edge {
             position: absolute;
             inset: 0;
@@ -169,6 +163,9 @@
         .item-table th, .item-table td { border: 1px solid #8b7768; padding: 4px 5px; color: #000; }
         .item-table th { background: #e6e6e6; font-weight: 700; text-align: center; color: #y; }
         .item-table td { height: 23px; }
+        .item-table thead { display: table-header-group; }
+        .item-table tbody { display: table-row-group; }
+        .item-table tr { break-inside: avoid; page-break-inside: avoid; }
         .qty { width: 8%; text-align: center; }
         .code { width: 14%; }
         .desc { width: 42%; }
@@ -179,80 +176,50 @@
         .signature-wrap { position: absolute; left: 40px; right: 35px; bottom: 16px; display: flex; justify-content: space-between; gap: 20px; font-family: ''Times New Roman'', Times, serif; font-size: 14px; color: #3c2f24; }
         /* .signature-wrap .sig { width: 48%; border-top: 1px solid #6b5b4e; padding-top: 6px; } */
         .signature-wrap .sig.right { text-align: right; }
-        @page { size: A4 portrait; margin: 0; }
+        @page {
+            size: A4 portrait;
+            margin: 15mm 0 14mm 0;
+
+            @bottom-left {
+                content: "System Generated: {{ now()->format('d M Y h:i A') }}";
+                border-top: 1px solid #8b7768;
+                padding-left: 36px;
+                font-family: "Times New Roman", Times, serif;
+                font-size: 9pt;
+                color: #3c2f24;
+                text-align: left;
+            }
+
+            @bottom-center {
+                content: "";
+                border-top: 1px solid #8b7768;
+            }
+
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                border-top: 1px solid #8b7768;
+                padding-right: 36px;
+                font-family: "Times New Roman", Times, serif;
+                font-size: 9pt;
+                color: #3c2f24;
+                text-align: right;
+            }
+        }
+        @page :first { margin-top: 0; }
         @media print {
-            @page { size: A4 portrait; margin: 12; }
-            @media print {
-
-    html,
-    body {
-        background: white;
-        margin: 0;
-        padding: 0;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-
-    body * {
-        visibility: hidden;
-    }
-
-    .page,
-    .page * {
-        visibility: visible;
-    }
-
-    .page {
-        width: auto;
-        min-height: auto;
-        border: none;
-        margin: 0;
-        padding: 0;
-        overflow: visible;
-        page-break-after: always;
-    }
-
-    button {
-        display: none;
-    }
-    @media print {
-
-    html,
-    body {
-        background: white;
-        margin: 0;
-        padding: 0;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-
-    body * {
-        visibility: hidden;
-    }
-
-    .page,
-    .page * {
-        visibility: visible;
-    }
-
-    .page {
-        width: auto;
-        min-height: auto;
-        border: none;
-        margin: 0;
-        padding: 0;
-        overflow: visible;
-        page-break-after: always;
-    }
-
-    button {
-        display: none;
-    }
-           
-            /*.page { position: absolute; left: 0; top: 0; width: 100% !important; min-height: 297mm; margin: 0; border: none !important; background: #ffffff !important; }*/
-            /*.paper-edge { border-color: rgba(92, 78, 68, 0.12); }*/
-            /*.print-toolbar, .no-print { display: none !important; }*/
+            html, body { background: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body * { visibility: hidden; }
+            .page, .page * { visibility: visible; }
+            .page { position: relative; left: auto; top: auto; width: 100% !important; min-height: 297mm; height: auto !important; overflow: visible !important; margin: 0; padding-bottom: 0; border: none !important; background: #ffffff !important; }
+            .paper-edge { border-color: rgba(92, 78, 68, 0.12); }
+            .print-toolbar, .no-print { display: none !important; }
+            .item-table-wrap { overflow: visible !important; }
+            .item-table { page-break-inside: auto; }
+            .item-table thead { display: table-header-group; }
+            .item-table tbody { display: table-row-group; }
+            .item-table tr { break-inside: avoid; page-break-inside: avoid; }
             .footer-line { position: static; margin: 20px 40px 0 40px; padding: 0; display: flex; justify-content: space-between; gap: 20px; font-family: ''Times New Roman'', Times, serif; font-size: 14px; color: #3c2f24; }
+            .footer-line, .signature-wrap { break-inside: avoid; page-break-inside: avoid; }
             .signature-wrap  { position: static; margin: 100px 40px 0 40px; padding: 0; display: flex; justify-content: space-between; gap: 20px; font-family: ''Times New Roman'', Times, serif; font-size: 14px; color: #3c2f24; }
             .signature-wrap .sig { width: 48%; padding-top: 0; border-top: 0; }
             .watermark {
@@ -288,7 +255,7 @@
             </div>
         </div>
 
-        
+
         <div class="section-row">
             <div class="box">
                 <div class="label">Transfer From</div>
@@ -360,18 +327,66 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($invoice->items as $item)
-                        <tr>
-                            <td>{{ $item->product->sku ?? '-' }}</td>
-                            <td>{{ $item->product->name ?? $item->description ?? '-' }}</td>
-                            <td class="center" style="text-align: center;">{{ ucfirst($item->type ?? 'new') }}</td>
-                            <td class="center" style="text-align: center;">{{ $item->quantity }}</td>
-                            <td class="center" style="text-align: center;">{{ $unitNames[$item->product->unit_id ?? 0] ?? '-' }}</td>
-                            <td class="price">{{ number_format($item->price, 2) }}</td>
-                            <td class="price">{{ number_format($item->price * $item->quantity, 2) }}</td>
-                        </tr>
+                    @php
+                        $groupedPrintItems = $invoice->items->groupBy(function ($item) {
+                            return !empty($item->study_pack_id) ? 'group_' . $item->study_pack_id : 'item_' . $item->id;
+                        });
+                        $printedRowCount = 0;
+                    @endphp
+                    @foreach ($groupedPrintItems as $printGroup)
+                        @php
+                            $firstPrintItem = $printGroup->first();
+                            $isStudyPackPrintGroup = !empty($firstPrintItem->study_pack_id);
+                            $groupRowCount = $printGroup->count();
+                            $groupQtyTotal = $printGroup->sum('quantity');
+                            $groupUnitPriceTotal = $printGroup->sum('price');
+                            $groupAmountTotal = $printGroup->sum(function ($groupItem) {
+                                return (float) $groupItem->price * (float) $groupItem->quantity;
+                            });
+                        @endphp
+                        @if ($isStudyPackPrintGroup)
+                            <tr>
+                                <td colspan="7" style="font-weight:700;background:#f5f5f5;text-align:left;">
+                                    {{ $firstPrintItem->study_pack_title ?: 'Study Pack' }}
+                                </td>
+                            </tr>
+                            @php $printedRowCount++; @endphp
+                        @endif
+                        @foreach ($printGroup as $item)
+                            <tr>
+                                <td>{{ $item->product->sku ?? '-' }}</td>
+                                <td>{{ $item->product->name ?? $item->description ?? '-' }}</td>
+                                <td class="center" style="text-align: center;">{{ ucfirst($item->type ?? 'new') }}</td>
+                                <td class="center" style="text-align: center;">{{ $item->quantity }}</td>
+                                <td class="center" style="text-align: center;">{{ $unitNames[$item->product->unit_id ?? 0] ?? '-' }}</td>
+                                <td class="price">{{ number_format($item->price, 2) }}</td>
+                                <td class="price">{{ number_format($item->price * $item->quantity, 2) }}</td>
+                            </tr>
+                            @php $printedRowCount++; @endphp
+                        @endforeach
+                        @if ($isStudyPackPrintGroup)
+                            <tr>
+                                <td  style="text-align:left;font-weight:700;background:#fafafa;">
+                                    Items {{ $groupRowCount }}                                </td>
+                                <td  style="text-align:left;font-weight:700;background:#fafafa;">
+                                    Group Total
+                                </td>
+                                <td class="center" style="text-align:center;font-weight:700;background:#fafafa;">-</td>
+                                <td class="center" style="text-align:center;font-weight:700;background:#fafafa;">
+                                    {{ number_format($groupQtyTotal, 0) }}
+                                </td>
+                                <td class="center" style="text-align:center;font-weight:700;background:#fafafa;">-</td>
+                                <td class="price" style="font-weight:700;background:#fafafa;">
+                                    {{ number_format($groupUnitPriceTotal, 2) }}
+                                </td>
+                                <td class="price" style="font-weight:700;background:#fafafa;">
+                                    {{ number_format($groupAmountTotal, 2) }}
+                                </td>
+                            </tr>
+                            @php $printedRowCount++; @endphp
+                        @endif
                     @endforeach
-                    @for ($row = $invoice->items->count(); $row < 12; $row++)
+                    @for ($row = $printedRowCount; $row < 12; $row++)
                         <tr>
                             <td>&nbsp;</td>
                             <td></td>

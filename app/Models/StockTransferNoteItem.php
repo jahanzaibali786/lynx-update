@@ -16,6 +16,9 @@ class StockTransferNoteItem extends Model
         'type',
         'price',
         'description',
+        'study_pack_id',
+        'study_pack_title',
+        'study_pack_class',
     ];
 
     /**

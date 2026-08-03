@@ -7,6 +7,7 @@ use App\Models\ProductService;
 use App\Models\Session as AcademicSession;
 use App\Models\StockTransferNote;
 use App\Models\StockTransferNoteItem;
+use App\Models\StudyPack;
 use App\Models\User;
 use App\Models\Utility;
 use App\Models\warehouse;
@@ -60,6 +61,58 @@ class StockTransferNoteController extends Controller
         return $store?->assignedEmployee?->user_id;
     }
 
+    protected function studyPackPayload(int $creatorId)
+    {
+        $studyPacks = StudyPack::with('items')
+            ->where('created_by', $creatorId)
+            ->orderBy('class')
+            ->orderBy('title')
+            ->get();
+
+        $productNames = ProductService::select(DB::raw('CONCAT(sku, " - ", name) AS name, id'))
+            ->where('created_by', $creatorId)
+            ->whereIn('id', $studyPacks->pluck('items')->flatten()->pluck('product_id')->filter()->unique())
+            ->get()
+            ->pluck('name', 'id');
+
+        return $studyPacks->map(function ($studyPack) use ($productNames) {
+            return [
+                'id' => $studyPack->id,
+                'title' => $studyPack->title,
+                'class' => $studyPack->class,
+                'session_id' => $studyPack->session_id,
+                'items' => $studyPack->items->map(function ($item) use ($productNames) {
+                    return [
+                        'product_id' => $item->product_id,
+                        'name' => $productNames[$item->product_id] ?? __('Unknown Item'),
+                        'quantity' => (float) $item->quantity,
+                        'price' => (float) $item->price,
+                        'description' => '',
+                        'type' => 'new',
+                    ];
+                })->values()->all(),
+            ];
+        })->values();
+    }
+
+    protected function stockTransferNoteItemsPayload($items)
+    {
+        return $items->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'item_id' => $item->product_id,
+                'item_name' => $item->product ? (trim(($item->product->sku ?? '') . ' - ' . ($item->product->name ?? ''), ' -')) : '',
+                'quantity' => (float) $item->quantity,
+                'price' => (float) $item->price,
+                'description' => $item->description ?? '',
+                'type' => $item->type ?? 'new',
+                'study_pack_id' => $item->study_pack_id,
+                'study_pack_title' => $item->study_pack_title ?? '',
+                'study_pack_class' => $item->study_pack_class ?? '',
+            ];
+        })->values();
+    }
+
     protected function buildPublicView(StockTransferNote $invoice)
     {
         $user = User::find($invoice->created_by);
@@ -78,6 +131,60 @@ class StockTransferNoteController extends Controller
         $settings = Utility::settingsById($invoice->created_by);
 
         return view('stock_transfer_note.show', compact('invoice', 'iteams', 'branch', 'store', 'status', 'settings'));
+    }
+
+    protected function renderIndexRow(StockTransferNote $invoice, $rowNumber = 1): string
+    {
+        $invoice->loadMissing(['fromStore', 'toStore']);
+
+        return view('stock_transfer_note.partials.index_row', [
+            'invoice' => $invoice,
+            'rowNumber' => $rowNumber,
+        ])->render();
+    }
+
+    protected function validateRequestedStock(array $items, int $creatorId): void
+    {
+        $requested = [];
+
+        foreach ($items as $row) {
+            $productId = (int) ($row['item'] ?? 0);
+            $type = $row['type'] ?? 'new';
+            $quantity = (int) ($row['quantity'] ?? 0);
+
+            if ($productId <= 0 || $quantity <= 0) {
+                continue;
+            }
+
+            $key = $productId . '|' . $type;
+            $requested[$key] = ($requested[$key] ?? 0) + $quantity;
+        }
+
+        foreach ($requested as $key => $quantity) {
+            [$productId, $type] = explode('|', $key);
+
+            $product = ProductService::where('created_by', $creatorId)->find((int) $productId);
+
+            if (!$product) {
+                throw new \RuntimeException(__('Selected product not found.'));
+            }
+
+            $available = match ($type) {
+                'use' => (int) ($product->used_quantity ?? 0),
+                'damage' => (int) ($product->damaged_quantity ?? 0),
+                default => (int) ($product->quantity ?? 0),
+            };
+
+            if ($quantity > $available) {
+                $productName = trim(($product->sku ? $product->sku . ' - ' : '') . $product->name);
+
+                throw new \RuntimeException(__('Requested quantity for :product exceeds available :type stock (:available).', [
+                    'product' => $productName,
+                    'type' => ucfirst($type),
+                    'available' => $available,
+                ]));
+            }
+        }
     }
 
     public function index(Request $request)
@@ -121,7 +228,7 @@ class StockTransferNoteController extends Controller
             $query->whereDate('issue_date', $request->issue_date);
         }
 
-        $invoices = $query->get();
+        $invoices = $query->orderByDesc('id')->get();
         $status = StockTransferNote::$statues;
 
         return view('stock_transfer_note.index', compact('invoices', 'store', 'status', 'branches'));
@@ -135,9 +242,26 @@ class StockTransferNoteController extends Controller
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        $store_from = warehouse::where('owned_by', $user->creatorId())->first();
-        $store_to = warehouse::where('created_by', $user->creatorId())
-            ->where('id', '!=', $store_from->id ?? 0)
+        $store_from = warehouse::where(function ($query) use ($user) {
+            $query->where('created_by', $user->creatorId())
+                ->orWhere('owned_by', $user->creatorId());
+        })
+            ->orderBy('id')
+            ->first();
+
+        if (!$store_from) {
+            $message = __('Please create or assign a source store before creating a Stock Transfer Note.');
+
+            return request()->ajax()
+                ? response()->json(['error' => $message], 422)
+                : redirect()->back()->with('error', $message);
+        }
+
+        $store_to = warehouse::where(function ($query) use ($user) {
+            $query->where('created_by', $user->creatorId())
+                ->orWhere('owned_by', $user->creatorId());
+        })
+            ->where('id', '!=', $store_from->id)
             ->get()
             ->pluck('name', 'id');
         $storeUsers = $this->storeUserMap();
@@ -154,17 +278,18 @@ class StockTransferNoteController extends Controller
             ->get()
             ->pluck('name', 'id');
         $product_services->prepend('Select item', '');
+        $studyPackPayload = $this->studyPackPayload($user->creatorId());
         $invoice_number = $user->invoiceNumberFormat($this->stockTransferNoteNumber());
         $customFields = CustomField::where('created_by', $user->creatorId())
             ->where('module', 'invoice')
             ->get();
 
         if (request()->ajax()) {
-            return view('stock_transfer_note.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'storeUsers', 'sessions', 'defaultSessionId', 'customFields'))
+            return view('stock_transfer_note.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'storeUsers', 'sessions', 'defaultSessionId', 'customFields', 'studyPackPayload'))
                 ->renderSections()['content'] ?? '';
         }
 
-        return view('stock_transfer_note.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'storeUsers', 'sessions', 'defaultSessionId', 'customFields'));
+        return view('stock_transfer_note.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'storeUsers', 'sessions', 'defaultSessionId', 'customFields', 'studyPackPayload'));
     }
 
     public function product(Request $request)
@@ -231,6 +356,10 @@ class StockTransferNoteController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
             'items.*.type' => 'required|in:new,use,damage',
+            'items.*.description' => 'nullable|string',
+            'items.*.study_pack_id' => 'nullable|integer',
+            'items.*.study_pack_title' => 'nullable|string|max:255',
+            'items.*.study_pack_class' => 'nullable|string|max:255',
             'shipping_via' => 'nullable|string|max:50',
             'stn_type' => 'nullable|string|max:50',
         ]);
@@ -254,6 +383,27 @@ class StockTransferNoteController extends Controller
                 ? response()->json(['success' => false, 'message' => __('Selected session is outside your company scope.')], 422)
                 : redirect()->back()->withInput()->with('error', __('Selected session is outside your company scope.'));
         }
+
+        $studyPackIds = collect($request->items)
+            ->pluck('study_pack_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $validStudyPackIds = StudyPack::where('created_by', $user->creatorId())
+            ->whereIn('id', $studyPackIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (count($validStudyPackIds) !== $studyPackIds->count()) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Selected Study Pack is outside your company scope.')], 422)
+                : redirect()->back()->withInput()->with('error', __('Selected Study Pack is outside your company scope.'));
+        }
+
+        $this->validateRequestedStock($request->items, $user->creatorId());
 
         $issueByUserId = $this->resolveStoreUserId($request->store_from);
         $receivedByUserId = $this->resolveStoreUserId($request->store_to);
@@ -311,6 +461,9 @@ class StockTransferNoteController extends Controller
                 $item->price = $row['price'] ?? 0;
                 $item->description = $row['description'] ?? '';
                 $item->type = $type;
+                $item->study_pack_id = !empty($row['study_pack_id']) ? (int) $row['study_pack_id'] : null;
+                $item->study_pack_title = $row['study_pack_title'] ?? null;
+                $item->study_pack_class = $row['study_pack_class'] ?? null;
                 $item->save();
 
             }
@@ -318,7 +471,11 @@ class StockTransferNoteController extends Controller
             DB::commit();
 
             if ($this->wantsJson($request)) {
-                return response()->json(['success' => true, 'message' => __('Stock Transfer Note successfully created.')]);
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Stock Transfer Note successfully created.'),
+                    'row_html' => $this->renderIndexRow($note, 1),
+                ]);
             }
 
             return redirect()->route('stock-transfer-note.show', Crypt::encrypt($note->id))
@@ -402,17 +559,19 @@ class StockTransferNoteController extends Controller
             ->where('type', '!=', 'service')
             ->get()
             ->pluck('name', 'id');
+        $studyPackPayload = $this->studyPackPayload($user->creatorId());
+        $existingItemsPayload = $this->stockTransferNoteItemsPayload($invoice->items->load('product'));
         $customFields = CustomField::where('created_by', $user->creatorId())
             ->where('module', 'invoice')
             ->get();
         $invoice_number = $user->invoiceNumberFormat($invoice->invoice_id);
 
         if (request()->ajax()) {
-            return view('stock_transfer_note.edit', compact('invoice', 'store_from', 'store_to', 'storeUsers', 'sessions', 'product_services', 'customFields', 'invoice_number'))
+            return view('stock_transfer_note.edit', compact('invoice', 'store_from', 'store_to', 'storeUsers', 'sessions', 'product_services', 'customFields', 'invoice_number', 'studyPackPayload', 'existingItemsPayload'))
                 ->renderSections()['content'] ?? '';
         }
 
-        return view('stock_transfer_note.edit', compact('invoice', 'store_from', 'store_to', 'storeUsers', 'sessions', 'product_services', 'customFields', 'invoice_number'));
+        return view('stock_transfer_note.edit', compact('invoice', 'store_from', 'store_to', 'storeUsers', 'sessions', 'product_services', 'customFields', 'invoice_number', 'studyPackPayload', 'existingItemsPayload'));
     }
 
     public function update(Request $request, $ids)
@@ -458,6 +617,10 @@ class StockTransferNoteController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
             'items.*.type' => 'required|in:new,use,damage',
+            'items.*.description' => 'nullable|string',
+            'items.*.study_pack_id' => 'nullable|integer',
+            'items.*.study_pack_title' => 'nullable|string|max:255',
+            'items.*.study_pack_class' => 'nullable|string|max:255',
             'shipping_via' => 'nullable|string|max:50',
             'stn_type' => 'nullable|string|max:50',
         ]);
@@ -481,6 +644,27 @@ class StockTransferNoteController extends Controller
                 ? response()->json(['success' => false, 'message' => __('Selected session is outside your company scope.')], 422)
                 : redirect()->back()->withInput()->with('error', __('Selected session is outside your company scope.'));
         }
+
+        $studyPackIds = collect($request->items)
+            ->pluck('study_pack_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $validStudyPackIds = StudyPack::where('created_by', $user->creatorId())
+            ->whereIn('id', $studyPackIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (count($validStudyPackIds) !== $studyPackIds->count()) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Selected Study Pack is outside your company scope.')], 422)
+                : redirect()->back()->withInput()->with('error', __('Selected Study Pack is outside your company scope.'));
+        }
+
+        $this->validateRequestedStock($request->items, $user->creatorId());
 
         $issueByUserId = $this->resolveStoreUserId($request->store_from);
         $receivedByUserId = $this->resolveStoreUserId($request->store_to);
@@ -531,6 +715,9 @@ class StockTransferNoteController extends Controller
                 $item->price = $row['price'] ?? 0;
                 $item->description = $row['description'] ?? '';
                 $item->type = $type;
+                $item->study_pack_id = !empty($row['study_pack_id']) ? (int) $row['study_pack_id'] : null;
+                $item->study_pack_title = $row['study_pack_title'] ?? null;
+                $item->study_pack_class = $row['study_pack_class'] ?? null;
                 $item->save();
 
             }
