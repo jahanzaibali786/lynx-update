@@ -337,6 +337,35 @@ class ConcessionController extends Controller
     }
 
 
+    public function endconcession($id)
+    {
+        return view('students.concession.end_concession', compact('id'));
+    }
+
+    public function updateendconcession(Request $request, $id)
+    {
+        $validator = \Validator::make(
+            $request->all(),
+            [
+                'end_remarks' => 'required',
+                'end_date' => 'required|date',
+            ]
+        );
+
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
+            return redirect()->back()->with('error', $messages->first());
+        }
+
+        $concession = Concession::findOrFail($id);
+        $concession->end_date = $request->end_date;
+        $concession->cancel_remarks = $request->end_remarks;
+        $concession->status = 'Canceled';
+        $concession->active_status = 0;
+        $concession->save();
+
+        return redirect()->route('concession.index')->with('success', 'Concession ended successfully.');
+    }
     public function cancelconcession($id)
     {
         return view('students.concession.cancel_concession', compact('id'));

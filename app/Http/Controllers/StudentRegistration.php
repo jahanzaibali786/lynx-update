@@ -439,7 +439,7 @@ class StudentRegistration extends Controller
         $type = ($teacherChildOption && $student->register_option == $teacherChildOption->id) ? 'teacher_child' : 'regular';
 
         $classes = Classes::where('owned_by', $student->owned_by)->get()->pluck('name', 'id');
-        $classfee = StudentFeeStructure::with('feehead')->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
+        $classfee = StudentFeeStructure::with('feehead')->where('student_id','!=',0)->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
 
         if ($classfee->isEmpty()) {
             $fee_head = ClassWiseFee::with('account')->where('session_id', $student->session_id)->where('class_id', $student->class_id)->where('owned_by', $student->owned_by)->where('type', $type)->get();
@@ -462,7 +462,7 @@ class StudentRegistration extends Controller
                 }
             }
         }
-        $classfee = StudentFeeStructure::with('feehead')->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
+        $classfee = StudentFeeStructure::with('feehead')->where('student_id','!=',0)->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
 
         $selectedRegisterOptionId = $student->register_option;
         $registerOptions = Registring_option::where('created_by', '=', \Auth::user()->creatorId())->pluck('name', 'id');

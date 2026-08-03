@@ -37,6 +37,12 @@ class StudentEnrollments extends Model
     {
         return $this->belongsTo(User::class, 'owned_by', 'id');
     }
+    
+    public function admbranch()
+    {
+        return $this->belongsTo(User::class, 'adm_branch', 'id');
+    }
+
     public function master()
     {
         return $this->belongsTo(SchoolDetails::class, 'owned_by', 'branch_id');

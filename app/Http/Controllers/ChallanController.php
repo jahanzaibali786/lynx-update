@@ -2820,6 +2820,8 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                                 'account' => $lateFeeHead->account_id,
                                 'head' => $lateFeeHead->id,
                                 'entry_id' => $lateFeeHeadRecord->id,
+                                'model_id' => $oldChallan->id,
+                                'model_type' => Challan::class,
                                 'user_id' => $oldChallan->student_id,
                                 'user_type' => 'Student',
                                 'types' => 'Challan',
@@ -2828,6 +2830,8 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                                 'description' => 'Late Fee Income - Challan No ' . $oldChallan->challanNo,
                                 'created_at' => now(),
                                 'updated_at' => now(),
+                                'added_by' => $oldChallan->created_by,
+                                'added_at' => now(),
                             ],
                             [
                                 'journal' => $oldChallan->voucher_id,
@@ -2835,6 +2839,8 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                                 'head' => $lateFeeHead->id,
                                 'entry_id' => $lateFeeHeadRecord->id,
                                 'user_id' => $oldChallan->student_id,
+                                'model_id' => $oldChallan->id,
+                                'model_type' => Challan::class,
                                 'user_type' => 'Student',
                                 'types' => 'Challan',
                                 'credit' => 0,
@@ -2842,6 +2848,8 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                                 'description' => 'Late Fee Receivable - Challan No ' . $oldChallan->challanNo,
                                 'created_at' => now(),
                                 'updated_at' => now(),
+                                'added_by' => $oldChallan->created_by,
+                                'added_at' => now(),
                             ],
                         ]);
 

@@ -2202,6 +2202,10 @@
                                     <a class="dash-link {{ Request::segment(1) == 'readmission-challan' ? 'active' : '' }}"
                                         href="{{ route('readmissionchallanlist') }}">{{ __('Re-Admission challan list') }}</a>
                                 </li>
+                                <li class="dash-item ">
+                                    <a class="dash-link {{ Request::segment(1) == 'track-registration' ? 'active' : '' }}"
+                                        href="{{ route('track_registration_report') }}">{{ __('Track Registration') }}</a>
+                                </li>
                                 @can('view spacetype')
                                     <li class="dash-item ">
                                         <a class="dash-link {{ Request::segment(1) == 'studypackchallan' ? 'active' : '' }}"

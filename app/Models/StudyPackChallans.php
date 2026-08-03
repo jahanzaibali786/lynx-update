@@ -21,7 +21,10 @@ class StudyPackChallans extends Model
      public function class(){
         return $this->belongsTo(Classes::class, 'class_id', 'id');
     }
-
+     public function session()
+    {
+        return $this->belongsTo(Session::class, 'session_id', 'id');
+    }
         public function items()
     {
         return $this->hasMany('App\Models\StudyPackChallanItems', 'challan_id', 'id');

@@ -53,12 +53,44 @@ Create
                             <div class="btn-box">
                                 {{ Form::label('student', __('Students'), ['class' => 'form-label']) }}
                                 {{ Form::select('student', [], 'all', ['class' => 'form-control select', 'id' => 'student_select', 'required' => 'required']) }}
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
+                                <div class="btn-box">
+                                    {{ Form::label('fee_month', __('Fee Month'), ['class' => 'form-label']) }}
+                                    {!! Form::month('fee_month', now()->format('Y-m'), ['class' => 'form-control', 'id' => 'fee_month', 'required' => 'required']) !!}
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
+                                <div class="btn-box">
+                                    {{ Form::label('issue_date', __('Issue Date'), ['class' => 'form-label']) }}
+                                    {!! Form::date('issue_date', now()->toDateString(), ['class' => 'form-control', 'id' => 'issue_date', 'required' => 'required']) !!}
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
+                                <div class="btn-box">
+                                    {{ Form::label('due_date', __('Due Date'), ['class' => 'form-label']) }}
+                                    {!! Form::date('due_date', now()->addDays(10)->toDateString(), ['class' => 'form-control', 'id' => 'due_date', 'required' => 'required']) !!}
+                                </div>
+                            </div>
                             </div>
                         </div>
-                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2" style="float:left; position: relative; left:-57%;">
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
                             <div class="btn-box">
-                                {{ Form::label('challan_date', __('Challan Date'), ['class' => 'form-label']) }}<span style="color: red">&nbsp;(for the month)</span>
-                                {!! Form::date('challan_date', null, ['class' => 'form-control', 'id' => 'challan_date']) !!}
+                                {{ Form::label('fee_month', __('Fee Month'), ['class' => 'form-label']) }}
+                                {!! Form::month('fee_month', now()->format('Y-m'), ['class' => 'form-control', 'id' => 'fee_month', 'required' => 'required']) !!}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
+                            <div class="btn-box">
+                                {{ Form::label('issue_date', __('Issue Date'), ['class' => 'form-label']) }}
+                                {!! Form::date('issue_date', now()->toDateString(), ['class' => 'form-control', 'id' => 'issue_date', 'required' => 'required']) !!}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
+                            <div class="btn-box">
+                                {{ Form::label('due_date', __('Due Date'), ['class' => 'form-label']) }}
+                                {!! Form::date('due_date', now()->addDays(10)->toDateString(), ['class' => 'form-control', 'id' => 'due_date', 'required' => 'required']) !!}
                             </div>
                         </div>
                         <div class="col-auto float-end ms-2 mt-4">

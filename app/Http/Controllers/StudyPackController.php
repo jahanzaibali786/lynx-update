@@ -6,11 +6,11 @@ use App\Models\Plan;
 use App\Models\ProductService;
 use App\Models\StudyPack;
 use App\Models\StudyPackItem;
+use App\Models\Classes;
 use App\Models\Session;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-
 class StudyPackController extends Controller
 {
     /**
@@ -21,7 +21,12 @@ class StudyPackController extends Controller
     public function index()
     {
         $studypacks = StudyPack::paginate(25);
-        return view('students.studypack.index', compact('studypacks'));
+        $classNames = Classes::selectRaw('MIN(id) as id, name')
+            ->groupBy('name')
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        return view('students.studypack.index', compact('studypacks', 'classNames'));
     }
 
     /**
@@ -34,26 +39,11 @@ class StudyPackController extends Controller
         $session = Session::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('year', 'id');
         $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name'), 'id')
             ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get();
-        $class = array(
-            "DAYCARE" => "DAYCARE",
-            "PLAY GROUP" => "PLAY GROUP",
-            "PRE-NURSERY" => "PRE-NURSERY",
-            "NURSERY" => "NURSERY",
-            "KG" => "KG",
-            "GRADE-1" => "GRADE-1",
-            "GRADE-2" => "GRADE-2",
-            "GRADE-3" => "GRADE-3",
-            "GRADE-4" => "GRADE-4",
-            "GRADE-5" => "GRADE-5",
-            "GRADE-6" => "GRADE-6",
-            "GRADE-7" => "GRADE-7",
-            "MATRIC-8" => "MATRIC-8",
-            "MATRIC-9" => "MATRIC-9",
-            "MATRIC-10" => "MATRIC-10",
-            "IGCSE-8" => "IGCSE-8",
-            "IGCSE-9" => "IGCSE-9",
-            "IGCSE-10" => "IGCSE-10"
-        );
+        $class = Classes::selectRaw('MIN(id) as id, name')
+            ->groupBy('name')
+            ->orderBy('name')
+            ->pluck('name', 'id');
+        $class->prepend('Select Class', '');
 
         return view('students.studypack.create', compact('session', 'product_services', 'class'));
     }
@@ -61,7 +51,6 @@ class StudyPackController extends Controller
     public function product(Request $request)
     {
         $data['product'] = $product = ProductService::find($request->product_id);
-
         $data['unit'] = (!empty($product->unit())) ? $product->unit()->name : '';
         $data['taxRate'] = $taxRate = !empty($product->tax_id) ? $product->taxRate($product->tax_id) : 0;
         $data['taxes'] = !empty($product->tax_id) ? $product->tax($product->tax_id) : 0;
@@ -72,13 +61,6 @@ class StudyPackController extends Controller
 
         return json_encode($data);
     }
-
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
     public function store(Request $request)
     {
         DB::beginTransaction();
@@ -91,9 +73,10 @@ class StudyPackController extends Controller
                 'class' => 'required',
                 'study_pack_cost' => 'required',
             ]);
+
             $studypack = new StudyPack();
             $studypack->title = $validatedData['title'];
-            $studypack->class = $validatedData['class'];
+            $studypack->class = json_encode($this->resolveStudyPackClassIds($validatedData['class']));
             $studypack->date = $validatedData['date'];
             $studypack->session_id = $validatedData['session'];
             $studypack->study_pack_cost = $validatedData['study_pack_cost'];
@@ -112,6 +95,8 @@ class StudyPackController extends Controller
                 $invoiceProduct->discount = $products[$i]['discount'];
                 $invoiceProduct->price = $products[$i]['price'];
                 // $invoiceProduct->description = $products[$i]['description'];
+                $invoiceProduct->owned_by = \Auth::user()->ownedId();
+                $invoiceProduct->created_by = \Auth::user()->creatorId();
                 $invoiceProduct->save();
                 $updatePrice += ($products[$i]['price'] * $products[$i]['quantity']) + ($products[$i]['itemTaxPrice']) - ($products[$i]['discount']);
             }
@@ -169,36 +154,73 @@ class StudyPackController extends Controller
      */
     public function edit($id)
     {
-        if (\Auth::user()->can('edit invoice')) {
-            $invoice = StudyPack::find($id);
-            $session = Session::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('year', 'id');
-            $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name'), 'id')
-                ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get();
-            $class = array(
-                "DAYCARE" => "DAYCARE",
-                "PLAY GROUP" => "PLAY GROUP",
-                "PRE-NURSERY" => "PRE-NURSERY",
-                "NURSERY" => "NURSERY",
-                "KG" => "KG",
-                "GRADE-1" => "GRADE-1",
-                "GRADE-2" => "GRADE-2",
-                "GRADE-3" => "GRADE-3",
-                "GRADE-4" => "GRADE-4",
-                "GRADE-5" => "GRADE-5",
-                "GRADE-6" => "GRADE-6",
-                "GRADE-7" => "GRADE-7",
-                "MATRIC-8" => "MATRIC-8",
-                "MATRIC-9" => "MATRIC-9",
-                "MATRIC-10" => "MATRIC-10",
-                "IGCSE-8" => "IGCSE-8",
-                "IGCSE-9" => "IGCSE-9",
-                "IGCSE-10" => "IGCSE-10"
-            );
-
-            return view('students.studypack.edit', compact('product_services', 'session', 'invoice', 'class'));
-        } else {
-            return response()->json(['error' => __('Permission denied.')], 401);
+        if (!\Auth::user()->can('edit invoice')) {
+            return response()->json([
+                'error' => __('Permission denied.'),
+            ], 401);
         }
+
+        $invoice = StudyPack::findOrFail($id);
+
+        $session = Session::where(
+            'created_by',
+            \Auth::user()->creatorId()
+        )
+            ->pluck('year', 'id');
+        $session->prepend(__('Select Session'), '');
+        $product_services = ProductService::select(
+            \DB::raw('CONCAT(sku, " - ", name) AS name'),
+            'id'
+        )
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('type', '!=', 'service')
+            ->get();
+
+        /*
+         * The dropdown contains only one ID for each class name.
+         * MIN(id) is used as the representative ID.
+         */
+        $class = Classes::selectRaw('MIN(id) as id, name')
+            ->groupBy('name')
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        $class->prepend(__('Select Class'), '');
+
+        /*
+         * Extract the first stored class ID from JSON, CSV,
+         * array, integer, or string formats.
+         */
+        $storedClassId = $this->resolveStudyPackPrimaryClassId(
+            $invoice->class
+        );
+
+        $selectedClassId = null;
+
+        if ($storedClassId) {
+            /*
+             * Find the stored class name first.
+             */
+            $storedClassName = Classes::where('id', $storedClassId)
+                ->value('name');
+
+            /*
+             * Find the representative MIN(id) used in the dropdown
+             * for that same class name.
+             */
+            if ($storedClassName) {
+                $selectedClassId = Classes::where('name', $storedClassName)
+                    ->min('id');
+            }
+        }
+
+        return view('students.studypack.edit', compact(
+            'product_services',
+            'session',
+            'invoice',
+            'class',
+            'selectedClassId'
+        ));
     }
 
     /**
@@ -235,7 +257,7 @@ class StudyPackController extends Controller
                     $studypack->date = $request['date'];
                     $studypack->session_id = $request['session'];
                     $studypack->title = $request['title'];
-                    $studypack->class = $request['class'];
+                    $studypack->class = json_encode($this->resolveStudyPackClassIds($request['class']));
                     $studypack->study_pack_cost = $request['study_pack_cost'];
                     $studypack->save();
                     $updatePrice = 0;
@@ -259,6 +281,8 @@ class StudyPackController extends Controller
                         //                    $invoiceProduct->discount    = isset($products[$i]['discount']) ? $products[$i]['discount'] : 0;
                         $invoiceProduct->discount = $products[$i]['discount'];
                         $invoiceProduct->price = $products[$i]['price'];
+                        $invoiceProduct->owned_by = \Auth::user()->ownedId();
+                        $invoiceProduct->created_by = \Auth::user()->creatorId();
                         $invoiceProduct->save();
                         $updatePrice += ($products[$i]['price'] * $products[$i]['quantity']) + ($products[$i]['itemTaxPrice']) - ($products[$i]['discount']);
 
@@ -286,6 +310,79 @@ class StudyPackController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
+    private function resolveStudyPackClassIds($classId)
+    {
+        $class = Classes::find($classId);
+        if (!$class) {
+            return [$classId];
+        }
+
+        return Classes::where('name', $class->name)
+            ->pluck('id')
+            ->values()
+            ->toArray();
+    }
+
+    private function resolveStudyPackClassNames($storedClass)
+    {
+        if (empty($storedClass)) {
+            return '';
+        }
+
+        $classIds = json_decode($storedClass, true);
+        if (!is_array($classIds)) {
+            $classIds = array_filter(array_map('trim', explode(',', (string) $storedClass)));
+        }
+
+        $names = Classes::whereIn('id', $classIds)->pluck('name')->unique()->values()->toArray();
+
+        return implode(', ', $names);
+    }
+    private function resolveStudyPackPrimaryClassId($value): ?int
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        /*
+         * Already an array.
+         */
+        if (is_array($value)) {
+            $classIds = $value;
+        } else {
+            /*
+             * Try JSON first, such as:
+             * ["1", "2"]
+             * [1, 2]
+             */
+            $decodedValue = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $classIds = is_array($decodedValue)
+                    ? $decodedValue
+                    : [$decodedValue];
+            } else {
+                /*
+                 * Otherwise treat it as comma-separated IDs:
+                 * 1,2,3
+                 */
+                $classIds = explode(',', (string) $value);
+            }
+        }
+
+        $classIds = array_values(
+            array_filter(
+                array_map(
+                    fn($classId) => is_numeric(trim((string) $classId))
+                    ? (int) trim((string) $classId)
+                    : null,
+                    $classIds
+                )
+            )
+        );
+
+        return $classIds[0] ?? null;
+    }
     public function destroy($id)
     {
         $studypack = StudyPack::findOrFail($id);
@@ -308,3 +405,4 @@ class StudyPackController extends Controller
         return view('students.studypack.challanform', compact('branch'));
     }
 }
+

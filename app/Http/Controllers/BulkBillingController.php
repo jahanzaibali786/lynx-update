@@ -277,6 +277,8 @@ class BulkBillingController extends Controller
                 'id' => $challan->id,
                 'no' => $challan->challanNo,
                 'date' => $challan->challan_date,
+                'created_at' => $challan->created_at,
+                'updated_at' => $challan->updated_at,
                 'reference' => $challan->student_id,
                 'category' => 'Admission',
                 'user_id' => $challan->student_id,
@@ -381,9 +383,9 @@ class BulkBillingController extends Controller
             }
 
             if (ucwords($request->payment_type) == 'CD') {
-                Utility::crv_entry($receiptData, !$isBeforeFeb2026);
+                Utility::crv_entry($receiptData, false);
             } else {
-                Utility::brv_entry($receiptData, !$isBeforeFeb2026);
+                Utility::brv_entry($receiptData, false);
             }
 
             DB::commit();

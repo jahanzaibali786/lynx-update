@@ -20,6 +20,7 @@ use App\Exports\MonthlyChallanreport;
 use App\Exports\MonthlyPreChallanreport;
 use App\Exports\Student_defaulterReport;
 use App\Exports\StudentRegistrationExport;
+use App\Exports\TrackRegistrationExport;
 use App\Exports\TuitionFeeReportExport;
 use App\Exports\SessionWiseReportExport;
 use App\Exports\SessionMonthWiseReportExport;
@@ -841,6 +842,88 @@ class StudentReportController extends Controller
             'registerOption'
         ));
     }
+    public function trackRegistrationReport(Request $request)
+    {
+        $user = Auth::user();
+        $userCreatorId = $user->creatorId();
+        $userOwnedId = $user->ownedId();
+
+        if ($user->type == 'company') {
+            $branches = User::where('type', 'branch')
+                ->where('created_by', $userCreatorId)
+                ->pluck('name', 'id');
+        } else {
+            $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
+        }
+        $branches->prepend('All Branches', 'all');
+
+        $classes = Classes::where('created_by', $userCreatorId)->pluck('name', 'id');
+        $classes->prepend('All Class', 'all');
+
+        $query = StudentEnrollments::with(['StudentRegistration.class', 'StudentRegistration.branches', 'class', 'admbranch'])
+            ->whereNotNull('adm_branch')
+            ->where('active_status', 1);
+
+        if ($user->type != 'company') {
+            $query->where('owned_by', $userOwnedId);
+        }
+
+        if ($request->filled('branch') && $request->branch !== 'all') {
+            $query->where('adm_branch', $request->branch);
+        }
+
+        if ($request->filled('current_branch') && $request->current_branch !== 'all') {
+            $query->where('owned_by', $request->current_branch);
+        }
+
+        if ($request->filled('class') && $request->class !== 'all') {
+            $query->where('class_id', $request->class);
+        }
+
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+
+        if (empty($dateFrom) && empty($dateTo)) {
+            $currentYear = (int) date('Y');
+            $currentMonth = (int) date('n');
+
+            if ($currentMonth > 7) {
+                $dateFrom = $currentYear . '-07-01';
+                $dateTo = ($currentYear + 1) . '-06-30';
+            } else {
+                $dateFrom = ($currentYear - 1) . '-06-01';
+                $dateTo = $currentYear . '-07-31';
+            }
+
+            $request->merge([
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+            ]);
+        }
+
+        if (!empty($dateFrom) && !empty($dateTo)) {
+            $query->whereBetween('adm_date', [$dateFrom, $dateTo]);
+        }
+
+        $exportStudents = (clone $query)->orderBy('adm_date', 'desc')->get();
+        $students = (clone $query)->orderBy('adm_date', 'desc')->paginate(25)->appends($request->all());
+
+        $branchNames = $branches;
+        $currentBranchNames = $branches;
+
+        $report_name = 'Track Registration';
+
+        if ($request->has('export') && $request->export == 'excel') {
+            return Excel::download(new TrackRegistrationExport($exportStudents, $branches, $classes, $report_name, $request->all()), 'track_registration_report.xlsx');
+        }
+
+        if ($request->has('export') && $request->export == 'pdf') {
+            return Excel::download(new TrackRegistrationExport($exportStudents, $branches, $classes, $report_name, $request->all()), 'track_registration_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
+        }
+
+        return view('studentReports.track_registration', compact('students', 'branches', 'classes', 'report_name', 'request', 'branchNames', 'currentBranchNames'));
+    }
+
     public function registrationdetailReportPdf(Request $request)
     {
 
@@ -1539,7 +1622,7 @@ class StudentReportController extends Controller
         }
 
         /* =======================
-         * Aggregate by branch → voucher
+         * Aggregate by branch â†’ voucher
          * ======================= */
         $groupedVouchers = $receipts
             ->groupBy('owned_by')
@@ -3036,7 +3119,7 @@ class StudentReportController extends Controller
     $selected_class = $request->input('class', '');
     $selected_status = $request->input('status', '');
     $selected_student = $request->input('student', '');
-
+    // dd($from_date,$to_date);
     if (\Auth::user()->type == 'company') {
 
         $branches = User::where('type', 'branch')
@@ -3064,7 +3147,6 @@ class StudentReportController extends Controller
             ->get()
             ->pluck('stdname', 'roll_no')
             ->prepend('Select Student', '');
-
         // Keep selected student available even if it doesn't match current filter
         if (!empty($selected_student)) {
             $extra = StudentRegistration::select(
@@ -3098,7 +3180,7 @@ class StudentReportController extends Controller
 			$studentQuery->whereHas('withdrawal');
 		} else {
 			// Default = Enrolled
-			$studentQuery->whereDoesntHave('withdrawal');
+			$studentQuery->where('active_status',1)->where('student_status','Enrolled');
 		}
 
         $students = $studentQuery
@@ -3145,7 +3227,6 @@ class StudentReportController extends Controller
 
     $std = null;
     $accountStatement = collect();
-
     if (!empty($request->student)) {
 
         $std = StudentRegistration::with(
@@ -3166,7 +3247,9 @@ class StudentReportController extends Controller
                 $from_date,
                 $to_date,
                 $openingBalance
-            );
+            );  
+                // dd($request->student,$accountStatement,$from_date,
+                // $to_date,);
 
             $filtersApplied = true;
         }
@@ -3540,6 +3623,7 @@ class StudentReportController extends Controller
                 'type' => 'challan',
                 'data' => [
                     'type' => 'challan',
+                    'challanId' => $challan->id,
                     'date' => $firstItem->created_at->format('Y-m-d'),
                     'description' => $firstItem->description ?? 'Income Account: Roll no ' . $firstItem->user_id . ' Challan no ' . ($challan->challanNo ?? '-'),
                     'challan_no' => $challan->challanNo ?? '-',
@@ -3614,6 +3698,7 @@ class StudentReportController extends Controller
                 'type' => 'payment',
                 'data' => [
                     'type' => 'payment',
+                    'challanId' => $challan->id,
                     'date' => ($recpDate ?? $transaction->created_at)->format('Y-m-d'), // Display only date
                     'description' => $transaction->description ?? 'Receive of Challan no: ' . ($challan->challanNo ?? '-'),
                     'challan_no' => $challan->challanNo ?? '-',
@@ -3669,6 +3754,7 @@ class StudentReportController extends Controller
                 'type' => 'payment',
                 'data' => [
                     'type' => 'payment',
+                    'challanId' => $challan->id,
                     'date' => $transaction->created_at->format('Y-m-d'),
                     'description' => $transaction->description ?? 'Adjustment of Challan no: ' . ($challan->challanNo ?? '-'),
                     'challan_no' => $challan->challanNo ?? '-',
@@ -4749,7 +4835,7 @@ class StudentReportController extends Controller
         $year = (int) $request->input('year', date('Y'));
         $branchId = $defaultBranchId;
 
-        // if user chose “all” or a specific branch
+        // if user chose â€œallâ€ or a specific branch
         if ($request->filled('branches') && $request->branches != 'all') {
             $branchId = $request->branches;
         }
@@ -4876,7 +4962,7 @@ class StudentReportController extends Controller
                 $totals['withdrawals'][$m] += $withd;
                 $totals['strength'][$m] += $strength;
 
-                // store per‐class if you need to display that detail
+                // store perâ€class if you need to display that detail
                 $registrationCounts[$m][$className] = $regs;
                 $enrollmentCounts[$m][$className] = $enrs;
                 $promoteCounts[$m][$className] = $prom;
@@ -5942,11 +6028,11 @@ class StudentReportController extends Controller
     $user = \Auth::user();
     $creatorId = $user->creatorId();
     $isCompany = $user->type == 'company';
-    $userId = $user->id; // ✅ Unique per logged-in user
+    $userId = $user->id; // âœ… Unique per logged-in user
     $feeMonth = date('Y-m-01', strtotime($request->date ?? date('Y-m-d')));
     $feeMonthFormatted = date('Y-m', strtotime($feeMonth));
 
-    // ✅ Cache key now includes $userId to isolate per-user data
+    // âœ… Cache key now includes $userId to isolate per-user data
     $branches = \Cache::remember("branches_{$userId}_{$creatorId}_{$isCompany}", 3600, function () use ($isCompany, $creatorId, $user) {
         if ($isCompany) {
             $branchList = User::select('id', 'name')
@@ -5965,7 +6051,7 @@ class StudentReportController extends Controller
         }
     });
 
-    // ✅ Cache key includes $userId
+    // âœ… Cache key includes $userId
     $sessions = \Cache::remember("sessions_{$userId}_{$creatorId}", 3600, function () use ($creatorId) {
         return Session::select('id', 'year')
             ->where('created_by', $creatorId)
@@ -5973,7 +6059,7 @@ class StudentReportController extends Controller
             ->prepend('Select Session', '');
     });
 
-    // ✅ Cache key includes $userId
+    // âœ… Cache key includes $userId
     $heads = \Cache::remember("fee_heads_{$userId}_{$creatorId}", 3600, function () use ($creatorId) {
         return FeeHead::where('created_by', $creatorId)->get();
     });
@@ -5984,7 +6070,7 @@ class StudentReportController extends Controller
     $admissionSummary = ['count' => 0, 'total' => 0];
     $advanceSummary   = ['count' => 0, 'total' => 0];
 
-    // ✅ Cache key includes $userId and $creatorId
+    // âœ… Cache key includes $userId and $creatorId
     if (!empty($request->branches) && $request->branches != 'all') {
         $cacheKey = "classes_{$userId}_{$creatorId}_{$request->branches}";
         $class = \Cache::remember($cacheKey, 1800, function () use ($request, $isCompany, $creatorId) {
@@ -6004,7 +6090,7 @@ class StudentReportController extends Controller
         });
     }
 
-    // ✅ Cache key includes $userId and $creatorId
+    // âœ… Cache key includes $userId and $creatorId
     if (!empty($request->branches) && !empty($request->class)) {
         $cacheKey = "students_{$userId}_{$creatorId}_{$request->branches}_{$request->class}";
         $students = \Cache::remember($cacheKey, 1800, function () use ($request, $isCompany, $creatorId, $user) {
@@ -6406,7 +6492,7 @@ class StudentReportController extends Controller
             ];
 
             // -----------------------------------------------------------
-            // EXPORT PATH  →  chunk for memory safety
+            // EXPORT PATH  â†’  chunk for memory safety
             // -----------------------------------------------------------
             if ($request->has('export') || $request->has('print')) {
 
@@ -6511,9 +6597,9 @@ public function monthlyprechallanreport(Request $request)
             ? $user->creatorId()
             : $user->ownedId();
 
-        // ─────────────────────────────────────────────
+        // 
         // 1. Branch dropdown
-        // ─────────────────────────────────────────────
+        // 
         $branches = DB::table('users')
             ->when(
                 $user->type == 'company',
@@ -6528,9 +6614,9 @@ public function monthlyprechallanreport(Request $request)
         $class = collect(['all' => 'All Classes']);
         $students = collect(['all' => 'All Students']);
 
-        // ─────────────────────────────────────────────
+        // 
         // 2. Base student query with filters
-        // ─────────────────────────────────────────────
+        // 
         $baseQ = StudentRegistration::query()
             ->with(['registeroption', 'class', 'section', 'enrollment'])
             ->where('student_status', 'Enrolled')
@@ -6569,9 +6655,9 @@ public function monthlyprechallanreport(Request $request)
             ->pluck('name', 'roll_no')
             ->prepend('All Students', 'all');
 
-        // ─────────────────────────────────────────────
+        // 
         // 3. Date handling
-        // ─────────────────────────────────────────────
+        // 
         $dateInput = $request->input('date', Carbon::now()->format('Y-m'));
         $currentMonth = Carbon::createFromFormat('Y-m', $dateInput);
         $monthLabel = $currentMonth->format('M-Y');
@@ -6587,9 +6673,9 @@ public function monthlyprechallanreport(Request $request)
             $studentsList = $baseQ->with(['registeroption', 'class', 'enrollment.section', 'enrollment'])->get();
             $studentIds = $studentsList->pluck('id')->all();
 
-            // ─────────────────────────────────────────────
+            // 
             // Fee structures
-            // ─────────────────────────────────────────────
+            // 
             $feeStructures = StudentFeeStructure::with('feehead')
                 ->whereIn('reg_id', $studentIds)
                 ->where('checked_status', 1)
@@ -6598,9 +6684,9 @@ public function monthlyprechallanreport(Request $request)
 
             $currentYearMonth = $currentMonth->format('Y-m');
 
-            // ─────────────────────────────────────────────
+            // 
             // Arrears (unpaid challans before current month, from 2026-01 onwards)
-            // ─────────────────────────────────────────────
+            // 
             $arrearsData = Challans::
                 select(
                     'student_id',
@@ -6614,9 +6700,9 @@ public function monthlyprechallanreport(Request $request)
                 ->groupBy('student_id')
                 ->pluck('arrears', 'student_id');
             // ->get();
-            // ─────────────────────────────────────────────
+            // 
             // Concessions
-            // ─────────────────────────────────────────────
+            // 
             $concessions = Concession::with('concession.policy_head')
                 ->whereIn('student_id', $studentIds)
                 ->where('status', 'Approved')
@@ -6639,9 +6725,9 @@ public function monthlyprechallanreport(Request $request)
                 ->groupBy('concession_id')
                 ->map(fn($rows) => $rows->keyBy('head_id'));
 
-            // ─────────────────────────────────────────────
+            // 
             // Fee heads
-            // ─────────────────────────────────────────────
+            // 
             $heads = FeeHead::orderBy('id')->get();
 
             $tuitionHead = $heads->first(
@@ -6654,10 +6740,10 @@ public function monthlyprechallanreport(Request $request)
                 || stripos($h->fee_head, 'latefee') !== false
             );
 
-            // ─────────────────────────────────────────────
+            // 
             // Keywords for heads that must ALWAYS be skipped
             // (admission, security, readmission, late fee)
-            // ─────────────────────────────────────────────
+            // 
             $alwaysSkipKeywords = [
                 'admission',
                 'readmission',
@@ -6670,11 +6756,11 @@ public function monthlyprechallanreport(Request $request)
             // Annual-charge keywords (one-time per subscription period)
             $annualKeywords = ['annual', 'yearly'];
 
-            // ─────────────────────────────────────────────
+            // 
             // Previous-month challan lookup
             // Pass 1: challan whose fee_month == last month
             // Pass 2: challan whose other_months contains last month
-            // ─────────────────────────────────────────────
+            // 
             $lastMonthDate = $currentMonth->copy()->subMonth()->format('Y-m-01');
             $currentMonthDate = $currentMonth->format('Y-m-01');
             $lastYearMonth = date('Y-m', strtotime($lastMonthDate));
@@ -6707,9 +6793,9 @@ public function monthlyprechallanreport(Request $request)
                 ->get()
                 ->groupBy('challan_id');
             // dd($prevChallans, $prevChallanItems);
-            // ─────────────────────────────────────────────
+            // 
             // Helper: parse other_months into sorted array of 'Y-m-d' strings
-            // ─────────────────────────────────────────────
+            // 
             $parseOtherMonths = function (?string $raw): array {
                 if (empty($raw))
                     return [];
@@ -6720,9 +6806,9 @@ public function monthlyprechallanreport(Request $request)
                 );
             };
 
-            // ─────────────────────────────────────────────
+            // 
             // Build report
-            // ─────────────────────────────────────────────
+            // 
             $reportGroups = $studentsList
                 ->sort(function ($a, $b) {
 
@@ -6763,7 +6849,7 @@ public function monthlyprechallanreport(Request $request)
                         if (!$prevChallan) {
                             $prevChallan = $studentChallans->last();
                         }
-                        // ─── Challan type label ───────────────────────────────
+                        //
                         $challanTypeShort = 'RV';
 
                         if ($prevChallan) {
@@ -6773,17 +6859,17 @@ public function monthlyprechallanreport(Request $request)
                             }
                         }
 
-                        // ─── Determine if this student already has an
+                        // â”€â”€â”€ Determine if this student already has an
                         //     advance/subscription challan that covers the
                         //     CURRENT month being reported (e.g. running May
                         //     report but challan covers Jan-June).
                         //
-                        //     If yes → we use fee-structure data directly
+                        //     If yes â†’ we use fee-structure data directly
                         //     (same as no prev-challan path) and only show
                         //     annual charges for the month that immediately
                         //     follows the challan's fee_month (first month
                         //     after the challan was created).
-                        // ─────────────────────────────────────────────────────
+                        // 
                         $advanceChallanForCurrentMonth = null;  // challan that covers current month in other_months
                         $isFirstMonthAfterChallan = false; // should annual charges appear?
     
@@ -6811,8 +6897,6 @@ public function monthlyprechallanreport(Request $request)
                             $isFirstMonthAfterChallan = $firstSubsequent && $firstSubsequent === $currentMonthStr;
                             break;
                         }
-
-                        // ─── Per-head amounts ─────────────────────────────────
                         $applyJunJulFeeExemption = !empty($student->fee_exempt_jun_jul)
                             && $student->enrollment
                             && !empty($student->enrollment->adm_date)
@@ -6908,18 +6992,17 @@ public function monthlyprechallanreport(Request $request)
                         $gross = $totalAmount - $totalDiscount;
                         $netReceivable = $totalNet + $arrears;
 
-                        // ─── Previous-month amount (for difference column) ────
+                        // â”€â”€â”€ Previous-month amount (for difference column) â”€â”€â”€â”€
                         //
-                        // For advance/subscription challans (e.g. Jan–Jun):
-                        //   • Annual charges count in prevMonthAmount ONLY when
+                        // For advance/subscription challans (e.g. Janâ€“Jun):
+                        //   â€¢ Annual charges count in prevMonthAmount ONLY when
                         //     the PREVIOUS month (lastMonthDate) is the very first
                         //     subsequent month after the challan's fee_month.
-                        //     e.g. challan fee_month = Jan → first subsequent = Feb
-                        //          running Feb report  → prevMonth is Jan  → annual included  ✓
-                        //          running Mar report  → prevMonth is Feb  → annual excluded  ✗
-                        //          running Apr–Jun     → prevMonth is Mar+ → annual excluded  ✗
-                        //   • For regular single-month challans annual is always included.
-                        // ─────────────────────────────────────────────────────────────────
+                        //     e.g. challan fee_month = Jan â†’ first subsequent = Feb
+                        //          running Feb report  â†’ prevMonth is Jan  â†’ annual included  âœ“
+                        //          running Mar report  â†’ prevMonth is Feb  â†’ annual excluded  âœ—
+                        //          running Aprâ€“Jun     â†’ prevMonth is Mar+ â†’ annual excluded  âœ—
+                        //   â€¢ For regular single-month challans annual is always included.
                         $prevMonthAmount = 0;
                         // dd($feeStructures, $student->id, $head->id);
     
@@ -6929,14 +7012,14 @@ public function monthlyprechallanreport(Request $request)
                             $months = $parseOtherMonths($prevChallan->other_months);
                             $monthCount = max(1, count($months));
 
-                            // ── Work out whether annual charges belong in this
+                            // â”€â”€ Work out whether annual charges belong in this
                             //    prevMonthAmount calculation.
                             //
                             //    They belong only when the challan is a single-month
                             //    challan, OR when the challan is an advance challan
                             //    AND the previous month (lastMonthDate) is the first
                             //    subsequent month after the challan's fee_month.
-                            // ────────────────────────────────────────────────────
+                            // â”€â”€â”€â”€â”€â”€â”€
                             $includeAnnualInPrev = true; // default: single-month challan
     
                             if ($monthCount > 1) {
@@ -6993,7 +7076,7 @@ public function monthlyprechallanreport(Request $request)
                                     if ($includeAnnualInPrev) {
                                         $annual += $net;
                                     }
-                                    // else: suppress annual for Mar–Jun reports
+                                    // else: suppress annual for Marâ€“Jun reports
                                 } else {
                                     $monthly += $net;
                                 }
@@ -7004,7 +7087,7 @@ public function monthlyprechallanreport(Request $request)
 
                         $difference = $totalNet - $prevMonthAmount;
 
-                        // ─── Late fee calculation ─────────────────────────────
+                       
                         // (only from prev challan status; never from fee heads
                         //  since those are always skipped above)
                         $lateFeeAmount = 0;
@@ -7106,9 +7189,9 @@ public function monthlyprechallanreport(Request $request)
             ? round($totalTuitionNet / $tuitionStudentCount, 2)
             : 0;
 
-        // ─────────────────────────────────────────────
+        // 
         // Export or view
-        // ─────────────────────────────────────────────
+        // 
         if (in_array($request->export, ['excel', 'pdf'])) {
             $reportGroups = collect($reportGroups)
                 ->sortKeys() // branch ASC
@@ -7495,18 +7578,21 @@ public function monthlyprechallanreport(Request $request)
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $students = StudentRegistration::where('created_by', $creatorId)
-            ->where('student_status', 'Enrolled')
+        $students = StudentEnrollments::with('StudentRegistration')
+            ->where('created_by', $creatorId)
             ->where('active_status', 1)
             ->when($user->type != 'company', fn($q) => $q->where('owned_by', $ownedId))
             ->when($branchId && $branchId !== 'all', fn($q) => $q->where('owned_by', $branchId))
             ->when($classId && $classId !== 'all', fn($q) => $q->where('class_id', $classId))
-            ->orderBy('stdname')
+            ->orderBy('regId')
             ->get()
-            ->map(function ($student) {
+            ->unique('regId')
+            ->values()
+            ->map(function ($enrollment) {
+                $student = $enrollment->StudentRegistration;
                 return [
-                    'id' => $student->id,
-                    'name' => trim(($student->roll_no ? $student->roll_no . ' - ' : '') . ($student->stdname ?? '') . ' s/d/o ' . ($student->fathername ?? '')),
+                    'id' => $enrollment->regId,
+                    'name' => trim((($enrollment->enrollId ?? $student->roll_no ?? null) ? ($enrollment->enrollId ?? $student->roll_no) . ' - ' : '') . ($student->stdname ?? '') . ' s/d/o ' . ($student->fathername ?? '')),
                 ];
             })
             ->values();
@@ -7903,7 +7989,7 @@ public function studentProfileReport(Request $request)
         if ($filteredHeadPcts->isNotEmpty()) {
             $totalInputHeads = $filteredHeadPcts->count();
 
-            // Build CASE expressions — same approach as ConcessionController::buildMatchCase
+            // Build CASE expressions â€” same approach as ConcessionController::buildMatchCase
             $caseParts = [];
             foreach ($filteredHeadPcts as $headId => $pct) {
                 $hid = (int) $headId;
@@ -8040,3 +8126,4 @@ public function studentProfileReport(Request $request)
         ));
     }
 }
+

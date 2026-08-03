@@ -265,6 +265,7 @@ Route::get('/run-journal-fix', function () {
     return 'Journal fix executed ✅';
 });
 Route::get('/fix-challans', [JunkController::class, 'fixDuplicateChallans'])->name('fix.challans');
+Route::get('/cleanup-june-july-late-fee', [JunkController::class, 'clearJuneJulyLateFeeChallans'])->name('cleanup.june_july_late_fee');
 
 Route::get('/delete-receipts',[JunkController::class,'deleteReceipts'])->name('delete.receipts');
 Route::get('/remove-late',[JunkController::class,'deleteLateFeeBulk'])->name('delete.deleteLateFeeBulk');
@@ -2337,6 +2338,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('/studypackchallan/{id}/download', [StudyPackChallanController::class, 'show'])->name('studypackchallan.download');
             Route::get('/studypackchallan/{id}/print', [StudyPackChallanController::class, 'show'])->name('studypackchallan.print');
             Route::get('/studypackchallan/pdf/{id}', [StudyPackChallanController::class, 'print'])->name('studypackchallans.challanpdf');
+            Route::post('/studypackchallans/print-bulk', [StudyPackChallanController::class, 'printChallans'])->name('studypackchallans.printbulk');
+            Route::post('/studypackchallan/rollback', [StudyPackChallanController::class, 'rollback'])->name('studypackchallan.rollback');
             Route::post('/submit-adjustment', [StudentWithdrawalController::class, 'submit_adjustment'])->name('submit_adjustment');
             Route::post('/delete-adjustment', [StudentWithdrawalController::class, 'delete_adjustment'])->name('delete_adjustment');
 
@@ -2354,6 +2357,7 @@ Route::group(['middleware' => ['verified']], function () {
 			Route::get('/fee-revision-report', [StudentReportController::class, 'feeRevisionReport'])->name('fee_revision_report');
             Route::post('/student-report/filter-students', [StudentReportController::class, 'reportFilterStudents'])->name('student_report.filter_students');
             Route::get('/student-promotion-report', [StudentReportController::class, 'studentPromotionReport'])->name('student_promotion_report');
+            Route::get('/track-registration', [StudentReportController::class, 'trackRegistrationReport'])->name('track_registration_report');
 			Route::get('/student-fee-detail', [StudentReportController::class, 'studentFeeDetail'])->name('student_fee_detail');
             Route::get('/admissionwithdrawalreport', [StudentReportController::class, 'admissionwithdrawal'])->name('admissionwithdrawal.index');
             Route::get('/admissionwithdrawal/pdf/report', [StudentReportController::class, 'admissionwithdrawalPdfReport'])->name('admissionwithdrawalPdf.report');
@@ -2559,6 +2563,8 @@ Route::post('class_student', [ConcessionController::class, 'class_student'])->na
 Route::get('concession/change-status/{id}/{status}', [ConcessionController::class, 'changeStatus'])->name('concession.change_status');
 Route::get('concession/cancel/{id}/', [ConcessionController::class, 'cancelconcession'])->name('concession.cancel');
 Route::post('concession/cancel/{id}/', [ConcessionController::class, 'removeconcession'])->name('concession.remove');
+Route::get('concession/end/{id}/', [ConcessionController::class, 'endconcession'])->name('concession.endconcession');
+Route::post('concession/end/{id}/', [ConcessionController::class, 'updateendconcession'])->name('concession.updateend');
 Route::get('concession/student-detail/{id}', [ConcessionController::class, 'concession_student_detail']);
 Route::post('concession_list', [ConcessionController::class, 'concession_search'])->name('concession_list');
 Route::get('concessionstatus/{id}', [ConcessionController::class, 'concessionstatus'])->name('concession.status')->middleware(['auth', 'XSS']);

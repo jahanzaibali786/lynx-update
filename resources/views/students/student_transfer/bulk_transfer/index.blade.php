@@ -63,10 +63,6 @@
             }
         }
 
-        function activeFilterValue(name) {
-            return $('[name="' + name + '"]').val();
-        }
-
         function submitChecked() {
             var form = document.getElementById('transfer_submit');
             if (!form.checkValidity()) {
@@ -82,7 +78,6 @@
 
             let invalidSection = false;
             let studentIds = [];
-            
             checkedBoxes.each(function() {
                 let row = $(this).closest('tr');
                 let sectionTo = row.find('.section-to-select').val();
@@ -99,11 +94,15 @@
                 return;
             }
 
+            if ($('#transfer_billing').is(':checked') && !$('#billing_month').val()) {
+                show_toastr('error', 'Please select a billing month.', 'error');
+                return;
+            }
+
             if (!confirm('{{ __('Are you sure you want to transfer the selected students?') }}')) {
                 return;
             }
 
-            // Create a form programmatically and submit it
             var submitForm = $('<form>', {
                 'action': '{{ route('bulk-transfer.process') }}',
                 'method': 'POST'
@@ -113,13 +112,13 @@
                 'type': 'hidden'
             }));
 
-            // Add selected filters required for processing
             submitForm.append($('<input>', { name: 'session_to', value: $('[name="session_to"]').val(), type: 'hidden' }));
             submitForm.append($('<input>', { name: 'branch_to', value: $('[name="branch_to"]').val(), type: 'hidden' }));
             submitForm.append($('<input>', { name: 'class_to', value: $('[name="class_to"]').val(), type: 'hidden' }));
             submitForm.append($('<input>', { name: 'section_to', value: $('[name="section_to"]').val(), type: 'hidden' }));
+            submitForm.append($('<input>', { name: 'transfer_billing', value: $('#transfer_billing').is(':checked') ? 1 : 0, type: 'hidden' }));
+            submitForm.append($('<input>', { name: 'billing_month', value: $('#billing_month').val(), type: 'hidden' }));
 
-            // Add student IDs
             studentIds.forEach(function(id) {
                 submitForm.append($('<input>', { name: 'student_ids[]', value: id, type: 'hidden' }));
             });
@@ -128,6 +127,31 @@
         }
 
         $(document).ready(function() {
+            function syncBillingMonthOptions() {
+                var currentYear = '{{ \Carbon\Carbon::now()->year }}';
+                var allowedMonths = [];
+                for (var month = 1; month <= 12; month++) {
+                    var monthValue = currentYear + '-' + String(month).padStart(2, '0');
+                    if (monthValue !== currentYear + '-06' && monthValue !== currentYear + '-07') {
+                        allowedMonths.push(monthValue);
+                    }
+                }
+
+                var billingSelect = $('#billing_month');
+                billingSelect.prop('disabled', !$('#transfer_billing').is(':checked'));
+
+                billingSelect.find('option').each(function() {
+                    $(this).prop('disabled', allowedMonths.indexOf($(this).val()) === -1);
+                });
+
+                if (allowedMonths.indexOf(billingSelect.val()) === -1) {
+                    billingSelect.val(allowedMonths[0]);
+                }
+            }
+
+            $('#transfer_billing').on('change', syncBillingMonthOptions);
+            syncBillingMonthOptions();
+
             $(document).on('change', '[data-role="branch-from"]', function() {
                 loadBranchClasses(this.value, $('[name="class_from"]'));
             });
@@ -273,16 +297,41 @@
                                 </div>
                             </div>
 
-                            <div class="promotion-filter-actions">
-                                <a href="#" class="btn btn-sm btn-outline-primary" onclick="Checked(event)" title="Search data">
-                                    <span class="btn-inner--icon">Search</span>
-                                </a>
-                                <a href="{{ route('bulk-transfer.index') }}" class="btn btn-sm btn-outline-danger" title="Clear Filter">
-                                    <span class="btn-inner--icon">Clear</span>
-                                </a>
-                                <a title="Transfer Selected Students" class="btn btn-sm btn-outline-warning" onclick="submitChecked()">
-                                    <span class="btn-inner--icon">Transfer Students</span>
-                                </a>
+                            <div>
+                                <div class="btn-box">
+                                    {{ Form::label('billing_month', __('Transfer Billing Month'), ['class' => 'form-label']) }}
+                                    <select id="billing_month" class="form-control select">
+                                        @php
+                                            $currentYear = \Carbon\Carbon::now()->year;
+                                            $currentYearMonths = [];
+                                            for ($m = 1; $m <= 12; $m++) {
+                                                $monthValue = sprintf('%d-%02d', $currentYear, $m);
+                                                $currentYearMonths[$monthValue] = \Carbon\Carbon::create($currentYear, $m, 1)->format('F Y');
+                                            }
+                                        @endphp
+                                        @foreach ($currentYearMonths as $monthValue => $monthLabel)
+                                            <option value="{{ $monthValue }}" @disabled(in_array($monthValue, ["{$currentYear}-06", "{$currentYear}-07"], true))>{{ $monthLabel }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <label class="mt-2 d-flex align-items-center gap-2" style="font-weight: 600;">
+                                    <input type="checkbox" id="transfer_billing" checked>
+                                    <span>Transfer billing as well</span>
+                                </label>
+                            </div>
+
+                            <div class="promotion-filter-actions" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <a href="#" class="btn btn-sm btn-outline-primary" onclick="Checked(event)" title="Search data">
+                                        <span class="btn-inner--icon">Search</span>
+                                    </a>
+                                    <a href="{{ route('bulk-transfer.index') }}" class="btn btn-sm btn-outline-danger" title="Clear Filter">
+                                        <span class="btn-inner--icon">Clear</span>
+                                    </a>
+                                    <a title="Transfer Selected Students" class="btn btn-sm btn-outline-warning" onclick="submitChecked()">
+                                        <span class="btn-inner--icon">Transfer Students</span>
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -306,6 +355,8 @@
                             <th>Class</th>
                             <th>Section</th>
                             <th>Section To</th>
+                            <th>Last Billing Month</th>
+                            <th>Billing Status</th>
                             <th><input type="checkbox" id="select-all"></th>
                         </tr>
                     </thead>
@@ -324,6 +375,8 @@
                                         'required' => 'required',
                                     ]) !!}
                                 </td>
+                                <td>{{ !empty(optional($student->latest_billing)->fee_month) ? \Carbon\Carbon::parse(optional($student->latest_billing)->fee_month)->format('M Y') : '-' }}</td>
+                                <td>{{ optional($student->latest_billing)->status ?? '-' }}</td>
                                 <td>
                                     <input type="checkbox" class="student-checkbox" name="student_ids[]" value="{{ $student->id }}">
                                 </td>

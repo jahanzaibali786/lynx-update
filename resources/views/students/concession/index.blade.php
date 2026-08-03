@@ -623,17 +623,27 @@
             @endif
 
             {{-- Approved AND order exists → FULL LOCK --}}
+            {{-- Approved AND order exists -- FULL LOCK --}}
             @if($isApproved && $hasOrder)
-                <<form action="{{ route('concession-order', $concession->id) }}"
+                <form action="{{ route('concession-order', $concession->id) }}"
                       method="POST"
                       class="d-inline">
                     @csrf
                     <button type="submit"
-                            class="btn btn-sm btn-outline-success"
-                            title="Generate Order">
+                            class="btn btn-sm btn-success text-white"
+                            title="Generate Order"
+                            style="box-shadow:none;">
                         Generate
                     </button>
                 </form>
+
+                <a href="#"
+                   data-url="{{ route('concession.endconcession', $concession->id) }}"
+                   data-ajax-popup="true"
+                   class="btn btn-sm btn-warning text-white"
+                   title="End Concession">
+                    <i class="ti ti-clock-pause"></i> End
+                </a>
             @endif
 
         @endif

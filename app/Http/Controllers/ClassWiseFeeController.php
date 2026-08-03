@@ -257,15 +257,30 @@ class ClassWiseFeeController extends Controller
     public function sessionclass(Request $request)
     {
         if (isset($request->type) && $request->type == 'studypack') {
-            //find that class in the classes 
-            $class = Classes::where('id', $request->id)->get();
-            $Studypack = StudyPack::where('session_id', '=', $request->session)->where('class', $class['0']->name)->get();
-            // dd($class);
-            $class1 = $class->pluck('id');
-            $students = StudentEnrollments::whereIn('class_id', $class1)->where('session_id', $request->session)->get();
-            $class = $class->pluck('name', 'id');
+            $selectedClass = Classes::where('id', $request->id)->first();
+            $classIds = [];
+            if ($selectedClass) {
+                $classIds = Classes::where('name', $selectedClass->name)->pluck('id')->values()->toArray();
+            }
 
-            // dd($students);
+            $Studypack = StudyPack::where('session_id', '=', $request->session)
+                ->where(function ($query) use ($classIds) {
+                    foreach ($classIds as $index => $classId) {
+                        $classId = (int) $classId;
+                        if ($index === 0) {
+                            $query->whereJsonContains('class', $classId);
+                        } else {
+                            $query->orWhereJsonContains('class', $classId);
+                        }
+                    }
+                })
+                ->get();
+
+            $students = StudentEnrollments::whereIn('class_id', $classIds)
+                ->where('session_id', $request->session)
+                ->get();
+
+            $class = Classes::whereIn('id', $classIds)->pluck('name', 'id');
         } else {
             $Studypack = [];
             $class = Classes::where('owned_by', '=', $request->id)->where('active_status', 1)->get();
@@ -355,7 +370,7 @@ class ClassWiseFeeController extends Controller
                 if ($request->class_id != 'all' && $request->class_id != null) {
                     $query->where('class_id', $request->class_id);
                 }
-                $query->whereDoesntHave('withdrawal');
+                $query->where('active_status',1)->where('student_status','Enrolled');
             } else if ($status == 'withdraw') {
                 $query->whereHas('withdrawal');
             }

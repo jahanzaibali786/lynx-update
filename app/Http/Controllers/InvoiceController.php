@@ -1721,7 +1721,8 @@ class InvoiceController extends Controller
             $color = '#' . $settings['invoice_color'];
             $font_color = Utility::getFontColor($color);
             // dd($settings['invoice_template']);
-            return view('invoice.templates.' . $settings['invoice_template'], compact('invoice', 'color', 'settings', 'customer', 'img', 'font_color', 'customFields'));
+            // return view('invoice.templates.' . $settings['invoice_template'], compact('invoice', 'color', 'settings', 'customer', 'img', 'font_color', 'customFields'));
+            return view('invoice.templates.stn', compact('invoice', 'color', 'settings', 'customer', 'img', 'font_color', 'customFields'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }

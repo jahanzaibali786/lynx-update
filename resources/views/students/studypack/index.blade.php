@@ -39,7 +39,22 @@
                     <tr>
                         <td>{{ ($studypacks->currentPage() - 1) * $studypacks->perPage() + $loop->iteration }}</td>
                         <td>{{ $studypack->title }}</td>
-                        <td>{{ @$studypack->class }}</td>
+                        @php
+                            $classIds = $studypack->class;
+                            $classIds = json_decode($classIds, true);
+
+                            if (!is_array($classIds)) {
+                                $classIds = array_filter(array_map('trim', explode(',', (string) $classIds)));
+                            }
+
+                            $firstClassId = $classIds[0] ?? null;
+
+                            $className = $firstClassId
+                                ? \App\Models\Classes::where('id', $firstClassId)->value('name')
+                                : '';
+                        @endphp
+
+                        <td>{{ $className ?: '-' }}</td>
                         <td>{{ $studypack->study_pack_cost }}</td>
                         <td>{{ @$studypack->session->year }}</td>
                         <td>
@@ -114,3 +129,5 @@
     @endif
 
 @endsection
+
+

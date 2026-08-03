@@ -16,6 +16,8 @@ class StudyPackItem extends Model
         'tax',
         'discount',
         'price',
+        'owned_by',
+        'created_by',
     ];
 
     public function product(){

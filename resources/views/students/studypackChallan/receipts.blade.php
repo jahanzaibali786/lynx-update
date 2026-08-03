@@ -84,174 +84,70 @@
             </div>
         </div>
     </div>
-    <div class="col-12 ">
-        <table class="datatable">
-            <thead class="table_heads">
-                <tr>
-                    <th>Rpt No.</th>
-                    <th>Rpt Date</th>
-                    <th>Challan No.</th>
-                    <th>Rpt Amt</th>
-                    <th>Challan Amt</th>
-                    <th>Late Amt</th>
-                    <th>Total Fee</th>
-                    <th>Rem. Fee</th>
-                    {{-- <th>Type</th> --}}
-                    <th>Bank Account</th>
-                    <th>D Status</th>
-                    <th>Referance</th>
-                    <th>Received</th>
-                    {{-- @if (Auth::user()->type == 'company')
-                        <th>Action</th>
-                    @endif --}}
-                </tr>
-            </thead>
-            @php
-                $options = ['DD', 'OL', 'CHQ', 'CD'];
-            @endphp
-            <tbody id="new_data">
-                @foreach ($recipts as $recipt)
-                    <tr style="  border-radius: 10px !important;">
-                        <td>
-                            <input type="text" value="{{ @$recipt->id }}" disabled
-                                style="width:50px; font-size: 11px;">
-                        </td>
-                        <td>
-                            <input type="text" value="{{ date('d/m/Y', strtotime($recipt->recipt_date)) }}" disabled
-                                class="font_less" style="width:63px; font-size: 11px;">
-                        </td>
-                        <td>
-                            <input type="text" value="{{ @$recipt->challan->challanNo }}" disabled style="width:60px; ">
-                        </td>
-                        <td>
-                            <input type="text" value="{{ @$recipt->recipt_amount }}" disabled
-                                style="width:60px; font-size: 13px;">
-                        </td>
-                        <td>
-                            <input type="text" value="{{ @$recipt->challan_amount }}" disabled
-                                style="width:65px; font-size: 13px;">
-                        </td>
-                        <td>
-                            <input type="text" value="{{ @$recipt->late_amount }}" disabled
-                                style="width:50px; font-size: 13px;">
-                        </td>
-                        <td>
-                            <input type="text" value="{{ @$recipt->challan_amount + @$recipt->late_amount }}" disabled
-                                style="width:60px; font-size: 12px;">
-                        </td>
-                        {{-- @dump($recipt->challan_amount , @$recipt->late_amount , @$recipt->recipt_amount); --}}
-                        <td>
-                            <input type="text"
-                                value="{{ @$recipt->challan_amount + @$recipt->late_amount - @$recipt->recipt_amount }}"
-                                disabled style="width:65px; font-size: 12px;">
-                        </td>
-                        {{-- <td>
-                            <input type="text" value="RV" disabled style="width:50px; font-size: 13px;">
-                        </td> --}}
-                        <td>
-                            {{ Form::select('default_bank', $accounts, @$recipt->bank_id, ['style' => 'width:100px; font-size: 12px;', 'disabled' => 'disabled']) }}
-                        </td>
-                        <td>
-                            <select class="input" disabled>
-                                @foreach ($options as $option)
-                                    <option value="{{ $option }}"
-                                        {{ $option == @$recipt->receive_type ? 'selected' : '' }}> {{ $option }}
-                                    </option>
-                                @endforeach>
-                            </select>
-
-                        </td>
-                        <td>
-                            <input type="text" value="{{ @$recipt->referance }}" disabled
-                                style="width:80px; font-size: 11px;">
-                        </td>
-                        <td>
-                            <input type="text" value="{{ @$recipt->received->name }}" disabled
-                                style="width:100px; font-size: 11px;">
-                        </td>
-                        {{-- @if (Auth::user()->type == 'company')
-                            <td>
-                                <a href="#!" data-size="lg"
-                                    data-url="{{ route('student_receipt.edit', $recipt->id) }}" data-ajax-popup="true"
-                                    title="Edit" class=" btn btn-sm btn-outline-primary"
-                                    data-bs-title="{{ __('Edit') }}">
-                                    <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span></a>
-                            </td>
-                        @endif --}}
+        <div class="col-12">
+        <div class="card p-4 table-responsive maximumHeightNew">
+            <div style="width: 100%; text-align: center;">
+                <p style="font-family:Edwardian Script ITC; font-size:3rem;"><b>The Lynx School</b></p>
+            </div>
+            <div style="width: 100%; text-align: center;">
+                <p style="text-align: center; font-weight: 900; font-size: 1rem;">Study Pack Receiving Statement</p>
+            </div>
+            <div class="d-flex justify-content-between">
+                <p><b>Period From :</b> {{ @$request->date_from ?? '' }}</p>
+                <p><b>Period To :</b> {{ @$request->date_to ?? '' }}</p>
+            </div>
+            <table style="font-size:0.8rem; width:100%;">
+                <thead>
+                    <tr class="table_heads report_table">
+                        <th>Sr#</th>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Challan No</th>
+                        <th>Billing Month</th>
+                        <th>Receipt Mode</th>
+                        <th>Receipt Ref.</th>
+                        <th>Bank</th>
+                        <th>Debit</th>
+                        <th>Credit</th>
+                        <th>Balance</th>
                     </tr>
-                @endforeach
-                <tr id="focus_row" style="  border-radius: 10px !important;">
-                    <td>
-                        <input type="text" value="" disabled style="width:50px; font-size: 11px;">
-                    </td>
-                    <td>
-                        {{-- {{ Form::date('date', date('Y-m-d'),['class' => 'form-control']) }} --}}
-                        <input type="date" value="{{ date('Y-m-d') }}" id="recipt_date" class="font_less"
-                            min="{{ Auth::user()->type == 'company' ? '' : date('Y-m-d', strtotime('-3 days')) }}"
-                            style="width:70px; font-size: 11px;">
-                    </td>
-                    <td>
-                        <input type="text" id="challan_id" value="" style="width:60px; ">
-                    </td>
-                    <td>
-                        <input type="text" value="" id="remp_amt" disabled style="width:60px; font-size: 13px;">
-                    </td>
-                    <td>
-                        <input type="text" id="challan_amt" value="" disabled
-                            style="width:65px; font-size: 13px;">
-                    </td>
-                    <td>
-                        <input type="text" id="late_amt" value="0" disabled
-                            style="width:50px; font-size: 13px;">
-                    </td>
-                    <td>
-                        <input type="text" id="total_fee" value="" disabled
-                            style="width:60px; font-size: 12px;">
-                    </td>
-                    <td>
-                        <input type="text" id="rem_fee" value="" disabled
-                            style="width:65px; font-size: 12px;">
-                    </td>
-                    {{-- <td>
-                        <input type="text" value="RV" disabled style="width:50px; font-size: 13px;">
-                    </td> --}}
-                    <td>
-                        {{ Form::select('default_bank', $accounts, null, ['style' => 'width:100px; font-size: 12px;', 'disabled' => 'disabled']) }}
-                    </td>
-                    <td>
-                        <select class="input" name="receive_type" disabled>
-                            <option value="DD">DD</option>
-                            <option value="OL">OL</option>
-                            <option value="CHQ">CHQ</option>
-                            <option value="CD">CD</option>
-                        </select>
-                    </td>
-                    <td>
-                        <input type="text" value="" style="width:80px; font-size: 11px;" disabled>
-                    </td>
-                    <td>
-                        <input type="text" value="{{ Auth::user()->name }}" style="width:100px; font-size: 11px;"
-                            disabled>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div id="detailcard" class="card p-4" style="display:none;">
-            <div class="" id="siblingContainer" style="display:none;">
-
-            </div>
-            <hr style="margin-top: 5px;">
-            <div class="row" style="padding: 0px 30px;">
-                <div id="headfee" class="col-md-6 pb-4">
-                </div>
-                <div id="arrearsdetails" class="col-md-6 pb-4">
-                </div>
-            </div>
+                </thead>
+                <tbody>
+                    @php $runningBalance = 0; @endphp
+                    @foreach ($recipts as $i => $recipt)
+                        @php
+                            $debit = (float) ($recipt->recipt_amount ?? 0);
+                            $credit = 0;
+                            $runningBalance = $runningBalance + $credit - $debit;
+                        @endphp
+                        <tr>
+                            <td>{{ $i + 1 }}</td>
+                            <td>{{ !empty($recipt->recipt_date) ? date('Y-m-d', strtotime($recipt->recipt_date)) : '-' }}</td>
+                            <td>StudyPack Receipt for Challan No {{ $recipt->challan->challanNo ?? '-' }}</td>
+                            <td>
+                                @if (!empty($recipt->challan_id))
+                                    <a href="{{ route('studypackchallan.print', $recipt->challan_id) }}" target="_blank" rel="noopener">
+                                        {{ $recipt->challan->challanNo ?? '-' }}
+                                    </a>
+                                @else
+                                    -
+                                @endif
+                            </td>
+                            <td>{{ !empty($recipt->challan->fee_month) ? date('M-Y', strtotime($recipt->challan->fee_month)) : '-' }}</td>
+                            <td>{{ $recipt->receive_type ?? '-' }}</td>
+                            <td>{{ $recipt->referance ?? '-' }}</td>
+                            <td>{{ $accounts[$recipt->bank_id] ?? '-' }}</td>
+                            <td>{{ number_format($debit, 2) }}</td>
+                            <td>{{ $credit ? number_format($credit, 2) : '-' }}</td>
+                            <td>{{ number_format($runningBalance, 2) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
     </div>
 
-    {{-- </div>
+{{-- </div>
     </div> --}}
     <script>
         let account = [];

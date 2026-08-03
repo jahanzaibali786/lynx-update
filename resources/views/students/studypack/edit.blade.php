@@ -37,7 +37,11 @@
         }
 
         $(function() {
-            if (studyPackItems.length) {
+            var $itemsTbody = $('#items-tbody');
+
+            if (studyPackItems.length && !$itemsTbody.data('existing-loaded')) {
+                $itemsTbody.data('existing-loaded', true);
+                $itemsTbody.find('tr[data-entry-id]').remove();
                 $('#empty-row').hide();
                 $.each(studyPackItems, function(_, item) {
                     var entry = {
@@ -50,7 +54,7 @@
                         amount: (parseFloat(item.quantity) || 0) * (parseFloat(item.price) || 0),
                         discount: parseFloat(item.discount) || 0
                     };
-                    $('#items-tbody').append(buildLockedRow(entry));
+                    $itemsTbody.append(buildLockedRow(entry));
                     studyPackItems[_] = entry;
                 });
                 renderHiddenInputs();
@@ -69,16 +73,29 @@
         }
 
         // ─── Add line button ──────────────────────────────────────────────────────────
-        $(document).on('click', '#addItemBtn', function() {
+        $(document).off('click', '#addItemBtn').on('click', '#addItemBtn', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
             var openRows = $('#items-tbody tr[data-row-id]').length;
             if (openRows >= MAX_OPEN_ROWS) {
-                show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS + ' open).', 'warning');
+                show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS +
+                    ' open).', 'warning');
                 return;
             }
             appendInlineRow();
         });
 
         function appendInlineRow() {
+            var tbody = document.getElementById('items-tbody');
+            var now = Date.now();
+            var lastAppendAt = parseInt(tbody.getAttribute('data-last-append-at') || '0', 10);
+
+            if (now - lastAppendAt < 300) {
+                return;
+            }
+
+            tbody.setAttribute('data-last-append-at', now);
             rowCounter++;
             var rid = rowCounter;
 
@@ -108,7 +125,7 @@
                 '<td class="col-actions" style="white-space:nowrap;">' +
                 '<button type="button" class="btn btn-sm btn-primary confirm-row-btn" data-rid="' + rid +
                 '" title="Confirm"><i class="ti ti-check"></i></button> ' +
-                '<button type="button" class="btn btn-sm btn-outline-danger discard-row-btn" data-rid="' + rid +
+                '<button type="button" class="btn btn-sm btn-danger discard-row-btn" data-rid="' + rid +
                 '" title="Discard"><i class="ti ti-x"></i></button>' +
                 '</td>' +
                 '</tr>';
@@ -143,7 +160,7 @@
         }
 
         // ─── Item change → load product details ──────────────────────────────────────
-        $(document).on('change', '.row-item', function() {
+        $(document).off('change', '.row-item').on('change', '.row-item', function() {
             var rid = $(this).data('rid');
             var itemId = $(this).val();
 
@@ -166,7 +183,8 @@
                     var product = data.product;
 
                     // Set price
-                    $('.row-price[data-rid="' + rid + '"]').val(parseFloat(product.sale_price || 0).toFixed(2));
+                    $('.row-price[data-rid="' + rid + '"]').val(parseFloat(product.sale_price || 0)
+                        .toFixed(2));
 
                     // Set unit
                     $('#unit-' + rid).text(data.unit || '');
@@ -187,10 +205,11 @@
         }
 
         // ─── Quantity / Price change → recalculate amount ────────────────────────────
-        $(document).on('keyup change', '.row-quantity, .row-price', function() {
-            var rid = $(this).data('rid');
-            calculateRowAmount(rid);
-        });
+        $(document).off('keyup change', '.row-quantity, .row-price').on('keyup change', '.row-quantity, .row-price',
+            function() {
+                var rid = $(this).data('rid');
+                calculateRowAmount(rid);
+            });
 
         function calculateRowAmount(rid) {
             var quantity = parseFloat($('.row-quantity[data-rid="' + rid + '"]').val()) || 0;
@@ -201,7 +220,7 @@
         }
 
         // ─── Confirm row ──────────────────────────────────────────────────────────────
-        $(document).on('click', '.confirm-row-btn', function() {
+        $(document).off('click', '.confirm-row-btn').on('click', '.confirm-row-btn', function() {
             var rid = $(this).data('rid');
             var tr = $('tr[data-row-id="' + rid + '"]');
 
@@ -249,20 +268,22 @@
                 '<td class="text-end">' + formatAmount(e.price) + '</td>' +
                 '<td class="text-end fw-semibold">' + formatAmount(e.amount) + '</td>' +
                 '<td class="text-center">' +
-                '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id + '" title="Edit"><i class="ti ti-pencil"></i></a>' +
-                '<a href="#" class="remove-entry-btn text-danger" data-id="' + e.id + '" title="Remove"><i class="ti ti-trash"></i></a>' +
+                '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id +
+                '" title="Edit"><i class="ti ti-pencil"></i></a>' +
+                '<a href="#" class="remove-entry-btn text-danger" data-id="' + e.id +
+                '" title="Remove"><i class="ti ti-trash"></i></a>' +
                 '</td>' +
                 '</tr>';
         }
 
         // ─── Discard open row ─────────────────────────────────────────────────────────
-        $(document).on('click', '.discard-row-btn', function() {
+        $(document).off('click', '.discard-row-btn').on('click', '.discard-row-btn', function() {
             $('tr[data-row-id="' + $(this).data('rid') + '"]').remove();
             checkEmptyState();
         });
 
         // ─── Remove confirmed entry ───────────────────────────────────────────────────
-        $(document).on('click', '.remove-entry-btn', function(e) {
+        $(document).off('click', '.remove-entry-btn').on('click', '.remove-entry-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             if (!confirm('Remove this item?')) return;
@@ -277,7 +298,7 @@
         });
 
         // ─── Edit confirmed entry ─────────────────────────────────────────────────────
-        $(document).on('click', '.edit-entry-btn', function(e) {
+        $(document).off('click', '.edit-entry-btn').on('click', '.edit-entry-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var entry = studyPackItems.find(function(item) {
@@ -289,7 +310,8 @@
 
             // Replace quantity, price with editable inputs
             tr.find('td').eq(1).html(
-                '<input type="number" class="form-control form-control-sm edit-quantity" value="' + entry.quantity +
+                '<input type="number" class="form-control form-control-sm edit-quantity" value="' + entry
+                .quantity +
                 '" min="1" step="1" data-id="' + id + '" style="width:80px;">'
             );
             tr.find('td').eq(2).html(
@@ -300,13 +322,15 @@
                 '<span class="edit-amount text-end fw-semibold">' + formatAmount(entry.amount) + '</span>'
             );
             tr.find('td').eq(4).html(
-                '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id + '" title="Save"><i class="ti ti-check"></i></a>' +
-                '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id + '" title="Cancel"><i class="ti ti-x"></i></a>'
+                '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id +
+                '" title="Save"><i class="ti ti-check"></i></a>' +
+                '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id +
+                '" title="Cancel"><i class="ti ti-x"></i></a>'
             );
         });
 
         // Recalculate amount during edit
-        $(document).on('input', '.edit-quantity, .edit-price', function() {
+        $(document).off('input', '.edit-quantity, .edit-price').on('input', '.edit-quantity, .edit-price', function() {
             var id = parseInt($(this).data('id'));
             var tr = $('tr[data-entry-id="' + id + '"]');
 
@@ -318,7 +342,7 @@
         });
 
         // Save edit
-        $(document).on('click', '.save-edit-btn', function(e) {
+        $(document).off('click', '.save-edit-btn').on('click', '.save-edit-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var tr = $('tr[data-entry-id="' + id + '"]');
@@ -350,7 +374,7 @@
         });
 
         // Cancel edit
-        $(document).on('click', '.cancel-edit-btn', function(e) {
+        $(document).off('click', '.cancel-edit-btn').on('click', '.cancel-edit-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var entry = studyPackItems.find(function(item) {
@@ -395,36 +419,38 @@
         }
 
         // ─── Keyboard shortcuts ──────────────────────────────────────────────────────
-        $(document).on('keydown', '.row-item, .row-quantity, .row-price', function(e) {
-            var rid = $(this).data('rid');
-            if (!rid) return;
+        $(document).off('keydown', '.row-item, .row-quantity, .row-price').on('keydown',
+            '.row-item, .row-quantity, .row-price',
+            function(e) {
+                var rid = $(this).data('rid');
+                if (!rid) return;
 
-            // Disable Tab key navigation
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                return false;
-            }
+                // Disable Tab key navigation
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    return false;
+                }
 
-            if (e.key === 'Enter' && e.shiftKey) {
-                // Shift+Enter: Add new line
-                e.preventDefault();
-                $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
-                // Small delay to let the confirm complete, then add new row
-                setTimeout(function() {
-                    $('#addItemBtn').trigger('click');
-                }, 100);
-            } else if (e.key === 'Enter') {
-                // Enter: Confirm current row
-                e.preventDefault();
-                $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
-            } else if (e.key === 'Escape') {
-                // Escape: Discard current row
-                e.preventDefault();
-                $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
-            }
-        });
+                if (e.key === 'Enter' && e.shiftKey) {
+                    // Shift+Enter: Add new line
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+                    // Small delay to let the confirm complete, then add new row
+                    setTimeout(function() {
+                        $('#addItemBtn').trigger('click');
+                    }, 100);
+                } else if (e.key === 'Enter') {
+                    // Enter: Confirm current row
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+                } else if (e.key === 'Escape') {
+                    // Escape: Discard current row
+                    e.preventDefault();
+                    $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
+                }
+            });
 
-        $(document).on('keydown', '.edit-quantity, .edit-price', function(e) {
+        $(document).off('keydown', '.edit-quantity, .edit-price').on('keydown', '.edit-quantity, .edit-price', function(e) {
             var id = $(this).data('id');
             if (!id) return;
 
@@ -454,7 +480,7 @@
         });
 
         // ─── Form validation before submit ────────────────────────────────────────────
-        $(document).on('submit', '#studypack-form', function(e) {
+        $(document).off('submit', '#studypack-form').on('submit', '#studypack-form', function(e) {
             if (studyPackItems.length === 0) {
                 e.preventDefault();
                 show_toastr('error', 'Please add at least one item.', 'error');
@@ -463,7 +489,7 @@
         });
 
         // ─── Global Shift+Enter to add new row ────────────────────────────────────────
-        $(document).on('keydown', function(e) {
+        $(document).off('keydown.studypackAddRow').on('keydown.studypackAddRow', function(e) {
             // Check if Shift+Enter is pressed anywhere on the page
             if (e.key === 'Enter' && e.shiftKey) {
                 // Don't trigger if we're in a textarea or other multi-line input
@@ -546,7 +572,8 @@
             font-size: 10px;
             padding: 2px 6px;
         }
-         #items-tbody .custom-select-wrapper{
+
+        #items-tbody .custom-select-wrapper {
             width: 100% !important;
         }
     </style>
@@ -564,31 +591,40 @@
                     <div class="row">
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('session', __('Session'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
-                                {{ Form::select('session', $session, null, ['class' => 'form-control', 'required' => 'required']) }}
+                                {{ Form::label('session', __('Session'), ['class' => 'form-label']) }}<span
+                                    class="text-danger"> *</span>
+                                {{ Form::select('session', $session, $invoice->session_id, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
-                                {{ Form::select('class', $class ?? [], $invoice->class, ['class' => 'form-control', 'id' => 'class', 'required' => 'required']) }}
+                                {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}<span
+                                    class="text-danger"> *</span>
+                                {{ Form::select('class', $class ?? [], $selectedClassId, [
+                                    'class' => 'form-control',
+                                    'id' => 'class',
+                                    'required' => 'required',
+                                ]) }}
                             </div>
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}<span class="text-danger">
+                                    *</span>
                                 {{ Form::date('date', date('Y-m-d', strtotime($invoice->date)), ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('title', __('Title'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::label('title', __('Title'), ['class' => 'form-label']) }}<span
+                                    class="text-danger"> *</span>
                                 {{ Form::text('title', null, ['class' => 'form-control', 'placeholder' => __('Enter StudyPack Title'), 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('study_pack_cost', __('Study Pack Cost'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::label('study_pack_cost', __('Study Pack Cost'), ['class' => 'form-label']) }}<span
+                                    class="text-danger"> *</span>
                                 {{ Form::text('study_pack_cost', null, ['class' => 'form-control subtotal', 'placeholder' => __('Enter StudyPack Cost'), 'required' => 'required', 'readonly' => 'readonly']) }}
                             </div>
                         </div>
@@ -625,7 +661,8 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="3" class="text-end"><strong>{{ __('Total Amount') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
+                                <td colspan="3" class="text-end"><strong>{{ __('Total Amount') }}
+                                        ({{ \Auth::user()->currencySymbol() }})</strong></td>
                                 <td class="text-end totalAmount fw-bold">0.00</td>
                                 <td></td>
                             </tr>
@@ -636,10 +673,10 @@
         </div>
 
         <div class="modal-footer">
-            <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('studypack.index') }}';" class="btn btn-light me-3">
+            <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('studypack.index') }}';"
+                class="btn btn-light me-3">
             <input type="submit" value="{{ __('Update') }}" class="btn btn-primary">
         </div>
         {{ Form::close() }}
     </div>
 @endsection
-

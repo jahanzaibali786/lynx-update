@@ -901,7 +901,7 @@ class StudentWithdrawalController extends Controller
             $reg->save();
 
             $duplicate = Challans::where('student_id', $reg->id)
-                ->where('challan_date', $request->challan_date)
+                ->where('challan_date', date('Y-m-d', strtotime(now())))
                 ->where('challan_type', 'Withdrawal')->first();
             if (!$duplicate) {
                 $chaallan = new Challans();
@@ -909,13 +909,13 @@ class StudentWithdrawalController extends Controller
                 $chaallan->class_id = $studentwithdrawal->class_id;
                 $chaallan->rollno = $reg->roll_no;
                 $chaallan->challanNo = $this->challanNo();
-                $chaallan->challan_date = $request->challan_date;
-                $chaallan->fee_month = date('Y-m-01', strtotime($request->challan_date));
+                $chaallan->challan_date = date('Y-m-d', strtotime(now()));
+                $chaallan->fee_month = date('Y-m-01', strtotime((now())));
                 $chaallan->challan_type = 'Withdrawal';
                 $chaallan->total_amount = 0;
                 $chaallan->paid_amount = 0;
-                $chaallan->issue_date = $request->challan_date;
-                $chaallan->due_date = $request->due_date;
+                $chaallan->issue_date = date('Y-m-d', strtotime(now()));
+                $chaallan->due_date = date('Y-m-d', strtotime(now()));
                 $chaallan->status = 'Issued';
                 $chaallan->session_id = $studentwithdrawal->session_id;
                 $chaallan->owned_by = $studentwithdrawal->owned_by;

@@ -866,7 +866,32 @@
 
                 var checkedRowsData = [];
                 document.getElementsByName('checked[]').forEach(function(cb) {
-                    if (cb.checked) checkedRowsData.push(cb.value);
+                    if (cb.checked) {
+                        var row = cb.closest('tr');
+                        var rollNo = '';
+                        var studentName = '';
+                        var challanMonth = '';
+
+                        if (row) {
+                            var cells = row.querySelectorAll('td');
+                            if (cells[3]) {
+                                rollNo = cells[3].textContent.trim();
+                            }
+                            if (cells[4]) {
+                                studentName = cells[4].textContent.trim();
+                            }
+                            if (cells[6]) {
+                                challanMonth = cells[6].textContent.trim();
+                            }
+                        }
+
+                        checkedRowsData.push({
+                            id: cb.value,
+                            rollNo: rollNo,
+                            studentName: studentName,
+                            challanMonth: challanMonth
+                        });
+                    }
                 });
 
                 if (checkedRowsData.length === 0) {
@@ -898,7 +923,7 @@
                         url: '{{ route('printchallans') }}',
                         method: 'POST',
                         data: {
-                            rowsdata: currentBatchIds,
+                            rowsdata: currentBatchIds.map(function(row) { return row.id; }),
                             printType,
                             batchSize,
                             batchIndex
@@ -926,7 +951,11 @@
                                 hideLoadingOverlay();
                                 if (printType === 'separate') {
                                     allPdfs.forEach(function(pdfBase64, index) {
-                                        triggerDownload(pdfBase64, 'challan_' + (index + 1) + '.pdf');
+                                        var meta = checkedRowsData[index] || {};
+                                        var filename = [meta.rollNo, meta.studentName, meta.challanMonth, 'challan.pdf']
+                                            .filter(Boolean)
+                                            .join('_');
+                                        triggerDownload(pdfBase64, filename);
                                     });
                                 } else {
                                     if (allPdfs.length > 0) triggerDownload(allPdfs[0], 'bulk_challan.pdf');

@@ -21,6 +21,8 @@ return new class extends Migration
             $table->string('tax', '50')->nullable();
             $table->float('discount')->default('0.00');
             $table->decimal('price', 16, 2)->default('0.0');
+            $table->integer('owned_by')->nullable();
+            $table->integer('created_by')->nullable();
             $table->timestamps();
         });
     }
