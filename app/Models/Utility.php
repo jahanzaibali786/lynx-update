@@ -5552,6 +5552,32 @@ class Utility extends Model
 
     }
 
+    private static function applySafeAuditData($model, array $data, array $fields = ['added_by', 'added_at', 'updated_by', 'updated_at']): void
+    {
+        foreach ($fields as $field) {
+            if (array_key_exists($field, $data) && $data[$field] !== null && $data[$field] !== '') {
+                $model->{$field} = $data[$field];
+            }
+        }
+    }
+
+    private static function applySafeJournalItemMeta($journalItem, array $data, $defaultModelId = null, $defaultModelType = null): void
+    {
+        self::applySafeAuditData($journalItem, $data);
+
+        if (array_key_exists('model_id', $data) && $data['model_id'] !== null && $data['model_id'] !== '') {
+            $journalItem->model_id = $data['model_id'];
+        } elseif ($defaultModelId !== null) {
+            $journalItem->model_id = $defaultModelId;
+        }
+
+        if (array_key_exists('model_type', $data) && $data['model_type'] !== null && $data['model_type'] !== '') {
+            $journalItem->model_type = $data['model_type'];
+        } elseif ($defaultModelType !== null) {
+            $journalItem->model_type = $defaultModelType;
+        }
+    }
+
     // jr voucher
     public static function jrentry($data)
     {
@@ -5607,8 +5633,6 @@ class Utility extends Model
                 // dd($account_name);
                 $journalItem = new JournalItem;
                 $journalItem->journal = $journal->id;
-                $journalItem->model_id = $data['id'];
-                $journalItem->model_type = Challan::class;
                 $journalItem->account = @$account_name->id;
                 $journalItem->head = $data['items'][$i]['head'];
                 $journalItem->description = 'Income Account: Roll no '.$data['user_id'].' Challan no '.$data['no'].' - '.@$data['std_name'].' - '.@$data['fee_month'].' - '.@$data['branch_name'];
@@ -5618,8 +5642,7 @@ class Utility extends Model
                 $journalItem->types = 'Challan';
                 $journalItem->credit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']);
                 $journalItem->debit = 0;
-                $journalItem->added_by = $data['added_by'] ?? Auth::id();
-                $journalItem->added_at = $data['added_at'] ?? now();
+                self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
                 $journalItem->save();
                 if (!empty($data['created_at'])) {
                     $journalItem->created_at = $data['created_at'];
@@ -5642,10 +5665,7 @@ class Utility extends Model
                 $journalItem->types = 'Challan';
                 $journalItem->credit = 0;
                 $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) ;
-                $journalItem->model_id = $data['id'];
-                $journalItem->model_type = Challan::class;
-                $journalItem->added_by = $data['added_by'] ?? Auth::id();
-                $journalItem->added_at = $data['added_at'] ?? now();
+                self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
                 $journalItem->save();
 
                 if ($data['items'][$i]['concession'] > 0) {
@@ -5664,10 +5684,7 @@ class Utility extends Model
                     $journalItem->is_discount = 1;
                     $journalItem->credit = 0;
                     $journalItem->debit = $data['items'][$i]['concession'];
-                    $journalItem->model_id = $data['id'];
-                    $journalItem->model_type = Challan::class;
-                    $journalItem->added_by = $data['added_by'] ?? Auth::id();
-                    $journalItem->added_at = $data['added_at'] ?? now();
+                    self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
                     $journalItem->save();
                     //  reciveable entry
                     $account_recive = ChartOfAccount::where('id', $head_id->receivable_account_id)->first();
@@ -5683,10 +5700,7 @@ class Utility extends Model
                     $journalItem->is_discount = 1;
                     $journalItem->credit = $data['items'][$i]['concession'];
                     $journalItem->debit = 0;
-                    $journalItem->model_id = $data['id'];
-                    $journalItem->model_type = Challan::class;
-                    $journalItem->added_by = $data['added_by'] ?? Auth::id();
-                    $journalItem->added_at = $data['added_at'] ?? now();
+                    self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
                     $journalItem->save();
 
                 }
@@ -5725,10 +5739,7 @@ class Utility extends Model
                 $journalItem->user_type = 'Student';
                 $journalItem->credit = 0;
                 $journalItem->debit = $reciveable;
-                $journalItem->model_id = $data['id'];
-                $journalItem->model_type = Challan::class;
-                $journalItem->added_by = $data['added_by'] ?? Auth::id();
-                $journalItem->added_at = $data['added_at'] ?? now();
+                self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
                 $journalItem->save();
                 if (!empty($data['created_at'])) {
                     $journalItem->created_at = $data['created_at'];
@@ -6719,6 +6730,9 @@ class Utility extends Model
         $journal->user_type = @$data['user_type'];
         $journal->owned_by = $data['owned_by'];
         $journal->created_by = $data['created_by'];
+        $journal->added_by = $data['added_by'] ?? Auth::id();
+        $journal->added_at = $data['added_at'] ?? now();
+        self::applySafeAuditData($journal, $data, ['updated_by', 'updated_at']);
         $journal->save();
         $journal->created_at = $data['created_at'] ?? $journal->created_at;
         $journal->updated_at = $data['created_at'] ?? $journal->created_at;
@@ -6758,6 +6772,7 @@ class Utility extends Model
                 $journalItem->credit = 0;
                 $journalItem->debit = $data['amount'];
                 $journalItem->branch_id = @$data['created_by'];
+                self::applySafeJournalItemMeta($journalItem, $data, $data['model_id'] ?? $data['id'] ?? null, $data['model_type'] ?? null);
                 $journalItem->save();
             }
 
@@ -6869,6 +6884,9 @@ class Utility extends Model
         $journal->user_type = @$data['user_type'];
         $journal->owned_by = $data['owned_by'];
         $journal->created_by = $data['created_by'];
+        $journal->added_by = $data['added_by'] ?? Auth::id();
+        $journal->added_at = $data['added_at'] ?? now();
+        self::applySafeAuditData($journal, $data, ['updated_by', 'updated_at']);
         $journal->save();
         $journal->created_at = $data['created_at'] ?? $journal->created_at;
         $journal->updated_at = $data['created_at'] ?? $journal->created_at;
@@ -7105,6 +7123,7 @@ class Utility extends Model
             $journal->created_by = $data['created_by'];
             $journal->added_by = $data['added_by'] ?? Auth::id();
             $journal->added_at = $data['added_at'] ?? now();
+            self::applySafeAuditData($journal, $data, ['updated_by', 'updated_at']);
             if (!empty($data['created_at'])) {
                 $journal->created_at = $data['created_at'];
             }
@@ -7137,8 +7156,7 @@ class Utility extends Model
                 $journalItem->branch_id = $data['owned_by'];
                 $journalItem->debit = 0;
                 $journalItem->credit = $itemPrice;
-                $journalItem->added_by = $data['added_by'] ?? Auth::id();
-                $journalItem->added_at = $data['added_at'] ?? now();
+                self::applySafeJournalItemMeta($journalItem, $data, $data['model_id'] ?? $data['id'] ?? null, $data['model_type'] ?? \App\Models\StudyPackChallans::class);
                 if (!empty($data['created_at'])) {
                     $journalItem->created_at = $data['created_at'];
                 }
@@ -7163,8 +7181,7 @@ class Utility extends Model
                     $journalItem->branch_id = $data['owned_by'];
                     $journalItem->debit = 0;
                     $journalItem->credit = $itemTax;
-                    $journalItem->added_by = $data['added_by'] ?? Auth::id();
-                    $journalItem->added_at = $data['added_at'] ?? now();
+                    self::applySafeJournalItemMeta($journalItem, $data, $data['model_id'] ?? $data['id'] ?? null, $data['model_type'] ?? \App\Models\StudyPackChallans::class);
                     if (!empty($data['created_at'])) {
                         $journalItem->created_at = $data['created_at'];
                     }
@@ -7206,8 +7223,7 @@ class Utility extends Model
                 $journalItem->description = 'Studypack Receivables';
                 $journalItem->debit = $receivable + $totalTax;
                 $journalItem->branch_id = $data['owned_by'];
-                $journalItem->added_by = $data['added_by'] ?? Auth::id();
-                $journalItem->added_at = $data['added_at'] ?? now();
+                self::applySafeJournalItemMeta($journalItem, $data, $data['model_id'] ?? $data['id'] ?? null, $data['model_type'] ?? \App\Models\StudyPackChallans::class);
                 if (!empty($data['created_at'])) {
                     $journalItem->created_at = $data['created_at'];
                 }
@@ -7246,7 +7262,7 @@ class Utility extends Model
         $journal = new JournalEntry;
         $journal->journal_id = $latest;
         $journal->date = $data['date'];
-        $journal->reference = $data['prod_id'];
+        $journal->reference = $data['reference'] ?? $data['prod_id'];
         $journal->bank_id = $data['bank_id'];
         $journal->description = 'studypack Challan id : '.$data['id'];
         $journal->reference_id = $data['id'];
@@ -7256,6 +7272,9 @@ class Utility extends Model
         $journal->voucher_type = $vocher_type;
         $journal->owned_by = $data['owned_by'];
         $journal->created_by = $data['created_by'];
+        $journal->added_by = $data['added_by'] ?? Auth::id();
+        $journal->added_at = $data['added_at'] ?? now();
+        self::applySafeAuditData($journal, $data, ['updated_by', 'updated_at']);
         $journal->save();
         $reciveable = 0;
         $tax = 0;
@@ -7290,6 +7309,7 @@ class Utility extends Model
             $journalItem->credit = $data['amount'];
             $journalItem->debit = 0;
             $journalItem->branch_id = $inv->owned_by;
+            self::applySafeJournalItemMeta($journalItem, $data, $data['model_id'] ?? $data['id'] ?? null, $data['model_type'] ?? \App\Models\StudyPackChallans::class);
             $journalItem->save();
         }
         $journalItem = new JournalItem;
@@ -7303,7 +7323,12 @@ class Utility extends Model
         $journalItem->credit = 0;
         $journalItem->debit = $data['amount'];
         $journalItem->branch_id = @$inv->owned_by;
+        self::applySafeJournalItemMeta($journalItem, $data, $data['model_id'] ?? $data['id'] ?? null, $data['model_type'] ?? \App\Models\StudyPackChallans::class);
         $journalItem->save();
+
+        if (!empty($data['bank_id']) && !empty($data['amount'])) {
+            self::bankAccountBalance($data['bank_id'], $data['amount'], 'credit');
+        }
 
         return $journal->id;
     }

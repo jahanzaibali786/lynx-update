@@ -2329,7 +2329,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('studypack/{id}/payment', [StudyPackChallanController::class, 'addpayment'])->name('studypack.addpayment');
             // Route::get('studypackpayment',[StudyPackChallanController::class, 'addpayment'])->name('studypack.payment');
             Route::post('/studypackpaid',[StudyPackChallanController::class, 'paidstudypackchallan'])->name('studypackpaid');
-            Route::get('/challandata_for_studypackreceipt', [StudyPackChallanController::class, 'challandata_for_studypackreceipt'])->name('challandata_for_studypackreceipt');                
+            Route::get('/challandata_for_studypackreceipt', [StudyPackChallanController::class, 'challandata_for_studypackreceipt'])->name('challandata_for_studypackreceipt');
+            Route::get('/studypackreceipts/daily', [StudyPackChallanController::class, 'dailyReceipts'])->name('studypackreceipts.daily');
             Route::get('/studypackreceipts', [StudyPackChallanController::class, 'Studypackreceipts'])->name('studypackreceipts');
             Route::post('studypackchallan/product', [StudyPackChallanController::class, 'product'])->name('studypackchallan.product');
             Route::post('/deletestudypackChallanItems', [StudyPackChallanController::class, 'deleteChallanItems'])->name('deleteChallanItems');

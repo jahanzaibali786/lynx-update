@@ -2103,6 +2103,8 @@
                                 Request::segment(1) == 'account-wise-fee' ||
                                 Request::segment(1) == 'student_receipt' ||
                                 Request::segment(1) == 'student-receipt' ||
+                                Request::route()->getName() == 'studypackreceipts.daily' ||
+                                Request::segment(1) == 'studypackreceipts' ||
                                 Request::segment(1) == 'feereminderslip' ||
                                 Request::segment(1) == 'registration-challan' ||
                                 Request::segment(1) == 'admission-challan' ||
@@ -2166,6 +2168,12 @@
                                                 {{ __('Period Wise CMR Statement') }}
                                             </div>
                                         </a>
+                                    </li>
+                                @endcan
+                                @can('view spacetype')
+                                    <li class="dash-item ">
+                                        <a class="dash-link {{ Request::route()->getName() == 'studypackreceipts.daily' || Request::segment(1) == 'studypackreceipts' ? 'active' : '' }}"
+                                            href="{{ route('studypackreceipts.daily') }}">{{ __('Daily StudyPack Payments') }}</a>
                                     </li>
                                 @endcan
                                 @can('view spacetype')

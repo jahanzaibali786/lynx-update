@@ -29,6 +29,7 @@ class JournalItem extends Model
         'credit',
         'added_by',
         'added_at',
+        'updated_by',
         'created_at',
         'updated_at',
     ];

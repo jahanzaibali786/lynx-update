@@ -32,9 +32,26 @@ use Dompdf\Options;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 class StudyPackChallanController extends Controller
 {
+    public static function getValidItemPaymentAmount($amount, $item)
+    {
+        $amount = (float) ($amount ?? 0);
+        $price = (float) ($item->price ?? 0);
+        $qty = (int) ($item->qty ?? 1);
+        $discount = (float) ($item->discount ?? 0);
+        $alreadyPaid = (float) ($item->paid ?? 0);
+
+        $payableAmount = ($price * $qty) - $discount - $alreadyPaid;
+        if ($payableAmount <= 0) {
+            return 0.0;
+        }
+
+        return min(max($amount, 0.0), $payableAmount);
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -799,13 +816,43 @@ class StudyPackChallanController extends Controller
 
     }
 
+    public function dailyReceipts(Request $request)
+    {
+        return $this->renderReceiptsPage($request, true);
+    }
+
     public function Studypackreceipts(Request $request)
     {
-        // dd('yes');
-        $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
-            ->where('created_by', \Auth::user()->creatorId())
-            ->get()
-            ->pluck('name', 'id');
+        return $this->renderReceiptsPage($request, false);
+    }
+
+    private function renderReceiptsPage(Request $request, bool $isDailyEntry = false)
+    {
+        if (\Auth::user()->type == 'company') {
+            $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                ->where('created_by', \Auth::user()->creatorId())
+                ->get()
+                ->pluck('name', 'id');
+        } else {
+            $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                ->where('owned_by', \Auth::user()->ownedId())
+                ->get()
+                ->pluck('name', 'id');
+        }
+
+        $defaultBankId = null;
+        if (\Auth::user()->type != 'company') {
+            $branchAccounts = BankAccount::where('owned_by', \Auth::user()->ownedId())->get();
+            $cashAccount = $branchAccounts->first(function ($item) {
+                return str_contains(strtolower($item->bank_name), 'cash')
+                    || str_contains(strtolower($item->holder_name), 'cash')
+                    || str_contains(strtolower($item->bank_name), 'csh')
+                    || str_contains(strtolower($item->holder_name), 'csh');
+            });
+            $defaultBankId = $cashAccount ? $cashAccount->id : ($branchAccounts->first()->id ?? null);
+        } else {
+            $defaultBankId = $accounts->keys()->first() ?? null;
+        }
 
         $query = StudypackReceipts::with('challan');
 
@@ -836,7 +883,7 @@ class StudyPackChallanController extends Controller
             return Excel::download(new StudentReceiptExport($recipts, $request->all()), 'student_receipt.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
 
-        return view('students.studypackChallan.receipts', compact('accounts', 'recipts'));
+        return view('students.studypackChallan.receipts', compact('accounts', 'recipts', 'isDailyEntry', 'defaultBankId'));
     }
     public function challandata_for_studypackreceipt(Request $request)
     {
@@ -876,46 +923,79 @@ class StudyPackChallanController extends Controller
                 ->wheredate('fee_month', '<', date('Y-m-01', strtotime($challandata->fee_month)))
                 ->get();
 
+            $defaultBankId = null;
             if (Auth::user()->type == 'company') {
-                $account_all = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                $account_all = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
+                    ->with('chartAccount:id,name')
                     ->where('created_by', \Auth::user()->creatorId())
-                    ->get()
-                    ->pluck('name', 'id');
+                    ->get();
 
-                $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                $accounts = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
+                    ->with('chartAccount:id,name')
                     ->where('owned_by', Auth::user()->ownedId())
-                    ->get()
-                    ->pluck('name', 'id');
+                    ->get();
             } else {
                 if ($challandata->owned_by != Auth::user()->ownedId()) {
-                    $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                    $accounts = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
+                        ->with('chartAccount:id,name')
                         ->where('owned_by', \Auth::user()->ownedId())
-                        ->get()
-                        ->pluck('name', 'id');
+                        ->get();
 
-                    $account_all = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                    $account_all = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
+                        ->with('chartAccount:id,name')
                         ->where('created_by', \Auth::user()->creatorId())
-                        ->get()
-                        ->pluck('name', 'id');
+                        ->get();
                 } else {
-                    $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                    $accounts = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
+                        ->with('chartAccount:id,name')
                         ->where('owned_by', \Auth::user()->ownedId())
-                        ->get()
-                        ->pluck('name', 'id');
+                        ->get();
 
-                    $account_all = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                    $account_all = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
+                        ->with('chartAccount:id,name')
                         ->where('created_by', \Auth::user()->creatorId())
-                        ->get()
-                        ->pluck('name', 'id');
+                        ->get();
                 }
+
+$branchAccounts = BankAccount::where('owned_by', \Auth::user()->ownedId())->get();
+            $cashAccount = $branchAccounts->first(function ($item) {
+                return str_contains(strtolower($item->bank_name), 'cash')
+                    || str_contains(strtolower($item->holder_name), 'cash')
+                    || str_contains(strtolower($item->bank_name), 'csh')
+                    || str_contains(strtolower($item->holder_name), 'csh');
+            });
+            $defaultBankId = $cashAccount ? $cashAccount->id : ($branchAccounts->first()->id ?? null);
+        }
+
+            $accountsFormatted = [];
+            $accountsData = [];
+            foreach ($accounts as $account) {
+                $accountsFormatted[$account->id] = $account->bank_name . ' ' . $account->holder_name;
+                $accountsData[$account->id] = [
+                    'name' => $account->bank_name . ' ' . $account->holder_name,
+                    'chart_account' => $account->chartAccount ? strtolower($account->chartAccount->name) : '',
+                ];
+            }
+
+            $accountAllFormatted = [];
+            $accountAllData = [];
+            foreach ($account_all as $account) {
+                $accountAllFormatted[$account->id] = $account->bank_name . ' ' . $account->holder_name;
+                $accountAllData[$account->id] = [
+                    'name' => $account->bank_name . ' ' . $account->holder_name,
+                    'chart_account' => $account->chartAccount ? strtolower($account->chartAccount->name) : '',
+                ];
             }
 
             return response()->json([
                 'challandetail' => $challandata,
                 'previousUnpaidChallans' => $previousUnpaidChallans,
                 'headsData' => $headsData,
-                'accounts' => $accounts,
-                'account_all' => $account_all
+                'accounts' => $accountsFormatted,
+                'account_all' => $accountAllFormatted,
+                'accounts_data' => $accountsData,
+                'account_all_data' => $accountAllData,
+                'default_bank_id' => $defaultBankId,
             ]);
         }catch (\Exception $e) {
             dd($e);
@@ -941,11 +1021,22 @@ class StudyPackChallanController extends Controller
             }
             $invoicePayment->save();
 
-            //items paid
+            $itemPayments = [];
             foreach ($request->head_id as $key => $head_id) {
                 $challanitem = StudyPackChallanItems::find($head_id);
-                $challanitem->paid += $request->ramount[$key];
+                if (!$challanitem) {
+                    throw new \Exception('Challan item not found.');
+                }
+
+                $requestedAmount = (float) ($request->ramount[$key] ?? 0);
+                $allowedAmount = self::getValidItemPaymentAmount($requestedAmount, $challanitem);
+                if ($allowedAmount < $requestedAmount) {
+                    throw new \Exception('Payment amount cannot exceed the payable amount of the item.');
+                }
+
+                $challanitem->paid += $allowedAmount;
                 $challanitem->save();
+                $itemPayments[] = $allowedAmount;
             }
 
             $Bank = BankAccount::find($request->bank);
@@ -976,7 +1067,8 @@ class StudyPackChallanController extends Controller
             $data['owned_by'] = $invoicePayment->owned_by;
             $data['created_by'] = $invoicePayment->created_by;
             $data['account_id'] = $request->bank;
-            // dd($data);
+            $data['amount'] = $recipt->recipt_amount;
+            $data['total'] = $recipt->recipt_amount;
             $dataret = Utility::strv_entry($data);
             $recipt->update(['voucher_id' => $dataret]);
             if (\Auth::user()->type == 'company') {
