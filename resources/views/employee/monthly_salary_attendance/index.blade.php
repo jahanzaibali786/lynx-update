@@ -141,7 +141,7 @@
         // Check/uncheck all checkboxes
         if (document.getElementById('check-all')) {
             document.getElementById('check-all').addEventListener('change', function(event) {
-                var checkboxes = document.querySelectorAll('.row-checkbox');
+                var checkboxes = document.querySelectorAll('.row-checkbox:not(:disabled)');
                 checkboxes.forEach(function(checkbox) {
                     checkbox.checked = event.target.checked;
                 });
@@ -153,7 +153,7 @@
                 return;
             }
             var checkedRows = [];
-            var checkboxes = document.querySelectorAll('.row-checkbox:checked');
+            var checkboxes = document.querySelectorAll('.row-checkbox:checked:not(:disabled)');
             checkboxes.forEach(function(checkbox) {
                 checkedRows.push(checkbox.value);
             });
@@ -221,7 +221,7 @@
                 return;
             }
             var checkedRows = [];
-            var checkboxes = document.querySelectorAll('.row-checkbox:checked');
+            var checkboxes = document.querySelectorAll('.row-checkbox:checked:not(:disabled)');
             checkboxes.forEach(function(checkbox) {
                 checkedRows.push(checkbox.value);
             });
@@ -480,6 +480,13 @@
                 <tbody>
                     @foreach ($datas as $data)
                         @php
+                            $attendanceSelectionLocked = !empty($data)
+                                && (
+                                    (int) ($data->accountant_finalize ?? 0) === 1
+                                    || (int) ($data->adm_final ?? 0) === 1
+                                    || (int) ($data->sal_final ?? 0) === 1
+                                    || (int) ($data->gm_final ?? 0) === 1
+                                );
                             $attendanceWorkingDays = (float) ($data->working_days ?? 0);
                             $attendanceLeaveDays = (float) ($data->leave ?? 0);
                             $attendanceAbsentDays = (float) ($data->absents ?? 0);
@@ -576,7 +583,10 @@
 
                             {{-- <td><input type="checkbox" name="lock" {{ !empty($data) && $data->lock_status == 1 ? 'checked' : '' }}>
                         </td> --}}
-                            <td><input type="checkbox" class="row-checkbox" value="{{ $data->id }}"></td>
+                            <td>
+                                <input type="checkbox" class="row-checkbox" value="{{ $data->id }}"
+                                    {{ $attendanceSelectionLocked ? 'disabled' : '' }}>
+                            </td>
                             {{-- <td>
                         <div class="action-btn bg-danger ms-2">
 

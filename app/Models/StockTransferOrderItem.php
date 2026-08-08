@@ -20,6 +20,9 @@ class StockTransferOrderItem extends Model
         'tax',
         'discount',
         'description',
+        'study_pack_id',
+        'study_pack_title',
+        'study_pack_class',
     ];
 
     public function stockTransferOrder()

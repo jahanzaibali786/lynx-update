@@ -2822,6 +2822,9 @@ class EmployeeReportsController extends Controller
         }
 
         $employees = $query->orderBy('name')->get();
+        $branchName = ($request->filled('branch') && $request->branch != 'all')
+            ? ($branches[$request->branch] ?? 'All Branches')
+            : 'All Branches';
 
         $departments = Department::where('created_by', $userCreatorId)->pluck('name', 'id');
         $departments->prepend('All Departments', 'all');
@@ -2838,16 +2841,14 @@ class EmployeeReportsController extends Controller
 
         if ($request->has('export') && $request->export == 'excel') {
             $report_name = 'Employee Profile Report';
-            $branchName = isset($branches[$request->branch]) ? $branches[$request->branch] : 'All Branches';
             return Excel::download(new EmployeeProfileReportExport($employees, $branchName, $report_name), 'employee_profile_report.xlsx');
         }
 
         if ($request->has('export') && $request->export == 'pdf') {
             $report_name = 'Employee Profile Report';
-            $branchName = isset($branches[$request->branch]) ? $branches[$request->branch] : 'All Branches';
             return Excel::download(new EmployeeProfileReportExport($employees, $branchName, $report_name), 'employee_profile_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
 
-        return view('employee.reports.employee_profile_report', compact('employees', 'branches', 'departments', 'designations', 'statuses', 'request'));
+        return view('employee.reports.employee_profile_report', compact('employees', 'branches', 'departments', 'designations', 'statuses', 'request', 'branchName'));
     }
 }

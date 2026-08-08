@@ -1,4 +1,10 @@
 <tr data-stn-row-id="{{ $invoice->id }}">
+    @php
+        $branchName = optional(optional($invoice->toStore)->branch)->name
+            ?? optional(optional($invoice->fromStore)->branch)->name
+            ?? '-';
+        $className = $invoice->class_names;
+    @endphp
     <td class="stn-row-number">{{ $rowNumber ?? '-' }}</td>
 
     <td class="Id">
@@ -13,6 +19,8 @@
         </a>
     </td>
 
+    <td>{{ $branchName }}</td>
+    <td>{{ $className ?: '-' }}</td>
     <td>{{ optional($invoice->fromStore)->name }}</td>
     <td>{{ optional($invoice->toStore)->name }}</td>
     <td>{{ Auth::user()->dateFormat($invoice->issue_date) }}</td>

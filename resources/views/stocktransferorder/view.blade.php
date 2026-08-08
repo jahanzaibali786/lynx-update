@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ __('Stock Transfer Order Detail') }}
+    {{ __('Stock Transfer Requisition Detail') }}
 @endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('stock-transfer-order.index') }}">{{ __('Stock Transfer Order') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('stock-transfer-order.index') }}">{{ __('Stock Transfer Requisition') }}</a></li>
     <li class="breadcrumb-item">{{ Auth::user()->purchaseNumberFormat($StockTransferOrder->branch_purchase_no) }}</li>
 @endsection
 
@@ -44,13 +44,20 @@ $('#finalizeForm').on('submit', function(e) {
                                     <div class="timeline-icons"><span class="timeline-dots"></span>
                                         <i class="ti ti-plus text-primary"></i>
                                     </div>
-                                    <h6 class="text-primary my-3">{{ __('Create Stock Transfer Order') }}</h6>
+                                    <h6 class="text-primary my-3">{{ __('Create Stock Transfer Requisition') }}</h6>
                                     <p class="text-muted text-sm mb-3"><i class="ti ti-clock mr-2"></i>{{ __('Created on ') }}{{ \Auth::user()->dateFormat($StockTransferOrder->purchase_date) }}</p>
                                     <div class="timeline-action">
-                                        @if(Gate::check('edit stock transfer order') && ((\Auth::user()->type == 'company' && in_array($StockTransferOrder->status, [0, 5])) || (\Auth::user()->type == 'branch' && $StockTransferOrder->branch_id == \Auth::user()->id && $StockTransferOrder->status == 0)))
+                                        @if(Gate::check('edit stock transfer order') && ((\Auth::user()->type == 'company' && in_array($StockTransferOrder->status, [\App\Models\StockTransferOrder::STATUS_DRAFT, \App\Models\StockTransferOrder::STATUS_REJECTED], true)) || (\Auth::user()->type == 'branch' && $StockTransferOrder->branch_id == \Auth::user()->id && in_array($StockTransferOrder->status, [\App\Models\StockTransferOrder::STATUS_DRAFT, \App\Models\StockTransferOrder::STATUS_REJECTED], true))))
                                                 <a href="{{ route('stock-transfer-order.edit', Crypt::encrypt($StockTransferOrder->id)) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{ __('Edit') }}">
                                                     <span class="btn-inner--icon"><i class="ti ti-pencil mr-2"></i></span>{{ __('Edit') }}
                                                 </a>
+                                        @endif
+                                        @if(Gate::check('delete stock transfer order') && ((\Auth::user()->type == 'company' && in_array($StockTransferOrder->status, [\App\Models\StockTransferOrder::STATUS_DRAFT, \App\Models\StockTransferOrder::STATUS_REJECTED], true)) || (\Auth::user()->type == 'branch' && $StockTransferOrder->branch_id == \Auth::user()->id && in_array($StockTransferOrder->status, [\App\Models\StockTransferOrder::STATUS_DRAFT, \App\Models\StockTransferOrder::STATUS_REJECTED], true))))
+                                            {{ Form::open(['route' => ['stock-transfer-order.destroy', $StockTransferOrder->id], 'method' => 'DELETE', 'class' => 'd-inline']) }}
+                                                <button type="submit" class="btn mx-1 btn-sm btn-outline-danger" onclick="return confirm('{{ __('Are you sure you want to delete this Stock Transfer Requisition?') }}')">
+                                                    <span class="btn-inner--icon"><i class="ti ti-trash mr-2"></i></span>{{ __('Delete') }}
+                                                </button>
+                                            {{ Form::close() }}
                                         @endif
                                     </div>
                                 </div>
@@ -62,20 +69,22 @@ $('#finalizeForm').on('submit', function(e) {
                                     <div class="timeline-icons"><span class="timeline-dots"></span>
                                         <i class="ti ti-mail-forward text-warning"></i>
                                     </div>
-                                    <h6 class="text-warning my-3">{{ __('Fw to Ho') }}</h6>
+                                    <h6 class="text-warning my-3">{{ __('Forward to HO') }}</h6>
                                     <p class="text-muted text-sm mb-3">
-                                        @if($StockTransferOrder->status >= 5)
-                                            <i class="ti ti-clock mr-2"></i>{{ __('Forwarded on') }} {{ \Auth::user()->dateFormat($StockTransferOrder->updated_at) }}
-                                        @elseif($StockTransferOrder->status == 0)
+                                        @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO)
+                                            <i class="ti ti-clock mr-2"></i>{{ __('Sent on') }} {{ \Auth::user()->dateFormat($StockTransferOrder->updated_at) }}
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_DRAFT)
                                             <small>{{ __('Status') }} : {{ __('Draft') }}</small>
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_REJECTED)
+                                            <small>{{ __('Status') }} : {{ __('Rejected') }}</small>
                                         @else
-                                            <small>{{ __('Status') }} : {{ __('Not Forwarded') }}</small>
+                                            <small>{{ __('Status') }} : {{ __('Already Approved') }}</small>
                                         @endif
                                     </p>
                                     <div class="timeline-action">
-                                        @if($StockTransferOrder->status == 0 && \Auth::user()->type != 'company' && Gate::check('forward stock transfer order'))
+                                        @if(in_array($StockTransferOrder->status, [\App\Models\StockTransferOrder::STATUS_DRAFT, \App\Models\StockTransferOrder::STATUS_REJECTED], true) && Gate::check('forward stock transfer order'))
                                             <a href="{{ route('stock-transfer-order.fw_to_ho', $StockTransferOrder->id) }}" class="btn mx-1 btn-sm btn-outline-warning">
-                                                <span class="btn-inner--icon"><i class="ti ti-mail-forward mr-2"></i></span>{{ __('Fw to Ho') }}
+                                                <span class="btn-inner--icon"><i class="ti ti-mail-forward mr-2"></i></span>{{ __('Forward to HO') }}
                                             </a>
                                         @endif
                                     </div>
@@ -86,41 +95,45 @@ $('#finalizeForm').on('submit', function(e) {
                             <div class="timeline-step h-100">
                                 <div class="timeline-content">
                                     <div class="timeline-icons"><span class="timeline-dots"></span>
-                                        @if($StockTransferOrder->status == 6)
+                                        @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_APPROVED)
                                             <i class="ti ti-checks text-success"></i>
-                                        @elseif($StockTransferOrder->status == 5 && \Auth::user()->type == 'company')
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO && \Auth::user()->type == 'company')
                                             <i class="ti ti-hourglass-empty text-info"></i>
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_REJECTED)
+                                            <i class="ti ti-x text-danger"></i>
                                         @else
                                             <i class="ti ti-clock text-muted"></i>
                                         @endif
                                     </div>
                                     @if(\Auth::user()->type == 'company')
-                                        <h6 class="my-3 @if($StockTransferOrder->status == 6) text-success @elseif($StockTransferOrder->status == 5) text-info @else text-muted @endif">
+                                        <h6 class="my-3 @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_APPROVED) text-success @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO) text-info @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_REJECTED) text-danger @else text-muted @endif">
                                             {{ __('Approval') }}
                                         </h6>
                                     @else
-                                        <h6 class="my-3 @if($StockTransferOrder->status == 6) text-success @else text-muted @endif">
-                                            @if($StockTransferOrder->status == 5) {{ __('Under Approval') }} @else {{ __('Approval') }} @endif
+                                        <h6 class="my-3 @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_APPROVED) text-success @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_REJECTED) text-danger @else text-muted @endif">
+                                            @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO) {{ __('Under Approval') }} @else {{ __('Approval') }} @endif
                                         </h6>
                                     @endif
                                     <p class="text-muted text-sm mb-3">
-                                        @if($StockTransferOrder->status == 6)
+                                        @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_APPROVED)
                                             <i class="ti ti-clock mr-2"></i>{{ __('Approved') }}
-                                        @elseif($StockTransferOrder->status == 5 && \Auth::user()->type == 'company')
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO && \Auth::user()->type == 'company')
                                             <small>{{ __('Pending your decision') }}</small>
-                                        @elseif($StockTransferOrder->status == 5)
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO)
                                             <small>{{ __('Under review at Head Office') }}</small>
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_REJECTED)
+                                            <small>{{ __('Rejected by Head Office') }}</small>
                                         @else
                                             <small>{{ __('Awaiting forwarding') }}</small>
                                         @endif
                                     </p>
                                     <div class="timeline-action">
-                                        @if($StockTransferOrder->status == 5 && \Auth::user()->type == 'company' && Gate::check('approve stock transfer order'))
+                                        @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO && \Auth::user()->type == 'company' && Gate::check('approve stock transfer order'))
                                             <a href="#" id="finalizeBtn" class="btn mx-1 btn-sm btn-outline-success">
                                                 <span class="btn-inner--icon"><i class="ti ti-check mr-2"></i></span>{{ __('Approve') }}
                                             </a>
                                         @endif
-                                        @if($StockTransferOrder->status == 5 && \Auth::user()->type == 'company' && Gate::check('reject stock transfer order'))
+                                        @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO && \Auth::user()->type == 'company' && Gate::check('reject stock transfer order'))
                                             <a href="{{ route('stock-transfer-order.reject', $StockTransferOrder->id) }}" class="btn mx-1 btn-sm btn-outline-danger">
                                                 <span class="btn-inner--icon"><i class="ti ti-x mr-2"></i></span>{{ __('Reject') }}
                                             </a>
@@ -135,25 +148,25 @@ $('#finalizeForm').on('submit', function(e) {
                                     <div class="timeline-icons"><span class="timeline-dots"></span>
                                         <i class="ti ti-file-import text-primary"></i>
                                     </div>
-                                    <h6 class="text-primary my-3">{{ __('Convert to Invoice') }}</h6>
+                                    <h6 class="text-primary my-3">{{ __('Convert to Stock Transfer Note') }}</h6>
                                     <p class="text-muted text-sm mb-3">
-                                        @if($StockTransferOrder->status == 6 && $StockTransferOrder->invoice_converted)
+                                        @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_APPROVED && $StockTransferOrder->invoice_converted)
                                             <small>{{ __('Converted') }}</small>
-                                        @elseif($StockTransferOrder->status == 6)
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_APPROVED)
                                             <small>{{ __('Ready to convert') }}</small>
                                         @else
                                             <small>{{ __('Approve first') }}</small>
                                         @endif
                                     </p>
                                     <div class="timeline-action">
-                                        @if($StockTransferOrder->status == 6 && \Auth::user()->type == 'company' && !$StockTransferOrder->invoice_converted && Gate::check('convert stock transfer order to invoice') && Gate::check('create invoice'))
+                                        @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_APPROVED && \Auth::user()->type == 'company' && !$StockTransferOrder->invoice_converted && Gate::check('convert stock transfer order to invoice') && Gate::check('create stock transfer note'))
                                             <a href="#"
                                                 data-url="{{ route('stock-transfer-order.convert_to_invoice', $StockTransferOrder->id) }}"
                                                 data-size="modal-fullscreen"
                                                 data-ajax-popup="true"
-                                                data-bs-title="{{ __('Convert to Invoice') }}"
+                                                data-bs-title="{{ __('Convert to Stock Transfer Note') }}"
                                                 class="btn mx-1 btn-sm btn-outline-primary">
-                                                <span class="btn-inner--icon"><i class="ti ti-file-import mr-2"></i></span>{{ __('Convert to Invoice') }}
+                                                <span class="btn-inner--icon"><i class="ti ti-file-import mr-2"></i></span>{{ __('Convert to Stock Transfer Note') }}
                                             </a>
                                         @endif
                                     </div>
@@ -174,7 +187,7 @@ $('#finalizeForm').on('submit', function(e) {
                         <div class="invoice-print">
                             <div class="row invoice-title mt-2">
                                 <div class="col-xs-12 col-sm-12 col-nd-6 col-lg-6 col-12">
-                                    <h4>{{ __('Stock Transfer Order') }}</h4>
+                                    <h4>{{ __('Stock Transfer Requisition') }}</h4>
                                 </div>
                                 <div class="col-xs-12 col-sm-12 col-nd-6 col-lg-6 col-12 text-end">
                                     <h4 class="invoice-number">{{ Auth::user()->purchaseNumberFormat($StockTransferOrder->branch_purchase_no) }}</h4>
@@ -215,12 +228,14 @@ $('#finalizeForm').on('submit', function(e) {
                                 <div class="col">
                                     <small>
                                         <strong>{{ __('Status') }} :</strong><br>
-                                        @if($StockTransferOrder->status == 0)
+                                        @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_DRAFT)
                                             <span class="badge bg-secondary p-2 px-3 rounded">{{ __(\App\Models\StockTransferOrder::$statues[$StockTransferOrder->status]) }}</span>
-                                        @elseif($StockTransferOrder->status == 5)
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO)
                                             <span class="badge bg-info p-2 px-3 rounded">{{ __(\App\Models\StockTransferOrder::$statues[$StockTransferOrder->status]) }}</span>
-                                        @elseif($StockTransferOrder->status == 6)
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_APPROVED)
                                             <span class="badge bg-success p-2 px-3 rounded">{{ __(\App\Models\StockTransferOrder::$statues[$StockTransferOrder->status]) }}</span>
+                                        @elseif($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_REJECTED)
+                                            <span class="badge bg-danger p-2 px-3 rounded">{{ __(\App\Models\StockTransferOrder::$statues[$StockTransferOrder->status]) }}</span>
                                         @endif
                                     </small>
                                 </div>
@@ -250,36 +265,79 @@ $('#finalizeForm').on('submit', function(e) {
                                                 $totalAmount = 0;
                                                 $totalShippedAmount = 0;
                                                 $totalRemaining = 0;
+                                                $rowNumber = 1;
+                                                $groupedItems = $iteams->groupBy(function ($item) {
+                                                    return !empty($item->study_pack_id) ? 'group_' . $item->study_pack_id : 'item_' . $item->id;
+                                                });
                                             @endphp
-                                            @foreach($iteams as $key => $iteam)
+                                            @foreach($groupedItems as $groupItems)
                                                 @php
-                                                    $qty = $iteam->quantity;
-                                                    $shipped = $iteam->shipped_quantity ?? 0;
-                                                    $price = $iteam->price;
-                                                    $discount = $iteam->discount;
-                                                    $rowAmount = ($qty * $price) - $discount;
-                                                    $shippedAmount = ($shipped * $price) - $discount;
-                                                    $remaining = $qty - $shipped;
-                                                    $remainingAmount = $remaining * $price;
-                                                    $totalQuantity += $qty;
-                                                    $totalShipped += $shipped;
-                                                    $totalDiscount += $discount;
-                                                    $totalAmount += $rowAmount;
-                                                    $totalShippedAmount += $shippedAmount;
-                                                    $totalRemaining += $remainingAmount;
+                                                    $firstGroupItem = $groupItems->first();
+                                                    $isStudyPackGroup = !empty($firstGroupItem->study_pack_id);
+                                                    $groupQty = 0;
+                                                    $groupShipped = 0;
+                                                    $groupDiscount = 0;
+                                                    $groupAmount = 0;
+                                                    $groupShippedAmount = 0;
+                                                    $groupRemainingAmount = 0;
                                                 @endphp
-                                                <tr>
-                                                    <td>{{ $key + 1 }}</td>
-                                                    <td>{{ optional($iteam->product)->name }}</td>
-                                                    <td>{{ $qty }}</td>
-                                                    <td>{{ $shipped > 0 ? $shipped : '-' }}</td>
-                                                    <td>{{ \Auth::user()->priceFormat($price) }}</td>
-                                                    <td>{{ \Auth::user()->priceFormat($discount) }}</td>
-                                                    <td>{{ !empty($iteam->description) ? $iteam->description : '-' }}</td>
-                                                    <td class="text-end">{{ \Auth::user()->priceFormat($rowAmount) }}</td>
-                                                    <td class="text-end">{{ \Auth::user()->priceFormat($shippedAmount) }}</td>
-                                                    <td class="text-end">{{ $remaining > 0 ? $remaining . ' (' . \Auth::user()->priceFormat($remainingAmount) . ')' : '-' }}</td>
-                                                </tr>
+                                                @if($isStudyPackGroup)
+                                                    <tr style="background:#f7f9ff;">
+                                                        <td colspan="10">
+                                                            <strong>{{ $firstGroupItem->study_pack_title ?: __('Study Pack') }}</strong>
+                                                            <span class="text-muted ms-2">{{ $groupItems->count() }} {{ __('items') }}</span>
+                                                        </td>
+                                                    </tr>
+                                                @endif
+                                                @foreach($groupItems as $iteam)
+                                                    @php
+                                                        $qty = $iteam->quantity;
+                                                        $shipped = $iteam->shipped_quantity ?? 0;
+                                                        $price = $iteam->price;
+                                                        $discount = $iteam->discount;
+                                                        $rowAmount = ($qty * $price) - $discount;
+                                                        $shippedAmount = ($shipped * $price) - $discount;
+                                                        $remaining = $qty - $shipped;
+                                                        $remainingAmount = $remaining * $price;
+                                                        $groupQty += $qty;
+                                                        $groupShipped += $shipped;
+                                                        $groupDiscount += $discount;
+                                                        $groupAmount += $rowAmount;
+                                                        $groupShippedAmount += $shippedAmount;
+                                                        $groupRemainingAmount += $remainingAmount;
+                                                        $totalQuantity += $qty;
+                                                        $totalShipped += $shipped;
+                                                        $totalDiscount += $discount;
+                                                        $totalAmount += $rowAmount;
+                                                        $totalShippedAmount += $shippedAmount;
+                                                        $totalRemaining += $remainingAmount;
+                                                    @endphp
+                                                    <tr>
+                                                        <td>{{ $rowNumber++ }}</td>
+                                                        <td>{{ optional($iteam->product)->name }}</td>
+                                                        <td>{{ $qty }}</td>
+                                                        <td>{{ $shipped > 0 ? $shipped : '-' }}</td>
+                                                        <td>{{ \Auth::user()->priceFormat($price) }}</td>
+                                                        <td>{{ \Auth::user()->priceFormat($discount) }}</td>
+                                                        <td>{{ !empty($iteam->description) ? $iteam->description : '-' }}</td>
+                                                        <td class="text-end">{{ \Auth::user()->priceFormat($rowAmount) }}</td>
+                                                        <td class="text-end">{{ \Auth::user()->priceFormat($shippedAmount) }}</td>
+                                                        <td class="text-end">{{ $remaining > 0 ? $remaining . ' (' . \Auth::user()->priceFormat($remainingAmount) . ')' : '-' }}</td>
+                                                    </tr>
+                                                @endforeach
+                                                @if($isStudyPackGroup)
+                                                    <tr style="background:#fbfcff;">
+                                                        <td colspan="2" class="text-end"><strong>{{ __('Group Total') }}</strong></td>
+                                                        <td><strong>{{ $groupQty }}</strong></td>
+                                                        <td><strong>{{ $groupShipped }}</strong></td>
+                                                        <td></td>
+                                                        <td><strong>{{ \Auth::user()->priceFormat($groupDiscount) }}</strong></td>
+                                                        <td></td>
+                                                        <td class="text-end"><strong>{{ \Auth::user()->priceFormat($groupAmount) }}</strong></td>
+                                                        <td class="text-end"><strong>{{ \Auth::user()->priceFormat($groupShippedAmount) }}</strong></td>
+                                                        <td class="text-end"><strong>{{ \Auth::user()->priceFormat($groupRemainingAmount) }}</strong></td>
+                                                    </tr>
+                                                @endif
                                             @endforeach
                                             <tfoot>
                                                 <tr>
@@ -336,13 +394,13 @@ $('#finalizeForm').on('submit', function(e) {
         </div>
     </div>
 
-    @if($StockTransferOrder->status == 5 && \Auth::user()->type == 'company' && Gate::check('approve stock transfer order'))
+    @if($StockTransferOrder->status == \App\Models\StockTransferOrder::STATUS_SENT_TO_HO && \Auth::user()->type == 'company' && Gate::check('approve stock transfer order'))
         <div class="modal fade" id="finalizeModal" tabindex="-1" role="dialog" aria-labelledby="finalizeModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
                 <div class="modal-content">
                     {{ Form::open(['route' => ['stock-transfer-order.finalize', $StockTransferOrder->id], 'method' => 'POST', 'id' => 'finalizeForm']) }}
                     <div class="modal-header">
-                        <h5 class="modal-title" id="finalizeModalLabel">{{ __('Approve Stock Transfer Order - Enter Shipped Quantities') }}</h5>
+                        <h5 class="modal-title" id="finalizeModalLabel">{{ __('Approve Stock Transfer Requisition - Enter Shipped Quantities') }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">

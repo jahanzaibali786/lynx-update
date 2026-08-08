@@ -76,7 +76,7 @@
         </div>
         <div class="form-group col-md-2">
             {{ Form::label('effect_from', __('Effect From'), ['class' => 'form-label']) }}
-            {{ Form::date('effect_from', $hasPayscale ? $lastPayscaleDetail->effect_from : date('Y-m-d'), [
+            {{ Form::date('effect_from', $hasPayscale ? $lastPayscaleDetail->effect_from : date('Y-m-d', strtotime($joiningDate)), [
                 'class' => 'form-control',
                 'required',
                 'id' => 'effect_from',

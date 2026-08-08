@@ -178,7 +178,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : now()->endOfMonth();
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : now()->startOfMonth();
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : now()->startOfMonth();
         if (\Auth::user()->type == 'Employee') {
             $branchesList = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branchesList->prepend('Select Branch', '');
@@ -260,7 +260,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
         $day = $inputDate->day;
         $base = Carbon::parse($date);
 
-        $fromDate = $base->copy()->day(25);
+        $fromDate = $base->copy()->day(26);
 
         if ($base->day < 25) {
             $fromDate->subMonth();
@@ -268,13 +268,13 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
         $toDate = $fromDate->copy()->addMonth()->day(25)->endOfDay();
         if ($day >= 25) {
-            // current month 25th → next month 25th
-            $fromDate = $inputDate->copy()->day(25);
-            $toDate   = $inputDate->copy()->addMonth()->day(25);
+            // current month 26th → next month 25th
+            $fromDate = $inputDate->copy()->day(26);
+            $toDate   = $inputDate->copy()->addMonth()->day(25)->endOfDay();
         } else {
-            // previous month 25th → current month 25th
-            $fromDate = $inputDate->copy()->subMonth()->day(25);
-            $toDate   = $inputDate->copy()->day(25);
+            // previous month 26th → current month 25th
+            $fromDate = $inputDate->copy()->subMonth()->day(26);
+            $toDate   = $inputDate->copy()->day(25)->endOfDay();
         }
 
         $skippedEmployees = []; // <-- Collect skipped entries
@@ -500,7 +500,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
             ->where('on_hold', 0)
             ->whereNull('carried_to_salary_id')
             ->get();
-        return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears', 'salaryEditable'));
+        return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears', 'salaryEditable', 'salaryAttendance'));
     }
     public function final_attendance(Request $request)
     {
@@ -509,7 +509,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : now()->endOfMonth();
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : now()->startOfMonth();
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : now()->startOfMonth();
         if (\Auth::user()->type == 'Employee') {
             $branchesList = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branchesList->prepend('Select Branch', '');
@@ -867,7 +867,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
             },
             'employee.employee_loan',
             'employee.user',
-            'employee.employee_transfers',
+            // 'employee.employee_transfers',
             'employee.employee_payscale_details'
         ])->where('adm_final', 1);
         if ($department_id && $department_id != 'all') {
@@ -921,18 +921,18 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     continue;
                 }
 
-                $transferDate = $data->employee->employee_transfers()->whereMonth('transfer_date', $toDate->month)
-                    ->whereYear('transfer_date', $toDate->year)
-                    ->first();
+                // $transferDate = $data->employee->employee_transfers()->whereMonth('transfer_date', $toDate->month)
+                //     ->whereYear('transfer_date', $toDate->year)
+                //     ->first();
 
-                if ($transferDate) {
-                    $effectiveStartDate = Carbon::parse($transferDate->transfer_date);
-                    $daysInPeriod = $effectiveStartDate->diffInDays($toDate->endOfMonth()) + 1;
-                } else {
+                // if ($transferDate) {
+                //     $effectiveStartDate = Carbon::parse($transferDate->transfer_date);
+                //     $daysInPeriod = $effectiveStartDate->diffInDays($toDate->endOfMonth()) + 1;
+                // } else {
                     // dd($data);
                     $effectiveStartDate = $fromDate;
                     $daysInPeriod = $data->working_days;
-                }
+                // }
 
                 $lastPayscaleDetail = $data->employee->employee_payscale_details->last();
                 if (empty($lastPayscaleDetail)) {

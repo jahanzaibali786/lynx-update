@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 class EmployeePayscaleDetail extends Model
 {
@@ -21,5 +22,39 @@ class EmployeePayscaleDetail extends Model
     }
     public function employee(){
         return $this->belongsTo(Employee::class,'employee_id','id');
+    }
+
+    public function getResolvedBasicSalaryAttribute(): float
+    {
+        return $this->resolveSalaryHeadValue(['Initial Basic', 'Basic Salary']);
+    }
+
+    public function getResolvedGrossSalaryAttribute(): float
+    {
+        return (float) $this->resolvedScaleHeads()->sum('head_value');
+    }
+
+    public function resolvedScaleHeads(): Collection
+    {
+        $this->loadMissing('scale.employeeScaleHeads.salaryHeads');
+
+        return collect(optional($this->scale)->employeeScaleHeads ?? []);
+    }
+
+    public function resolveSalaryHeadValue(array $headNames): float
+    {
+        $normalizedHeadNames = collect($headNames)
+            ->map(fn ($name) => strtolower(trim((string) $name)))
+            ->filter()
+            ->values()
+            ->all();
+
+        $matchingHead = $this->resolvedScaleHeads()->first(function ($scaleHead) use ($normalizedHeadNames) {
+            $headName = strtolower(trim(optional($scaleHead->salaryHeads)->head ?? ''));
+
+            return in_array($headName, $normalizedHeadNames, true);
+        });
+
+        return (float) optional($matchingHead)->head_value;
     }
 }

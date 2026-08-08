@@ -14,6 +14,10 @@
         $groupedItems = collect($iteams)->groupBy(function ($item) {
             return !empty($item->study_pack_id) ? 'group_' . $item->study_pack_id : 'item_' . $item->id;
         });
+        $branchName = optional(optional($store)->branch)->name
+            ?? optional(optional($branch)->branch)->name
+            ?? '-';
+        $className = $invoice->class_names;
     @endphp
     <style>
         .stn-show-card {
@@ -256,6 +260,14 @@
                         <div class="stn-show-summary-item">
                             <div class="stn-show-summary-label">{{ __('Session') }}</div>
                             <div class="stn-show-summary-value">{{ $invoice->academicSession->year ?? '-' }}</div>
+                        </div>
+                        <div class="stn-show-summary-item">
+                            <div class="stn-show-summary-label">{{ __('Branch') }}</div>
+                            <div class="stn-show-summary-value">{{ $branchName }}</div>
+                        </div>
+                        <div class="stn-show-summary-item">
+                            <div class="stn-show-summary-label">{{ __('Class') }}</div>
+                            <div class="stn-show-summary-value">{{ $className ?: '-' }}</div>
                         </div>
                     </div>
                     <div class="d-flex justify-content-end gap-2 flex-wrap stn-show-actions">

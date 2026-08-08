@@ -10,8 +10,12 @@ use App\Models\InvoiceProduct;
 use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
+use App\Models\Session as AcademicSession;
+use App\Models\StockTransferNote;
+use App\Models\StockTransferNoteItem;
 use App\Models\User;
 use App\Models\Vender;
+use App\Models\StudyPack;
 use App\Models\Utility;
 use App\Models\warehouse;
 use Illuminate\Http\Request;
@@ -87,16 +91,24 @@ class StockTransferOrderController extends Controller
         }
 
         $warehouse = warehouse::where('owned_by', $user->creatorId())->get()->pluck('name', 'id');
+        $sessions = AcademicSession::where('created_by', $user->creatorId())
+            ->orderByDesc('starting_date')
+            ->pluck('year', 'id');
+        $defaultSessionId = AcademicSession::where('created_by', $user->creatorId())
+            ->where('active_status', 1)
+            ->orderByDesc('starting_date')
+            ->value('id') ?? $sessions->keys()->first();
 
         $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
             ->where('created_by', $user->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
         $product_services->prepend('Select Item', '');
+        $studyPackPayload = $this->studyPackPayload($user->creatorId());
 
         if (request()->ajax()) {
-            return view('stocktransferorder.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse'))->renderSections()['content'] ?? '';
+            return view('stocktransferorder.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse', 'sessions', 'defaultSessionId', 'studyPackPayload'))->renderSections()['content'] ?? '';
         }
 
-        return view('stocktransferorder.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse'));
+        return view('stocktransferorder.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse', 'sessions', 'defaultSessionId', 'studyPackPayload'));
     }
 
     public function store(Request $request)
@@ -126,9 +138,10 @@ class StockTransferOrderController extends Controller
             $StockTransferOrder->branch_purchase_no = $this->stockTransferOrderNumber();
             $StockTransferOrder->branch_id = $user->type == 'branch' ? $user->id : $request->branch_id;
             $StockTransferOrder->warehouse_id = $request->warehouse_id;
+            $StockTransferOrder->session_id = $request->session_id;
             $StockTransferOrder->purchase_date = $request->purchase_date;
             $StockTransferOrder->category_id = $request->category_id;
-            $StockTransferOrder->status = 5;
+            $StockTransferOrder->status = StockTransferOrder::STATUS_DRAFT;
             $StockTransferOrder->created_by = $user->creatorId();
             $StockTransferOrder->owned_by = $user->ownedId();
             $StockTransferOrder->save();
@@ -143,14 +156,17 @@ class StockTransferOrderController extends Controller
                 $item->discount = $products[$i]['discount'] ?? 0;
                 $item->price = $products[$i]['price'] ?? 0;
                 $item->description = $products[$i]['description'] ?? '';
+                $item->study_pack_id = !empty($products[$i]['study_pack_id']) ? (int) $products[$i]['study_pack_id'] : null;
+                $item->study_pack_title = $products[$i]['study_pack_title'] ?? null;
+                $item->study_pack_class = $products[$i]['study_pack_class'] ?? null;
                 $item->save();
             }
 
             DB::commit();
             if ($request->ajax()) {
-                return response()->json(['success' => true, 'message' => __('Stock Transfer Order successfully created and sent to Head Office.')]);
+                return response()->json(['success' => true, 'message' => __('Stock Transfer Requisition successfully created in draft.')]);
             }
-            return redirect()->route('stock-transfer-order.show', Crypt::encrypt($StockTransferOrder->id))->with('success', __('Stock Transfer Order successfully created and sent to Head Office.'));
+            return redirect()->route('stock-transfer-order.show', Crypt::encrypt($StockTransferOrder->id))->with('success', __('Stock Transfer Requisition successfully created in draft.'));
         } catch (\Exception $e) {
             DB::rollback();
             if ($request->ajax()) {
@@ -172,7 +188,7 @@ class StockTransferOrderController extends Controller
         try {
             $id = Crypt::decrypt($ids);
         } catch (\Throwable $th) {
-            return redirect()->back()->with('error', __('Stock Transfer Order Not Found.'));
+            return redirect()->back()->with('error', __('Stock Transfer Requisition Not Found.'));
         }
 
         $StockTransferOrder = StockTransferOrder::find($id);
@@ -216,15 +232,13 @@ class StockTransferOrderController extends Controller
         }
 
         $canEditCurrentStatus = (
-            $user->type == 'company' && in_array($StockTransferOrder->status, [0, 5])
+            $user->type == 'company' && in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)
         ) || (
-            $user->type == 'company' && $StockTransferOrder->status == 6 && $this->stockTransferOrderHasRemainingItems($StockTransferOrder)
-        ) || (
-            $user->type == 'branch' && $StockTransferOrder->branch_id == $user->id && $StockTransferOrder->status == 0
+            $user->type == 'branch' && $StockTransferOrder->branch_id == $user->id && in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)
         );
 
         if (!$canEditCurrentStatus) {
-            return response()->json(['error' => __('Stock Transfer Order cannot be edited in current status.')], 401);
+            return response()->json(['error' => __('Stock Transfer Requisition cannot be edited in current status.')], 401);
         }
 
         $warehouse = warehouse::where('owned_by', $user->creatorId())->get()->pluck('name', 'id');
@@ -244,12 +258,16 @@ class StockTransferOrderController extends Controller
         }
         $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
             ->where('created_by', $user->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
+        $sessions = AcademicSession::where('created_by', $user->creatorId())
+            ->orderByDesc('starting_date')
+            ->pluck('year', 'id');
+        $studyPackPayload = $this->studyPackPayload($user->creatorId());
 
         if (request()->ajax()) {
-            return view('stocktransferorder.edit', compact('branches', 'product_services', 'StockTransferOrder', 'warehouse', 'purchase_number'))->renderSections()['content'] ?? '';
+            return view('stocktransferorder.edit', compact('branches', 'product_services', 'StockTransferOrder', 'warehouse', 'purchase_number', 'sessions', 'studyPackPayload'))->renderSections()['content'] ?? '';
         }
 
-        return view('stocktransferorder.edit', compact('branches', 'product_services', 'StockTransferOrder', 'warehouse', 'purchase_number'));
+        return view('stocktransferorder.edit', compact('branches', 'product_services', 'StockTransferOrder', 'warehouse', 'purchase_number', 'sessions', 'studyPackPayload'));
     }
 
     public function update(Request $request, $id)
@@ -281,18 +299,16 @@ class StockTransferOrderController extends Controller
         }
 
         $canEditCurrentStatus = (
-            $user->type == 'company' && in_array($StockTransferOrder->status, [0, 5])
+            $user->type == 'company' && in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)
         ) || (
-            $user->type == 'company' && $StockTransferOrder->status == 6 && $this->stockTransferOrderHasRemainingItems($StockTransferOrder)
-        ) || (
-            $user->type == 'branch' && $StockTransferOrder->branch_id == $user->id && $StockTransferOrder->status == 0
+            $user->type == 'branch' && $StockTransferOrder->branch_id == $user->id && in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)
         );
 
         if (!$canEditCurrentStatus) {
             if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => __('Stock Transfer Order cannot be edited in current status.')]);
+                return response()->json(['success' => false, 'message' => __('Stock Transfer Requisition cannot be edited in current status.')]);
             }
-            return redirect()->route('stock-transfer-order.index')->with('error', __('Stock Transfer Order cannot be edited in current status.'));
+            return redirect()->route('stock-transfer-order.index')->with('error', __('Stock Transfer Requisition cannot be edited in current status.'));
         }
 
         $validator = \Validator::make($request->all(), $this->stockTransferOrderRules(false));
@@ -308,6 +324,8 @@ class StockTransferOrderController extends Controller
         DB::beginTransaction();
         try {
             $StockTransferOrder->branch_id = $user->type == 'branch' ? $user->id : $request->branch_id;
+            $StockTransferOrder->warehouse_id = $request->warehouse_id;
+            $StockTransferOrder->session_id = $request->session_id;
             $StockTransferOrder->purchase_date = $request->purchase_date;
             $StockTransferOrder->category_id = $request->category_id;
             $StockTransferOrder->save();
@@ -323,7 +341,7 @@ class StockTransferOrderController extends Controller
                     : null;
                 if ($item) {
                     if (isset($product['item']) && (int) $product['item'] !== (int) $item->product_id && (float) ($item->shipped_quantity ?? 0) > 0) {
-                        throw new \RuntimeException(__('Shipped Stock Transfer Order items cannot change product.'));
+                        throw new \RuntimeException(__('Shipped Stock Transfer Requisition items cannot change product.'));
                     }
 
                     if (isset($product['item'])) {
@@ -341,11 +359,14 @@ class StockTransferOrderController extends Controller
                     $item->discount = $product['discount'] ?? 0;
                     $item->price = $product['price'];
                     $item->description = $product['description'] ?? '';
+                    $item->study_pack_id = !empty($product['study_pack_id']) ? (int) $product['study_pack_id'] : null;
+                    $item->study_pack_title = $product['study_pack_title'] ?? null;
+                    $item->study_pack_class = $product['study_pack_class'] ?? null;
                     $item->save();
                     $newItemIds[] = $item->id;
                 } else {
                     if (($product['id'] ?? 0) > 0) {
-                        throw new \RuntimeException(__('The selected Stock Transfer Order item could not be found.'));
+                        throw new \RuntimeException(__('The selected Stock Transfer Requisition item could not be found.'));
                     }
 
                     $item = new StockTransferOrderItem();
@@ -356,6 +377,9 @@ class StockTransferOrderController extends Controller
                     $item->discount = $product['discount'] ?? 0;
                     $item->price = $product['price'];
                     $item->description = $product['description'] ?? '';
+                    $item->study_pack_id = !empty($product['study_pack_id']) ? (int) $product['study_pack_id'] : null;
+                    $item->study_pack_title = $product['study_pack_title'] ?? null;
+                    $item->study_pack_class = $product['study_pack_class'] ?? null;
                     $item->save();
                     $newItemIds[] = $item->id;
                 }
@@ -369,9 +393,9 @@ class StockTransferOrderController extends Controller
 
             DB::commit();
             if ($request->ajax()) {
-                return response()->json(['success' => true, 'message' => __('Stock Transfer Order successfully updated.')]);
+                return response()->json(['success' => true, 'message' => __('Stock Transfer Requisition successfully updated.')]);
             }
-            return redirect()->route('stock-transfer-order.index')->with('success', __('Stock Transfer Order successfully updated.'));
+            return redirect()->route('stock-transfer-order.index')->with('success', __('Stock Transfer Requisition successfully updated.'));
         } catch (\Exception $e) {
             DB::rollback();
             if ($request->ajax()) {
@@ -397,13 +421,13 @@ class StockTransferOrderController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($StockTransferOrder->status == 6 || $StockTransferOrder->invoice_converted) {
-            return redirect()->back()->with('error', __('Approved or converted Stock Transfer Orders cannot be deleted.'));
+        if (!in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true) || $StockTransferOrder->invoice_converted) {
+            return redirect()->back()->with('error', __('Approved or converted Stock Transfer Requisitions cannot be deleted.'));
         }
 
         StockTransferOrderItem::where('branch_purchase_id', $StockTransferOrder->id)->delete();
         $StockTransferOrder->delete();
-        return redirect()->route('stock-transfer-order.index')->with('success', __('Stock Transfer Order successfully deleted.'));
+        return redirect()->route('stock-transfer-order.index')->with('success', __('Stock Transfer Requisition successfully deleted.'));
     }
 
     function stockTransferOrderNumber()
@@ -421,27 +445,23 @@ class StockTransferOrderController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if (\Auth::user()->type == 'company' || \Auth::user()->type == 'admin') {
-            return redirect()->back()->with('error', __('Only branch users can forward to Head Office.'));
-        }
-
         $StockTransferOrder = StockTransferOrder::find($id);
         if (!$StockTransferOrder || $StockTransferOrder->created_by != \Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($StockTransferOrder->branch_id != \Auth::id()) {
+        if (\Auth::user()->type == 'branch' && $StockTransferOrder->branch_id != \Auth::id()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($StockTransferOrder->status != 0) {
-            return redirect()->back()->with('error', __('Stock Transfer Order already forwarded.'));
+        if (!in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)) {
+            return redirect()->back()->with('error', __('Only draft or rejected Stock Transfer Requisitions can be sent to Head Office.'));
         }
 
-        $StockTransferOrder->status = 5;
+        $StockTransferOrder->status = StockTransferOrder::STATUS_SENT_TO_HO;
         $StockTransferOrder->save();
 
-        return redirect()->back()->with('success', __('Stock Transfer Order successfully forwarded to Head Office.'));
+        return redirect()->back()->with('success', __('Stock Transfer Requisition successfully sent to Head Office.'));
     }
 
     public function finalize(Request $request, $id)
@@ -459,8 +479,8 @@ class StockTransferOrderController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($StockTransferOrder->status != 5) {
-            return redirect()->back()->with('error', __('Stock Transfer Order must be in Fw to Ho status.'));
+        if ($StockTransferOrder->status != StockTransferOrder::STATUS_SENT_TO_HO) {
+            return redirect()->back()->with('error', __('Stock Transfer Requisition must be in Sent to HO status.'));
         }
 
         DB::beginTransaction();
@@ -475,11 +495,11 @@ class StockTransferOrderController extends Controller
                 }
             }
 
-            $StockTransferOrder->status = 6;
+            $StockTransferOrder->status = StockTransferOrder::STATUS_APPROVED;
             $StockTransferOrder->save();
 
             DB::commit();
-            return redirect()->back()->with('success', __('Stock Transfer Order approved successfully.'));
+            return redirect()->back()->with('success', __('Stock Transfer Requisition approved successfully.'));
         } catch (\Exception $e) {
             DB::rollback();
             return redirect()->back()->with('error', $e->getMessage());
@@ -501,14 +521,14 @@ class StockTransferOrderController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if ($StockTransferOrder->status != 5) {
-            return redirect()->back()->with('error', __('Stock Transfer Order must be in Fw to Ho status.'));
+        if ($StockTransferOrder->status != StockTransferOrder::STATUS_SENT_TO_HO) {
+            return redirect()->back()->with('error', __('Stock Transfer Requisition must be in Sent to HO status.'));
         }
 
-        $StockTransferOrder->status = 0;
+        $StockTransferOrder->status = StockTransferOrder::STATUS_REJECTED;
         $StockTransferOrder->save();
 
-        return redirect()->back()->with('success', __('Stock Transfer Order rejected and returned to Draft.'));
+        return redirect()->back()->with('success', __('Stock Transfer Requisition rejected successfully.'));
     }
 
     public function convertToInvoice($id)
@@ -518,7 +538,7 @@ class StockTransferOrderController extends Controller
         }
 
         if (\Auth::user()->type != 'company') {
-            return response()->json(['error' => __('Only company users can convert to Invoice.')], 401);
+            return response()->json(['error' => __('Only company users can convert to Stock Transfer Note.')], 401);
         }
 
         $StockTransferOrder = StockTransferOrder::with(['items.product', 'branchUser'])->find($id);
@@ -526,22 +546,50 @@ class StockTransferOrderController extends Controller
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        if ($StockTransferOrder->status != 6) {
-            return response()->json(['error' => __('Stock Transfer Order must be approved before conversion.')], 422);
+        if ($StockTransferOrder->status != StockTransferOrder::STATUS_APPROVED) {
+            return response()->json(['error' => __('Stock Transfer Requisition must be approved before conversion.')], 422);
         }
 
-            if ($StockTransferOrder->invoice_converted) {
-                return response()->json(['error' => __('Already converted to Invoice.')], 422);
-            }
+        if ($StockTransferOrder->invoice_converted) {
+            return response()->json(['error' => __('Already converted to Stock Transfer Note.')], 422);
+        }
 
-        if (!\Auth::user()->can('create invoice')) {
+        if (!\Auth::user()->can('create stock transfer note')) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        $mainStore = warehouse::where('owned_by', \Auth::user()->creatorId())->first();
-        $storeTo = warehouse::where('id', '!=', $mainStore ? $mainStore->id : 0)
-            ->where('created_by', \Auth::user()->creatorId())
+        $mainStore = warehouse::where(function ($query) {
+            $query->where('created_by', \Auth::user()->creatorId())
+                ->orWhere('owned_by', \Auth::user()->creatorId());
+        })
+            ->where('owned_by', \Auth::user()->creatorId())
+            ->first();
+
+        if (!$mainStore) {
+            $mainStore = warehouse::where(function ($query) {
+                $query->where('created_by', \Auth::user()->creatorId())
+                    ->orWhere('owned_by', \Auth::user()->creatorId());
+            })->first();
+        }
+
+        $storeTo = warehouse::where(function ($query) {
+            $query->where('created_by', \Auth::user()->creatorId())
+                ->orWhere('owned_by', \Auth::user()->creatorId());
+        })
+            ->where('id', '!=', $mainStore ? $mainStore->id : 0)
+            ->get()
             ->pluck('name', 'id');
+        $sessions = AcademicSession::where('created_by', \Auth::user()->creatorId())
+            ->orderByDesc('starting_date')
+            ->pluck('year', 'id');
+        $defaultSessionId = $StockTransferOrder->session_id ?: (
+            AcademicSession::where('created_by', \Auth::user()->creatorId())
+                ->where('active_status', 1)
+                ->orderByDesc('starting_date')
+                ->value('id') ?? $sessions->keys()->first()
+        );
+        $studyPackPayload = $this->studyPackPayload(\Auth::user()->creatorId());
+        $storeUsers = $this->storeUserMap();
         $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
             ->where('created_by', \Auth::user()->creatorId())
             ->where('type', '!=', 'service')
@@ -549,14 +597,18 @@ class StockTransferOrderController extends Controller
             ->pluck('name', 'id');
         $product_services->prepend('Select Item', '');
 
-        $invoice_number = \Auth::user()->invoiceNumberFormat($this->stockTransferOrderInvoiceNumber());
+        $invoice_number = \Auth::user()->invoiceNumberFormat($this->stockTransferNoteNumber());
         $issueDate = date('Y-m-d');
         $dueDate = date('Y-m-d');
         $selectedStoreTo = $StockTransferOrder->warehouse_id;
         $conversionItems = $StockTransferOrder->items->map(function ($item) {
             $shippedQuantity = (float) ($item->shipped_quantity ?? 0);
             $product = $item->product;
-            $quantity = max(0, (float) $item->quantity - $shippedQuantity);
+            $quantity = (float) $item->quantity - $shippedQuantity;
+
+            if ($quantity <= 0) {
+                return null;
+            }
 
             return [
                 'id' => $item->id,
@@ -574,9 +626,12 @@ class StockTransferOrderController extends Controller
                 'unit' => $product && $product->unit() ? $product->unit()->name : '',
                 'amount' => ($quantity * (float) $item->price) - (float) ($item->discount ?? 0),
                 'description' => $item->description ?? '',
-                'source' => __('Stock Transfer Order'),
+                'study_pack_id' => $item->study_pack_id,
+                'study_pack_title' => $item->study_pack_title,
+                'study_pack_class' => $item->study_pack_class,
+                'source' => __('Stock Transfer Requisition'),
             ];
-        })->values();
+        })->filter()->values();
 
         $view = view('stocktransferorder.convert_to_invoice', compact(
             'StockTransferOrder',
@@ -587,7 +642,11 @@ class StockTransferOrderController extends Controller
             'issueDate',
             'dueDate',
             'selectedStoreTo',
-            'conversionItems'
+            'conversionItems',
+            'sessions',
+            'defaultSessionId',
+            'studyPackPayload',
+            'storeUsers'
         ));
 
         if (request()->ajax()) {
@@ -604,10 +663,10 @@ class StockTransferOrderController extends Controller
         }
 
         if (\Auth::user()->type != 'company') {
-            return response()->json(['success' => false, 'message' => __('Only company users can convert to Invoice.')]);
+            return response()->json(['success' => false, 'message' => __('Only company users can convert to Stock Transfer Note.')]);
         }
 
-        if (!\Auth::user()->can('create invoice')) {
+        if (!\Auth::user()->can('create stock transfer note')) {
             return response()->json(['success' => false, 'message' => __('Permission denied.')]);
         }
 
@@ -616,17 +675,39 @@ class StockTransferOrderController extends Controller
             return response()->json(['success' => false, 'message' => __('Permission denied.')]);
         }
 
-        if ($StockTransferOrder->status != 6) {
-            return response()->json(['success' => false, 'message' => __('Stock Transfer Order must be approved before conversion.')]);
+        if ($StockTransferOrder->status != StockTransferOrder::STATUS_APPROVED) {
+            return response()->json(['success' => false, 'message' => __('Stock Transfer Requisition must be approved before conversion.')]);
         }
 
         $validator = \Validator::make($request->all(), [
             'issue_date' => 'required|date',
             'due_date' => 'required|date',
-            'store_from' => 'required',
-            'store_to' => 'required',
+            'session_id' => [
+                'required',
+                'integer',
+                Rule::exists('sessions', 'id')->where(function ($query) {
+                    $query->where('created_by', \Auth::user()->creatorId());
+                }),
+            ],
+            'store_from' => [
+                'required',
+                'integer',
+                Rule::exists('warehouses', 'id')->where(function ($query) {
+                    $query->where('created_by', \Auth::user()->creatorId());
+                }),
+            ],
+            'store_to' => [
+                'required',
+                'integer',
+                Rule::exists('warehouses', 'id')->where(function ($query) {
+                    $query->where('created_by', \Auth::user()->creatorId());
+                }),
+            ],
+            'shipping_via' => 'nullable|string|max:50',
+            'stn_type' => 'nullable|string|max:50',
+            'ref_number' => 'nullable|string|max:255',
             'items' => 'required|array|min:1',
-            'items.*.source_item_id' => 'required|integer|exists:branch_purchase_items,id',
+            'items.*.source_item_id' => 'nullable|integer',
             'items.*.item' => 'required|integer|exists:product_services,id',
         ]);
 
@@ -641,8 +722,8 @@ class StockTransferOrderController extends Controller
                 throw new \RuntimeException(__('Permission denied.'));
             }
 
-            if ($StockTransferOrder->status != 6) {
-                throw new \RuntimeException(__('Stock Transfer Order must be approved before conversion.'));
+            if ($StockTransferOrder->status != StockTransferOrder::STATUS_APPROVED) {
+                throw new \RuntimeException(__('Stock Transfer Requisition must be approved before conversion.'));
             }
 
             $stockTransferItems = StockTransferOrderItem::where('branch_purchase_id', $StockTransferOrder->id)
@@ -650,50 +731,71 @@ class StockTransferOrderController extends Controller
                 ->get()
                 ->keyBy('id');
 
-            $invoice = new Invoice();
-            $invoice->invoice_id = $this->stockTransferOrderInvoiceNumber();
-            $invoice->customer_id = 0;
-            $invoice->issue_date = $request->issue_date;
-            $invoice->due_date = $request->due_date;
-            $invoice->ref_number = $request->ref_number;
-            $invoice->status = 0;
-            $invoice->category_id = $StockTransferOrder->category_id;
-            $invoice->from_store = $request->store_from;
-            $invoice->to_store = $request->store_to;
-            $invoice->owned_by = \Auth::user()->ownedId();
-            $invoice->created_by = \Auth::user()->creatorId();
-            $invoice->save();
+            $noteNumber = $this->stockTransferNoteNumber();
+            $storeFrom = warehouse::with('assignedEmployee')->find($request->store_from);
+            $storeTo = warehouse::with('assignedEmployee')->find($request->store_to);
+
+            $note = new StockTransferNote();
+            $note->stn_id = $noteNumber;
+            $note->sto_id = $StockTransferOrder->id;
+            $note->issue_date = $request->issue_date;
+            $note->due_date = $request->due_date;
+            $note->approve_date = null;
+            $note->ref_number = $request->ref_number;
+            $note->status = StockTransferNote::STATUS_DRAFT;
+            $note->category_id = $StockTransferOrder->category_id;
+            $note->shipping_via = $request->shipping_via;
+            $note->stn_type = $request->stn_type ?: 'From Requisition';
+            $note->store_from = $request->store_from;
+            $note->store_to = $request->store_to;
+            $note->session_id = $request->session_id;
+            $note->approved_by = null;
+            $note->issue_to = $request->store_to;
+            $note->recived_by = $storeTo?->assignedEmployee?->user_id;
+            $note->issue_by = $storeFrom?->assignedEmployee?->user_id;
+            $note->owned_by = \Auth::user()->ownedId();
+            $note->created_by = \Auth::user()->creatorId();
+            $note->save();
 
             $newitems = $request->items;
             foreach ($request->items as $index => $item) {
                 $quantity = (float) ($item['quantity'] ?? 0);
                 $price = (float) ($item['price'] ?? 0);
                 $sourceItemId = (int) ($item['source_item_id'] ?? 0);
-                if (empty($item['item']) || $quantity <= 0 || $price <= 0 || !$sourceItemId || !isset($stockTransferItems[$sourceItemId])) {
+                if (empty($item['item']) || $quantity <= 0 || $price <= 0) {
                     throw new \Exception(__('Please enter valid item, quantity and price for all rows.'));
                 }
 
-                $sourceItem = $stockTransferItems[$sourceItemId];
-                if ((int) $sourceItem->product_id !== (int) $item['item']) {
-                    throw new \Exception(__('Invoice item must match the selected Stock Transfer Order item.'));
+                $sourceItem = null;
+                $shippedQuantity = 0;
+                if ($sourceItemId > 0) {
+                    if (!isset($stockTransferItems[$sourceItemId])) {
+                        throw new \Exception(__('Selected Stock Transfer Requisition source item was not found.'));
+                    }
+
+                    $sourceItem = $stockTransferItems[$sourceItemId];
+                    if ((int) $sourceItem->product_id !== (int) $item['item']) {
+                        throw new \Exception(__('Stock Transfer Note item must match the selected Stock Transfer Requisition item.'));
+                    }
+
+                    $shippedQuantity = (float) ($sourceItem->shipped_quantity ?? 0);
+                    $remainingQuantity = max(0, (float) $sourceItem->quantity - $shippedQuantity);
+                    if ($quantity > $remainingQuantity) {
+                        throw new \Exception(__('Stock Transfer Note quantity cannot exceed the remaining Stock Transfer Requisition quantity.'));
+                    }
                 }
 
-                $shippedQuantity = (float) ($sourceItem->shipped_quantity ?? 0);
-                $remainingQuantity = max(0, (float) $sourceItem->quantity - $shippedQuantity);
-                if ($quantity > $remainingQuantity) {
-                    throw new \Exception(__('Invoice quantity cannot exceed the remaining Stock Transfer Order quantity.'));
-                }
-
-                $invoiceProduct = new InvoiceProduct();
-                $invoiceProduct->invoice_id = $invoice->id;
-                $invoiceProduct->product_id = $item['item'];
-                $invoiceProduct->quantity = $quantity;
-                $invoiceProduct->tax = $item['tax'] ?? 0;
-                $invoiceProduct->discount = $item['discount'] ?? 0;
-                $invoiceProduct->price = $price;
-                $invoiceProduct->type = $item['type'] ?? 'new';
-                $invoiceProduct->description = $item['description'] ?? '';
-                $invoiceProduct->save();
+                $noteItem = new StockTransferNoteItem();
+                $noteItem->stn_id = $note->id;
+                $noteItem->product_id = $item['item'];
+                $noteItem->quantity = $quantity;
+                $noteItem->price = $price;
+                $noteItem->type = $item['type'] ?? 'new';
+                $noteItem->description = $item['description'] ?? '';
+                $noteItem->study_pack_id = !empty($item['study_pack_id']) ? (int) $item['study_pack_id'] : null;
+                $noteItem->study_pack_title = $item['study_pack_title'] ?? null;
+                $noteItem->study_pack_class = $item['study_pack_class'] ?? null;
+                $noteItem->save();
 
                 $product = ProductService::find($item['item']);
                 if ($product) {
@@ -708,11 +810,13 @@ class StockTransferOrderController extends Controller
                     $product->save();
                 }
 
-                $sourceItem->shipped_quantity = $shippedQuantity + $quantity;
-                $sourceItem->save();
+                if ($sourceItem) {
+                    $sourceItem->shipped_quantity = $shippedQuantity + $quantity;
+                    $sourceItem->save();
+                }
 
                 Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $item['item'], $quantity);
-                $newitems[$index]['prod_id'] = $invoiceProduct->id;
+                $newitems[$index]['prod_id'] = $noteItem->id;
                 $newitems[$index]['source_item_id'] = $sourceItemId;
             }
 
@@ -720,28 +824,23 @@ class StockTransferOrderController extends Controller
             $StockTransferOrder->invoice_converted = $this->stockTransferOrderHasRemainingItems($StockTransferOrder) ? false : true;
             $StockTransferOrder->save();
 
-            $data['id'] = $invoice->id;
-            $data['no'] = $invoice->invoice_id;
-            $data['date'] = $invoice->issue_date;
-            $data['reference'] = $invoice->ref_number;
-            $data['category'] = 'Invoice';
-            $data['owned_by'] = $invoice->owned_by;
-            $data['created_by'] = $invoice->created_by;
-            $data['from_store'] = $invoice->from_store;
-            $data['to_store'] = $invoice->to_store;
-            $data['items'] = $newitems;
-            Utility::invoicejv($data);
-
             DB::commit();
             return response()->json([
                 'success' => true,
-                'message' => __('Stock Transfer Order successfully converted to Invoice.'),
-                'redirect_url' => route('invoice.show', Crypt::encrypt($invoice->id)),
+                'message' => __('Stock Transfer Requisition successfully converted to Stock Transfer Note.'),
+                'redirect_url' => route('stock-transfer-note.show', Crypt::encrypt($note->id)),
             ]);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
+    }
+
+    private function stockTransferNoteNumber(): int
+    {
+        $lastNumber = StockTransferNote::where('created_by', \Auth::user()->creatorId())->max('stn_id');
+
+        return $lastNumber ? ((int) $lastNumber + 1) : 1;
     }
 
     private function stockTransferOrderHasRemainingItems(StockTransferOrder $StockTransferOrder): bool
@@ -833,6 +932,13 @@ class StockTransferOrderController extends Controller
                     $query->where('created_by', $creatorId)->where('type', 'branch');
                 }),
             ],
+            'session_id' => [
+                'required',
+                'integer',
+                Rule::exists('sessions', 'id')->where(function ($query) use ($creatorId) {
+                    $query->where('created_by', $creatorId);
+                }),
+            ],
             'purchase_date' => ['required', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item' => [
@@ -844,6 +950,9 @@ class StockTransferOrderController extends Controller
             ],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
+            'items.*.study_pack_id' => ['nullable', 'integer'],
+            'items.*.study_pack_title' => ['nullable', 'string'],
+            'items.*.study_pack_class' => ['nullable', 'string'],
         ];
 
         if ($requireWarehouse) {
@@ -857,5 +966,53 @@ class StockTransferOrderController extends Controller
         }
 
         return $rules;
+    }
+
+    private function studyPackPayload(int $creatorId)
+    {
+        $studyPacks = StudyPack::with('items')
+            ->where('created_by', $creatorId)
+            ->orderBy('class')
+            ->orderBy('title')
+            ->get();
+
+        $productNames = ProductService::select(DB::raw('CONCAT(sku, " - ", name) AS name, id'))
+            ->where('created_by', $creatorId)
+            ->whereIn('id', $studyPacks->pluck('items')->flatten()->pluck('product_id')->filter()->unique())
+            ->get()
+            ->pluck('name', 'id');
+
+        return $studyPacks->map(function ($studyPack) use ($productNames) {
+            return [
+                'id' => $studyPack->id,
+                'title' => $studyPack->title,
+                'class' => $studyPack->class,
+                'session_id' => $studyPack->session_id,
+                'items' => $studyPack->items->map(function ($item) use ($productNames) {
+                    return [
+                        'product_id' => $item->product_id,
+                        'name' => $productNames[$item->product_id] ?? __('Unknown Item'),
+                        'quantity' => (float) $item->quantity,
+                        'price' => (float) $item->price,
+                        'description' => '',
+                    ];
+                })->values()->all(),
+            ];
+        })->values();
+    }
+
+    private function storeUserMap()
+    {
+        return warehouse::with('assignedEmployee')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->get()
+            ->mapWithKeys(function ($store) {
+                return [
+                    $store->id => [
+                        'id' => $store->assignedEmployee?->user_id,
+                        'name' => $store->assignedEmployee?->name ?? '',
+                    ],
+                ];
+            });
     }
 }

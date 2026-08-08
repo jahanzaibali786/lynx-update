@@ -222,12 +222,13 @@
 
             <!-- USE THIS HTML STRUCTURE FOR NUMBERED PARAGRAPHS -->
 
+            
             <p class="para-row">
                 <span class="num">1</span>
                 <span class="text">
                     You will be entitled to a basic salary of
                     <span style="display:inline-block; width:135px; border-bottom:1px solid #000; text-align:center;">
-                        Rs {!! @$lastPayscaleDetail->net + @$lastPayscaleDetail->emp_sec !!}
+                        Rs {{ number_format(!empty($lastPayscaleDetail) ? $lastPayscaleDetail->resolved_basic_salary : 0, 2) }}
                     </span>
                     per month and the detail of other benefits applicable to your category of employee are given in
                     Annexure "A".

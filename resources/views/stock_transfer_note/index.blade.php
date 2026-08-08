@@ -362,6 +362,8 @@
                     <tr class="table_heads">
                         <th>{{ __('S.No') }}</th>
                         <th>{{ __('Stock Transfer Note') }}</th>
+                        <th>{{ __('Branch') }}</th>
+                        <th>{{ __('Class') }}</th>
                         <th>{{ __('Store From') }}</th>
                         <th>{{ __('Store To') }}</th>
                         <th>{{ __('Issue Date') }}</th>

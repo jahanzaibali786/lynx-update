@@ -690,6 +690,9 @@
                 $('#recived_by_name').val(toUser.name || '');
             }
 
+            $(document).off('.stockTransferNoteEdit');
+            $('#stock-transfer-note-edit-form').off('.stockTransferNoteEdit');
+
             $(document).on('click.stockTransferNoteEdit', '#addItemBtn', function(e) {
                 e.preventDefault();
                 addManualEntry();

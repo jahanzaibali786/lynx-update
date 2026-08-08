@@ -195,7 +195,7 @@ class StockTransferNoteController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        $query = StockTransferNote::with(['fromStore', 'toStore'])
+        $query = StockTransferNote::with(['fromStore.branch', 'toStore.branch', 'items'])
             ->where('created_by', $user->creatorId());
 
         if ($user->type == 'company') {
@@ -421,7 +421,7 @@ class StockTransferNoteController extends Controller
             $noteNumber = $this->stockTransferNoteNumber();
             $note = new StockTransferNote();
             $note->stn_id = $noteNumber;
-            $note->sto_id = $noteNumber;
+            $note->sto_id = '';
             $note->issue_date = $request->issue_date;
             $note->due_date = $request->due_date;
             $note->approve_date = null;

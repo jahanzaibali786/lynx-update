@@ -16,6 +16,7 @@ class StockTransferOrder extends Model
         'branch_id',
         'vender_id',
         'warehouse_id',
+        'session_id',
         'purchase_date',
         'category_id',
         'status',
@@ -34,14 +35,16 @@ class StockTransferOrder extends Model
         return $this->belongsTo('App\Models\User', 'branch_id', 'id');
     }
 
+    public const STATUS_DRAFT = 0;
+    public const STATUS_SENT_TO_HO = 5;
+    public const STATUS_APPROVED = 6;
+    public const STATUS_REJECTED = 7;
+
     public static $statues = [
-        'Draft',
-        'Sent',
-        'Unpaid',
-        'Partialy Paid',
-        'Paid',
-        'Fw to Ho',
-        'Approved',
+        0 => 'Draft',
+        5 => 'Sent to HO',
+        6 => 'Approved',
+        7 => 'Rejected',
     ];
 
     public function vender()
@@ -57,6 +60,11 @@ class StockTransferOrder extends Model
     public function category()
     {
         return $this->hasOne('App\Models\ProductServiceCategory', 'id', 'category_id');
+    }
+
+    public function academicSession()
+    {
+        return $this->belongsTo(Session::class, 'session_id');
     }
 
     public function getSubTotal()

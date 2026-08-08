@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\warehouse; 
+use Illuminate\Support\Collection;
 
 class StockTransferNote extends Model
 {
@@ -151,10 +152,33 @@ class StockTransferNote extends Model
         return $this->attributes['stn_id'] ?? $this->getAttribute('stn_id');
     }
 
+    public function getClassNamesAttribute(): string
+    {
+        return $this->normalizedStudyPackClasses()->implode(', ');
+    }
+
+    public function getPrimaryClassNameAttribute(): string
+    {
+        return $this->normalizedStudyPackClasses()->first() ?? '';
+    }
+
+    protected function normalizedStudyPackClasses(): Collection
+    {
+        $this->loadMissing('items');
+
+        return $this->items
+            ->pluck('study_pack_class')
+            ->map(fn ($className) => trim((string) $className))
+            ->filter()
+            ->unique(function ($className) {
+                return strtolower($className);
+            })
+            ->values();
+    }
+
     public function setInvoiceIdAttribute($value)
     {
         $this->attributes['stn_id'] = $value;
-        $this->attributes['sto_id'] = $value;
     }
 
     public static function change_status($invoice_id, $status)

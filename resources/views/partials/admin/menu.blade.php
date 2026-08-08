@@ -2986,7 +2986,7 @@
 							@can('manage stock transfer order')
 								<li class="dash-item">
                                     <a class="dash-link {{ Request::segment(1) == 'stock-transfer-order' || in_array(Request::route()->getName(), ['stock-transfer-order.index', 'stock-transfer-order.create', 'stock-transfer-order.edit', 'stock-transfer-order.show']) ? ' active' : '' }}"
-                                        href="{{ route('stock-transfer-order.index') }}">{{ __('Stock Transfer Order') }}</a>
+                                        href="{{ route('stock-transfer-order.index') }}">{{ __('Stock Transfer Requisition') }}</a>
                                 </li>
                             @endcan
                             @can('manage stock transfer note')

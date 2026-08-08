@@ -102,11 +102,13 @@ class EmployeeController extends Controller
             }
             if ($request->has('export') && $request->export == 'excel') {
                 $employees = $query->get();
-                return Excel::download(new EmployeeReportExport($employees), 'employee_report.xlsx');
+                $branchName = $this->employeeReportBranchName($request);
+                return Excel::download(new EmployeeReportExport($employees, $branchName, $branches), 'employee_report.xlsx');
             }
             if ($request->has('export') && $request->export == 'pdf') {
                 $employees = $query->get();
-                return Excel::download(new EmployeeReportExport($employees), 'employee_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
+                $branchName = $this->employeeReportBranchName($request);
+                return Excel::download(new EmployeeReportExport($employees, $branchName, $branches), 'employee_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
             }
             // dd($request->is_print);
             if ($request->filled('is_print') && $request->is_print == 1) {
@@ -1221,13 +1223,32 @@ public function employeedesiganddeprtment(Request $request)
     }
 
     //Export
-    public function export()
+    public function export(Request $request)
     {
         $name = 'employee_' . date('Y-m-d i:h:s');
-        $data = Excel::download(new EmployeeExport(), $name . '.xlsx');
+        $data = Excel::download(new EmployeeExport($request), $name . '.xlsx');
         ob_end_clean();
 
         return $data;
+    }
+
+    private function employeeReportBranchName(Request $request): string
+    {
+        if ($request->filled('branches')) {
+            $branch = User::where('id', $request->branches)
+                ->where(function ($query) {
+                    $query->where('created_by', \Auth::user()->creatorId())
+                        ->orWhere('id', \Auth::user()->ownedId())
+                        ->orWhere('id', \Auth::user()->creatorId());
+                })
+                ->first();
+
+            if ($branch) {
+                return $branch->name;
+            }
+        }
+
+        return 'All Branches';
     }
 
     //import

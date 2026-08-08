@@ -32,7 +32,7 @@
                 :</b>{{!empty($salhead->salaryHeads) ? $salhead->head_value : '' }}</div>
         @endforeach
         <div class="col-md-4"><b>Gross
-                :</b>{{!empty($lastPayscaleDetail) ? $lastPayscaleDetail->net + $lastPayscaleDetail->emp_sec : '0' }}
+                :</b>{{ number_format(optional($lastPayscaleDetail)->resolved_gross_salary ?? 0, 2) }}
         </div>
         <div class="col-md-4"><b>Net
                 :</b>{{!empty($lastPayscaleDetail) ? $lastPayscaleDetail->net : '-' }}

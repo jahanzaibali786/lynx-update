@@ -39,10 +39,10 @@
                 }
             });
         }
-        function printanexture(employeeId) {
+        function printanexture(scaleDetailId) {
             // alert('sss');
             $.ajax({
-                url: "{{ route('generate_anexture', ['id' => '__employeeId__']) }}".replace('__employeeId__', employeeId),
+                url: "{{ route('generate_anexture', ['id' => '__scaleDetailId__']) }}".replace('__scaleDetailId__', scaleDetailId),
                 method: 'GET',
                 data: {
                     title: 'Anexture',
@@ -168,7 +168,7 @@
                                     <a class="btn btn-sm btn-outline-warning"
                                         data-bs-toggle="tooltip"
                                         data-bs-title="{{ __('Print') }}"
-                                        onclick="printanexture('{{ optional($scale->employee)->id }}')">
+                                        onclick="printanexture('{{ $scale->id }}')">
                                         <span class="btn-inner--icon"><i class="fas fa-print"></i></span>
                                     </a>
                                 </div>
