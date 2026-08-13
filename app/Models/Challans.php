@@ -27,6 +27,7 @@ class Challans extends Model
         'status',
         'temp_status',
         'session_id',
+        'section_id',
         'owned_by',
         'created_by',
         'voucher_id',

@@ -208,7 +208,18 @@
             <img class="title-logo" src="{{ asset('assets/images/lynx2.jpg') }}" alt="logo">
             <div class="title-copy">
                 <img class="school-title" src="{{ asset('assets/images/lynxheadertext.png') }}" alt="School Header Text">
-                <div class="subtitle">Book List {{ $challan->class->name }} {{ $challan->session->year }}</div>
+                @php
+                    $className = optional($challan->class)->name ?? '';
+                    $sessionYear = optional($challan->session)->year;
+                    if (empty($sessionYear)) {
+                        $activeSession = \App\Models\Session::where('active_status', 1)->first();
+                        if (empty($activeSession)) {
+                            $activeSession = \App\Models\Session::orderByDesc('id')->first();
+                        }
+                        $sessionYear = optional($activeSession)->year;
+                    }
+                @endphp
+                <div class="subtitle">Book List {{ $className }} {{ $sessionYear }}</div>
             </div>
         </div>
 

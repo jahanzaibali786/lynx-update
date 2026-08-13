@@ -215,6 +215,8 @@ class BankTransferController extends Controller
                     'to_bank_id' => $to_account->id,
                     'from_account' => $bankAccounts->chart_account_id,
                     'to_account' => $to_account->chart_account_id,
+                    'added_at' => now(),
+                    'added_by' => \Auth::user()->id,
                     'owned_by' => $bankAccounts->owned_by,
                     'created_by' => \Auth::user()->creatorId(),
                     'user_id' => \Auth::user()->id, //Branch,User,Supplier,Customer,Employee,Vendor

@@ -5787,7 +5787,7 @@ class Utility extends Model
             $journal->journal_id = $latest;
             $journal->date = $data['date'];
             $journal->reference = $data['reference'];
-            $journal->description = 'Bank Transfer';
+            $journal->description = $data['description'];
             $journal->reference_id = $data['id'];
             $journal->category = 'Bank Transfer';
             $journal->voucher_type = 'JV';
@@ -5795,9 +5795,14 @@ class Utility extends Model
             $journal->user_type = @$data['user_type'];
             $journal->owned_by = $data['owned_by'];
             $journal->created_by = $data['created_by'];
-            //created at and updated at
-            $journal->created_at = $createdatJ;
-            $journal->updated_at = $updatedatj;
+            self::applySafeAuditData($journal, $data);
+            $journal->save();
+            if (!empty($data['created_at'])) {
+                $journal->created_at = $data['created_at'];
+            }
+            if (!empty($data['updated_at'])) {
+                $journal->updated_at = $data['updated_at'];
+            }
             $journal->save();
             $fromAccount = ChartOfAccount::where('id', $data['from_account'])->first();
             $toAccount = ChartOfAccount::where('id', $data['to_account'])->first();
@@ -5813,8 +5818,7 @@ class Utility extends Model
             $journalItem->credit = $data['amount'];
             $journalItem->debit = 0;
             $journalItem->branch_id = $data['owned_by'];
-            $journalItem->created_at = $createdatJ;
-            $journalItem->updated_at = $updatedatj;
+            self::applySafeJournalItemMeta($journalItem, $data, $data['id'], 'BankTransfer');
             $journalItem->save();
 
             $journalItem = new JournalItem;
@@ -5828,8 +5832,7 @@ class Utility extends Model
             $journalItem->credit = 0;
             $journalItem->debit = $data['amount'];
 			$journalItem->branch_id = $data['owned_by'];
-            $journalItem->created_at = $createdatJ;
-            $journalItem->updated_at = $updatedatj;
+            self::applySafeJournalItemMeta($journalItem, $data, $data['id'], 'BankTransfer');
             $journalItem->save();
 
 

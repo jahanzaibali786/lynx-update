@@ -11,6 +11,8 @@ use App\Models\Session;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\StudyPackBooklistExport;
 class StudyPackController extends Controller
 {
     /**
@@ -403,6 +405,41 @@ class StudyPackController extends Controller
             $branch = User::where('type', '=', 'company')->get()->pluck('name', 'id');
         }
         return view('students.studypack.challanform', compact('branch'));
+    }
+
+    public function booklistExport(Request $request)
+    {
+        $user = \Auth::user();
+        $creatorId = $user->creatorId();
+        $ownedId = $user->ownedId();
+
+        $branches = User::where('created_by', $creatorId)->pluck('name', 'id');
+        $branchName = 'All Branches';
+        if ($request->filled('branches') && $request->branches != 'all') {
+            $branchName = $branches[$request->branches] ?? 'All Branches';
+        }
+
+        $query = StudyPack::query()
+            ->with(['items.product:id,name']);
+
+        if ($user->type !== 'company') {
+            $query->where('owned_by', $ownedId);
+        }
+
+        if ($request->filled('branches') && $request->branches != 'all') {
+            $query->where('branch_id', $request->branches);
+        }
+
+        if ($request->filled('session')) {
+            $query->where('session_id', $request->session);
+        }
+
+        $studypacks = $query->orderBy('id')->get();
+
+        return Excel::download(
+            new StudyPackBooklistExport($studypacks, $branches, $branchName, $request),
+            'studypack_booklist.xlsx'
+        );
     }
 }
 

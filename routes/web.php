@@ -13,6 +13,7 @@ use App\Http\Controllers\EmployeeScaleHeads;
 use App\Http\Controllers\EmployeeSettlementController;
 use App\Http\Controllers\EobiAllocation;
 use App\Http\Controllers\HealthInsuracnePlanSetup;
+use App\Http\Controllers\RemoveLateFeeController;
 use App\Http\Controllers\HrDataImportController;
 use App\Http\Controllers\GrnController;
 use App\Http\Controllers\InventoryReportController;
@@ -1353,6 +1354,11 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('emp-leaves', LeaveAllocation::class)->middleware(['auth', 'XSS']);
     Route::resource('emp-eobi-allocation', EobiAllocation::class)->middleware(['auth', 'XSS']);
     Route::resource('health-insurance-plan', HealthInsuracnePlanSetup::class)->middleware(['auth', 'XSS']);
+    Route::prefix('remove-late-fee')->name('remove-late-fee.')->group(function () {
+        Route::get('/', [RemoveLateFeeController::class, 'index'])->name('index')->middleware(['auth', 'XSS']);
+        Route::post('/search', [RemoveLateFeeController::class, 'search'])->name('search')->middleware(['auth', 'XSS']);
+        Route::post('/remove', [RemoveLateFeeController::class, 'remove'])->name('remove')->middleware(['auth', 'XSS']);
+    });
 	Route::get('assign-leaves', [LeaveAllocation::class, 'assignLeavesToAll'])->name('assign.leave')->middleware(['auth', 'XSS']);
     Route::get('report/leave', [ReportController::class, 'leave'])->name('report.leave')->middleware(['auth', 'XSS']);
     Route::get('employee/{id}/leave/{status}/{type}/{month}/{year}', [ReportController::class, 'employeeLeave'])->name('report.employee.leave')->middleware(['auth', 'XSS']);
@@ -2341,6 +2347,11 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/studypackchallan/pdf/{id}', [StudyPackChallanController::class, 'print'])->name('studypackchallans.challanpdf');
             Route::post('/studypackchallans/print-bulk', [StudyPackChallanController::class, 'printChallans'])->name('studypackchallans.printbulk');
             Route::post('/studypackchallan/rollback', [StudyPackChallanController::class, 'rollback'])->name('studypackchallan.rollback');
+            // Booklist routes
+            Route::get('/studypackchallan/{id}/booklist', [StudyPackChallanController::class, 'booklist'])->name('studypackchallan.booklist');
+            Route::post('/studypackchallan/{id}/booklist/download', [StudyPackChallanController::class, 'booklist'])->name('studypackchallan.booklist.download');
+            Route::get('/studypackchallan/{id}/booklist/print', [StudyPackChallanController::class, 'booklist'])->name('studypackchallan.booklist.print');
+            Route::get('/studypack/booklist/export', [StudyPackController::class, 'booklistExport'])->name('studypack.booklist.export');
             Route::post('/submit-adjustment', [StudentWithdrawalController::class, 'submit_adjustment'])->name('submit_adjustment');
             Route::post('/delete-adjustment', [StudentWithdrawalController::class, 'delete_adjustment'])->name('delete_adjustment');
 

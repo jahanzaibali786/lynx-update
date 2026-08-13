@@ -9,6 +9,42 @@
 
 @push('script-page')
     <script>
+        var bulkLoaderStyle = document.createElement('style');
+        bulkLoaderStyle.innerHTML = `
+            @keyframes studypackBulkSpin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(bulkLoaderStyle);
+
+        function showBulkProcessingLoader(message) {
+            var overlay = document.getElementById('studypack-bulk-loader');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'studypack-bulk-loader';
+                overlay.style.cssText = 'position:fixed; inset:0; z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(0,0,0,0.74); color:#fff;';
+                overlay.innerHTML = '<div style="width:56px; height:56px; border:5px solid rgba(255,255,255,0.2); border-top-color:#fff; border-radius:50%; animation:studypackBulkSpin 1s linear infinite;"></div><div id="studypack-bulk-loader-text" style="margin-top:16px; font-weight:700; font-size:16px;">Preparing downloads...</div><div id="studypack-bulk-loader-subtext" style="margin-top:6px; font-size:13px; opacity:0.9;">Please wait while the selected challans are processed.</div>';
+                document.body.appendChild(overlay);
+            }
+            overlay.style.display = 'flex';
+            var textEl = document.getElementById('studypack-bulk-loader-text');
+            var subTextEl = document.getElementById('studypack-bulk-loader-subtext');
+            if (textEl) {
+                textEl.textContent = message || 'Preparing downloads...';
+            }
+            if (subTextEl) {
+                subTextEl.textContent = 'Please wait while the selected challans are processed.';
+            }
+        }
+
+        function hideBulkProcessingLoader() {
+            var overlay = document.getElementById('studypack-bulk-loader');
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+        }
+
         $(document).on('change', '#class_select', function() {
             var classId = $(this).val();
             if (classId) {
@@ -39,10 +75,16 @@
                         }
                         $classSelect.removeClass('custom-select');
                         $classSelect.empty();
-                        $classSelect.append($('<option>', { value: 'all', text: 'All Class' }));
+                        $classSelect.append($('<option>', {
+                            value: 'all',
+                            text: 'All Class'
+                        }));
                         for (var j = 0; j < result.class.length; j++) {
                             var cls = result.class[j];
-                            $classSelect.append($('<option>', { value: cls.id, text: cls.name }));
+                            $classSelect.append($('<option>', {
+                                value: cls.id,
+                                text: cls.name
+                            }));
                         }
                         $classSelect.addClass('custom-select').show();
                         if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
@@ -71,10 +113,21 @@
                 success: function(result) {
                     if (result.status == 'success') {
                         $('#stdy_select').empty();
-                        $('#stdy_select').append($('<option>', { value: '', text: 'Select StudyPack' }));
+                        $('#stdy_select').append($('<option>', {
+                            value: '',
+                            text: 'Select StudyPack'
+                        }));
                         for (var j = 0; j < result.Studypack.length; j++) {
                             var cls = result.Studypack[j];
-                            $('#stdy_select').append($('<option>', { value: cls.id, text: cls.title }));
+                            $('#stdy_select').append($('<option>', {
+                                value: cls.id,
+                                text: cls.title
+                            }));
+                        }
+                        var params = new URLSearchParams(window.location.search);
+                        var selectedStudypack = params.get('Studypack');
+                        if (selectedStudypack) {
+                            $('#stdy_select').val(selectedStudypack);
                         }
                     }
                 }
@@ -88,7 +141,9 @@
                 },
                 url: "{{ route('class.students') }}",
                 type: "POST",
-                data: { class_id: id },
+                data: {
+                    class_id: id
+                },
                 dataType: 'json',
                 success: function(result) {
                     if (result.status == 'success') {
@@ -102,10 +157,16 @@
                         }
                         $studentSelect.removeClass('custom-select');
                         $studentSelect.empty();
-                        $studentSelect.append($('<option>', { value: 'all', text: 'All Students' }));
+                        $studentSelect.append($('<option>', {
+                            value: 'all',
+                            text: 'All Students'
+                        }));
                         for (var studentId in result.students) {
                             if (result.students.hasOwnProperty(studentId)) {
-                                $studentSelect.append($('<option>', { value: studentId, text: result.students[studentId] }));
+                                $studentSelect.append($('<option>', {
+                                    value: studentId,
+                                    text: result.students[studentId]
+                                }));
                             }
                         }
                         $studentSelect.addClass('custom-select').show();
@@ -113,6 +174,13 @@
                             window.CustomSelect.create($studentSelect[0]);
                         }
                         $studentSelect.val('all');
+                        if (window.location.search && /[?&]student=/.test(window.location.search)) {
+                            var params = new URLSearchParams(window.location.search);
+                            var selectedStudent = params.get('student');
+                            if (selectedStudent) {
+                                $studentSelect.val(selectedStudent);
+                            }
+                        }
                     }
                 }
             });
@@ -130,12 +198,15 @@
             csrf.value = '{{ csrf_token() }}';
             form.appendChild(csrf);
 
-            ['branches', 'sessionselect', 'class_select', 'stdy_select', 'student_select', 'fee_month', 'issue_date', 'due_date'].forEach(function(id) {
+            ['branches', 'sessionselect', 'class_select', 'stdy_select', 'student_select', 'fee_month', 'issue_date',
+                'due_date'
+            ].forEach(function(id) {
                 var el = document.getElementById(id);
                 if (!el) return;
                 var input = document.createElement('input');
                 input.type = 'hidden';
-                input.name = (id === 'sessionselect') ? 'session' : (id === 'class_select' ? 'class' : (id === 'stdy_select' ? 'Studypack' : (id === 'student_select' ? 'student' : id)));
+                input.name = (id === 'sessionselect') ? 'session' : (id === 'class_select' ? 'class' : (id ===
+                    'stdy_select' ? 'Studypack' : (id === 'student_select' ? 'student' : id)));
                 input.value = el.value;
                 form.appendChild(input);
             });
@@ -179,7 +250,8 @@
                 if (!row) return;
                 var cells = row.querySelectorAll('td');
                 var sessionEl = document.getElementById('sessionselect');
-                var sessionText = sessionEl && sessionEl.selectedOptions && sessionEl.selectedOptions[0] ? sessionEl.selectedOptions[0].textContent.trim().replace(/\s+/g, '_') : '';
+                var sessionText = sessionEl && sessionEl.selectedOptions && sessionEl.selectedOptions[0] ? sessionEl
+                    .selectedOptions[0].textContent.trim().replace(/\s+/g, '_') : '';
                 checkedRowsData.push({
                     id: checkbox.value,
                     rollNo: cells[1] ? cells[1].textContent.trim() : '',
@@ -196,10 +268,12 @@
                 printBtn.innerText = 'Processing...';
             }
 
-            var allPdfs = [];
-            var batchSize = 50;
+            showBulkProcessingLoader('Preparing the first batch of challans...');
+            var requestedBatchSize = 10;
+            var batchSize = Math.max(10, requestedBatchSize);
             var batchIndex = 0;
             var totalChallans = checkedRowsData.length;
+            var totalBatches = Math.ceil(totalChallans / batchSize);
 
             function triggerDownload(base64, filename) {
                 var byteCharacters = atob(base64);
@@ -207,29 +281,65 @@
                 for (var i = 0; i < byteCharacters.length; i++) {
                     byteNumbers[i] = byteCharacters.charCodeAt(i);
                 }
-                var blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+                var blob = new Blob([new Uint8Array(byteNumbers)], {
+                    type: 'application/pdf'
+                });
                 var url = window.URL.createObjectURL(blob);
                 var a = document.createElement('a');
                 a.href = url;
                 a.download = filename;
+                a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
+                setTimeout(function() {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 1200);
+            }
+
+            function buildStudyPackDownloadFilename(meta, printType, documentType) {
+                if (documentType === 'sp') {
+                    if (printType === 'single') {
+                        return 'SP-Booklet.pdf';
+                    }
+                    return ['SP-Booklet', meta.rollNo, meta.studentName, meta.sessionYear]
+                        .filter(Boolean)
+                        .join('-') + '.pdf';
+                }
+
+                return [meta.rollNo, meta.studentName, 'studypackchallan', meta.sessionYear]
+                    .filter(Boolean)
+                    .join('-') + '.pdf';
+            }
+
+            function triggerDownloadsQueue(pdfList, metadataList) {
+                var delayMs = 500;
+                pdfList.forEach(function(pdfBase64, index) {
+                    var meta = metadataList[index] || {};
+                    var filename = buildStudyPackDownloadFilename(meta, printType, documentType);
+                    setTimeout(function() {
+                        triggerDownload(pdfBase64, filename);
+                    }, index * delayMs);
+                });
             }
 
             function processBatch() {
                 var startIdx = batchIndex * batchSize;
                 var endIdx = Math.min(startIdx + batchSize, totalChallans);
                 var currentBatchIds = checkedRowsData.slice(startIdx, endIdx);
-
-                $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') } });
+                $.ajaxSetup({
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    }
+                });
 
                 $.ajax({
                     url: '{{ route('studypackchallans.printbulk') }}',
                     method: 'POST',
                     data: {
-                        rowsdata: currentBatchIds.map(function(row) { return row.id; }),
+                        rowsdata: checkedRowsData.map(function(row) {
+                            return row.id;
+                        }),
                         printType: printType,
                         documentType: documentType,
                         batchSize: batchSize,
@@ -237,7 +347,9 @@
                     },
                     success: function(response) {
                         if (response.error) {
+                            console.error('StudyPack bulk batch error', response.error);
                             alert(response.error);
+                            hideBulkProcessingLoader();
                             if (printBtn) {
                                 printBtn.innerText = documentType === 'sp' ? 'Download SP' : 'Download Challan';
                                 printBtn.disabled = false;
@@ -246,25 +358,33 @@
                         }
 
                         if (response.pdfs) {
-                            allPdfs = allPdfs.concat(response.pdfs);
+                            if (printType === 'separate') {
+                                var batchMetadata = currentBatchIds.map(function(row) {
+                                    return {
+                                        rollNo: row.rollNo || '',
+                                        studentName: row.studentName || '',
+                                        sessionYear: row.sessionYear || ''
+                                    };
+                                });
+                                triggerDownloadsQueue(response.pdfs, batchMetadata);
+                            }
                         }
 
-                        if (response.hasMoreBatches) {
+                        var shouldContinue = response.hasMoreBatches === true || (batchIndex + 1) < totalBatches;
+                        if (shouldContinue) {
                             batchIndex++;
-                            processBatch();
+                            showBulkProcessingLoader('Processing batch ' + (batchIndex + 1) + ' of ' + totalBatches + '...');
+                            setTimeout(function() {
+                                processBatch();
+                            }, 300);
                         } else {
-                            if (printType === 'separate') {
-                                allPdfs.forEach(function(pdfBase64, index) {
-                                    var meta = checkedRowsData[index] || {};
-                                    var filename = [meta.rollNo, meta.studentName, 'studypackchallan', meta.sessionYear].filter(Boolean).join('-') + '.pdf';
-                                    triggerDownload(pdfBase64, filename);
-                                });
-                            } else if (allPdfs.length > 0) {
+                            if (printType === 'single' && response.pdfs && response.pdfs.length > 0) {
                                 var firstMeta = checkedRowsData[0] || {};
-                                var singleName = [firstMeta.rollNo, firstMeta.studentName, 'studypackchallan', firstMeta.sessionYear].filter(Boolean).join('-') + '.pdf';
-                                triggerDownload(allPdfs[0], singleName);
+                                var singleName = buildStudyPackDownloadFilename(firstMeta, printType, documentType);
+                                triggerDownload(response.pdfs[0], singleName);
                             }
 
+                            hideBulkProcessingLoader();
                             if (printBtn) {
                                 printBtn.innerText = documentType === 'sp' ? 'Download SP' : 'Download Challan';
                                 printBtn.disabled = false;
@@ -272,7 +392,9 @@
                         }
                     },
                     error: function(xhr, status, error) {
+                        console.error('StudyPack bulk batch ajax error', { status: status, error: error, response: xhr.responseText });
                         alert('Failed to fetch PDF content: ' + error);
+                        hideBulkProcessingLoader();
                         if (printBtn) {
                             printBtn.innerText = 'Download SP';
                             printBtn.disabled = false;
@@ -290,7 +412,9 @@
             var rollbackBtn = document.getElementById('rollbackButton');
             var checkAll = document.getElementById('checkAll');
             var rowCheckboxes = Array.prototype.slice.call(document.querySelectorAll('input[name="checked[]"]'));
-            var checkedCount = rowCheckboxes.filter(function(cb) { return cb.checked; }).length;
+            var checkedCount = rowCheckboxes.filter(function(cb) {
+                return cb.checked;
+            }).length;
             var anyChecked = checkedCount > 0;
 
             if (challanBtn) challanBtn.disabled = !anyChecked;
@@ -298,27 +422,21 @@
             if (rollbackBtn) rollbackBtn.disabled = !anyChecked;
             if (checkAll) checkAll.checked = rowCheckboxes.length > 0 && checkedCount === rowCheckboxes.length;
 
-            console.log('refreshStudyPackButtons', { totalRows: rowCheckboxes.length, checkedCount: checkedCount, anyChecked: anyChecked });
         }
 
         function rollbackStudyPackChallans() {
-            console.log('rollbackStudyPackChallans clicked');
 
-            var rows = Array.prototype.slice.call(document.querySelectorAll('input[name="checked[]"]:checked')).map(function(cb) {
-                return cb.value;
-            });
+            var rows = Array.prototype.slice.call(document.querySelectorAll('input[name="checked[]"]:checked')).map(
+                function(cb) {
+                    return cb.value;
+                });
 
-            console.log('selected rollback rows', rows);
 
             if (!rows.length) {
-                console.log('rollbackStudyPackChallans: no rows selected');
                 show_toastr('error', 'Please select at least one challan to rollback.', 'error');
                 return;
             }
 
-            if (!window.Swal) {
-                console.log('rollbackStudyPackChallans: Swal missing');
-            }
 
             Swal.fire({
                 title: 'Are you sure?',
@@ -329,33 +447,36 @@
                 cancelButtonColor: '#d33',
                 confirmButtonText: 'Yes, rollback!'
             }).then(function(result) {
-                console.log('rollback confirmation result', result);
                 if (!result.isConfirmed) return;
 
                 if (!{{ Route::has('studypackchallan.rollback') ? 'true' : 'false' }}) {
-                    console.log('studypackchallan.rollback route missing');
                     Swal.fire('Error!', 'Rollback route is missing.', 'error');
                     return;
                 }
 
                 $.ajax({
-                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
                     url: '{{ Route::has('studypackchallan.rollback') ? route('studypackchallan.rollback') : '#' }}',
                     type: 'POST',
-                    data: { rows: rows },
+                    data: {
+                        rows: rows
+                    },
                     success: function(response) {
-                        console.log('rollback response', response);
                         if (response.success) {
                             Swal.fire('Rollback Result', response.message, 'success').then(function() {
                                 window.location.reload();
                             });
                         } else {
-                            Swal.fire('Error!', response.message || 'Unable to rollback selected challans.', 'error');
+                            Swal.fire('Error!', response.message ||
+                                'Unable to rollback selected challans.', 'error');
                         }
                     },
                     error: function(xhr) {
-                        console.log('rollback error', xhr.responseText || xhr.statusText);
-                        Swal.fire('Error!', (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Unable to rollback selected challans.', 'error');
+                        Swal.fire('Error!', (xhr.responseJSON && xhr.responseJSON.message) ? xhr
+                            .responseJSON.message : 'Unable to rollback selected challans.', 'error'
+                        );
                     }
                 });
             });
@@ -365,7 +486,9 @@
             if (!e.target) return;
             if (e.target.id === 'checkAll') {
                 var checked = e.target.checked;
-                document.querySelectorAll('input[name="checked[]"]').forEach(function(cb) { cb.checked = checked; });
+                document.querySelectorAll('input[name="checked[]"]').forEach(function(cb) {
+                    cb.checked = checked;
+                });
                 console.log('checkAll changed', checked);
                 refreshStudyPackButtons();
                 return;
@@ -377,7 +500,6 @@
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('StudyPack challan page loaded');
             refreshStudyPackButtons();
         });
     </script>
@@ -387,7 +509,7 @@
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('All StudyPack Challans') }}</li>
 @endsection
-
+{{--
 @section('action-btn')
     <div class="float-end">
         <a href="#" data-size="lg" data-url="{{ route('studypackchallan.create') }}" data-ajax-popup="true"
@@ -396,7 +518,7 @@
         </a>
     </div>
 @endsection
-
+--}}
 @section('content')
     <div class="row">
         <div class="col-sm-12">
@@ -438,27 +560,48 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
                                 <div class="btn-box">
                                     {{ Form::label('fee_month', __('Fee Month'), ['class' => 'form-label']) }}
-                                    {!! Form::month('fee_month', request('fee_month', now()->format('Y-m')), ['class' => 'form-control', 'id' => 'fee_month']) !!}
+                                    {!! Form::month('fee_month', request('fee_month', now()->format('Y-m')), [
+                                        'class' => 'form-control',
+                                        'id' => 'fee_month',
+                                    ]) !!}
                                 </div>
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
                                 <div class="btn-box">
                                     {{ Form::label('issue_date', __('Issue Date'), ['class' => 'form-label']) }}
-                                    {!! Form::date('issue_date', request('issue_date', now()->toDateString()), ['class' => 'form-control', 'id' => 'issue_date']) !!}
+                                    {!! Form::date('issue_date', request('issue_date', now()->toDateString()), [
+                                        'class' => 'form-control',
+                                        'id' => 'issue_date',
+                                    ]) !!}
                                 </div>
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
                                 <div class="btn-box">
                                     {{ Form::label('due_date', __('Due Date'), ['class' => 'form-label']) }}
-                                    {!! Form::date('due_date', request('due_date', now()->addDays(10)->toDateString()), ['class' => 'form-control', 'id' => 'due_date']) !!}
+                                    {!! Form::date('due_date', request('due_date', now()->addDays(10)->toDateString()), [
+                                        'class' => 'form-control',
+                                        'id' => 'due_date',
+                                    ]) !!}
                                 </div>
                             </div>
                             <div class="col-auto float-end ms-2 mt-4 d-flex gap-2 align-items-end">
                                 <button type="submit" class="btn mx-1 btn-sm btn-outline-primary">Search</button>
-                                <button type="button" class="btn mx-1 btn-sm btn-outline-primary" id="generateChallanButton" onclick="generateStudypackChallans()">Generate Bulk Challan</button>
-                                <button type="button" id="printChallanButton" class="btn mx-1 btn-sm btn-outline-success" onclick="openPrintModal(event)" disabled>Download Challan</button>
-                                <button type="button" id="printSpButton" class="btn mx-1 btn-sm btn-outline-info" onclick="openSpPrintModal(event)" disabled>Download SP</button>
-                                <button type="button" id="rollbackButton" class="btn mx-1 btn-sm btn-outline-danger" onclick="rollbackStudyPackChallans()" disabled>Rollback Challan</button>
+                                    <button type="button" class="btn mx-1 btn-sm btn-outline-primary"
+                                        id="generateChallanButton" onclick="generateStudypackChallans()">
+                                        @if (Auth::user()->type == 'company')
+                                        Generate Bulk
+                                        Challan
+                                        @else
+                                        Generate Challan 
+                                        @endif
+                                    </button>
+                                    <button type="button" id="rollbackButton" class="btn mx-1 btn-sm btn-outline-danger"
+                                        onclick="rollbackStudyPackChallans()" disabled>Rollback Challan</button>
+                                <button type="button" id="printChallanButton" class="btn mx-1 btn-sm btn-outline-success"
+                                    onclick="openPrintModal(event)" disabled>Download Challan</button>
+                                <button type="button" id="printSpButton" style="background: rgb(22, 162, 255) !important; color : #fff !important;" class="btn mx-1 btn-sm btn-outline-info"
+                                    onclick="openSpPrintModal(event)" disabled>Download SP</button>
+
                             </div>
                         </div>
                         {{ Form::close() }}
@@ -483,6 +626,12 @@
             </div>
         </div>
 
+        <div id="studypack-bulk-loader" style="display:none; position:fixed; inset:0; z-index:999999; align-items:center; justify-content:center; flex-direction:column; background:rgba(0,0,0,0.74); color:#fff;">
+            <div style="width:56px; height:56px; border:5px solid rgba(255,255,255,0.2); border-top-color:#fff; border-radius:50%; animation:studypackBulkSpin 1s linear infinite;"></div>
+            <div id="studypack-bulk-loader-text" style="margin-top:16px; font-weight:700; font-size:16px;">Preparing downloads...</div>
+            <div id="studypack-bulk-loader-subtext" style="margin-top:6px; font-size:13px; opacity:0.9;">Please wait while the selected challans are processed.</div>
+        </div>
+
         <div class="card mt-3">
             <div class="card-body table-border-style">
                 <div class="table-responsive">
@@ -492,9 +641,13 @@
                                 <th><input id="checkAll" type="checkbox"></th>
                                 <th>#</th>
                                 <th>{{ __('Challan No.') }}</th>
+                                <th>{{ __('Roll No.') }}</th>
                                 <th>{{ __('Student Name') }}</th>
+                                <th>{{ __('Challan Type') }}</th>
                                 <th>{{ __('Challan Month') }}</th>
-                                <th>{{ __('Amount') }}</th>
+                                <th>{{ __('Total Amount') }}</th>
+                                <th>{{ __('Receivable Amount') }}</th>
+                                <th>{{ __('Rem Amount') }}</th>
                                 <th>{{ __('Status') }}</th>
                                 <th>{{ __('Issue Date') }}</th>
                                 <th>{{ __('Due Date') }}</th>
@@ -504,30 +657,41 @@
                         <tbody>
                             @foreach ($studypacks as $challan)
                                 @php
-                                    $studentData = App\Models\StudentRegistration::where('id', $challan->student_id)->first();
-                                    $challan_heads = \App\Models\StudyPackChallanItems::where('challan_id', $challan->id)->get();
+                                    $paidAmount = (float) ($challan->receipts->sum('recipt_amount') ?? 0);
+                                    $receivableAmount = max((float) ($challan->total_amount ?? 0), 0);
+                                    $remAmount = max((float) ($challan->total_amount ?? 0) - $paidAmount, 0);
                                 @endphp
                                 <tr>
                                     <td><input type="checkbox" name="checked[]" value="{{ $challan->id }}"></td>
                                     <td>{{ $loop->iteration }}</td>
                                     <td>{{ $challan->challanNo }}</td>
-                                    <td class="student-name">{{ $studentData->stdname ?? '' }}</td>
+                                    <td>{{ $challan->student->roll_no ?? 'N/A' }}</td>
+                                    <td class="student-name">{{ $challan->student->stdname ?? '' }}</td>
+                                    <td>{{ $challan->challan_type ?? 'Studypack' }}</td>
                                     <td>{{ \Carbon\Carbon::parse($challan->fee_month)->format('F, Y') }}</td>
-                                    <td>{{ number_format($challan->total_amount, 0) }}</td>
+                                    <td>{{ number_format((float) ($challan->total_amount ?? 0), 0) }}</td>
+                                    <td>{{ number_format($receivableAmount, 0) }}</td>
+                                    <td>{{ number_format($remAmount, 0) }}</td>
                                     <td>{{ $challan->status }}</td>
                                     <td>{{ $challan->issue_date }}</td>
                                     <td>{{ $challan->due_date }}</td>
                                     <td>
                                         <div class="action-btn ms-2">
-                                            <a href="{{ route('studypackchallan.show', $challan->id) }}" target="_blank" class="btn btn-sm btn-outline-primary pt-2">
+                                            <a href="{{ route('studypackchallan.show', $challan->id) }}" target="_blank"
+                                                class="btn btn-sm btn-outline-primary pt-2">
                                                 <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                             </a>
-                                            <a href="{{ route('studypackchallan.print', $challan->id) }}" target="_blank" class="mx-1 btn btn-sm btn-outline-success pt-2">
-                                                <span class="btn-inner--icon"><i class="ti ti-download"></i></span>
+                                            <a href="{{ route('studypackchallan.booklist', $challan->id) }}" target="_blank"
+                                                class="mx-1 btn btn-sm btn-outline-info pt-2" title="Booklist View">
+                                                <span class="btn-inner--icon"><i class="ti ti-book"></i></span>
                                             </a>
-                                            <a href="{{ route('studypackchallan.edit', $challan->id) }}" class="mx-1 btn btn-sm btn-outline-primary pt-2">
-                                                <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                                            </a>
+                                            @if (Auth::user()->type == 'super admin' || Auth::user()->type == 'company')
+                                                <a href="{{ route('studypackchallan.edit', $challan->id) }}"
+                                                    class="mx-1 btn btn-sm btn-outline-primary pt-2">
+                                                    <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
+                                                </a>
+                                            @endif
+
                                         </div>
                                     </td>
                                 </tr>
@@ -539,13 +703,3 @@
         </div>
     </div>
 @endsection
-
-
-
-
-
-
-
-
-
-

@@ -32,6 +32,8 @@ use Dompdf\Options;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Illuminate\Http\Request;
+use setasign\Fpdi\Fpdi;
+use setasign\Fpdi\PdfParser\StreamReader;
 use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 class StudyPackChallanController extends Controller
@@ -52,74 +54,415 @@ class StudyPackChallanController extends Controller
         return min(max($amount, 0.0), $payableAmount);
     }
 
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
+     /**
+      * Display a listing of the resource.
+      *
+      * @return \Illuminate\Http\Response
+      */
     public function index(Request $request)
-    {
-        if (\Auth::user()->type == 'company') {
-            $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
-            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-        } else {
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $branches->prepend('Select Branch', '');
-        }
-        $session = Session::get()->pluck('year', 'id');
-        $session->prepend('Select Session', '');
-        $class = Classes::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
-        $class->prepend('Select Class', '');
-        $stdy_pack = [];
+{
+    $user = \Auth::user();
 
-        $studypacks = StudyPackChallans::with('student')
-            ->when(\Auth::user()->type == 'company', function ($query) {
-                $query->where('created_by', \Auth::user()->creatorId());
-            }, function ($query) {
-                $query->where('owned_by', \Auth::user()->ownedId());
-            })
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('challanNo', 'like', '%' . $search . '%')
-                        ->orWhere('status', 'like', '%' . $search . '%')
-                        ->orWhere('fee_month', 'like', '%' . $search . '%')
-                        ->orWhereHas('student', function ($s) use ($search) {
-                            $s->where('stdname', 'like', '%' . $search . '%')
-                              ->orWhere('roll_no', 'like', '%' . $search . '%');
-                        });
-                });
-            })
-            ->when($request->filled('branch'), function ($query) use ($request) {
-                $query->where('branch_id', $request->branch);
-            })
-            ->when($request->filled('class'), function ($query) use ($request) {
-                $query->where('class_id', $request->class);
-            })
-            ->when($request->filled('month'), function ($query) use ($request) {
-                $query->whereMonth('fee_month', date('m', strtotime($request->month)))
-                    ->whereYear('fee_month', date('Y', strtotime($request->month)));
-            })
-            ->orderBy('id', 'desc')
-            // ->paginate(25)
-            ->get();
-            // ->appends($request->all());
+    $isCompany = $user->type === 'company';
 
-        return view('students.studypackChallan.index', compact('branches', 'session', 'class', 'stdy_pack', 'studypacks'));
+    $creatorId = $user->creatorId();
+    $ownedId   = $user->ownedId();
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Branches
+    |--------------------------------------------------------------------------
+    */
+    if ($isCompany) {
+
+        $branches = User::where('type', 'branch')
+            ->where('created_by', $creatorId)
+            ->where('is_active', 1)
+            ->pluck('name', 'id');
+
+        /*
+         * Add company / head office
+         */
+        $branches->prepend(
+            $user->name,
+            $user->id
+        );
+
+        $branches->prepend(
+            'Select Branch',
+            ''
+        );
+
+    } else {
+
+        /*
+         * Branch user can only see their own branch.
+         */
+        $branches = User::where('id', $ownedId)
+            ->where('is_active', 1)
+            ->pluck('name', 'id');
+
+        $branches->prepend(
+            'Select Branch',
+            ''
+        );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Selected Branch
+    |--------------------------------------------------------------------------
+    |
+    | Company:
+    |   Use selected branch.
+    |
+    | Branch:
+    |   ALWAYS force their own branch.
+    |
+    */
+    if ($isCompany) {
+
+        $selectedBranch = $request->filled('branch')
+            ? $request->branch
+            : null;
+
+    } else {
+
+        /*
+         * Never trust branch ID sent by branch user.
+         */
+        $selectedBranch = $ownedId;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Validate Selected Branch
+    |--------------------------------------------------------------------------
+    |
+    | For company users, if a branch is selected,
+    | make sure it actually belongs to this company.
+    |
+    */
+    if (
+        $isCompany &&
+        $selectedBranch !== null &&
+        $selectedBranch !== ''
+    ) {
+
+        $validBranch = User::where('id', $selectedBranch)
+            ->where('type', 'branch')
+            ->where('created_by', $creatorId)
+            ->where('is_active', 1)
+            ->exists();
+
+        if (!$validBranch) {
+
+            /*
+             * Invalid branch selection.
+             */
+            $selectedBranch = null;
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sessions
+    |--------------------------------------------------------------------------
+    */
+    $session = Session::get()
+        ->pluck('year', 'id');
+
+    $session->prepend(
+        'Select Session',
+        ''
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Classes
+    |--------------------------------------------------------------------------
+    |
+    | IMPORTANT:
+    |
+    | Classes are filtered by branch_id.
+    |
+    | Company:
+    |   No branch selected = all company classes.
+    |
+    |   Branch selected =
+    |   only classes belonging to that branch.
+    |
+    | Branch:
+    |   Always classes belonging to ownedId().
+    |
+    */
+    $classQuery = Classes::query()
+        ->where('created_by', $creatorId)
+        ->where('active_status', 1);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Branch Restriction For Classes
+    |--------------------------------------------------------------------------
+    */
+    if ($selectedBranch !== null && $selectedBranch !== '') {
+
+        $classQuery->where(
+            'branch_id',
+            $selectedBranch
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Class Dropdown
+    |--------------------------------------------------------------------------
+    */
+    $class = $classQuery
+        ->pluck('name', 'id');
+
+    $class->prepend(
+        'Select Class',
+        ''
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | StudyPack Challans
+    |--------------------------------------------------------------------------
+    */
+    $studypacksQuery = StudyPackChallans::with([
+        'student',
+        'receipts',
+    ]);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ownership / Company Restriction
+    |--------------------------------------------------------------------------
+    */
+    if ($isCompany) {
+
+        /*
+         * Company can see all records belonging
+         * to the company.
+         */
+        $studypacksQuery->where(
+            'created_by',
+            $creatorId
+        );
+
+    } else {
+
+        /*
+         * Branch can ONLY see its own records.
+         */
+        $studypacksQuery->where(
+            'owned_by',
+            $ownedId
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Branch Filter For StudyPack Challans
+    |--------------------------------------------------------------------------
+    |
+    | IMPORTANT:
+    |
+    | StudyPack challans are also filtered by branch_id.
+    |
+    */
+    if ($selectedBranch !== null && $selectedBranch !== '') {
+
+        $studypacksQuery->where(
+            'branch_id',
+            $selectedBranch
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search
+    |--------------------------------------------------------------------------
+    */
+    if ($request->filled('search')) {
+
+        $search = $request->search;
+
+        $studypacksQuery->where(function ($q) use ($search) {
+
+            $q->where(
+                'challanNo',
+                'like',
+                '%' . $search . '%'
+            )
+
+            ->orWhere(
+                'status',
+                'like',
+                '%' . $search . '%'
+            )
+
+            ->orWhere(
+                'fee_month',
+                'like',
+                '%' . $search . '%'
+            )
+
+            ->orWhereHas(
+                'student',
+                function ($s) use ($search) {
+
+                    $s->where(
+                        'stdname',
+                        'like',
+                        '%' . $search . '%'
+                    )
+
+                    ->orWhere(
+                        'roll_no',
+                        'like',
+                        '%' . $search . '%'
+                    );
+                }
+            );
+        });
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Class Filter
+    |--------------------------------------------------------------------------
+    |
+    | If a class is selected, make sure it belongs
+    | to the selected/allowed branch.
+    |
+    */
+    if ($request->filled('class')) {
+
+        /*
+         * First restrict the StudyPack challan itself.
+         */
+        $studypacksQuery->where(
+            'class_id',
+            $request->class
+        );
+
+
+        /*
+         * Extra security:
+         *
+         * Make sure the selected class belongs
+         * to the selected branch.
+         */
+        if ($selectedBranch !== null && $selectedBranch !== '') {
+
+            $studypacksQuery->whereHas(
+                'class',
+                function ($q) use ($selectedBranch) {
+
+                    $q->where(
+                        'branch_id',
+                        $selectedBranch
+                    );
+                }
+            );
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Month Filter
+    |--------------------------------------------------------------------------
+    */
+    if ($request->filled('month')) {
+
+        $monthDate = strtotime(
+            $request->month
+        );
+
+        if ($monthDate !== false) {
+
+            $studypacksQuery
+                ->whereMonth(
+                    'fee_month',
+                    date('m', $monthDate)
+                )
+                ->whereYear(
+                    'fee_month',
+                    date('Y', $monthDate)
+                );
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | StudyPack Challans
+    |--------------------------------------------------------------------------
+    */
+    $studypacks = $studypacksQuery
+        ->orderBy(
+            'id',
+            'desc'
+        )
+        ->get();
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Other Variables
+    |--------------------------------------------------------------------------
+    */
+    $stdy_pack = [];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Return View
+    |--------------------------------------------------------------------------
+    */
+    return view(
+        'students.studypackChallan.index',
+        compact(
+            'branches',
+            'session',
+            'class',
+            'stdy_pack',
+            'studypacks'
+        )
+    );
+}
+
     public function create()
     {
         if (\Auth::user()->type == 'company') {
-            $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
+            $branches = User::where('type', '=', 'branch')->where('is_active', 1)->get()->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
             $branches->prepend('Select Branch', '');
         } else {
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+            $branches = User::where('id', '=', \Auth::user()->ownedId())->where('is_active', 1)->get()->pluck('name', 'id');
             $branches->prepend('Select Branch', '');
         }
         $session = Session::get()->pluck('year', 'id');
         $session->prepend('Select Session', '');
-        $class = Classes::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+        $class = Classes::where('created_by', \Auth::user()->creatorId())
+            ->where('active_status', 1)
+            ->pluck('name', 'id');
         $class->prepend('Select Class', '');
         $stdy_pack = [];
         return view('students.studypackChallan.challanform', compact('branches', 'session', 'class', 'stdy_pack'));
@@ -135,77 +478,143 @@ class StudyPackChallanController extends Controller
             $dueDate = Carbon::parse($request->due_date ?? now()->addWeek())->toDateString();
             $year = $feeMonth->year;
             $month = $feeMonth->month;
-            $branchId = $request->branches;
-
-            $studyPack = StudyPack::find($request->Studypack);
-            $classId = $request->class;
-            if ($request->student == 'all') {
-                $students = StudentRegistration::where('branch', $branchId)
-                    ->where('class_id', $classId)
-                    ->pluck('id');
+            $creatorId = \Auth::user()->creatorId();
+            $branchIds = [];
+            if (\Auth::user()->type == 'company') {
+                $branchIds = User::where('type', 'branch')->where('is_active', 1)->pluck('id')->toArray();
+                if ($request->filled('branches') && $request->branches !== 'all') {
+                    $branchIds = [$request->branches];
+                }
+            } elseif ($request->filled('branches') && $request->branches !== 'all') {
+                $branchIds = [$request->branches];
             } else {
-                $students[] = $request->student;
+                $branchIds = [\Auth::user()->ownedId()];
             }
-            foreach ($students as $studentId) {
-                
-                $existingChallan = StudyPackChallans::where('student_id', $studentId)
-                    ->where('owned_by', $branchId)
-                    ->where('class_id', $classId)
-                    ->whereMonth('challan_date', $month)
-                    ->whereYear('challan_date', $year)
-                    ->first();
-                $studentdata = StudentRegistration::where('id', $studentId)->first();
-                if (!$existingChallan) {
-                    $studypackchallan = new StudyPackChallans();
-                    $studypackchallan->student_id = $studentId;
-                    $studypackchallan->studypack_id = $request->Studypack;
-                    $studypackchallan->challanNo = $this->challanNo();
-                    $studypackchallan->fee_month = $feeMonth->toDateString();
-                    $studypackchallan->branch_id = $branchId;
-                    $studypackchallan->class_id = $classId;
-                    $studypackchallan->challan_type = "Studypack";
-                    $studypackchallan->year = $feeMonth->toDateString();
-                    $studypackchallan->challan_date = $feeMonth->toDateString();
-                    $studypackchallan->issue_date = $issueDate;
-                    $studypackchallan->due_date = $dueDate;
-                    $studypackchallan->status = 'Assigned';
-                    $studypackchallan->owned_by = $studentdata->owned_by;
-                    $studypackchallan->created_by = $studentdata->created_by;
-                    $studypackchallan->save();
+            $branchId = $branchIds[0] ?? null;
+
+            $selectedClassId = $request->filled('class') && $request->class !== 'all' ? (int) $request->class : null;
+            $classIds = [];
+            if ($selectedClassId) {
+                $classIds = [$selectedClassId];
+            } else {
+                $classQuery = Classes::where('created_by', $creatorId)
+                    ->where('active_status', 1);
+                if (!empty($branchIds)) {
+                    $classQuery->whereIn('owned_by', $branchIds);
                 }
-                $studypackitems = StudyPackItem::where('study_pack_id', $request->Studypack)->get();
-                $newitems = $studypackitems;
-                $i = 0;
-                $total_amnt = 0;
-                foreach ($studypackitems as $item) {
-                    if ($studypackchallan) {
-                        $studypackchallanitems = new StudyPackChallanItems();
-                        $studypackchallanitems->challan_id = $studypackchallan->id;
-                        $studypackchallanitems->studypack_id = $request->Studypack;
-                        $studypackchallanitems->product_id = $item->product_id;
-                        $studypackchallanitems->qty = $item->quantity;
-                        $studypackchallanitems->tax = $item->tax;
-                        $studypackchallanitems->discount = $item->discount;
-                        $studypackchallanitems->price = $item->price;
-                        $total_amnt += ($item->price * $item->quantity);
-                        $studypackchallanitems->owned_by = $studentdata->owned_by;
-                        $studypackchallanitems->created_by = $studentdata->created_by;
-                        $studypackchallanitems->save();
-                        $newitems[$i]['prod_id'] = $studypackchallanitems->id;
-                        $i++;
+                $classIds = $classQuery->pluck('id')->toArray();
+            }
+
+            foreach ($classIds as $classId) {
+                $studyPackQuery = StudyPack::query();
+                if ($request->filled('Studypack') && $selectedClassId) {
+                    $studyPackQuery->where('id', $request->Studypack);
+                } else {
+                    $studyPackQuery->where('session_id', $request->session)
+                        ->whereJsonContains('class', (int) $classId);
+                }
+                if (!empty($branchIds)) {
+                    $studyPackQuery->where(function ($query) use ($branchIds, $creatorId) {
+                        $query->whereIn('branch_id', $branchIds)
+                            ->orWhereIn('owned_by', $branchIds)
+                            ->orWhere('created_by', $creatorId);
+                    });
+                }
+                $studyPack = $studyPackQuery->first();
+
+                if (!$studyPack) {
+                    continue;
+                }
+
+                $studentQuery = StudentRegistration::query();
+                if (!empty($branchIds)) {
+                    $studentQuery->whereIn('branch', $branchIds);
+                }
+                $studentQuery->where('class_id', $classId)
+                    ->where('active_status', 1)
+                    ->where('student_status', 'Enrolled');
+                if ($request->student == 'all') {
+                    $students = $studentQuery->pluck('id');
+                } else {
+                    $students = $studentQuery->where('id', $request->student)->pluck('id');
+                }
+
+                foreach ($students as $studentId) {
+                    $existingChallan = StudyPackChallans::where('student_id', $studentId)
+                        ->where('class_id', $classId)
+                        ->whereMonth('challan_date', $month)
+                        ->whereYear('challan_date', $year)
+                        ->when(!empty($branchIds), function ($query) use ($branchIds) {
+                            $query->whereIn('owned_by', $branchIds);
+                        })
+                        ->first();
+                    $studentdata = StudentRegistration::where('id', $studentId)->first();
+                    $sectionId = null;
+                    if ($studentdata) {
+                        $enrollment = StudentEnrollments::where('regId', $studentdata->id)->first();
+                        $sectionId = $enrollment->section_id ?? null;
                     }
+                    $studypackchallan = $existingChallan;
+                    if (!$existingChallan) {
+                        $studypackchallan = new StudyPackChallans();
+                        $studypackchallan->student_id = $studentId;
+                        $studypackchallan->studypack_id = $studyPack->id;
+                        $studypackchallan->challanNo = $this->challanNo();
+                        $studypackchallan->fee_month = $feeMonth->toDateString();
+                        $studypackchallan->branch_id = $branchId;
+                        $studypackchallan->class_id = $classId;
+                        $studypackchallan->section_id = $sectionId;
+                        $studypackchallan->challan_type = "Studypack";
+                        $studypackchallan->year = $feeMonth->toDateString();
+                        $studypackchallan->challan_date = $feeMonth->toDateString();
+                        $studypackchallan->issue_date = $issueDate;
+                        $studypackchallan->due_date = $dueDate;
+                        $studypackchallan->status = 'Assigned';
+                        $studypackchallan->owned_by = $studentdata->owned_by;
+                        $studypackchallan->created_by = $studentdata->created_by;
+                        $studypackchallan->save();
+                    }
+
+                    $studypackitems = StudyPackItem::where('study_pack_id', $studyPack->id)->get();
+                    $newitems = [];
+                    $i = 0;
+                    $total_amnt = 0;
+                    foreach ($studypackitems as $item) {
+                        if ($studypackchallan && !$existingChallan) {
+                            $studypackchallanitems = new StudyPackChallanItems();
+                            $studypackchallanitems->challan_id = $studypackchallan->id;
+                            $studypackchallanitems->studypack_id = $studyPack->id;
+                            $studypackchallanitems->product_id = $item->product_id;
+                            $studypackchallanitems->qty = $item->quantity;
+                            $studypackchallanitems->tax = $item->tax;
+                            $studypackchallanitems->discount = $item->discount;
+                            $studypackchallanitems->price = $item->price;
+                            $total_amnt += ($item->price * $item->quantity);
+                            $studypackchallanitems->owned_by = $studentdata->owned_by;
+                            $studypackchallanitems->created_by = $studentdata->created_by;
+                            $studypackchallanitems->save();
+                            $newitems[$i] = [
+                                'prod_id' => $studypackchallanitems->id,
+                                'product_id' => $item->product_id,
+                                'quantity' => $item->quantity,
+                                'price' => $item->price,
+                                'discount' => $item->discount,
+                            ];
+                            $i++;
+                        }
+                    }
+                    $data['id'] = $studypackchallan->id;
+                    $data['no'] = $studypackchallan->studypack_id;
+                    $data['user_id'] = $studypackchallan->student_id;
+                    $data['date'] = $studypackchallan->fee_month;
+                    $data['reference'] = $studypackchallan->fee_month;
+                    $data['category'] = 'Studypack';
+                    $data['owned_by'] = $studypackchallan->owned_by;
+                    $data['created_by'] = $studypackchallan->created_by;
+                    $data['items'] = $newitems;
+                    $dataret = Utility::studypackjv($data);
+                    $studypackchallan->update(['total_amount' => $total_amnt, 'voucher_id' => $dataret]);
                 }
-                $data['id'] = $studypackchallan->id;
-                $data['no'] = $studypackchallan->studypack_id;
-                $data['user_id'] = $studypackchallan->student_id;
-                $data['date'] = $studypackchallan->fee_month;
-                $data['reference'] = $studypackchallan->fee_month;
-                $data['category'] = 'Studypack';
-                $data['owned_by'] = $studypackchallan->owned_by;
-                $data['created_by'] = $studypackchallan->created_by;
-                $data['items'] = $newitems;
-                $dataret = Utility::studypackjv($data);
-                $studypackchallan->update(['total_amount' => $total_amnt, 'voucher_id' => $dataret]);
             }
             \DB::commit();
             return back()->with('success', 'StudyPack Challan Created Successfully !!');
@@ -271,9 +680,22 @@ class StudyPackChallanController extends Controller
         if (!$challan) {
             abort(404, 'Challan not found');
         }
-        // If type is set, generate PDF using Dompdf
+        $items = $challan->items ?? collect();
+                    $previousUnpaidChallans = StudyPackChallans::with('items.product', 'items','session')
+                        ->where('student_id', $challan->student_id)
+                        ->where('id', '!=', $challan->id)
+                        ->where('status', '!=', 'Paid')
+                        ->orderBy('id', 'desc')
+                        ->get();
+
+        // If type is set, generate PDF using Dompdf - now using challanpdf.blade.php
         if ($request->has('type') && in_array($request->type, ['print', 'download'])) {
-            $html = view('students.studypackChallan.challanpdf', compact('challan'))->render();
+            $data = [
+                    'challan' => $challan,
+                    'items' => $items,
+                    'previousUnpaidChallans' => $previousUnpaidChallans,
+                ];
+            $html = view('students.studypackChallan.challanpdf',$data)->render();
             $options = new \Dompdf\Options();
             $options->set('isHtml5ParserEnabled', true);
             $options->set('isRemoteEnabled', true);
@@ -291,6 +713,39 @@ class StudyPackChallanController extends Controller
         }
         // dd($challan);
         return view('students.studypackChallan.show', compact('challan'));
+    }
+
+    /**
+     * Display the booklist for the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function booklist($id, Request $request)
+    {
+        $challan = StudyPackChallans::with('student', 'items.product','session')->where('id', $id)->first();
+        if (!$challan) {
+            abort(404, 'Challan not found');
+        }
+        // If type is set, generate PDF using Dompdf - using print.blade.php (booklist)
+        if ($request->has('type') && in_array($request->type, ['print', 'download'])) {
+            $html = view('students.studypackChallan.print', compact('challan'))->render();
+            $options = new \Dompdf\Options();
+            $options->set('isHtml5ParserEnabled', true);
+            $options->set('isRemoteEnabled', true);
+            $dompdf = new \Dompdf\Dompdf($options);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
+            $pdfContent = $dompdf->output();
+            $filename = 'studypack_booklist.pdf';
+            if ($request->type === 'print') {
+                return $dompdf->stream($filename, ['Attachment' => false]);
+            } else {
+                return $dompdf->stream($filename);
+            }
+        }
+        return view('students.studypackChallan.booklist', compact('challan'));
     }
 
     /**
@@ -570,7 +1025,6 @@ class StudyPackChallanController extends Controller
             $challanIds = $request->input('rowsdata', []);
             $printType = $request->input('printType', 'single');
             $documentType = $request->input('documentType', 'challan');
-
             if (!is_array($challanIds)) {
                 $challanIds = json_decode($challanIds, true) ?: [];
             }
@@ -586,7 +1040,7 @@ class StudyPackChallanController extends Controller
                 ], 400);
             }
 
-            $batchSize = (int) $request->input('batchSize', 100);
+            $batchSize = $this->resolveBatchSize((int) $request->input('batchSize', 10));
             $batchIndex = (int) $request->input('batchIndex', 0);
 
             if ($printType === 'single') {
@@ -613,8 +1067,10 @@ class StudyPackChallanController extends Controller
                     ], $documentType);
                 }
 
+                $mergedPdfContent = $this->mergeStudyPackPdfs($pdfContentsArray, $documentType);
+
                 return response()->json([
-                    'pdfs' => array_map('base64_encode', $pdfContentsArray),
+                    'pdfs' => [base64_encode($mergedPdfContent)],
                     'processedCount' => count($challanIds),
                     'totalCount' => count($challanIds),
                     'hasMoreBatches' => false,
@@ -626,7 +1082,7 @@ class StudyPackChallanController extends Controller
             $totalBatches = ceil(count($challanIds) / $batchSize);
             $startIndex = $batchIndex * $batchSize;
             $endIndex = min($startIndex + $batchSize, count($challanIds));
-            $currentBatchIds = array_slice($challanIds, $startIndex, $endIndex - $startIndex);
+            $currentBatchIds = array_slice($challanIds, $startIndex, $batchSize);
 
             $pdfContentsArray = [];
             foreach ($currentBatchIds as $challanId) {
@@ -651,7 +1107,6 @@ class StudyPackChallanController extends Controller
             }
 
             $hasMoreBatches = ($batchIndex < $totalBatches - 1);
-
             return response()->json([
                 'pdfs' => array_map('base64_encode', $pdfContentsArray),
                 'batchIndex' => $batchIndex,
@@ -663,36 +1118,72 @@ class StudyPackChallanController extends Controller
                 'message' => 'Downloading ' . $endIndex . '/' . count($challanIds) . ' study pack challans...'
             ]);
         } catch (\Exception $e) {
-            \Log::error('StudyPack Print Challans Error: ' . $e->getMessage());
-            dd($e);
             return response()->json([
                 'error' => 'Failed to generate PDF: ' . $e->getMessage()
             ], 500);
         }
     }
 
+    private function resolveBatchSize(int $batchSize): int
+    {
+        return max(10, $batchSize);
+    }
+
     private function generateStudyPackPDF(array $data, string $documentType = 'challan')
     {
-        // dd($documentType);
-        if ($documentType == 'challan') {
-            $view = 'students.studypackChallan.challanpdf';
-        } else {
-            $view = 'students.studypackChallan.print';
-        }
-        // $view = 'students.studypackChallan.print';
+        $view = $documentType === 'challan'
+            ? 'students.studypackChallan.challanpdf'
+            : 'students.studypackChallan.print';
+
         $html = view($view, $data)->render();
 
         $options = new Options();
         $options->set('defaultFont', 'DejaVu Sans');
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
-
         $dompdf = new \Dompdf\Dompdf($options);
         $dompdf->loadHtml($html);
-        $dompdf->setPaper('A3', 'landscape');
+
+        if ($documentType == 'sp') {
+            $dompdf->setPaper('A4', 'landscape');
+        } else {
+            $dompdf->setPaper('A3', 'landscape');
+        }
+
         $dompdf->render();
 
         return $dompdf->output();
+    }
+
+    private function mergeStudyPackPdfs(array $pdfContentsArray, string $documentType = 'challan')
+    {
+        $pdf = new Fpdi();
+
+        if ($documentType === 'sp') {
+            $orientation = 'P';
+            $customWidth = 595.28;
+            $customHeight = 841.89;
+        } else {
+            $orientation = 'L';
+            $customWidth = 1190.89;
+            $customHeight = 841.89;
+        }
+
+        foreach ($pdfContentsArray as $pdfContent) {
+            try {
+                $pageCount = $pdf->setSourceFile(StreamReader::createByString($pdfContent));
+
+                for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                    $templateId = $pdf->importPage($pageNo);
+                    $pdf->AddPage($orientation, [$customWidth, $customHeight]);
+                    $pdf->useTemplate($templateId, 0, 0, $customWidth, $customHeight);
+                }
+            } catch (\Exception $e) {
+                continue;
+            }
+        }
+
+        return $pdf->output('', 'S');
     }
 
     public function deleteChallanItems(Request $request)
@@ -1012,6 +1503,7 @@ $branchAccounts = BankAccount::where('owned_by', \Auth::user()->ownedId())->get(
         $data = [];
         try {
             $invoicePayment = StudyPackChallans::where('challanNo', $request->challan_id)->first();
+            $recipt_challan_amount = $invoicePayment->total_amount;
             $invoicePayment->paid_date = $request->recipt_date;
             $invoicePayment->paid_amount += $request->recipt_amt;
             if($invoicePayment->paid_amount >= $invoicePayment->total_amount){
@@ -1044,7 +1536,8 @@ $branchAccounts = BankAccount::where('owned_by', \Auth::user()->ownedId())->get(
             $recipt->recipt_date = $request->recipt_date;
             $recipt->challan_id = $invoicePayment->id;
             $recipt->student_id = $invoicePayment->student_id;
-            $recipt->challan_amount = $invoicePayment->total_amount - $invoicePayment->paid_amount;
+            $recipt->challan_amount = $recipt_challan_amount;
+            $recipt->remaining_fee = $invoicePayment->total_amount - $invoicePayment->concession_amount - $invoicePayment->paid_amount;
             $recipt->recipt_amount = $request->recipt_amt;
             $recipt->bank_id = $request->bank;
             $recipt->account_id = $Bank->chart_account_id;

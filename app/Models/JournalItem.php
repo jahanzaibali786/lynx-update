@@ -16,9 +16,9 @@ class JournalItem extends Model
         'model_id',
         'model_type',
         'entry_id',
-	    'receipt_id',
+        'receipt_id',
         'types',
-		'memo',
+        'memo',
         'is_discount',
         'description',
         'ref_no',
@@ -39,18 +39,25 @@ class JournalItem extends Model
         return $this->hasOne('App\Models\ChartOfAccount', 'id', 'account');
     }
 
-    public function heads(){
-        return $this->hasOne('App\Models\FeeHead','id','head');
+    public function heads()
+    {
+        return $this->hasOne('App\Models\FeeHead', 'id', 'head');
     }
-    public function receiptheads(){
-        return $this->hasOne('App\Models\ChallanHead','id','head');
+    public function productitems()
+    {
+        return $this->hasOne('App\Models\ProductService', 'id', 'head');
+    }
+    public function receiptheads()
+    {
+        return $this->hasOne('App\Models\ChallanHead', 'id', 'head');
     }
     public function user()
     {
         return $this->hasOne('App\Models\StudentRegistration', 'id', 'user_id');
     }
-    
-    public function journalEntery(){
+
+    public function journalEntery()
+    {
         return $this->hasOne('App\Models\JournalEntry', 'id', 'journal');
     }
     //bank

@@ -260,7 +260,7 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
 
                 $sheet->getColumnDimension('A')->setWidth(5);
                 $sheet->getColumnDimension('B')->setWidth(5);
-                $sheet->getColumnDimension('C')->setWidth(10);
+                $sheet->getColumnDimension('C')->setWidth(8);
                 $sheet->getColumnDimension('D')->setWidth(10);
                 $sheet->getColumnDimension('F')->setWidth(20);
 

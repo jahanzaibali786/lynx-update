@@ -62,7 +62,11 @@
                 <td style="text-align: right; font-family: Arial, Helvetica, sans-serif; font-size: 8px;">{{ @$recipt->late_amount }}</td>
                 <td style="text-align: right; font-family: Arial, Helvetica, sans-serif; font-size: 8px;">{{ @$recipt->arrears }}</td>
                 <td style="text-align: right; font-family: Arial, Helvetica, sans-serif; font-size: 8px;">{{ @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears }}</td>
+                @if($recipt->challan->challan_type == 'Studypack')
+                <td style="text-align: right; font-family: Arial, Helvetica, sans-serif; font-size: 8px;">{{ @$recipt->remaining_fee }}</td>
+                @else
                 <td style="text-align: right; font-family: Arial, Helvetica, sans-serif; font-size: 8px;">{{ @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears - @$recipt->recipt_amount }}</td>
+                @endif
                 <td style="text-align: left; font-family: Arial, Helvetica, sans-serif; font-size: 8px;">{{ @$recipt->bank ? @$recipt->bank->bank_name . ' ' . @$recipt->bank->holder_name : '' }}</td>
                 <td style="text-align: center; font-family: Arial, Helvetica, sans-serif; font-size: 8px;">{{ @$recipt->receive_type }}</td>
                 <td style="text-align: left; font-family: Arial, Helvetica, sans-serif; font-size: 8px;">{{ @$recipt->referance }}</td>

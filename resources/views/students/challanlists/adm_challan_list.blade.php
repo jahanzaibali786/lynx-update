@@ -844,6 +844,42 @@
              DOWNLOAD / PRINT PDF
              ============================================================ --}}
         <script>
+            var regularChallanBulkLoaderStyle = document.createElement('style');
+            regularChallanBulkLoaderStyle.innerHTML = `
+                @keyframes regularChallanBulkSpin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(regularChallanBulkLoaderStyle);
+
+            function showBulkProcessingLoader(message) {
+                var overlay = document.getElementById('regular-challan-bulk-loader');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.id = 'regular-challan-bulk-loader';
+                    overlay.style.cssText = 'position:fixed; inset:0; z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(0,0,0,0.74); color:#fff;';
+                    overlay.innerHTML = '<div style="width:56px; height:56px; border:5px solid rgba(255,255,255,0.2); border-top-color:#fff; border-radius:50%; animation:regularChallanBulkSpin 1s linear infinite;"></div><div id="regular-challan-bulk-loader-text" style="margin-top:16px; font-weight:700; font-size:16px;">Preparing downloads...</div><div id="regular-challan-bulk-loader-subtext" style="margin-top:6px; font-size:13px; opacity:0.9;">Please wait while the selected challans are processed.</div>';
+                    document.body.appendChild(overlay);
+                }
+                overlay.style.display = 'flex';
+                var textEl = document.getElementById('regular-challan-bulk-loader-text');
+                var subTextEl = document.getElementById('regular-challan-bulk-loader-subtext');
+                if (textEl) {
+                    textEl.textContent = message || 'Preparing downloads...';
+                }
+                if (subTextEl) {
+                    subTextEl.textContent = 'Please wait while the selected challans are processed.';
+                }
+            }
+
+            function hideBulkProcessingLoader() {
+                var overlay = document.getElementById('regular-challan-bulk-loader');
+                if (overlay) {
+                    overlay.style.display = 'none';
+                }
+            }
+
             function openPrintModal(e) {
                 e.preventDefault();
                 $('#printModal').modal('show');
@@ -901,18 +937,15 @@
                     return;
                 }
 
-                showLoadingOverlay(checkedRowsData.length, 0, printType);
+                showBulkProcessingLoader('Preparing the first batch of challans...');
 
                 var allPdfs = [];
-                var batchSize = 50;
+                var requestedBatchSize = 10;
+                var batchSize = Math.max(10, requestedBatchSize);
                 var batchIndex = 0;
                 var totalChallans = checkedRowsData.length;
 
                 function processBatch() {
-                    var startIdx = batchIndex * batchSize;
-                    var endIdx = Math.min(startIdx + batchSize, totalChallans);
-                    var currentBatchIds = checkedRowsData.slice(startIdx, endIdx);
-
                     $.ajaxSetup({
                         headers: {
                             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -923,23 +956,26 @@
                         url: '{{ route('printchallans') }}',
                         method: 'POST',
                         data: {
-                            rowsdata: currentBatchIds.map(function(row) { return row.id; }),
-                            printType,
-                            batchSize,
-                            batchIndex
+                            rowsdata: checkedRowsData.map(function(row) { return row.id; }),
+                            printType: printType,
+                            batchSize: batchSize,
+                            batchIndex: batchIndex
                         },
                         success: function(response) {
                             if (response.error) {
-                                hideLoadingOverlay();
+                                hideBulkProcessingLoader();
                                 alert(response.error);
                                 Printbtn.textContent = 'Download Challan';
                                 Printbtn.disabled = false;
                                 return;
                             }
-                            if (response.pdfs) allPdfs = allPdfs.concat(response.pdfs);
 
-                            var processedCount = response.processedCount || endIdx;
-                            updateLoadingMessage(
+                            if (response.pdfs) {
+                                allPdfs = allPdfs.concat(response.pdfs);
+                            }
+
+                            var processedCount = response.processedCount || Math.min((batchIndex + 1) * batchSize, totalChallans);
+                            showBulkProcessingLoader(
                                 (printType === 'single' ? 'Processing ' : 'Downloading ') +
                                 processedCount + '/' + totalChallans + ' challans...'
                             );
@@ -948,25 +984,18 @@
                                 batchIndex++;
                                 processBatch();
                             } else {
-                                hideLoadingOverlay();
+                                hideBulkProcessingLoader();
                                 if (printType === 'separate') {
-                                    allPdfs.forEach(function(pdfBase64, index) {
-                                        var meta = checkedRowsData[index] || {};
-                                        var filename = [meta.rollNo, meta.studentName, meta.challanMonth, 'challan.pdf']
-                                            .filter(Boolean)
-                                            .join('_');
-                                        triggerDownload(pdfBase64, filename);
-                                    });
-                                } else {
-                                    if (allPdfs.length > 0) triggerDownload(allPdfs[0], 'bulk_challan.pdf');
+                                    downloadPdfQueue(allPdfs, checkedRowsData);
+                                } else if (allPdfs.length > 0) {
+                                    triggerDownload(allPdfs[0], 'bulk_challan.pdf');
                                 }
                                 Printbtn.textContent = 'Download Challan';
                                 Printbtn.disabled = false;
                             }
                         },
                         error: function(xhr, status, error) {
-                            hideLoadingOverlay();
-                            console.error(xhr.responseText);
+                            hideBulkProcessingLoader();
                             alert('Failed to fetch PDF content: ' + error);
                             Printbtn.textContent = 'Download Challan';
                             Printbtn.disabled = false;
@@ -975,6 +1004,31 @@
                 }
 
                 processBatch();
+            }
+
+            function downloadPdfQueue(pdfList, metadataList) {
+                var index = 0;
+
+                function processNext() {
+                    if (index >= pdfList.length) {
+                        return;
+                    }
+
+                    var pdfBase64 = pdfList[index];
+                    var meta = metadataList[index] || {};
+                    var filename = [meta.rollNo, meta.studentName, meta.challanMonth, 'challan.pdf']
+                        .filter(Boolean)
+                        .join('_');
+
+                    triggerDownload(pdfBase64, filename);
+                    index++;
+
+                    if (index < pdfList.length) {
+                        setTimeout(processNext, 600);
+                    }
+                }
+
+                processNext();
             }
 
             function triggerDownload(base64, filename) {
@@ -994,63 +1048,6 @@
                 a.click();
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
-            }
-
-            function showLoadingOverlay(count, startCount, printType) {
-                hideLoadingOverlay();
-                var overlay = document.createElement('div');
-                overlay.id = 'pdfLoadingOverlay';
-                overlay.style.cssText =
-                    'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);' +
-                    'z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;color:white;';
-                var spinner = document.createElement('div');
-                spinner.style.cssText =
-                    'width:60px;height:60px;border:6px solid #f3f3f3;border-top:6px solid #3498db;' +
-                    'border-radius:50%;animation:spin 1s linear infinite;';
-                var message = document.createElement('p');
-                message.style.cssText = 'margin-top:25px;font-size:20px;font-weight:500;';
-                message.id = 'pdfLoadingMessage';
-                var progressContainer = document.createElement('div');
-                progressContainer.style.cssText =
-                    'width:300px;height:8px;background:#444;border-radius:4px;margin-top:15px;overflow:hidden;';
-                var progressBar = document.createElement('div');
-                progressBar.id = 'pdfProgressBar';
-                progressBar.style.cssText =
-                    'height:100%;background:linear-gradient(90deg,#3498db,#2ecc71);width:0%;transition:width 0.3s ease;';
-                progressContainer.appendChild(progressBar);
-                var percentText = document.createElement('p');
-                percentText.style.cssText = 'margin-top:10px;font-size:14px;color:#aaa;';
-                percentText.id = 'pdfPercentText';
-                percentText.textContent = '0%';
-                overlay.appendChild(spinner);
-                overlay.appendChild(message);
-                overlay.appendChild(progressContainer);
-                overlay.appendChild(percentText);
-                document.body.appendChild(overlay);
-                var style = document.createElement('style');
-                style.textContent = '@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}';
-                document.head.appendChild(style);
-                updateLoadingMessage(
-                    (printType === 'single' ? 'Processing ' : 'Downloading ') + '0/' + count + ' challans...'
-                );
-            }
-
-            function updateLoadingMessage(message) {
-                var messageEl = document.getElementById('pdfLoadingMessage');
-                var percentEl = document.getElementById('pdfPercentText');
-                var progressEl = document.getElementById('pdfProgressBar');
-                if (messageEl) messageEl.textContent = message;
-                var match = message.match(/(\d+)\/(\d+)/);
-                if (match && percentEl && progressEl) {
-                    var percent = Math.round((parseInt(match[1]) / parseInt(match[2])) * 100);
-                    percentEl.textContent = percent + '%';
-                    progressEl.style.width = percent + '%';
-                }
-            }
-
-            function hideLoadingOverlay() {
-                var overlay = document.getElementById('pdfLoadingOverlay');
-                if (overlay) overlay.remove();
             }
         </script>
 

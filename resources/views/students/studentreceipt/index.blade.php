@@ -35,7 +35,9 @@
         input[type=number]::-webkit-outer-spin-button {
             opacity: 1;
         }
-
+        .searchBoxElement{
+            z-index : 1000 !important;
+        }
         /* ── Entry card ── */
         #entry-card {
             border: 2px solid var(--primary);
@@ -898,7 +900,7 @@
                     '<div class="col-md-3 mb-1"><input name="tamount[]" class="form-control tamount" type="text" value="' +
                     head.amount + '" disabled></div>');
                 row.append(
-                    '<div class="col-md-3 mb-1"><input name="ramount[]" class="form-control ramount" style="font-size:13px;" type="number" value="" min="0" step="any"></div>'
+                    '<div class="col-md-3 mb-1"><input name="ramount[]" class="form-control ramount" style="font-size:13px;" type="number" value="" min="0" step="0.01"></div>'
                     );
                 c.append(row);
             });
@@ -1004,7 +1006,7 @@
                         '<div class="col-md-4"><input name="oldtamount[]" class="form-control oldtamount" type="text" value="' +
                         (head.price - head.concession - head.paid) + '" disabled></div>');
                     headRow.append(
-                        '<div class="col-md-4"><input name="oldramount[]" class="form-control oldramount" type="number" value="" min="0" step="any"></div>'
+                        '<div class="col-md-4"><input name="oldramount[]" class="form-control oldramount" type="number" value="" min="0" step="0.01"></div>'
                         );
                     mhc.append(headRow);
                 }

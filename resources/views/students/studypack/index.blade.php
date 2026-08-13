@@ -18,6 +18,11 @@
             class="btn mx-1 btn-sm btn-outline-primary">
             <span class="btn-inner--icon">Create</span>
         </a>
+        <a href="{{ route('studypack.booklist.export') }}"
+            class="btn mx-1 btn-sm btn-outline-warning"
+            target="_blank">
+            Export Booklist
+        </a>
         {{-- @endcan --}}
     </div>
 @endsection

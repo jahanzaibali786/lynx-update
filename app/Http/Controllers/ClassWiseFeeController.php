@@ -283,7 +283,10 @@ class ClassWiseFeeController extends Controller
             $class = Classes::whereIn('id', $classIds)->pluck('name', 'id');
         } else {
             $Studypack = [];
-            $class = Classes::where('owned_by', '=', $request->id)->where('active_status', 1)->get();
+            $class = Classes::where('owned_by', '=', $request->id)
+            ->where('active_status', 1)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->get();
             if (empty($request->id) || is_null($request->id) && Auth::user()->type == 'company') {
                 $students = StudentRegistration::where('created_by', \Auth::user()->creatorId())->where('student_status', '!=', 'Registered')->get();
             } else {

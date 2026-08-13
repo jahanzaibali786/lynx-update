@@ -1142,6 +1142,12 @@
                                                                 href="{{ route('health-insurance-plan.index') }}">{{ __('Insurance Plan Setup') }}</a>
                                                         </li>
                                                     @endcan
+                                                    @can('remove late fee')
+                                                        <li class="dash-item">
+                                                            <a class="dash-link  {{ Request::segment(1) == 'remove-late-fee' ? 'active dash-trigger' : '' }}"
+                                                                href="{{ route('remove-late-fee.index') }}">{{ __('Remove Late Fee') }}</a>
+                                                        </li>
+                                                    @endcan
                                                     @can('manage resignation')
                                                         <li class="dash-item ">
                                                             <a class="dash-link {{ Request::segment(1) == 'resignation' ? 'active dash-trigger' : '' }}"

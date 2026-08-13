@@ -487,8 +487,8 @@
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    @if (@$challan->student->enrollment && @$challan->student->enrollment->class)
-                                        {{ @$challan->student->enrollment->class->name }}
+                                    @if (@$challan->class)
+                                        {{ @$challan->class->name }}
                                     @else
                                         nill
                                     @endif
@@ -583,7 +583,7 @@
                         <div style="display: inline-block; font-size: 0.75rem; line-height: 1.2; margin-top: 3px;">
                             @foreach ($previousUnpaidChallans ?? collect() as $prevchallan)
                                 <span style="display: inline-block; margin-right: 10px;">
-                                    ({{ CarbonCarbon::parse($prevchallan->fee_month)->format('M') }} -
+                                    ({{ \Carbon\Carbon::parse($prevchallan->fee_month)->format('M') }} -
                                     {{ $prevchallan->challanNo }} - Rs.
                                     {{ $prevchallan->total_amount - ($prevchallan->paid_amount + $prevchallan->concession_amount) }})
                                 </span>
@@ -595,7 +595,7 @@
                     <div class="payable-container">
                         <div class="payable-label-span" style="font-size: 16px;">Payable By Due Date</div>
                         <div class="payable-value-span" style="font-size: 16px;">Rs.
-                            {{ number_format($challan->total_amount ?? 0, 2) }}</div>
+                            {{ number_format($challan->total_amount - $challan->paid_amount ?? 0, 2) }}</div>
                     </div>
                     <div class="clearfix"></div>
 
@@ -736,8 +736,8 @@
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    @if (@$challan->student->enrollment && @$challan->student->enrollment->class)
-                                        {{ @$challan->student->enrollment->class->name }}
+                                    @if (@$challan->class)
+                                        {{ @$challan->class->name }}
                                     @else
                                         nill
                                     @endif
@@ -821,7 +821,7 @@
                         <div style="display: inline-block; font-size: 0.75rem; line-height: 1.2; margin-top: 3px;">
                             @foreach ($previousUnpaidChallans ?? collect() as $prevchallan)
                                 <span style="display: inline-block; margin-right: 10px;">
-                                    ({{ CarbonCarbon::parse($prevchallan->fee_month)->format('M') }} -
+                                    ({{ \Carbon\Carbon::parse($prevchallan->fee_month)->format('M') }} -
                                     {{ $prevchallan->challanNo }} - Rs.
                                     {{ $prevchallan->total_amount - ($prevchallan->paid_amount + $prevchallan->concession_amount) }})
                                 </span>
@@ -830,10 +830,10 @@
                     @endif
 
                     <div class="clearfix"></div>
-                    <div class="payable-container">
+                     <div class="payable-container">
                         <div class="payable-label-span" style="font-size: 16px;">Payable By Due Date</div>
                         <div class="payable-value-span" style="font-size: 16px;">Rs.
-                            {{ number_format($challan->total_amount ?? 0, 2) }}</div>
+                            {{ number_format($challan->total_amount - $challan->paid_amount ?? 0, 2) }}</div>
                     </div>
                     <div class="clearfix"></div>
 
@@ -975,8 +975,8 @@
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    @if (@$challan->student->enrollment && @$challan->student->enrollment->class)
-                                        {{ @$challan->student->enrollment->class->name }}
+                                     @if (@$challan->class)
+                                        {{ @$challan->class->name }}
                                     @else
                                         nill
                                     @endif
@@ -1071,7 +1071,7 @@
                         <div style="display: inline-block; font-size: 0.75rem; line-height: 1.2; margin-top: 3px;">
                             @foreach ($previousUnpaidChallans ?? collect() as $prevchallan)
                                 <span style="display: inline-block; margin-right: 10px;">
-                                    ({{ CarbonCarbon::parse($prevchallan->fee_month)->format('M') }} -
+                                    ({{ \Carbon\Carbon::parse($prevchallan->fee_month)->format('M') }} -
                                     {{ $prevchallan->challanNo }} - Rs.
                                     {{ $prevchallan->total_amount - ($prevchallan->paid_amount + $prevchallan->concession_amount) }})
                                 </span>
@@ -1080,10 +1080,10 @@
                     @endif
 
                     <div class="clearfix"></div>
-                    <div class="payable-container">
+                     <div class="payable-container">
                         <div class="payable-label-span" style="font-size: 16px;">Payable By Due Date</div>
                         <div class="payable-value-span" style="font-size: 16px;">Rs.
-                            {{ number_format($challan->total_amount ?? 0, 2) }}</div>
+                            {{ number_format($challan->total_amount - $challan->paid_amount ?? 0, 2) }}</div>
                     </div>
                     <div class="clearfix"></div>
 
