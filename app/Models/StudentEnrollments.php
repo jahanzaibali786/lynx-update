@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class StudentEnrollments extends Model
 {
     use HasFactory , LogsActions;
-    protected $fillable = ['regId', 'enrollId','adm_date', 'class_id','section_id','session_id','active_status', 'owned_by', 'created_by'];
+    protected $fillable = ['regId', 'enrollId','adm_date','adm_branch','adm_session', 'class_id','section_id','session_id','active_status', 'owned_by', 'created_by'];
 
 
     public function StudentRegistration()

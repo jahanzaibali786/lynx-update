@@ -597,6 +597,7 @@ class StudyPackChallanController extends Controller
                         $studypackchallan->branch_id = $branchId;
                         $studypackchallan->class_id = $classId;
                         $studypackchallan->section_id = $sectionId;
+                        $studypackchallan->session_id = $request->session;
                         $studypackchallan->challan_type = "Studypack";
                         $studypackchallan->year = $feeMonth->toDateString();
                         $studypackchallan->challan_date = $feeMonth->toDateString();

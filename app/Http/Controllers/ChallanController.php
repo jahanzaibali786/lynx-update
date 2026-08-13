@@ -3554,9 +3554,27 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
     //         return response()->json(['error' => true, 'message' => 'An unexpected error occurred.']);
     //     }
     // }
-public function paidchallan(Request $request)
+    public function paidchallan(Request $request)
     {
         // dd($request->all());
+        
+        // Backend validation for cash account date restriction
+        $userType = \Auth::user()->type ?? '';
+        if ($userType !== 'company') {
+            $bank = \App\Models\BankAccount::with('chartAccount')->find($request->bank);
+            if ($bank && $bank->chartAccount) {
+                $chartName = strtoupper($bank->chartAccount->name);
+                if (str_contains($chartName, 'CSH') || str_contains($chartName, 'CASH')) {
+                    // Cash account validation: only allow today's date (no past dates)
+                    $receiptDate = \Carbon\Carbon::parse($request->recipt_date)->startOfDay();
+                    $today = \Carbon\Carbon::today();
+                    if (!$receiptDate->equalTo($today)) {
+                        return response()->json(['error' => "Only today's date is allowed for cash accounts."], 400);
+                    }
+                }
+            }
+        }
+
         \DB::beginTransaction();
         $data = [];
         try {

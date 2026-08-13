@@ -1327,6 +1327,7 @@ class StudentReportController extends Controller
                 $studentChallanData[$studentKey] = [
                     'challan_no' => $challan->challanNo,
                     'challan_id' => $challan->id,
+                    'fee_month' => $challan->fee_month,
                     'heads' => $challanHeads,
                     'total' => $studentTotal,
                 ];

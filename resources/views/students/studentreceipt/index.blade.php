@@ -159,7 +159,7 @@
                             </div>
                             <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mr-2">
                                 {{ Form::label('default_bank', __('Default Bank'), ['class' => 'form-label']) }}
-                                {{ Form::select('default_bank', $accounts, null, ['class' => 'form-control select js-searchBox', 'id' => 'default_bank', 'required' => 'required']) }}
+                                                                {{ Form::select('default_bank', $accounts, request('default_bank'), ['class' => 'form-control custom-select', 'id' => 'default_bank', 'required' => 'required']) }}
                             </div>
                             <div class="col-auto float-end ms-2 mt-4">
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
@@ -240,6 +240,7 @@
                             <td><input type="text" id="rem_fee" value="" disabled></td>
                             <td>
                                 {{ Form::select('default_bank', $accounts, null, [
+                                    'id' => 'static_bank',
                                     'disabled' => 'disabled',
                                     'style' => 'width:100%;',
                                 ]) }}
@@ -456,6 +457,8 @@
                 if ($('#challan_id').val()) {
                     recalculateLateFee();
                 }
+                var bankId = $('#bank').length ? $('#bank').val() : $('#default_bank').val();
+                validateCashAccountDate(bankId, $(this).val());
             });
             setTimeout(function() {
                 $('#challan_id').focus();
@@ -682,6 +685,8 @@
             if ($('#challan_id').val()) {
                 recalculateLateFee();
             }
+            var bankId = $('#bank').length ? $('#bank').val() : $('#default_bank').val();
+            validateCashAccountDate(bankId, $(this).val());
         });
 
         // Recalculate when ramount inputs change (50% threshold check)
@@ -740,10 +745,6 @@
                             paidAmount: parseFloat(detail.paid_amount) || 0,
                             dailyLateFee: parseFloat(response.daily_late_fee) || 120,
                         };
-                        // DEBUG — open browser console to see what fields your API returns
-                        console.log('[LateFee] challan detail keys:', Object.keys(detail));
-                        console.log('[LateFee] meta resolved:', currentChallanMeta);
-
                         $('#challan_amt').val(challanNet);
                         $('#arrears').val(arrearsTotal);
                         $('#remp_amt').val('0.00');
@@ -874,6 +875,51 @@
             };
         }
 
+                // Add user type variable
+        const userType = "{{ Auth::user()->type }}";
+
+        function validateCashAccountDate(bankId, dateStr) {
+            console.log('[CashDateValidation] Validating... Bank ID:', bankId, 'Date:', dateStr);
+            // Skip validation for company users
+            if (userType === 'company') {
+                console.log('[CashDateValidation] User type is company. Skipping cash account date validation.');
+                return true;
+            }
+            if (!bankId || !dateStr) {
+                console.log('[CashDateValidation] Missing bankId or dateStr. Skipping.');
+                return true;
+            }
+            
+            var bankData = accountAllData[bankId] || accountsData[bankId] || {};
+            var bankChart = (bankData.chart_account || '').toUpperCase();
+            var isCashAccount = bankChart.includes('CSH') || bankChart.includes('CASH');
+            console.log('[CashDateValidation] Chart Account:', bankChart, '| isCashAccount:', isCashAccount);
+            
+            if (isCashAccount) {
+                var today = new Date();
+                var yyyy = today.getFullYear();
+                var mm = String(today.getMonth() + 1).padStart(2, '0');
+                var dd = String(today.getDate()).padStart(2, '0');
+                var todayStr = yyyy + '-' + mm + '-' + dd;
+
+                if (dateStr !== todayStr) {
+                    show_toastr('error', 'For cash accounts, receipt date must be today.', 'error');
+                    console.log('[CashDateValidation] Validation FAILED. Date not today');
+                    $('.saveButton').prop('disabled', true);
+                    $('#oldsaveButton').prop('disabled', true);
+                    return false;
+                }
+            }
+            console.log('[CashDateValidation] Validation PASSED.');
+            $('.saveButton').prop('disabled', false);
+            $('#oldsaveButton').prop('disabled', false);
+            return true;
+        }
+            // Duplicate validateCashAccountDate removed to avoid override
+
+
+
+
         // ── Populate helpers ──────────────────────────────────────────────
         function populateSiblingTable(challandetail) {
             var c = $('#siblingContainer').empty();
@@ -909,22 +955,24 @@
 
             c.append(`
                 <div style="display:flex;" class="gap-2 mt-2">
-                    <label style="display:block;margin-bottom:5px;"><strong>Bank Account</strong>
-                        <select id="bank" class="form-control js-searchBox" style="width:150px;font-size:12px;">
+                    <div style="margin-bottom:5px; width:150px;">
+                        <strong>Bank Account</strong>
+                        <select id="bank" class="form-control" placeholder="Bank Account" style="font-size:12px;">
                             ${all_accountOptions}
                         </select>
-                    </label>
-                    <label style="display:block;margin-bottom:5px;"><strong>D Status</strong>
+                    </div>
+                    <div style="margin-bottom:5px;">
+                        <strong>D Status</strong>
                         <select class="input form-control" id="rec_type" style="width:100px;" name="receive_type">
                             <option value="DD">DD</option>
                             <option value="OL">OL</option>
                             <option value="CHQ">CHQ</option>
                             <option value="CD">CD</option>
                         </select>
-                    </label>
-                    <label style="display:block;margin-bottom:5px;"><strong>Reference <span style="color:red;">*</span></strong>
+                    </div>
+                    <div style="margin-bottom:5px;"><strong>Reference <span style="color:red;">*</span></strong>
                         <input type="text" value="" name="ref" id="ref" class="form-control ref-input" style="width:190px;font-size:11px;">
-                    </label>
+                    </div>
                 </div>
                 <div class="d-flex justify-content-end gap-4" style="padding-top:10px;">
                     <button class="btn btn-success saveButton">Save</button>
@@ -933,9 +981,13 @@
 
             $('#bank').val(banks_id);
             updateReceiveType(banks_id, '#rec_type');
+            if (window.CustomSelect && typeof window.CustomSelect.initContainer === 'function') {
+                window.CustomSelect.initContainer(c[0]);
+            }
 
             $('#bank').on('change', function() {
                 updateReceiveType($(this).val(), '#rec_type');
+                validateCashAccountDate($(this).val(), $('#recipt_date').val());
             });
 
             // Recalculate late fee when receive type inside headfee changes
@@ -980,19 +1032,21 @@
                 arrearData.challanNo + '">');
             var bankOpts = (arrearData.owned_by == "{{ Auth::user()->ownedId() }}") ? all_accountOptions : accountOptions;
             row.append(`
-                <div class="col-md-8 mb-1"><input type="text" value="" id="oldref" class="old_ref form-control old-ref-input" style="font-size:13px;"></div>
+                <div class="col-md-8 mb-1"><input type="text" value="" id="oldref" class="old_ref form-control old-ref-input" style="font-size:13px;" /></div>
                 <div style="display:flex;" class="gap-4">
-                    <label style="display:block;margin-bottom:5px;">Bank Account
-                        <select id="old_bank" name="default_bank" class="form-control old_banks js-searchBox" style="width:280px;font-size:12px;">
+                    <div style="margin-bottom:5px; width:280px;">
+                        <strong>Bank Account</strong>
+                        <select id="old_bank" name="default_bank" class="form-control old_banks" placeholder="Bank Account" style="font-size:12px;">
                             ${bankOpts}
                         </select>
-                    </label>
-                    <label style="display:block;margin-bottom:5px;">D Status
+                    </div>
+                    </div>
+                    <div style="margin-bottom:5px;"><strong>D Status</strong>
                         <select class="input form-control old_rec_types" id="old_rec_type" style="width:150px;" name="receive_type">
                             <option value="DD">DD</option><option value="OL">OL</option>
                             <option value="CHQ">CHQ</option><option value="CD">CD</option>
                         </select>
-                    </label>
+                    </div>
                 </div>
             `);
             mhd.append(row);
@@ -1014,31 +1068,78 @@
 
             var banks_id = $('#bank').val() || defaultBankId || $('#default_bank').val();
             $('#old_bank').val(banks_id);
+            // Auto-sync default bank on page load if a value is already selected
+            if ($('#default_bank').val()) {
+                $('#default_bank').trigger('change');
+            }
             const d = accountAllData[banks_id] || accountsData[banks_id] || {};
             $('#old_rec_type').html(getReceiveTypeOptions(d.chart_account || ''));
+            if (window.CustomSelect && typeof window.CustomSelect.initContainer === 'function') {
+                window.CustomSelect.initContainer(mhd[0]);
+            }
             $('#old_bank').off('change').on('change', function() {
                 updateReceiveType($(this).val(), '#old_rec_type');
+                validateCashAccountDate($(this).val(), $('#recipt_date').val());
             });
         }
-
-        $(document).on('change', '#default_bank', function() {
+        
+        function handleDefaultBankChange() {
             var sel = $(this).val();
+            console.log('[BankSync] #default_bank changed. Selected value:', sel);
+            
+            if ($('#static_bank').length) {
+                console.log('[BankSync] Updating #static_bank with value:', sel);
+                if ($('#static_bank')[0].customSelectInstance) {
+                    $('#static_bank')[0].customSelectInstance.setValue(sel);
+                } else {
+                    $('#static_bank').val(sel).trigger('change');
+                }
+            } else {
+                console.log('[BankSync] #static_bank not found.');
+            }
+            
             if ($('#bank').length) {
-                $('#bank').val(sel);
-                updateReceiveType(sel, '#rec_type');
+                console.log('[BankSync] Updating #bank with value:', sel);
+                if ($('#bank')[0].customSelectInstance) {
+                    $('#bank')[0].customSelectInstance.setValue(sel);
+                } else {
+                    $('#bank').val(sel).trigger('change');
+                }
+            } else {
+                console.log('[BankSync] #bank not found.');
             }
+            
             if ($('#old_bank').length) {
-                $('#old_bank').val(sel);
-                updateReceiveType(sel, '#old_rec_type');
+                console.log('[BankSync] Updating #old_bank with value:', sel);
+                if ($('#old_bank')[0].customSelectInstance) {
+                    $('#old_bank')[0].customSelectInstance.setValue(sel);
+                } else {
+                    $('#old_bank').val(sel).trigger('change');
+                }
+            } else {
+                console.log('[BankSync] #old_bank not found.');
             }
-        });
+            
+            validateCashAccountDate(sel, $('#recipt_date').val());
+        }
 
-        // ── Main save ─────────────────────────────────────────────────────
+        $('#default_bank').on('change', handleDefaultBankChange);
+        $(document).on('change', '#default_bank', handleDefaultBankChange);
+
+                // Auto‑select default bank on page load if query parameter is present
+        if ($('#default_bank').val()) {
+            $('#default_bank').trigger('change');
+        }
         $(document).on('click', '.saveButton', function(event) {
             event.preventDefault();
             var $btn = $(this).prop('disabled', true);
 
             if (!validateAllAmounts()) {
+                $btn.prop('disabled', false);
+                return;
+            }
+
+            if (!validateCashAccountDate($('#bank').val(), $('#recipt_date').val())) {
                 $btn.prop('disabled', false);
                 return;
             }
@@ -1122,6 +1223,11 @@
             var mhd = $('#arrearModal').find('.modalHeadsData');
             if (!mhd.length) {
                 console.error('No modalHeadsData found.');
+                $btn.prop('disabled', false);
+                return;
+            }
+
+            if (!validateCashAccountDate(mhd.find('.old_banks').val(), $('#recipt_date').val())) {
                 $btn.prop('disabled', false);
                 return;
             }

@@ -315,6 +315,7 @@
                                     <th>{{ __('Reg No #') }}</th>
                                     <th>{{ __('Roll No #') }}</th>
                                     <th>{{ __('Challan No #') }}</th>
+                                    <th>{{ __('Billing Month') }}</th>
                                     <th>{{ __('Admission Date') }}</th>
                                     <th>{{ __('Class') }}</th>
                                     <th>{{ __('Student Name') }}</th>
@@ -335,7 +336,7 @@
 
                                 @forelse ($studentData as $branchId => $students)
 								<tr class="branch-name-row">
-			    <td colspan="{{ 10 + count($heads) }}">
+			    <td colspan="{{ 11 + count($heads) }}">
 			        <strong>{{ $branches[$branchId] ?? ($students->first()->branch->name ?? 'Unknown Branch') }}</strong>
 			    </td>
 			</tr>
@@ -366,7 +367,13 @@
                                                     -
                                                 @endif
                                             </td>
-
+                                            <td>
+                                                @if (!empty($challanId))
+                                                    {{ date('M Y', strtotime($challanData['fee_month'])) }}
+                                                @else
+                                                    -
+                                                @endif
+                                            </td>
                                             <td>
                                                 {{ !empty($student->adm_date) ? date('d M Y', strtotime($student->adm_date)) : '-' }}
                                             </td>
@@ -393,7 +400,7 @@
                                     @endforeach
 
                                     <tr class="branch-totla-row">
-                                        <td colspan="8">
+                                        <td colspan="9">
                                             <b>Branch Total</b>
                                         </td>
 
@@ -411,14 +418,14 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ 10 + count($heads) }}" class="text-center">
+                                        <td colspan="{{ 11 + count($heads) }}" class="text-center">
                                             No admission record found.
                                         </td>
                                     </tr>
                                 @endforelse
 
                                 <tr class="branch-totla-row" style="border-top: 5px solid #fff;">
-                                    <td colspan="8">
+                                    <td colspan="9">
                                         <b>Grand Total</b>
                                     </td>
 

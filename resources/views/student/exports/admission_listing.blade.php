@@ -12,6 +12,7 @@
             <th>{{ __('Reg No #') }}</th>
             <th>{{ __('Roll No #') }}</th>
             <th>{{ __('Challan No #') }}</th>
+            <th>{{ __('Billing Month') }}</th>
             <th>{{ __('Admission Date') }}</th>
             <th>{{ __('Class') }}</th>
             <th>{{ __('Student Name') }}</th>
@@ -32,7 +33,7 @@
 
         @forelse ($studentData as $branchId => $students)
 			<tr class="branch-name-row">
-			    <td colspan="{{ 10 + count($heads) }}">
+			    <td colspan="{{ 11 + count($heads) }}">
 			        <strong>{{ $branches[$branchId] ?? ($students->first()->branch->name ?? 'Unknown Branch') }}</strong>
 			    </td>
 			</tr>
@@ -54,6 +55,7 @@
                     <td>{{ $student->StudentRegistration->reg_no ?? $student->regId ?? '-' }}</td>
                     <td>{{ $student->enrollId ?? '-' }}</td>
                     <td>{{ $challanData['challan_no'] ?: '-' }}</td>
+                    <td>{{ !empty($challanData['fee_month']) ? date('M Y', strtotime($challanData['fee_month'])) : '-' }}</td>
                     <td>{{ !empty($student->adm_date) ? date('d M Y', strtotime($student->adm_date)) : '-' }}</td>
                     <td>{{ $student->class->name ?? '-' }}</td>
                     <td>{{ $student->StudentRegistration->stdname ?? '-' }}</td>
@@ -77,6 +79,7 @@
                 <td></td>
                 <td></td>
                 <td></td>
+                <td></td>
 
                 <td>Branch Total</td>
                 @foreach ($headNames as $headId => $head)
@@ -88,11 +91,12 @@
             </tr>
         @empty
             <tr>
-                <td colspan="{{ 10 + count($headNames) }}">No admission record found.</td>
+                <td colspan="{{ 11 + count($headNames) }}">No admission record found.</td>
             </tr>
         @endforelse
 
         <tr>
+            <td></td>
             <td></td>
             <td></td>
             <td></td>
