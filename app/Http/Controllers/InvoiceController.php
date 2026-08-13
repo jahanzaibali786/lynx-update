@@ -664,30 +664,7 @@ class InvoiceController extends Controller
                     }
 
                     $newitems[$i]['prod_id'] = $invoiceProduct->id;
-                    Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $products[$i]['item'], $products[$i]['quantity']);
-                    $description = $products[$i]['quantity'] . '  ' . __(' quantity sold in invoice') . ' ' . \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
-                    // Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], 'invoice', $description, $invoice->id);
                 }
-                // $data['id'] =$invoice->id;
-                // $data['date'] =$invoice->issue_date;
-                // $data['reference'] =$invoice->ref_number;
-                // $data['category'] = 'Invoice';
-                // $data['owned_by'] =$invoice->owned_by;
-                // $data['created_by'] =$invoice->created_by;
-                // $data['items'] =$request->items;
-                // $dataret  = Utility::jrentry($data);
-
-                $data['id'] = $invoice->id;
-                $data['no'] = $invoice->invoice_id;
-                $data['date'] = $invoice->issue_date;
-                $data['reference'] = $invoice->ref_number;
-                $data['category'] = 'Invoice';
-                $data['owned_by'] = $invoice->owned_by;
-                $data['created_by'] = $invoice->created_by;
-                $data['from_store'] = $invoice->from_store;
-                $data['to_store'] = $invoice->to_store;
-                $data['items'] = $newitems;
-                $dataret = Utility::invoicejv($data);
                 DB::commit();
                 //webhook
                 $module = 'New Invoice';
@@ -1721,8 +1698,7 @@ class InvoiceController extends Controller
             $color = '#' . $settings['invoice_color'];
             $font_color = Utility::getFontColor($color);
             // dd($settings['invoice_template']);
-            // return view('invoice.templates.' . $settings['invoice_template'], compact('invoice', 'color', 'settings', 'customer', 'img', 'font_color', 'customFields'));
-            return view('invoice.templates.stn', compact('invoice', 'color', 'settings', 'customer', 'img', 'font_color', 'customFields'));
+            return view('invoice.templates.' . $settings['invoice_template'], compact('invoice', 'color', 'settings', 'customer', 'img', 'font_color', 'customFields'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -2182,38 +2158,63 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
-    public function draftBranchPurchases(\Illuminate\Http\Request $request)
+    public function draftDemandOrders(\Illuminate\Http\Request $request)
     {
+        if (!\Auth::user()->can('convert stock transfer order to invoice')) {
+            abort(403, __('Permission denied.'));
+        }
+
         $storeToId = $request->get('store_to');
         if (!$storeToId) {
-            $purchases = collect();
+            $demandOrders = collect();
         } else {
-            $warehouse = \App\Models\Warehouse::find($storeToId);
+            $warehouse = \App\Models\Warehouse::where('created_by', \Auth::user()->creatorId())
+                ->find($storeToId);
             if ($warehouse && $warehouse->owned_by) {
-                $purchases = \App\Models\BranchPurchase::with('vender')
+                $demandOrders = \App\Models\StockTransferOrder::with('vender')
+                    ->where('created_by', \Auth::user()->creatorId())
                     ->where('branch_id', $warehouse->owned_by)
+                    ->where('status', 6)
                     ->where('invoice_converted', 0)
                     ->orderBy('created_at', 'desc')
                     ->get();
             } else {
-                $purchases = collect();
+                $demandOrders = collect();
             }
         }
-        return view('invoice.draft_branch_purchases', compact('purchases'));
+        return view('invoice.draft_demand_orders', compact('demandOrders'));
     }
 
-    public function branchPurchaseItems($id)
+    public function demandOrderItems($id)
     {
-        $purchase = \App\Models\BranchPurchase::with('items.product')->findOrFail($id);
-        $items = $purchase->items->map(function ($item) {
+        if (!\Auth::user()->can('convert stock transfer order to invoice')) {
+            abort(403, __('Permission denied.'));
+        }
+
+        $demandOrder = \App\Models\StockTransferOrder::with('items.product')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('status', 6)
+            ->where('invoice_converted', 0)
+            ->findOrFail($id);
+        $items = $demandOrder->items->map(function ($item) {
+            $shippedQuantity = (float) ($item->shipped_quantity ?? 0);
+            $remainingQuantity = max(0, (float) $item->quantity - $shippedQuantity);
+
+            if ($remainingQuantity <= 0) {
+                return null;
+            }
+
             return [
                 'product_id' => $item->product_id,
-                'quantity' => $item->quantity,
+                'source_item_id' => $item->id,
+                'quantity' => $remainingQuantity,
+                'ordered_quantity' => (float) $item->quantity,
+                'shipped_quantity' => $shippedQuantity,
                 'price' => $item->price,
                 'description' => $item->description,
                 'type' => 'new',
             ];
-        });
+        })->filter()->values();
         return response()->json($items);
     }
 

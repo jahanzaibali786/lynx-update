@@ -242,7 +242,7 @@ function printReport() {
                         <td class="Id">
                             {{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}
                         </td>
-                        <td> {{ !empty($purchase->vender) ? $purchase->vender->name : '' }} </td>
+                        <td> {{ !empty($purchase->vender) ? $purchase->vender->display_name : '' }} </td>
                         <td>{{ !empty($purchase->category) ? $purchase->category->name : '' }}</td>
                         <td>{{ Auth::user()->dateFormat($purchase->purchase_date) }}</td>
                         <td>{{ \Auth::user()->priceFormat($purchase->getTotal()) }}</td>

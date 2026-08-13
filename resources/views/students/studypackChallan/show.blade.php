@@ -501,7 +501,11 @@
                             </td>
 
                             <td class="challan-details-value">
-                                {{ $studentData?->enrollment?->class?->name ?? 'NILL' }}
+                             @if (@$challan->class)
+                                    {{ @$challan->class->name }}
+                                @else
+                                    nill
+                                @endif
                             </td>
 
                             <td class="challan-details-section-label">

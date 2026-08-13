@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin')
+@extends('layouts.admin')
 @section('page-title')
     {{__('Invoice Detail')}}
 @endsection
@@ -302,18 +302,28 @@
 
     @if ( Gate::check('show invoice'))
         @if($invoice->status!=0)
+            <div class="row justify-content-between align-items-center mb-3">
+                <div class="col-md-12 d-flex align-items-center justify-content-between justify-content-md-end">
+                    {{-- @if(!empty($invoicePayment))
+                        <div class="all-button-box mx-2 mr-2">
+                            <a href="#" class="btn btn-sm btn-primary" data-url="{{ route('invoice.credit.note',$invoice->id) }}" data-ajax-popup="true" data-bs-toggle="{{__('Add Credit Note')}}">
+                                {{__('Add Credit Note')}}
+                            </a>
+                        </div>
+                    @endif --}}
                     {{-- @if($invoice->status!= 4)
                         <div class="all-button-box mr-2">
                             <a href="{{ route('invoice.payment.reminder',$invoice->id)}}" class="btn btn-sm btn-primary me-2">{{__('Receipt Reminder')}}</a>
                         </div>
-                    @endif --}}
+                    @endif
+                    <div class="all-button-box mr-2">
+                        <a href="{{ route('invoice.resent',$invoice->id)}}" class="btn btn-sm btn-primary me-2">{{__('Resend Invoice')}}</a>
+                    </div> --}}
                     <div class="all-button-box">
                         <a href="{{ route('invoice.pdf', Crypt::encrypt($invoice->id))}}" target="_blank" class="btn btn-sm btn-primary">{{__('Download')}}</a>
                     </div>
                 </div>
             </div>
-        @endif
-    @endif
         @endif
     @endif
 
@@ -722,9 +732,3 @@
 
 
 @endsection
-
-
-
-
-
-

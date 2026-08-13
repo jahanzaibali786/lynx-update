@@ -84,7 +84,7 @@
                         @endcan
                     </td>
                     <td>{{ optional($grn->warehouse)->name ?? '-' }}</td>
-                    <td>{{ optional($grn->vendor)->name ?? '-' }}</td>
+                    <td>{{ optional($grn->vendor)->display_name ?? '-' }}</td>
                     <td>{{ \Auth::user()->dateFormat($grn->grn_date) }}</td>
                     <td>{{ $grn->reference_no ?? '-' }}</td>
                     <td>{{ \Auth::user()->priceFormat($grn->getSubTotal()) }}</td>
@@ -147,7 +147,7 @@
                             @endif
                         @endcan
 
-                    @if($grn->status != 7 )
+                    @if($grn->status != 7 || $grn->status != 8)
                             @can('delete grn')
                             {{ Form::open(['route' => ['grn.destroy', $grn->id], 'method' => 'DELETE', 'class' => 'd-inline']) }}
                                 <button type="submit" class="mx-1 btn btn-sm btn-outline-info"

@@ -19,9 +19,9 @@ use App\Models\StudentRegistration;
 use App\Models\StudyPackChallans;
 use App\Models\StudyPackChallanItems;
 use App\Models\StudyPack;
+use App\Models\StudypackReceipts;
 use App\Models\StudyPackItem;
 use App\Models\StudypackPayment;
-use App\Models\StudypackReceipts;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Utility;
@@ -54,399 +54,432 @@ class StudyPackChallanController extends Controller
         return min(max($amount, 0.0), $payableAmount);
     }
 
-     /**
-      * Display a listing of the resource.
-      *
-      * @return \Illuminate\Http\Response
-      */
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
     public function index(Request $request)
-{
-    $user = \Auth::user();
-
-    $isCompany = $user->type === 'company';
-
-    $creatorId = $user->creatorId();
-    $ownedId   = $user->ownedId();
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Branches
-    |--------------------------------------------------------------------------
-    */
-    if ($isCompany) {
-
-        $branches = User::where('type', 'branch')
-            ->where('created_by', $creatorId)
-            ->where('is_active', 1)
-            ->pluck('name', 'id');
-
+    {
+        $user = \Auth::user();
+    
+        $isCompany = $user->type === 'company';
+    
+        $creatorId = $user->creatorId();
+        $ownedId   = $user->ownedId();
+    
+    
         /*
-         * Add company / head office
-         */
-        $branches->prepend(
-            $user->name,
-            $user->id
-        );
-
-        $branches->prepend(
-            'Select Branch',
-            ''
-        );
-
-    } else {
-
-        /*
-         * Branch user can only see their own branch.
-         */
-        $branches = User::where('id', $ownedId)
-            ->where('is_active', 1)
-            ->pluck('name', 'id');
-
-        $branches->prepend(
-            'Select Branch',
-            ''
-        );
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Selected Branch
-    |--------------------------------------------------------------------------
-    |
-    | Company:
-    |   Use selected branch.
-    |
-    | Branch:
-    |   ALWAYS force their own branch.
-    |
-    */
-    if ($isCompany) {
-
-        $selectedBranch = $request->filled('branch')
-            ? $request->branch
-            : null;
-
-    } else {
-
-        /*
-         * Never trust branch ID sent by branch user.
-         */
-        $selectedBranch = $ownedId;
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Validate Selected Branch
-    |--------------------------------------------------------------------------
-    |
-    | For company users, if a branch is selected,
-    | make sure it actually belongs to this company.
-    |
-    */
-    if (
-        $isCompany &&
-        $selectedBranch !== null &&
-        $selectedBranch !== ''
-    ) {
-
-        $validBranch = User::where('id', $selectedBranch)
-            ->where('type', 'branch')
-            ->where('created_by', $creatorId)
-            ->where('is_active', 1)
-            ->exists();
-
-        if (!$validBranch) {
-
+        |--------------------------------------------------------------------------
+        | Branches
+        |--------------------------------------------------------------------------
+        */
+        if ($isCompany) {
+    
+            $branches = User::where('type', 'branch')
+                ->where('created_by', $creatorId)
+                ->where('is_active', 1)
+                ->pluck('name', 'id');
+    
+            $branches->prepend(
+                $user->name,
+                $user->id
+            );
+    
+            $branches->prepend(
+                'Select Branch',
+                ''
+            );
+    
+        } else {
+    
             /*
-             * Invalid branch selection.
+             * Branch user can only see their own branch.
              */
-            $selectedBranch = null;
-        }
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Sessions
-    |--------------------------------------------------------------------------
-    */
-    $session = Session::get()
-        ->pluck('year', 'id');
-
-    $session->prepend(
-        'Select Session',
-        ''
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Classes
-    |--------------------------------------------------------------------------
-    |
-    | IMPORTANT:
-    |
-    | Classes are filtered by branch_id.
-    |
-    | Company:
-    |   No branch selected = all company classes.
-    |
-    |   Branch selected =
-    |   only classes belonging to that branch.
-    |
-    | Branch:
-    |   Always classes belonging to ownedId().
-    |
-    */
-    $classQuery = Classes::query()
-        ->where('created_by', $creatorId)
-        ->where('active_status', 1);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Branch Restriction For Classes
-    |--------------------------------------------------------------------------
-    */
-    if ($selectedBranch !== null && $selectedBranch !== '') {
-
-        $classQuery->where(
-            'branch_id',
-            $selectedBranch
-        );
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Class Dropdown
-    |--------------------------------------------------------------------------
-    */
-    $class = $classQuery
-        ->pluck('name', 'id');
-
-    $class->prepend(
-        'Select Class',
-        ''
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | StudyPack Challans
-    |--------------------------------------------------------------------------
-    */
-    $studypacksQuery = StudyPackChallans::with([
-        'student',
-        'receipts',
-    ]);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Ownership / Company Restriction
-    |--------------------------------------------------------------------------
-    */
-    if ($isCompany) {
-
-        /*
-         * Company can see all records belonging
-         * to the company.
-         */
-        $studypacksQuery->where(
-            'created_by',
-            $creatorId
-        );
-
-    } else {
-
-        /*
-         * Branch can ONLY see its own records.
-         */
-        $studypacksQuery->where(
-            'owned_by',
-            $ownedId
-        );
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Branch Filter For StudyPack Challans
-    |--------------------------------------------------------------------------
-    |
-    | IMPORTANT:
-    |
-    | StudyPack challans are also filtered by branch_id.
-    |
-    */
-    if ($selectedBranch !== null && $selectedBranch !== '') {
-
-        $studypacksQuery->where(
-            'branch_id',
-            $selectedBranch
-        );
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Search
-    |--------------------------------------------------------------------------
-    */
-    if ($request->filled('search')) {
-
-        $search = $request->search;
-
-        $studypacksQuery->where(function ($q) use ($search) {
-
-            $q->where(
-                'challanNo',
-                'like',
-                '%' . $search . '%'
-            )
-
-            ->orWhere(
-                'status',
-                'like',
-                '%' . $search . '%'
-            )
-
-            ->orWhere(
-                'fee_month',
-                'like',
-                '%' . $search . '%'
-            )
-
-            ->orWhereHas(
-                'student',
-                function ($s) use ($search) {
-
-                    $s->where(
-                        'stdname',
-                        'like',
-                        '%' . $search . '%'
-                    )
-
-                    ->orWhere(
-                        'roll_no',
-                        'like',
-                        '%' . $search . '%'
-                    );
-                }
-            );
-        });
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Class Filter
-    |--------------------------------------------------------------------------
-    |
-    | If a class is selected, make sure it belongs
-    | to the selected/allowed branch.
-    |
-    */
-    if ($request->filled('class')) {
-
-        /*
-         * First restrict the StudyPack challan itself.
-         */
-        $studypacksQuery->where(
-            'class_id',
-            $request->class
-        );
-
-
-        /*
-         * Extra security:
-         *
-         * Make sure the selected class belongs
-         * to the selected branch.
-         */
-        if ($selectedBranch !== null && $selectedBranch !== '') {
-
-            $studypacksQuery->whereHas(
-                'class',
-                function ($q) use ($selectedBranch) {
-
-                    $q->where(
-                        'branch_id',
-                        $selectedBranch
-                    );
-                }
+            $branches = User::where('id', $ownedId)
+                ->where('is_active', 1)
+                ->pluck('name', 'id');
+    
+            $branches->prepend(
+                'Select Branch',
+                ''
             );
         }
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Month Filter
-    |--------------------------------------------------------------------------
-    */
-    if ($request->filled('month')) {
-
-        $monthDate = strtotime(
-            $request->month
-        );
-
-        if ($monthDate !== false) {
-
-            $studypacksQuery
-                ->whereMonth(
-                    'fee_month',
-                    date('m', $monthDate)
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Determine Selected / Allowed Branch
+        |--------------------------------------------------------------------------
+        |
+        | Company:
+        |   Use selected branch.
+        |
+        | Branch:
+        |   ALWAYS use ownedId().
+        |
+        */
+        if ($isCompany) {
+    
+            $selectedBranch = $request->filled('branch')
+                ? $request->branch
+                : null;
+    
+        } else {
+    
+            /*
+             * Never trust branch ID submitted by branch user.
+             */
+            $selectedBranch = $ownedId;
+        }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Company Branch
+        |--------------------------------------------------------------------------
+        |
+        | Only allow a company to select a branch belonging
+        | to the same company.
+        |
+        */
+        if (
+            $isCompany &&
+            $selectedBranch !== null &&
+            $selectedBranch !== ''
+        ) {
+    
+            $validBranch = User::where(
+                    'id',
+                    $selectedBranch
                 )
-                ->whereYear(
-                    'fee_month',
-                    date('Y', $monthDate)
-                );
+                ->where(
+                    'type',
+                    'branch'
+                )
+                ->where(
+                    'created_by',
+                    $creatorId
+                )
+                ->where(
+                    'is_active',
+                    1
+                )
+                ->exists();
+    
+            if (!$validBranch) {
+                $selectedBranch = null;
+            }
         }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Sessions
+        |--------------------------------------------------------------------------
+        */
+        $session = Session::get()
+            ->pluck('year', 'id');
+    
+        $session->prepend(
+            'Select Session',
+            ''
+        );
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Classes
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        |
+        | Your Classes table uses `owned_by`
+        | for branch ownership.
+        |
+        | Therefore:
+        |
+        | Company + no branch:
+        |     All company classes.
+        |
+        | Company + branch selected:
+        |     classes.owned_by = selected branch.
+        |
+        | Branch user:
+        |     classes.owned_by = their ownedId().
+        |
+        */
+        $classQuery = Classes::query()
+            ->where(
+                'created_by',
+                $creatorId
+            )
+            ->where(
+                'active_status',
+                1
+            );
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Apply Branch Ownership To Classes
+        |--------------------------------------------------------------------------
+        */
+        if (
+            $selectedBranch !== null &&
+            $selectedBranch !== ''
+        ) {
+    
+            $classQuery->where(
+                'owned_by',
+                $selectedBranch
+            );
+        }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Class Dropdown
+        |--------------------------------------------------------------------------
+        */
+        $class = $classQuery
+            ->pluck(
+                'name',
+                'id'
+            );
+    
+        $class->prepend(
+            'Select Class',
+            ''
+        );
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | StudyPack Challans Query
+        |--------------------------------------------------------------------------
+        */
+        $studypacksQuery = StudyPackChallans::with([
+            'student',
+            'receipts',
+        ]);
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | StudyPack Ownership
+        |--------------------------------------------------------------------------
+        |
+        | Company:
+        |     created_by = company
+        |
+        | Branch:
+        |     owned_by = current branch
+        |
+        */
+        if ($isCompany) {
+    
+            $studypacksQuery->where(
+                'created_by',
+                $creatorId
+            );
+    
+        } else {
+    
+            $studypacksQuery->where(
+                'owned_by',
+                $ownedId
+            );
+        }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Branch Filter For StudyPack Challans
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        |
+        | StudyPackChallans also uses `owned_by`.
+        |
+        */
+        if (
+            $selectedBranch !== null &&
+            $selectedBranch !== ''
+        ) {
+    
+            $studypacksQuery->where(
+                'owned_by',
+                $selectedBranch
+            );
+        }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Search
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('search')) {
+    
+            $search = $request->search;
+    
+            $studypacksQuery->where(function ($q) use ($search) {
+    
+                $q->where(
+                    'challanNo',
+                    'like',
+                    '%' . $search . '%'
+                )
+    
+                ->orWhere(
+                    'status',
+                    'like',
+                    '%' . $search . '%'
+                )
+    
+                ->orWhere(
+                    'fee_month',
+                    'like',
+                    '%' . $search . '%'
+                )
+    
+                ->orWhereHas(
+                    'student',
+                    function ($s) use ($search) {
+    
+                        $s->where(
+                            'stdname',
+                            'like',
+                            '%' . $search . '%'
+                        )
+    
+                        ->orWhere(
+                            'roll_no',
+                            'like',
+                            '%' . $search . '%'
+                        );
+                    }
+                );
+            });
+        }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Class Filter
+        |--------------------------------------------------------------------------
+        |
+        | When a class is selected, make sure the class
+        | belongs to the selected branch through `owned_by`.
+        |
+        */
+        if ($request->filled('class')) {
+    
+            /*
+             * Main StudyPack class filter.
+             */
+            $studypacksQuery->where(
+                'class_id',
+                $request->class
+            );
+    
+    
+            /*
+             * Extra security:
+             *
+             * Verify the selected class belongs to
+             * the currently selected branch.
+             */
+            if (
+                $selectedBranch !== null &&
+                $selectedBranch !== ''
+            ) {
+    
+                $studypacksQuery->whereHas(
+                    'class',
+                    function ($q) use ($selectedBranch) {
+    
+                        $q->where(
+                            'owned_by',
+                            $selectedBranch
+                        );
+                    }
+                );
+            }
+        }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Month Filter
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('month')) {
+    
+            $monthTimestamp = strtotime(
+                $request->month
+            );
+    
+            if ($monthTimestamp !== false) {
+    
+                $studypacksQuery
+                    ->whereMonth(
+                        'fee_month',
+                        date(
+                            'm',
+                            $monthTimestamp
+                        )
+                    )
+                    ->whereYear(
+                        'fee_month',
+                        date(
+                            'Y',
+                            $monthTimestamp
+                        )
+                    );
+            }
+        }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Fetch StudyPack Challans
+        |--------------------------------------------------------------------------
+        */
+        $studypacks = $studypacksQuery
+            ->orderBy(
+                'id',
+                'desc'
+            )
+            ->get();
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Other Variables
+        |--------------------------------------------------------------------------
+        */
+        $stdy_pack = [];
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Return View
+        |--------------------------------------------------------------------------
+        */
+        return view(
+            'students.studypackChallan.index',
+            compact(
+                'branches',
+                'session',
+                'class',
+                'stdy_pack',
+                'studypacks'
+            )
+        );
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | StudyPack Challans
-    |--------------------------------------------------------------------------
-    */
-    $studypacks = $studypacksQuery
-        ->orderBy(
-            'id',
-            'desc'
-        )
-        ->get();
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Other Variables
-    |--------------------------------------------------------------------------
-    */
-    $stdy_pack = [];
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Return View
-    |--------------------------------------------------------------------------
-    */
-    return view(
-        'students.studypackChallan.index',
-        compact(
-            'branches',
-            'session',
-            'class',
-            'stdy_pack',
-            'studypacks'
-        )
-    );
-}
 
     public function create()
     {
@@ -681,7 +714,7 @@ class StudyPackChallanController extends Controller
             abort(404, 'Challan not found');
         }
         $items = $challan->items ?? collect();
-                    $previousUnpaidChallans = StudyPackChallans::with('items.product', 'items','session')
+                    $previousUnpaidChallans = StudyPackChallans::with('items.product', 'items')
                         ->where('student_id', $challan->student_id)
                         ->where('id', '!=', $challan->id)
                         ->where('status', '!=', 'Paid')
@@ -1354,8 +1387,8 @@ class StudyPackChallanController extends Controller
             });
         } else {
             $query->where(function ($q) {
-                $q->where('owned_by', \Auth::user()->ownedId())
-                    ->orWhere('received_by', \Auth::user()->id);
+                $q->where('owned_by', \Auth::user()->ownedId());
+                    // ->orWhere('received_by', \Auth::user()->id);
             });
         }
 
@@ -1582,14 +1615,3 @@ $branchAccounts = BankAccount::where('owned_by', \Auth::user()->ownedId())->get(
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-

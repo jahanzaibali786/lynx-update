@@ -21,7 +21,7 @@ class EmployeeScaleController extends Controller
      */
     public function index(Request $request)
     {
-        if (\Auth::user()->can('manage employee')) {
+        if (\Auth::user()->can('manage employee scale')) {
             $query = EmployeeScale::with('employeeScaleHeads','employeepayScaledetailHeads')
             ->where('created_by', \Auth::user()->creatorId());
       
@@ -166,7 +166,7 @@ class EmployeeScaleController extends Controller
      */
     public function create()
     {
-        if (\Auth::user()->can('create trainer')) {
+        if (\Auth::user()->can('create employee scale')) {
             $department = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $heads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
             return view('scale.create', compact('department', 'heads'));
@@ -183,7 +183,7 @@ class EmployeeScaleController extends Controller
      */
     public function store(Request $request)
     {
-        if (\Auth::user()->can('create trainer')) {
+        if (\Auth::user()->can('create employee scale')) {
             $validator = \Validator::make(
                 $request->all(),
                 [
@@ -228,13 +228,21 @@ class EmployeeScaleController extends Controller
                     }
                 }
                 DB::commit();
-                return response()->json(['status' => 'success'], 200);
+                $employee_scales->load('department', 'employeeScaleHeads');
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Employee Scale successfully created.'),
+                    'row_html' => view('scale.row', [
+                        'scale' => $employee_scales,
+                        'heads' => SalaryHeads::where('created_by', \Auth::user()->creatorId())->get(),
+                    ])->render(),
+                ], 200);
             } catch (\Exception $e) {
                 DB::rollback();
-                return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
             }
         } else {
-            return response()->json(['status' => 'error', 'message' => __('Permission denied.')], 403);
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
         }
     }
 
@@ -258,7 +266,7 @@ class EmployeeScaleController extends Controller
      */
     public function edit(EmployeeScale $employeeScale)
     {
-        if (\Auth::user()->can('edit trainer')) {
+        if (\Auth::user()->can('edit employee scale')) {
             $department = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $heads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
             return view('scale.edit', compact('employeeScale', 'department', 'heads'));
@@ -276,7 +284,7 @@ class EmployeeScaleController extends Controller
      */
     public function update(Request $request, $id)
     {
-        if (\Auth::user()->can('edit trainer')) {
+        if (\Auth::user()->can('edit employee scale')) {
           
             $validator = \Validator::make($request->all(), [
                 'scale_no' => 'required',
@@ -319,13 +327,25 @@ class EmployeeScaleController extends Controller
                 }
 
                 DB::commit();
-                return redirect()->route('employee_scale.index')->with('success', __('Employee Scale successfully updated.'));
+                $employee_scale->load('department', 'employeeScaleHeads');
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Employee Scale successfully updated.'),
+                    'row_id' => $employee_scale->id,
+                    'row_html' => view('scale.row', [
+                        'scale' => $employee_scale,
+                        'heads' => SalaryHeads::where('created_by', \Auth::user()->creatorId())->get(),
+                    ])->render(),
+                ], 200);
             } catch (\Exception $e) {
                 DB::rollback();
-                return back()->withInput()->with('error', 'Error occurred while updating Employee Scale: ' . $e->getMessage());
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error occurred while updating Employee Scale: ' . $e->getMessage(),
+                ], 500);
             }
         } else {
-            return redirect()->back()->with('error', __('Permission denied.'));
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
         }
     }
 
@@ -338,7 +358,34 @@ class EmployeeScaleController extends Controller
      */
     public function destroy(EmployeeScale $employeeScale)
     {
-        //
+        if (!\Auth::user()->can('delete employee scale')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        if ((int) $employeeScale->created_by !== (int) \Auth::user()->creatorId()) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        DB::beginTransaction();
+        try {
+            EmployeeScaleHeads::where('scale_id', $employeeScale->id)->delete();
+            $employeeScale->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => __('Employee Scale successfully deleted.'),
+                'row_id' => $employeeScale->id,
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
     public function getDeptWiseScales(Request $request) {
         if (\Auth::user()->type == 'company') { 

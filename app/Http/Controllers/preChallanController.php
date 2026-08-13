@@ -410,13 +410,13 @@ class preChallanController extends Controller
 
                 return [
                     'student_id' => $sid,
-                    'roll_no' => $student->roll_no ?? '—',
-                    'student_name' => $student->stdname ?? '—',
+                    'roll_no' => $student->roll_no ?? 'ï¿½',
+                    'student_name' => $student->stdname ?? 'ï¿½',
                     'father_name' => $student->fathername ?? '',
-                    'class_name' => $student->class->name ?? '—',
+                    'class_name' => $student->class->name ?? 'ï¿½',
                     'adm_date' => optional($student->enrollment)->adm_date
                         ? \Carbon\Carbon::parse($student->enrollment->adm_date)->format('d-M-Y')
-                        : '—',
+                        : 'ï¿½',
                     'owned_by' => $snap->owned_by,
                     'regular_net' => $regularNet,
                     'pre_challan_net' => $preNet,
@@ -440,7 +440,7 @@ class preChallanController extends Controller
             $safeBranchLabel = trim(preg_replace('/\s+/', ' ', $safeBranchLabel), ' ._-');
             $safeBranchLabel = $safeBranchLabel !== '' ? $safeBranchLabel : 'Branch';
 
-            $reportName = "Pre-Challan vs Regular Challan Comparison — {$monthLabel}";
+            $reportName = "Pre-Challan vs Regular Challan Comparison ï¿½ {$monthLabel}";
             $filename = "PreChallan_Comparison_{$monthLabel}_{$safeBranchLabel}";
             $filename = preg_replace('/\s+/', '_', $filename);
 
@@ -479,5 +479,4 @@ class preChallanController extends Controller
             'selectedDate' => $selectedDate,
         ]);
     }
-
 }

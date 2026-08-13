@@ -17,7 +17,7 @@ class RemoveLateFeeController extends Controller
 
     public function index()
     {
-        return view('challan.remove-late-fee.index');
+        return view('challans.remove-late-fee.index');
     }
 
     public function search(Request $request)

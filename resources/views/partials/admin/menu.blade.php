@@ -802,7 +802,7 @@
                                                 {{ __('Employee Bulk Update') }}
                                             </a>
                                         </li>
-                                        <li class="dash-item    ">
+                                        <li class="dash-item">
                                             @if (\Auth::user()->type == 'company')
                                                 <a href="{{ route('employee-scale-heads.index') }}"
                                                     class="dash-link {{ Request::segment(1) == 'employee-scale-heads' ? 'active dash-trigger' : '' }} ">
@@ -811,13 +811,13 @@
                                             @endif
                                         </li>
 
-                                        <li class="dash-item     ">
-                                            @if (\Auth::user()->type == 'company')
+                                        <li class="dash-item">
+                                            @can('manage employee scale')
                                                 <a href="{{ route('employee_scale.index') }}"
                                                     class="dash-link {{ Request::segment(1) == 'employee_scale' ? 'active dash-trigger' : '' }}">
                                                     {{ __('Employee Scale') }}
                                                 </a>
-                                            @endif
+                                            @endcan
                                         </li>
 
                                         <li class="dash-item    ">
@@ -1140,12 +1140,6 @@
                                                         <li class="dash-item">
                                                             <a class="dash-link  {{ Request::segment(1) == 'health-insurance-plan' ? 'active dash-trigger' : '' }}"
                                                                 href="{{ route('health-insurance-plan.index') }}">{{ __('Insurance Plan Setup') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    @can('remove late fee')
-                                                        <li class="dash-item">
-                                                            <a class="dash-link  {{ Request::segment(1) == 'remove-late-fee' ? 'active dash-trigger' : '' }}"
-                                                                href="{{ route('remove-late-fee.index') }}">{{ __('Remove Late Fee') }}</a>
                                                         </li>
                                                     @endcan
                                                     @can('manage resignation')
@@ -1991,7 +1985,7 @@
                             Gate::check('manage vistor'))
                         <li class="dash-item dash-hasmenu">
                             <a href="#Student_formation"
-                                class="dash-link {{ Request::segment(1) == 'withdrawlstudent' || Request::segment(1) == 'clearanceCertificate' || Request::segment(1) == 'readmissionstudent' || Request::segment(1) == 'transferstudent' || Request::segment(1) == 'concession' || Request::segment(1) == 'student-promotion' ? ' active dash-trigger' : '' }}"><span
+                                class="dash-link {{ Request::segment(1) == 'withdrawlstudent' || Request::segment(1) == 'remove-late-fee' || Request::segment(1) == 'clearanceCertificate' || Request::segment(1) == 'readmissionstudent' || Request::segment(1) == 'transferstudent' || Request::segment(1) == 'concession' || Request::segment(1) == 'student-promotion' ? ' active dash-trigger' : '' }}"><span
                                     class="dash-micon">
                                     <svg width="21" height="22" viewBox="0 0 21 22" fill="none"
                                         xmlns="http://www.w3.org/2000/svg">
@@ -2034,6 +2028,12 @@
                                             href="{{ route('section.bulkindex') }}">{{ __('Bulk Section Update') }}</a>
                                     </li>
                                 @endcan
+                                @if(\Auth::user()->type == 'company')
+                                <li class="dash-item">
+                                        <a class="dash-link  {{ Request::segment(1) == 'remove-late-fee' ? 'active dash-trigger' : '' }}"
+                                            href="{{ route('remove-late-fee.index') }}">{{ __('Remove Late Fee') }}</a>
+                                </li>
+                                @endif
                                 @can('view spacetype')
                                     <li class="dash-item ">
                                         <a class="dash-link {{ Request::segment(1) == 'transferstudent' ? 'active' : '' }}"
@@ -2046,7 +2046,6 @@
                                             href="{{ route('bulk-transfer.index') }}">{{ __('Bulk Student Transfer') }}</a>
                                     </li>
                                 @endcan
-
                                 <li class="dash-item ">
                                     <a class="dash-link {{ Request::segment(1) == 'concession.index' ? 'active' : '' }}"
                                         href="{{ route('concession.index', ['status' => 'Canceled']) }}">{{ __('Cancel Concession') }}</a>
@@ -2109,9 +2108,8 @@
                                 Request::segment(1) == 'account-wise-fee' ||
                                 Request::segment(1) == 'student_receipt' ||
                                 Request::segment(1) == 'student-receipt' ||
-                                Request::route()->getName() == 'studypackreceipts.daily' ||
-                                Request::segment(1) == 'studypackreceipts' ||
                                 Request::segment(1) == 'feereminderslip' ||
+                                Request::route()->getName() == 'studypackreceipts.daily' ||
                                 Request::segment(1) == 'registration-challan' ||
                                 Request::segment(1) == 'admission-challan' ||
                                 Request::segment(1) == 'regular-challan' ||
@@ -2167,6 +2165,12 @@
                                 @endcan
                                 @can('view spacetype')
                                     <li class="dash-item ">
+                                        <a class="dash-link {{ Request::route()->getName() == 'studypackreceipts.daily' || Request::segment(1) == 'studypackreceipts' ? 'active' : '' }}"
+                                            href="{{ route('studypackreceipts.daily') }}">{{ __('StudyPack Payments') }}</a>
+                                    </li>
+                                @endcan
+                                @can('view spacetype')
+                                    <li class="dash-item ">
                                         <a style="display: flex;"
                                             class="dash-link {{ Request::segment(1) == 'student-receipt' ? 'active' : '' }}"
                                             href="{{ route('student_receipt.list') }}">
@@ -2174,12 +2178,6 @@
                                                 {{ __('Period Wise CMR Statement') }}
                                             </div>
                                         </a>
-                                    </li>
-                                @endcan
-                                @can('view spacetype')
-                                    <li class="dash-item ">
-                                        <a class="dash-link {{ Request::route()->getName() == 'studypackreceipts.daily' || Request::segment(1) == 'studypackreceipts' ? 'active' : '' }}"
-                                            href="{{ route('studypackreceipts.daily') }}">{{ __('Daily StudyPack Payments') }}</a>
                                     </li>
                                 @endcan
                                 @can('view spacetype')
@@ -2215,10 +2213,6 @@
                                 <li class="dash-item ">
                                     <a class="dash-link {{ Request::segment(1) == 'readmission-challan' ? 'active' : '' }}"
                                         href="{{ route('readmissionchallanlist') }}">{{ __('Re-Admission challan list') }}</a>
-                                </li>
-                                <li class="dash-item ">
-                                    <a class="dash-link {{ Request::segment(1) == 'track-registration' ? 'active' : '' }}"
-                                        href="{{ route('track_registration_report') }}">{{ __('Track Registration') }}</a>
                                 </li>
                                 @can('view spacetype')
                                     <li class="dash-item ">
@@ -2276,7 +2270,7 @@
                             Gate::check('manage vistor'))
                         <li class="dash-item dash-hasmenu">
                             <a href="#student_reports"
-                                class="dash-link {{ Request::segment(1) == 'registrationdetailreport' ||Request::segment(1) == 'studenttransferin' ||Request::segment(1) == 'student-single-account' ||Request::segment(1) == 'studenttransferout' ||Request::segment(1) == 'classwisefeereport' ||Request::segment(1) == 'admissionwithdrawalreport' ||Request::segment(1) == 'studentstrengthreport' ||Request::segment(1) == 'studentSecurityReport' ||Request::segment(1) == 'student-withdarawl-listing' ||Request::segment(1) == 'sibling-students' ||Request::segment(1) == 'studypackStudent' ||Request::segment(1) == 'student-strength' ||Request::segment(1) == 'sessionBranchWise' ||Request::segment(1) == 'sessionMonthWise' ||Request::segment(1) == 'profession-wise-listing' ||Request::segment(1) == 'student-wise-statistic-report' ||Request::segment(1) == 'profession-wise-listing' ||Request::segment(1) == 'student-data-analysis' ||Request::segment(1) == 'studypack-student' ||Request::segment(1) == 'sibling-students' ||Request::segment(1) == 'staff-child' ||Request::segment(1) == 'student-data-analysis' ||Request::segment(1) == 'studypack-student' ||Request::segment(1) == 'monthlystatistics' ||Request::segment(1) == 'fee-revision-report' ||Request::segment(1) == 'student-promotion-report' ||Request::segment(1) == 'tuition_fee' ||Request::segment(1) == 'spacetype' ||Request::segment(1) == 'sessionMonthBranchWise' ||Request::segment(1) == 'sessionWise' ||Request::segment(1) == 'feestructurelisting' ||Request::segment(1) == 'advancechallanreport' ||Request::segment(1) == 'withdrawl_notice' ||Request::segment(1) == 'student-wise-statistic-report' ||Request::segment(1) == 'period-wise-statistic-report' ||Request::segment(1) == 'student-fee-receipt-detail' ||Request::segment(1) == 'fee-receipt-summary' ||Request::segment(1) == 'studenttransferin' ||Request::segment(1) == 'studenttransferout' ||Request::segment(1) == 'classwisefeereport' ||Request::segment(1) == 'admissionwithdrawalreport' ||Request::segment(1) == 'studentstrengthreport' ||Request::segment(1) == 'studentSecurityReport' ||Request::segment(1) == 'student-withdarawl-listing' ||Request::segment(1) == 'student-defaulter' ||Request::segment(1) == 'admissionlisting' ||Request::segment(1) == 'student-defaulter-sm' ||Request::segment(1) == 'space' ||Request::segment(1) == 'account-assets' || Request::segment(1) == 'student-fee-detail' || Request::segment(1) == 'monthlyperchallanreport'|| Request::segment(1) ==  'student-sts-report'||Request::segment(1) == 'monthlychallanreport'? ' active dash-trigger': '' }}"><span
+                                class="dash-link {{ Request::segment(1) == 'registrationdetailreport' ||  Request::segment(1) == 'track-registration' ||Request::segment(1) == 'studenttransferin' ||Request::segment(1) == 'student-single-account' ||Request::segment(1) == 'studenttransferout' ||Request::segment(1) == 'classwisefeereport' ||Request::segment(1) == 'admissionwithdrawalreport' ||Request::segment(1) == 'studentstrengthreport' ||Request::segment(1) == 'studentSecurityReport' ||Request::segment(1) == 'student-withdarawl-listing' ||Request::segment(1) == 'sibling-students' ||Request::segment(1) == 'studypackStudent' ||Request::segment(1) == 'student-strength' ||Request::segment(1) == 'sessionBranchWise' ||Request::segment(1) == 'sessionMonthWise' ||Request::segment(1) == 'profession-wise-listing' ||Request::segment(1) == 'student-wise-statistic-report' ||Request::segment(1) == 'profession-wise-listing' ||Request::segment(1) == 'student-data-analysis' ||Request::segment(1) == 'studypack-student' ||Request::segment(1) == 'sibling-students' ||Request::segment(1) == 'staff-child' ||Request::segment(1) == 'student-data-analysis' ||Request::segment(1) == 'studypack-student' ||Request::segment(1) == 'monthlystatistics' ||Request::segment(1) == 'fee-revision-report' ||Request::segment(1) == 'student-promotion-report' ||Request::segment(1) == 'tuition_fee' ||Request::segment(1) == 'spacetype' ||Request::segment(1) == 'sessionMonthBranchWise' ||Request::segment(1) == 'sessionWise' ||Request::segment(1) == 'feestructurelisting' ||Request::segment(1) == 'advancechallanreport' ||Request::segment(1) == 'withdrawl_notice' ||Request::segment(1) == 'student-wise-statistic-report' ||Request::segment(1) == 'period-wise-statistic-report' ||Request::segment(1) == 'student-fee-receipt-detail' ||Request::segment(1) == 'fee-receipt-summary' ||Request::segment(1) == 'studenttransferin' ||Request::segment(1) == 'studenttransferout' ||Request::segment(1) == 'classwisefeereport' ||Request::segment(1) == 'admissionwithdrawalreport' ||Request::segment(1) == 'studentstrengthreport' ||Request::segment(1) == 'studentSecurityReport' ||Request::segment(1) == 'student-withdarawl-listing' ||Request::segment(1) == 'student-defaulter' ||Request::segment(1) == 'admissionlisting' ||Request::segment(1) == 'student-defaulter-sm' ||Request::segment(1) == 'space' ||Request::segment(1) == 'account-assets' || Request::segment(1) == 'student-fee-detail' || Request::segment(1) == 'monthlyperchallanreport'|| Request::segment(1) ==  'student-sts-report'||Request::segment(1) == 'monthlychallanreport'? ' active dash-trigger': '' }}"><span
                                     class="dash-micon">
                                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
                                         xmlns="http://www.w3.org/2000/svg">
@@ -2384,6 +2378,10 @@
                                 <li class="dash-item ">
                                     <a class="dash-link {{ Request::segment(1) == 'student-promotion-report' ? 'active' : '' }}"
                                         href="{{ route('student_promotion_report') }}">{{ __('Promotion Report') }}</a>
+                                </li>
+                                <li class="dash-item ">
+                                    <a class="dash-link {{ Request::segment(1) == 'track-registration' ? 'active' : '' }}"
+                                        href="{{ route('track_registration_report') }}">{{ __('Track Registration') }}</a>
                                 </li>
                                 @can('view spacetype')
                                     <li class="dash-item ">
@@ -3003,19 +3001,29 @@
 								</li>
                             @endif
                             
-							<li class="dash-item">
-                                <a class="dash-link {{ Request::segment(1) == 'branchpurchase' || in_array(Request::route()->getName(), ['branchpurchase.index', 'branchpurchase.create', 'branchpurchase.edit', 'branchpurchase.show']) ? ' active' : '' }}"
-                                    href="{{ route('branchpurchase.index') }}">{{ __('Branch Purchase') }}</a>
-                            </li>
+							@can('manage demand order')
+								<li class="dash-item">
+                                    <a class="dash-link {{ Request::segment(1) == 'demand-order' || in_array(Request::route()->getName(), ['demand-order.index', 'demand-order.create', 'demand-order.edit', 'demand-order.show']) ? ' active' : '' }}"
+                                        href="{{ route('demand-order.index') }}">{{ __('Demand Order') }}</a>
+                                </li>
+							@endcan
                             
                             <li class="dash-item ">
                                 <a class="dash-link {{ Request::segment(1) == 'invoice' || Request::route()->getName() == 'invoice.index' || Request::route()->getName() == 'invoice.create' || Request::route()->getName() == 'invoice.edit' || Request::route()->getName() == 'invoice.show' ? ' active' : '' }}"
                                     href="{{ route('invoice.index') }}">{{ __('Invoice') }}</a>
                             </li>
-                            <li class="dash-item">
-                                <a class="dash-link {{ Request::segment(1) == 'returnorder' || Request::route()->getName() == 'returnorders.create' || Request::route()->getName() == 'returnorder.edit' || Request::route()->getName() == 'returnorder.show' ? ' active' : '' }}"
-                                    href="{{ route('returnorder.index') }}">{{ __('Return Order') }}</a>
-                            </li>
+                           @can('manage stock transfer order')
+								<li class="dash-item">
+                                    <a class="dash-link {{ Request::segment(1) == 'stock-transfer-order' || in_array(Request::route()->getName(), ['stock-transfer-order.index', 'stock-transfer-order.create', 'stock-transfer-order.edit', 'stock-transfer-order.show']) ? ' active' : '' }}"
+                                        href="{{ route('stock-transfer-order.index') }}">{{ __('Stock Transfer Requisition') }}</a>
+                                </li>
+                            @endcan
+                            @can('manage stock transfer note')
+                                <li class="dash-item ">
+                                    <a class="dash-link {{ in_array(Request::route()->getName(), ['stock-transfer-note.index', 'stock-transfer-note.create', 'stock-transfer-note.edit', 'stock-transfer-note.show']) ? ' active' : '' }}"
+                                        href="{{ route('stock-transfer-note.index') }}">{{ __('Stock Transfer Note') }}</a>
+                                </li>
+							@endcan
                             <li class="dash-item ">
                                 <a class="dash-link {{ Request::segment(1) == 'invoice-report' ? ' active' : '' }}"
                                     href="{{ route('invoice_report') }}">{{ __('Invoice Balance Report ') }}</a>

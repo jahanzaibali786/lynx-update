@@ -75,7 +75,7 @@
                     <p style="font-size:1rem; text-align: center; font-weight: 800;">Employee Profile Report</p>
                 </div>
                 <div style="width: 100%; display: flex; justify-content: space-between;">
-                    <p><b>Branch: </b>{{ @$branches[request('branch')] ?? 'All Branches' }}</p>
+                    <p><b>Branch: </b>{{ $branchName ?? 'All Branches' }}</p>
                 </div>
 
                 <div class="table-responsive maximumHeightNew mt-2" style="width: 100%;">

@@ -10,9 +10,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use Spatie\GoogleCalendar\Event as GoogleEvent;
 use Illuminate\Support\Facades\Schema;
-
+use Spatie\GoogleCalendar\Event as GoogleEvent;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Twilio\Rest\Client;
@@ -102,6 +101,8 @@ class Utility extends Model
             'color' => '',
             'SITE_RTL' => 'off',
             'purchase_prefix' => '#PUR',
+            'stock_transfer_order_prefix' => '#STO',
+            'stock_transfer_note_prefix' => '#STN',
             'purchase_color' => 'ffffff',
             'purchase_template' => 'template1',
             'pos_color' => 'ffffff',
@@ -3366,6 +3367,15 @@ class Utility extends Model
             'delete purchase',
             'send purchase',
             'convert purchase to grn',
+            'manage stock transfer order',
+            'create stock transfer order',
+            'show stock transfer order',
+            'edit stock transfer order',
+            'delete stock transfer order',
+            'forward stock transfer order',
+            'approve stock transfer order',
+            'reject stock transfer order',
+            'convert stock transfer order',
             'manage grn',
             'create grn',
             'show grn',
@@ -3403,7 +3413,7 @@ class Utility extends Model
             'edit daily cash closing',
             'delete daily cash closing',
             'approve daily cash closing',
-             'manage head imprest',
+            'manage head imprest',
             'create head imprest',
             'show head imprest',
             'edit head imprest',
@@ -3462,6 +3472,15 @@ class Utility extends Model
             'delete purchase',
             'send purchase',
             'convert purchase to grn',
+            'manage stock transfer order',
+            'create stock transfer order',
+            'show stock transfer order',
+            'edit stock transfer order',
+            'delete stock transfer order',
+            'forward stock transfer order',
+            'approve stock transfer order',
+            'reject stock transfer order',
+            'convert stock transfer order',
             'manage grn',
             'create grn',
             'show grn',
@@ -3499,7 +3518,7 @@ class Utility extends Model
             'edit daily cash closing',
             'delete daily cash closing',
             'approve daily cash closing',
-             'manage head imprest',
+            'manage head imprest',
             'create head imprest',
             'show head imprest',
             'edit head imprest',
@@ -5591,18 +5610,8 @@ class Utility extends Model
                 $latest = $latest->journal_id + 1;
             }
 
-            $journal = JournalEntry::where('reference_id', $data['id'])
-                ->where('voucher_type', 'JV')
-                ->where('owned_by', $data['owned_by'])
-                ->first();
-
-            if ($journal) {
-                JournalItem::where('journal', $journal->id)->delete();
-            } else {
-                $journal = new JournalEntry;
-            }
-
-            $journal->journal_id = $journal->id ? $journal->journal_id : $latest;
+            $journal = new JournalEntry;
+            $journal->journal_id = $latest;
             $journal->voucher_series = 'SYSTEM';
             $journal->date = $data['date'];
             $journal->reference = $data['reference'];
@@ -5616,6 +5625,7 @@ class Utility extends Model
             $journal->created_by = $data['created_by'];
             $journal->added_by = $data['added_by'] ?? Auth::id();
             $journal->added_at = $data['added_at'] ?? now();
+            $journal->save();
             if (!empty($data['created_at'])) {
                 $journal->created_at = $data['created_at'];
             }
@@ -5623,6 +5633,9 @@ class Utility extends Model
                 $journal->updated_at = $data['updated_at'];
             }
             $journal->save();
+            // $journal->created_at = @$data['created_at'];
+            // $journal->updated_at = @$data['updated_at'];
+            // $journal->save();
 
             $reciveable = 0;
             // dd($latest,$reciveable);
@@ -5642,7 +5655,7 @@ class Utility extends Model
                 $journalItem->types = 'Challan';
                 $journalItem->credit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']);
                 $journalItem->debit = 0;
-                self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
+               self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
                 $journalItem->save();
                 if (!empty($data['created_at'])) {
                     $journalItem->created_at = $data['created_at'];
@@ -5651,6 +5664,9 @@ class Utility extends Model
                     $journalItem->updated_at = $data['updated_at'];
                 }
                 $journalItem->save();
+                // $journalItem->created_at = @$data['created_at'];
+                // $journalItem->updated_at = @$data['updated_at'];
+                // $journalItem->save();
 
                 //  reciveable entry
                 $account_recive = ChartOfAccount::where('id', $head_id->receivable_account_id)->first();
@@ -5666,6 +5682,13 @@ class Utility extends Model
                 $journalItem->credit = 0;
                 $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) ;
                 self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
+                $journalItem->save();
+                if (!empty($data['created_at'])) {
+                    $journalItem->created_at = $data['created_at'];
+                }
+                if (!empty($data['updated_at'])) {
+                    $journalItem->updated_at = $data['updated_at'];
+                }
                 $journalItem->save();
 
                 if ($data['items'][$i]['concession'] > 0) {
@@ -5686,6 +5709,13 @@ class Utility extends Model
                     $journalItem->debit = $data['items'][$i]['concession'];
                     self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
                     $journalItem->save();
+                    if (!empty($data['created_at'])) {
+                        $journalItem->created_at = $data['created_at'];
+                    }
+                    if (!empty($data['updated_at'])) {
+                        $journalItem->updated_at = $data['updated_at'];
+                    }
+                    $journalItem->save();
                     //  reciveable entry
                     $account_recive = ChartOfAccount::where('id', $head_id->receivable_account_id)->first();
                     $journalItem = new JournalItem;
@@ -5701,6 +5731,13 @@ class Utility extends Model
                     $journalItem->credit = $data['items'][$i]['concession'];
                     $journalItem->debit = 0;
                     self::applySafeJournalItemMeta($journalItem, $data, $data['id'] ?? null, $data['model_type'] ?? \App\Models\Challans::class);
+                    $journalItem->save();
+                    if (!empty($data['created_at'])) {
+                        $journalItem->created_at = $data['created_at'];
+                    }
+                    if (!empty($data['updated_at'])) {
+                        $journalItem->updated_at = $data['updated_at'];
+                    }
                     $journalItem->save();
 
                 }
@@ -5747,7 +5784,10 @@ class Utility extends Model
                 if (!empty($data['updated_at'])) {
                     $journalItem->updated_at = $data['updated_at'];
                 }
-                $journalItem->save();
+                    $journalItem->save();
+                // $journalItem->created_at = @$data['created_at'];
+                // $journalItem->updated_at = @$data['updated_at'];
+                // $journalItem->save();
             }
             DB::commit();
 
@@ -5759,7 +5799,7 @@ class Utility extends Model
             return 'error';
         }
     }
-     public static function bankTransferJvEntry($data)
+   public static function bankTransferJvEntry($data)
     {
         DB::beginTransaction();
 
@@ -5796,14 +5836,10 @@ class Utility extends Model
             $journal->owned_by = $data['owned_by'];
             $journal->created_by = $data['created_by'];
             self::applySafeAuditData($journal, $data);
+            $journal->created_at = $data['created_at'];
+            $journal->updated_at = $data['updated_at'];
             $journal->save();
-            if (!empty($data['created_at'])) {
-                $journal->created_at = $data['created_at'];
-            }
-            if (!empty($data['updated_at'])) {
-                $journal->updated_at = $data['updated_at'];
-            }
-            $journal->save();
+
             $fromAccount = ChartOfAccount::where('id', $data['from_account'])->first();
             $toAccount = ChartOfAccount::where('id', $data['to_account'])->first();
 
@@ -5819,6 +5855,8 @@ class Utility extends Model
             $journalItem->debit = 0;
             $journalItem->branch_id = $data['owned_by'];
             self::applySafeJournalItemMeta($journalItem, $data, $data['id'], 'BankTransfer');
+            $journalItem->created_at = $data['created_at'];
+            $journalItem->updated_at = $data['updated_at'];
             $journalItem->save();
 
             $journalItem = new JournalItem;
@@ -5833,6 +5871,8 @@ class Utility extends Model
             $journalItem->debit = $data['amount'];
 			$journalItem->branch_id = $data['owned_by'];
             self::applySafeJournalItemMeta($journalItem, $data, $data['id'], 'BankTransfer');
+            $journalItem->created_at = $data['created_at'];
+            $journalItem->updated_at = $data['updated_at'];
             $journalItem->save();
 
 
@@ -7086,6 +7126,90 @@ class Utility extends Model
     }
 
     // Purchase JV voucher working
+    public static function purchasejv($data)
+    {
+        $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'JV')->latest()->first();
+        if (! $latest) {
+            $latest = 1;
+        } else {
+            $latest = $latest->journal_id + 1;
+        }
+        $journal = new JournalEntry;
+        $journal->journal_id = $latest;
+        $journal->date = $data['date'];
+        $journal->reference = $data['reference'];
+        $journal->description = 'Purchase no : '.@$data['no'];
+        $journal->reference_id = $data['id'];
+        $journal->category = $data['category'];
+        $journal->voucher_type = 'JV';
+        $journal->user_id = @$data['user_id'];
+        $journal->user_type = @$data['user_type'];
+        $journal->owned_by = $data['owned_by'];
+        $journal->created_by = $data['created_by'];
+        $journal->save();
+
+        $payable = 0;
+
+        for ($i = 0; $i < count($data['items']); $i++) {
+            $product = ProductService::where('id', $data['items'][$i]['item'])->first();
+            $journalItem = new JournalItem;
+            $journalItem->journal = $journal->id;
+            $journalItem->account = @$product->sale_chartaccount_id;
+            $journalItem->entry_id = @$data['items'][$i]['prod_id'];
+            $journalItem->types = @$data['category'];
+            $journalItem->description = $product->name;
+            $journalItem->head_ids = $product->id;
+            $journalItem->branch_id = $data['owned_by'];
+            $journalItem->credit = 0;
+            $journalItem->debit = ($data['items'][$i]['quantity'] * $data['items'][$i]['price']) - $data['items'][$i]['discount'];
+            $journalItem->save();
+            $payable += ((floatval($data['items'][$i]['quantity']) * floatval($data['items'][$i]['price'])) - $data['items'][$i]['discount']);
+
+        }
+
+        if (! empty($data['vender_account'])) {
+
+            $journalItem = new JournalItem;
+            $journalItem->journal = $journal->id;
+            $journalItem->account = $data['vender_account'];
+            $journalItem->description = 'payable of study pack';
+            $journalItem->debit = 0;
+            $journalItem->credit = $payable + $tax;
+            $journalItem->branch_id = $data['owned_by'];
+            $journalItem->save();
+        } else {
+            $types = ChartOfAccountType::where('created_by', '=', $data['created_by'])->where('name', 'Liabilities')->first();
+            if ($types) {
+                $sub_type = ChartOfAccountSubType::where('type', $types->id)->where('name', 'Payables')->first();
+                $account = ChartOfAccount::where('type', $types->id)->where('sub_type', $sub_type->id)->where('name', 'payable study pack')->first();
+                if ($account) {
+                } else {
+                    $account = new ChartOfAccount;
+                    $account->name = 'payable study pack';
+                    $account->code = '0';
+                    $account->type = $types->id;
+                    $account->sub_type = $sub_type->id;
+                    $account->description = 'payable study pack';
+                    $account->is_enabled = 1;
+                    $account->created_by = \Auth::user()->creatorId();
+                    $account->save();
+                }
+            }
+            if ($account) {
+                $journalItem = new JournalItem;
+                $journalItem->journal = $journal->id;
+                $journalItem->account = @$account->id;
+                $journalItem->description = 'payable study pack';
+                $journalItem->debit = 0;
+                $journalItem->credit = $payable + $tax;
+                $journalItem->branch_id = $data['owned_by'];
+                $journalItem->save();
+            }
+        }
+
+        return $journal->id;
+    }
+
     public static function studypackjv($data)
     {
         DB::beginTransaction();
@@ -7335,6 +7459,7 @@ class Utility extends Model
 
         return $journal->id;
     }
+
 
     // Monthly Salary Jv
     // public static function monthlysalaryjventry($data)
@@ -7815,4 +7940,3 @@ class Utility extends Model
         return 'true';
     }
 }
-

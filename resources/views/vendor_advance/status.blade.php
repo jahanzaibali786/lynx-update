@@ -23,7 +23,7 @@
     <div class="row">
         <div class="form-group col-md-6">
             {{ Form::label('vendor_name', __('Vendor'), ['class' => 'form-label']) }}
-            {{ Form::text('vendor_name', $advance->vendor->name ?? '', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+            {{ Form::text('vendor_name', $advance->vendor->display_name ?? '', ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('advance_date', __('Advance Month'), ['class' => 'form-label']) }}

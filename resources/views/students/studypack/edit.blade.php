@@ -598,7 +598,7 @@
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}<span
+                                 {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}<span
                                     class="text-danger"> *</span>
                                 {{ Form::select('class', $class ?? [], $selectedClassId, [
                                     'class' => 'form-control',

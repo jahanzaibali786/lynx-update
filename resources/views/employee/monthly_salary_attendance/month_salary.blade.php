@@ -302,6 +302,9 @@
                 var checkedCheckboxes = document.querySelectorAll(
     '.row-checkbox:checked'
 );
+                checkedCheckboxes = Array.from(checkedCheckboxes).filter(function(checkbox) {
+                    return checkbox.dataset.salaryFinal === '0';
+                });
                 var form = document.getElementById('employee_submit');
                 var formData = new FormData(form);
                 checkedCheckboxes.forEach(function(checkbox) {
@@ -369,7 +372,7 @@
                     Swal.fire({
                         icon: 'warning',
                         title: 'No Rows Selected',
-                        text: 'Please select at least one row to delete.',
+                        text: 'Please select at least one Salary Un Finilize row to rollback.',
                         confirmButtonText: 'OK',
                     });
                 }
@@ -1191,6 +1194,7 @@
                                     data-id="{{ $data->id }}"
                                     data-employee-id="{{ optional($data->employee)->id }}"
                                     data-date="{{ $data->for_month_of }}"
+                                    data-salary-final="{{ optional($data->employeemonthlysalary)->sal_final == 1 ? '1' : '0' }}"
                                     {{ ($isFwdToAccount || $isAccountApproved) ? 'disabled' : '' }}>
                             </td>
                             <td>{{ $loop->iteration }}</td>

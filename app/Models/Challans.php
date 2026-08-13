@@ -11,6 +11,7 @@ class Challans extends Model
     protected $fillable = [
         'student_id',
         'class_id',
+        'section_id',
         'rollno',
         'challanNo',
         'concession_id',
@@ -27,7 +28,6 @@ class Challans extends Model
         'status',
         'temp_status',
         'session_id',
-        'section_id',
         'owned_by',
         'created_by',
         'voucher_id',

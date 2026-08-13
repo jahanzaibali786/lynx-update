@@ -24,7 +24,7 @@
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('type', __('Type'),['class'=>'form-label']) }}
-            {{ Form::select('type', ['cash' => 'Cash','bank' => 'Bank','head_imprest' => 'Head Imprest'], 'normal', array('class' => 'form-control select','required'=>'required')) }}
+            {{ Form::select('type', ['cash' => 'Cash','bank' => 'Bank','head_imprest' => 'Head Imprest'], $bankAccount->type, array('class' => 'form-control select custom-select','required'=>'required')) }}
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('branches', __('Branch'), ['class' => 'form-label']) }}

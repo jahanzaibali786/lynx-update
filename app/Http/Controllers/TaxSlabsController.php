@@ -271,11 +271,11 @@ class TaxSlabsController extends Controller
 
             $otherAdditionsInSal = 0;
 
-            if ($lastscale && !$isCurrentCashPaymode) {
+            if ($lastPayScale && !$isCurrentCashPaymode) {
                 $otherAdditionsInSal =
-                    ($lastscale->drns ?? 0) +
-                    ($lastscale->misc ?? 0) +
-                    ($lastscale->other_add ?? 0);
+                    ($lastPayScale->drns ?? 0) +
+                    ($lastPayScale->misc ?? 0) +
+                    ($lastPayScale->other_add ?? 0);
             }
 
             $monthlySalary += $otherAdditionsInSal;

@@ -509,16 +509,16 @@
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('All StudyPack Challans') }}</li>
 @endsection
-{{--
-@section('action-btn')
+
+{{--@section('action-btn')
     <div class="float-end">
         <a href="#" data-size="lg" data-url="{{ route('studypackchallan.create') }}" data-ajax-popup="true"
             data-bs-title="{{ __('Create') }}" class="btn btn-sm btn-primary">
             Create
         </a>
     </div>
-@endsection
---}}
+@endsection--}}
+
 @section('content')
     <div class="row">
         <div class="col-sm-12">
@@ -593,8 +593,7 @@
                                         Challan
                                         @else
                                         Generate Challan 
-                                        @endif
-                                    </button>
+                                        @endif</button>
                                     <button type="button" id="rollbackButton" class="btn mx-1 btn-sm btn-outline-danger"
                                         onclick="rollbackStudyPackChallans()" disabled>Rollback Challan</button>
                                 <button type="button" id="printChallanButton" class="btn mx-1 btn-sm btn-outline-success"

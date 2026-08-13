@@ -99,7 +99,7 @@ class JournalVoucherService
             $accountId = $account['account_id'] ?? $account['account'];
             $debit = isset($account['debit']) ? (float) $account['debit'] : 0;
             $credit = isset($account['credit']) ? (float) $account['credit'] : 0;
-
+            $bankAccounts = BankAccount::where('chart_account_id', '=', $accountId)->first();
             $journalItem = new JournalItem();
             $journalItem->journal = $journal->id;
             $journalItem->account = $accountId;
@@ -109,6 +109,7 @@ class JournalVoucherService
             $journalItem->credit = $credit;
             $journalItem->types = $account['types'] ?? $voucherType;
             $journalItem->branch_id = $account['branch_id'] ?? $ownedBy;
+            $journalItem->bank_id = $bankAccounts ? $bankAccounts->id : null;
             $journalItem->ref_no = $account['ref_no'] ?? null;
             $journalItem->tra_date = $account['tra_date'] ?? null;
             $journalItem->user_type = $account['user_type'] ?? null;
@@ -126,6 +127,11 @@ class JournalVoucherService
             if ($journal->status == 'Approved') {
                 $this->updateBankAccountBalance($accountId, $journalItem->debit, $journalItem->credit);
             }
+        }
+        // also update the bank_id in journal entry 
+        if ($bankAccounts) {
+            $journal->bank_id = $bankAccounts->id;
+            $journal->save();
         }
     }
 

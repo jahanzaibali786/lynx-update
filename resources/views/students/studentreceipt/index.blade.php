@@ -30,14 +30,14 @@
             border-color: #dc3545 !important;
             box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
         }
-
+        .searchBoxElement{
+            z-index : 1000 !important;
+        }
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button {
             opacity: 1;
         }
-        .searchBoxElement{
-            z-index : 1000 !important;
-        }
+
         /* ── Entry card ── */
         #entry-card {
             border: 2px solid var(--primary);

@@ -36,6 +36,8 @@ class Employee extends Model
         'eobi',
         'eobi_employer',
         'company_doj',
+        'application_date',
+        'interview_date',
         'probation_period',
         'probation_end',
         'documents',
@@ -49,6 +51,18 @@ class Employee extends Model
         'owned_by',
         'created_by',
     ];
+
+    public function contracts()
+    {
+        return $this->hasMany(EmployeeContract::class, 'employee_id', 'id');
+    }
+
+    public function currentContract()
+    {
+        return $this->hasOne(EmployeeContract::class, 'employee_id', 'id')
+            ->where('status', 'active')
+            ->orderBy('from_date', 'desc');
+    }
 
     public function documents()
     {

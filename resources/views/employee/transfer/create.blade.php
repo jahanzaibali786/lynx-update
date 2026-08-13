@@ -115,7 +115,7 @@
         });
     }
 
-    function getDesignation(id) {
+    function getDesignation(id, selectedDesignationId) {
         $.ajax({
             url: '{{route('employee.json')}}',
             type: 'POST',
@@ -129,11 +129,15 @@
                 $.each(data, function (key, value) {
                     $('#desig_id').append('<option value="' + key + '">' + value + '</option>');
                 });
+
+                if (selectedDesignationId) {
+                    $('#desig_id').val(String(selectedDesignationId)).trigger('change');
+                }
             }
         });
     }
 </script>
-{{Form::open(array('url'=>'employee-transfer','method'=>'post'))}}
+{{ Form::open(['url' => 'employee-transfer', 'method' => 'post', 'class' => 'employee-transfer-ajax-form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-lg-6 col-md-6">
@@ -197,4 +201,15 @@
     <input type="submit" value="{{__('Create')}}" class="btn  btn-primary">
 </div>
 
-    {{Form::close()}}
+{{ Form::close() }}
+<script>
+    ajaxModalForm({
+        formSelector: '.employee-transfer-ajax-form',
+        submitText: '{{ __('Creating...') }}',
+        onSuccess: function() {
+            if (typeof window.refreshEmployeeTransferContent === 'function') {
+                window.refreshEmployeeTransferContent();
+            }
+        }
+    });
+</script>

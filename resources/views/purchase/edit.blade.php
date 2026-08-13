@@ -201,7 +201,7 @@ $(document).on('click', '.confirm-row-btn', function() {
         show_toastr('error', 'Please enter a valid quantity.', 'error');
         return;
     }
-    if (price <= 0) {
+    if (price < 0) {
         show_toastr('error', 'Please enter a valid price.', 'error');
         return;
     }
@@ -446,7 +446,7 @@ $(document).ready(function() {
                         <div class="col-md-6">
                             <div class="form-group">
                                 {{ Form::label('vender_id', __('Vendor'),['class'=>'form-label']) }}
-                                {{ Form::text('', $purchase->vender->name ?? '', ['class' => 'form-control', 'disabled' => true]) }}
+                                {{ Form::text('', $purchase->vender->display_name ?? '', ['class' => 'form-control', 'disabled' => true]) }}
                                 {{ Form::hidden('vender_id', $purchase->vender_id) }}
                             </div>
                             <div id="vender_detail" class="d-block text-start">

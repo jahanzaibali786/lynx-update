@@ -39,10 +39,25 @@
                         <td style="padding: 3px 8px; font-size: 9px;">{{ $employee->name ?? '-' }}</td>
                         <td style="width: 15%; vertical-align: top;" rowspan="7">
                             <!-- Employee Photo -->
-                            @if(isset($employee->user) && !empty($employee->user->profile))
-                                <img id="profileImage" src="{{ Storage::url('emp_profile_images/' . $employee->profile_img) }}" style="width: 80px; height: 90px; border: 1px solid #000; object-fit: cover; margin-right: 10px;" />
+                            @php
+                                $employeePhoto = !empty($employee->profile_img)
+                                    ? storage_path('emp_profile_images/' . $employee->profile_img)
+                                    : null;
+                                $employeePhotoData = null;
+
+                                if (!empty($employeePhoto) && file_exists($employeePhoto)) {
+                                    $employeePhotoMime = mime_content_type($employeePhoto) ?: 'image/jpeg';
+                                    $employeePhotoData = 'data:' . $employeePhotoMime . ';base64,' . base64_encode(file_get_contents($employeePhoto));
+                                }
+                            @endphp
+                            @if (!empty($employeePhotoData))
+                                <img id="profileImage" src="{{ $employeePhotoData }}" style="width: 80px; height: 90px; border: 1px solid #000; object-fit: cover; margin-right: 10px;" />
                             @else
-                                <div id="profileImage" src="{{ Storage::url('emp_profile_images/avatar_1751294680.png') }}" style="width: 70px; height: 90px; border: 1px solid #000; background-color: #f0f0f0; margin-right: 10px;"></div>
+                                <div id="profileImage" style="width: 80px; height: 90px; border: 1px solid #000; background-color: #fff; margin-right: 10px; position: relative; box-sizing: border-box;">
+                                    <div style="position: absolute; top: 4px; right: 4px; bottom: 4px; left: 4px; border: 1px solid #9d9d9d;"></div>
+                                    <div style="position: absolute; top: 7px; left: 7px; width: 60px; height: 1px; background-color: #a8a8a8; transform: rotate(48deg); transform-origin: left center;"></div>
+                                    <div style="position: absolute; top: 7px; right: 7px; width: 60px; height: 1px; background-color: #a8a8a8; transform: rotate(-48deg); transform-origin: right center;"></div>
+                                </div>
                             @endif
                         </td>
                     </tr>
@@ -115,11 +130,36 @@
                     </tr>
                     @php
                         $heads = $lastPayscaleDetail->scale->employeeScaleHeads ?? collect();
-                        $basic = $heads->where('head', function_exists('getSalaryHeadId') ? getSalaryHeadId('Initial Basic') : 1)->first();
-                        $house = $heads->where('head', function_exists('getSalaryHeadId') ? getSalaryHeadId('House Rent') : 2)->first();
-                        $medical = $heads->where('head', function_exists('getSalaryHeadId') ? getSalaryHeadId('Medical Allowance') : 3)->first();
-                        $others = $heads->whereNotIn('head', [($basic->head ?? 1), ($house->head ?? 2), ($medical->head ?? 3)]);
-                        $gross = $heads->sum('head_value');
+                        $normalizeHeadName = function ($head) {
+                            return strtolower(trim(preg_replace('/\s+/', ' ', (string) optional($head->salaryHeads)->head)));
+                        };
+                        $findHeadByNames = function ($names) use ($heads, $normalizeHeadName) {
+                            $normalizedNames = collect($names)
+                                ->map(fn ($name) => strtolower(trim(preg_replace('/\s+/', ' ', (string) $name))))
+                                ->all();
+
+                            return $heads->first(function ($head) use ($normalizedNames, $normalizeHeadName) {
+                                return in_array($normalizeHeadName($head), $normalizedNames, true);
+                            });
+                        };
+                        $basic = $findHeadByNames(['Initial Basic', 'Basic Salary', 'Basic']);
+                        $house = $findHeadByNames(['House Rent', 'House Rent Allowance']);
+                        $medical = $findHeadByNames(['Medical', 'Medical Allowance']);
+                        $excludedHeadIds = collect([$basic, $house, $medical])
+                            ->filter()
+                            ->pluck('head')
+                            ->all();
+                        $otherScaleAllowance = $heads->whereNotIn('head', $excludedHeadIds)->sum('head_value');
+                        $otherDetailAllowance =
+                            (float) ($lastPayscaleDetail->other_add ?? 0)
+                            + (float) ($lastPayscaleDetail->conv ?? 0)
+                            + (float) ($lastPayscaleDetail->drns ?? 0)
+                            + (float) ($lastPayscaleDetail->misc ?? 0);
+                        $otherAllowance = $otherScaleAllowance + $otherDetailAllowance;
+                        $gross = (float) ($basic->head_value ?? 0)
+                            + (float) ($house->head_value ?? 0)
+                            + (float) ($medical->head_value ?? 0)
+                            + $otherAllowance;
                     @endphp
                     <tr>
                         <td style="font-weight: bold; padding: 3px 8px; font-size: 9px;">Basic Salary</td>
@@ -135,11 +175,11 @@
                     </tr>
                     <tr>
                         <td style="font-weight: bold; padding: 3px 8px; font-size: 9px;">Other Allowance</td>
-                        <td style="padding: 3px 8px; font-size: 9px;">{{ number_format($others->sum('head_value'), 2) }}</td>
+                        <td style="padding: 3px 8px; font-size: 9px;">{{ number_format($otherAllowance, 2) }}</td>
                     </tr>
                     <tr>
                         <td style="font-weight: bold; padding: 5px 8px; font-size: 9px;">GROSS SALARY (PM)</td>
-                        <td style="padding: 5px 8px; font-size: 9px;">{{!empty($lastPayscaleDetail) ? $lastPayscaleDetail->net + $lastPayscaleDetail->emp_sec : '0' }}</td>
+                        <td style="padding: 5px 8px; font-size: 9px;">{{ number_format($gross, 2) }}</td>
                     </tr>
                 </table>
 
@@ -248,22 +288,21 @@
                 <div style="width: 100%; border-bottom: 4px solid #d3d3d3; margin: 20px 0;"></div>
 
                 <!-- Signature Section -->
-                <table style="width: 100%; border-collapse: collapse; margin-top: 30px; padding-top: 80px;">
+                <table style="width: 100%; border-collapse: collapse; margin-top: 30px; table-layout: fixed;">
                     <tr>
-                        <td style="width: 33.33%; text-align: center; vertical-align: bottom; padding: 20px 5px;">
+                        <td style="width: 50%; text-align: left; vertical-align: bottom; padding: 20px 0;">
                             {{-- <div style="border-bottom: 1px solid #000; height: 30px; margin-bottom: 5px;"></div> --}}
-                            <div style="font-size: 9px;">{{ $employee->name ?? '-' }}</div>
-                            <div style="font-size: 10px; font-weight: bold;">Employee</div>
+                            <div style="width: 180px; text-align: center;">
+                                <div style="font-size: 9px;">{{ $employee->name ?? '-' }}</div>
+                                <div style="font-size: 10px; font-weight: bold;">Employee</div>
+                            </div>
                         </td>
-                        <td style="width: 33.33%; text-align: center; vertical-align: bottom; padding: 20px 5px;">
+                        <td style="width: 50%; text-align: right; vertical-align: bottom; padding: 20px 0;">
                             {{-- <div style="border-bottom: 1px solid #000; height: 30px; margin-bottom: 5px;"></div> --}}
-                            <div style="font-size: 9px;">MRS ZERMINA SHEHZAD</div>
-                            <div style="font-size: 10px; font-weight: bold;">Executive Director Academics</div>
-                        </td>
-                        <td style="width: 33.33%; text-align: center; vertical-align: bottom; padding: 20px 5px;">
-                            {{-- <div style="border-bottom: 1px solid #000; height: 30px; margin-bottom: 5px;"></div> --}}
-                            <div style="font-size: 9px;">MRS MISBAH KHURSHID</div>
-                            <div style="font-size: 10px; font-weight: bold;">Managing Director</div>
+                            <div style="width: 180px; text-align: center; margin-left: auto;">
+                                <div style="font-size: 9px;">{{ optional($branches_school->headmaster_name)->name ?? '-' }}</div>
+                                <div style="font-size: 10px; font-weight: bold;">{{ optional($branches_school->headmaster_designation)->name ?? '-' }}</div>
+                            </div>
                         </td>
                     </tr>
                 </table>

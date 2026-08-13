@@ -110,7 +110,7 @@
 
                                 </td>
 
-                                <td> {{ !empty($purchase->vender) ? $purchase->vender->name : '' }} </td>
+                                <td> {{ !empty($purchase->vender) ? $purchase->vender->display_name : '' }} </td>
 
                                 {{-- <td>{{ !empty($purchase->category) ? $purchase->category->name : '' }}</td> --}}
                                 <td>{{ Auth::user()->dateFormat($purchase->purchase_date) }}</td>
@@ -159,7 +159,8 @@
                                                         <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                                     </a>
                                                 @endcan
-                                                @can('edit purchase' && $purchase->status != 7)
+                                                @can('edit purchase')
+                                                    @if($purchase->status != 7)
                                                     <a href="#"
                                                         data-url="{{ route('purchase.edit', \Crypt::encrypt($purchase->id)) }}"
                                                         data-size="modal-fullscreen" data-ajax-popup="true"
@@ -167,6 +168,7 @@
                                                         data-bs-title="{{ __('Edit') }}">
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
+                                                    @endif
                                                 @endcan
                                                 @if($purchase->status == 5 )
                                                     <a href="{{ route('purchase.finalize', $purchase->id) }}"

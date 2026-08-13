@@ -33,70 +33,137 @@ class StudentWithdrawalController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index(Request $request)
-    {
-        // dd($request->all());
-        // if(\Auth::user()->can('manage session'))
-        // {
-        if (\Auth::user()->type == 'company') {
-            $branches = User::where('type', '=', 'branch')->where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-            $branches->prepend('Select Branch', '');
-            $query = StudentWithdrawal::with('student', 'branch')->where('created_by', Auth::user()->creatorId());
-        } else {
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $query = StudentWithdrawal::with('student', 'branch')->where('owned_by', Auth::user()->ownedId());
-        }
-        if (!empty($request->branches)) {
-            $query->where('owned_by', '=', $request->branches);
-        }
-        $statusFilter = $request->status ?? 'draft';
-        if (!empty($statusFilter)) {
-            $query->where('status', '=', $statusFilter);
-        }
-        // if (!empty($request->start_date)) {
-        //     $query->whereDate('withdraw_date', '>', $request->start_date);
-        // }
-        // if (!empty($request->end_date)) {
-        //     $query->whereDate('withdraw_date', '<', $request->end_date);
-        // }
-        if (!empty($request->start_date) && !empty($request->end_date)) {
-            $dateFrom = $request->start_date;
-            $dateTo = $request->end_date;
+   public function index(Request $request)
+{
+    $user = Auth::user();
 
-        } else {
+    /*
+    |--------------------------------------------------------------------------
+    | Branches and base query
+    |--------------------------------------------------------------------------
+    */
+    if ($user->type === 'company') {
+        $branches = User::query()
+            ->where('type', 'branch')
+            ->where('created_by', $user->creatorId())
+            ->pluck('name', 'id');
 
-            $currentYear = date('Y');
-            $currentMonth = date('m');
+        // Add company itself to branch dropdown.
+        $branches->prepend($user->name, $user->id);
+        $branches->prepend('Select Branch', '');
 
-            if ($currentMonth >= 7) {
-                // Current academic session: July -> June
-                $dateFrom = "$currentYear-07-01";
-                $dateTo = date('Y-06-30', strtotime('+1 year'));
-            } else {
-                // Previous July -> Current June
-                $dateFrom = date('Y-07-01', strtotime('-1 year'));
-                $dateTo = "$currentYear-06-30";
-            }
-        }
+        $query = StudentWithdrawal::query()
+            ->with(['student', 'branch'])
+            ->where('created_by', $user->creatorId());
+    } else {
+        $branches = User::query()
+            ->where('id', $user->ownedId())
+            ->pluck('name', 'id');
 
-        $query->whereBetween('withdraw_date', [$dateFrom, $dateTo]);
-        $studentwithdrawal = $query->orderBy('id', 'Desc')->get();
-        $status = [
-            '' => 'All',
-            'Draft' => 'Draft',
-            'pending' => 'Pending',
-            'Approved' => 'Approved',
-            'Rejected' => 'Rejected',
-            'Roll Back' => 'Roll Back',
-        ];
-        return view('students.student_withdrawal.index', compact('studentwithdrawal', 'branches', 'status', 'dateFrom', 'dateTo'));
-        // }
-        // else
-        // {
-        //     return redirect()->back()->with('error', 'Permission denied.');
-        // }
+        $branches->prepend('Select Branch', '');
+
+        $query = StudentWithdrawal::query()
+            ->with(['student', 'branch'])
+            ->where('owned_by', $user->ownedId());
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Branch filter
+    |--------------------------------------------------------------------------
+    | Apply only when a branch is actually selected.
+    */
+    if ($request->filled('branches')) {
+        $query->where('owned_by', $request->input('branches'));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Status filter
+    |--------------------------------------------------------------------------
+    | When status is empty, no status condition is added and all statuses
+    | are returned.
+    */
+    $statusFilter = trim((string) $request->input('status', ''));
+
+    if ($statusFilter !== '') {
+        $query->whereRaw('LOWER(TRIM(status)) = ?', [
+            strtolower($statusFilter),
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Date range
+    |--------------------------------------------------------------------------
+    | If both dates are provided, use the selected range.
+    | Otherwise, use the current academic session from July to June.
+    */
+    if (
+        $request->filled('start_date') &&
+        $request->filled('end_date')
+    ) {
+        $dateFrom = $request->input('start_date');
+        $dateTo = $request->input('end_date');
+    } else {
+        $currentYear = now()->year;
+        $currentMonth = now()->month;
+
+        if ($currentMonth >= 7) {
+            // July of current year to June of next year.
+            $dateFrom = $currentYear . '-07-01';
+            $dateTo = ($currentYear + 1) . '-06-30';
+        } else {
+            // July of previous year to June of current year.
+            $dateFrom = ($currentYear - 1) . '-07-01';
+            $dateTo = $currentYear . '-06-30';
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Apply date filter
+    |--------------------------------------------------------------------------
+    */
+    $query->whereDate('withdraw_date', '>=', $dateFrom)
+        ->whereDate('withdraw_date', '<=', $dateTo);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fetch records
+    |--------------------------------------------------------------------------
+    */
+    $studentwithdrawal = $query
+        ->orderByDesc('id')
+        ->get();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Status dropdown
+    |--------------------------------------------------------------------------
+    | The empty key represents "All" and applies no status filter.
+    */
+    $status = [
+        ''          => 'All',
+        'draft'     => 'Draft',
+        'pending'   => 'Pending',
+        'approved'  => 'Approved',
+        'rejected'  => 'Rejected',
+        'roll back' => 'Roll Back',
+    ];
+
+    return view(
+        'students.student_withdrawal.index',
+        compact(
+            'studentwithdrawal',
+            'branches',
+            'status',
+            'statusFilter',
+            'dateFrom',
+            'dateTo'
+        )
+    );
+}
 
     /**
      * Show the form for creating a new resource.
@@ -1081,123 +1148,239 @@ class StudentWithdrawalController extends Controller
     }
 
     public function settlementCertificate($id)
-    {
-        $withdrawal = StudentWithdrawal::with(['student', 'branch', 'class'])->findOrFail($id);
-        $student = $withdrawal->student;
-        $branch = $withdrawal->branch;
-        $class = $withdrawal->class;
+{
+    $withdrawal = StudentWithdrawal::with([
+        'student',
+        'branch',
+        'class',
+    ])->findOrFail($id);
 
-        $admissionChallanNo = 'N/A';
-        $admissionBranch = null;
-        $enrollment = null;
-        if ($student) {
-            $enrollment = \App\Models\StudentEnrollments::where('regId', $student->id)->first();
-            $admissionBranch = $enrollment && $enrollment->branch ? $enrollment->branch->name : null;
+    $student = $withdrawal->student;
+    $branch = $withdrawal->branch;
+    $class = $withdrawal->class;
 
-            $admissionChallan = \App\Models\Challans::where('student_id', $student->id)
-                ->where('challan_type', 'Admission')
-                ->orderBy('id', 'desc')
-                ->first();
-            $admissionChallanNo = $admissionChallan ? $admissionChallan->challanNo : 'N/A';
-        }
+    $admissionChallanNo = 'N/A';
+    $admissionBranch = null;
+    $enrollment = null;
 
-        $lastPaidChallan = \App\Models\Challans::where('student_id', $student->id)
-            ->where('status', 'Paid')
-            ->orderByDesc('fee_month')
+    if ($student) {
+        $enrollment = \App\Models\StudentEnrollments::where(
+            'regId',
+            $student->id
+        )->first();
+
+        $admissionBranch = $enrollment && $enrollment->branch
+            ? $enrollment->branch->name
+            : null;
+
+        $admissionChallan = \App\Models\Challans::where(
+            'student_id',
+            $student->id
+        )
+            ->where('challan_type', 'Admission')
+            ->orderByDesc('id')
             ->first();
-        $lastBillingQuery = Challans::where('student_id', $student->id)
-            ->whereNotIn('challan_type', ['Transfer', 'Withdrawal'])
-            ->orderByRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') DESC");
 
-        $this->applyPreviousChallanCap(
-            $lastBillingQuery,
-            $withdrawal->withdraw_date
-        );
-        $lastBillingPaid = clone $lastBillingQuery;
-        $lastBillingPaid = $lastBillingPaid->where('status', 'Paid')->first();
+        $admissionChallanNo = $admissionChallan
+            ? $admissionChallan->challanNo
+            : 'N/A';
+    }
 
-        $lastBilling = $lastBillingQuery->first();
+    /*
+    |--------------------------------------------------------------------------
+    | Last billing and last paid billing
+    |--------------------------------------------------------------------------
+    */
 
-        $securityHead = \App\Models\FeeHead::whereRaw('LOWER(fee_head) LIKE ?', ['%security%'])->first();
-        $securityDeposit = 0;
-        $securityDepositDate = null;
-        $securityChallanNo = 'N/A';
-        if ($securityHead) {
-            // Sum all credit amounts for this security fee head from paid journal items
-            $securityJournalItems = \App\Models\JournalItem::where('head', $securityHead->id)
-                ->where('user_type', 'Student')
-                ->where('user_id', $student->id)
-                ->where('types', 'Challan Payment')
-                ->where('credit', '>', 0)
-                ->get();
-            // dd($securityJournalItems);
-            $securityDeposit = $securityJournalItems->sum('credit');
+    $lastBillingQuery = Challans::where('student_id', $student->id)
+        ->whereNotIn('challan_type', [
+            'Transfer',
+            'Withdrawal',
+        ]);
 
-            // Collect all unique receipt dates
-            $receiptDates = [];
-            foreach ($securityJournalItems as $item) {
-                if ($item->receipt_id) {
-                    $receipt = \App\Models\StudentReceipt::find($item->receipt_id);
-                    if ($receipt && $receipt->recipt_date) {
-                        $receiptDates[] = \Carbon\Carbon::parse($receipt->recipt_date)->format('d M Y');
-                    }
-                }
+    $this->applyPreviousChallanCap(
+        $lastBillingQuery,
+        $withdrawal->withdraw_date
+    );
+
+    // Latest generated billing according to fee_month date.
+    $lastBilling = (clone $lastBillingQuery)
+        ->orderByRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') DESC")
+        ->orderByDesc('id')
+        ->first();
+
+    // Latest paid billing must have an actual receipt. Zero-amount paid challans
+    // can be auto-closed and should not become the "paid upto" month.
+    $lastBillingPaid = (clone $lastBillingQuery)
+        ->where('status', 'Paid')
+        ->whereHas('receipts', function ($query) {
+            $query->where('recipt_amount', '>', 0);
+        })
+        ->orderByRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') DESC")
+        ->orderByDesc('id')
+        ->first();
+        
+
+    /*
+    |--------------------------------------------------------------------------
+    | Security deposit
+    |--------------------------------------------------------------------------
+    */
+
+    $securityHead = \App\Models\FeeHead::whereRaw(
+        'LOWER(fee_head) LIKE ?',
+        ['%security%']
+    )->first();
+
+    $securityDeposit = 0;
+    $securityDepositDate = null;
+    $securityChallanNo = 'N/A';
+
+    if ($securityHead) {
+        $securityJournalItems = \App\Models\JournalItem::where(
+            'head',
+            $securityHead->id
+        )
+            ->where('user_type', 'Student')
+            ->where('user_id', $student->id)
+            ->where('types', 'Challan Payment')
+            ->where('credit', '>', 0)
+            ->get();
+
+        $securityDeposit = $securityJournalItems->sum('credit');
+
+        $receiptDates = [];
+
+        foreach ($securityJournalItems as $item) {
+            if (!$item->receipt_id) {
+                continue;
             }
-            $receiptDates = array_unique($receiptDates);
-            $securityDepositDate = !empty($receiptDates) ? implode(', ', $receiptDates) : null;
 
-            // Get the challan number where security was charged
-            $securityChallan = \App\Models\ChallanHead::leftJoin('challans', 'challan_heads.challan_id', '=', 'challans.id')
-                ->where('challans.student_id', $student->id)
-                ->where('challan_heads.head_id', $securityHead->id)
-                ->orderBy('challans.id', 'Desc')
-                ->select('challans.challanNo')
-                ->first();
-            $securityChallanNo = $securityChallan->challanNo ?? 'N/A';
-        }
-        $arrearsTotal = $this->getCappedArrearsTotal(
-            $student->id,
-            $student->roll_no,
-            $withdrawal->withdraw_date
-        );
-        $adj = \App\Models\ChallanSecAdjustment::where('roll_no', $student->roll_no)->sum('amount');
-        $securityPayable = $securityDeposit - $adj;
-        $totalPayables = $securityPayable;
-        $totalReceivables = $arrearsTotal - $securityPayable;
-        $netBalance = $arrearsTotal - $securityPayable;
-        $netBalance = $securityPayable - $arrearsTotal;
-        // dd($securityDeposit,$adj, $securityPayable, $arrearsTotal );
-        $lastReceiptAmount = 0;
-        $lastReceiptDate = null;
-        $otherDeduction = 0;
+            $receipt = \App\Models\StudentReceipt::find(
+                $item->receipt_id
+            );
 
-        // Excess refund: paid challans with fee_month after withdrawal date
-        $excessRefund = 0;
-        if ($withdrawal->withdraw_date) {
-            $excessRefund = \App\Models\Challans::where('student_id', $student->id)
-                ->where('status', 'Paid')
-                ->whereNotIn('challan_type', ['Transfer', 'Withdrawal'])
-                ->whereDate('fee_month', '>', $withdrawal->withdraw_date)
-                ->sum('paid_amount');
+            if ($receipt && $receipt->recipt_date) {
+                $receiptDates[] = \Carbon\Carbon::parse(
+                    $receipt->recipt_date
+                )->format('d M Y');
+            }
         }
 
+        $receiptDates = array_unique($receiptDates);
 
-        $lastReceipt = \App\Models\StudentReceipt::where('student_id', $student->id)
-            ->orderBy('id', 'desc')
+        $securityDepositDate = !empty($receiptDates)
+            ? implode(', ', $receiptDates)
+            : null;
+
+        $securityChallan = \App\Models\ChallanHead::leftJoin(
+            'challans',
+            'challan_heads.challan_id',
+            '=',
+            'challans.id'
+        )
+            ->where('challans.student_id', $student->id)
+            ->where('challan_heads.head_id', $securityHead->id)
+            ->orderByDesc('challans.id')
+            ->select('challans.challanNo')
             ->first();
-        $lastReceiptAmount = $lastReceipt ? $lastReceipt->recipt_amount : 0;
-        $lastReceiptDate = $lastReceipt ? $lastReceipt->recipt_date : null;
 
-        $pdf = Pdf::loadView('students.student_withdrawal.clearanceCertificatePrint', [
+        $securityChallanNo = $securityChallan->challanNo ?? 'N/A';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Arrears and security adjustment
+    |--------------------------------------------------------------------------
+    */
+
+    $arrearsTotal = $this->getCappedArrearsTotal(
+        $student->id,
+        $student->roll_no,
+        $withdrawal->withdraw_date
+    );
+
+    $adjustmentAmount = \App\Models\ChallanSecAdjustment::where(
+        'roll_no',
+        $student->roll_no
+    )->sum('amount');
+
+    $securityPayable = $securityDeposit - $adjustmentAmount;
+
+    $totalPayables = $securityPayable;
+    $totalReceivables = $arrearsTotal - $securityPayable;
+
+    // Positive value means security is refundable.
+    // Negative value means the student has outstanding arrears.
+    $netBalance = $securityPayable - $arrearsTotal;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Excess refund
+    |--------------------------------------------------------------------------
+    */
+
+    $excessRefund = 0;
+
+    if ($withdrawal->withdraw_date) {
+        $excessRefund = \App\Models\Challans::where(
+            'student_id',
+            $student->id
+        )
+            ->where('status', 'Paid')
+            ->whereNotIn('challan_type', [
+                'Transfer',
+                'Withdrawal',
+            ])
+            ->whereRaw(
+                "STR_TO_DATE(fee_month, '%Y-%m-%d') > ?",
+                [$withdrawal->withdraw_date]
+            )
+            ->sum('paid_amount');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Last receipt
+    |--------------------------------------------------------------------------
+    */
+
+    $lastReceipt = $lastBillingPaid
+        ? $lastBillingPaid->receipts()
+            ->where('recipt_amount', '>', 0)
+            ->orderByRaw("STR_TO_DATE(recipt_date, '%Y-%m-%d') DESC")
+            ->orderByDesc('id')
+            ->first()
+        : $this->lastPositiveReceiptForStudent(optional($student)->id);
+
+    $lastReceiptAmount = $lastReceipt
+        ? $lastReceipt->recipt_amount
+        : 0;
+
+    $lastReceiptDate = $lastReceipt
+        ? $lastReceipt->recipt_date
+        : null;
+
+    $otherDeduction = 0;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generate settlement certificate
+    |--------------------------------------------------------------------------
+    */
+
+    $pdf = Pdf::loadView(
+        'students.student_withdrawal.clearanceCertificatePrint',
+        [
             'withdrawal' => $withdrawal,
             'student' => $student,
             'branch' => $branch,
             'class' => $class,
             'enrollment' => $enrollment,
             'lastBilling' => $lastBilling,
+            'lastBillingPaid' => $lastBillingPaid,
             'securityDeposit' => $securityDeposit,
             'securityChallanNo' => $securityChallanNo,
-            'lastBillingPaid' => $lastBillingPaid,
             'securityDepositDate' => $securityDepositDate,
             'arrearsTotal' => $arrearsTotal,
             'securityPayable' => $securityPayable,
@@ -1210,10 +1393,11 @@ class StudentWithdrawalController extends Controller
             'admissionBranch' => $admissionBranch,
             'otherDeduction' => $otherDeduction,
             'excessRefund' => $excessRefund,
-        ]);
+        ]
+    );
 
-        return $pdf->stream('settlement_certificate.pdf');
-    }
+    return $pdf->stream('settlement_certificate.pdf');
+}
 
 
     public function fwdtoho(Request $request, $id)
@@ -1267,6 +1451,21 @@ class StudentWithdrawalController extends Controller
                 "STR_TO_DATE(fee_month, '%Y-%m-%d') <= ?",
                 [$endMonth]
             );
+    }
+
+    private function lastPositiveReceiptForStudent($studentId)
+    {
+        if (empty($studentId)) {
+            return null;
+        }
+
+        return \App\Models\StudentReceipt::where('recipt_amount', '>', 0)
+            ->whereHas('challan', function ($query) use ($studentId) {
+                $query->where('student_id', $studentId);
+            })
+            ->orderByRaw("STR_TO_DATE(recipt_date, '%Y-%m-%d') DESC")
+            ->orderByDesc('id')
+            ->first();
     }
 
     /**

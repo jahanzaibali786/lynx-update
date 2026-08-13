@@ -18,10 +18,14 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 class EmployeeReportExport implements FromView,WithColumnFormatting ,WithEvents
 {
     protected $employees;
+    protected $branchName;
+    protected $branches;
 
-    public function __construct($employees)
+    public function __construct($employees, $branchName = 'All Branches', $branches = null)
     {
         $this->employees = $employees;
+        $this->branchName = $branchName ?: 'All Branches';
+        $this->branches = $branches;
     }
 
     /**
@@ -30,15 +34,14 @@ class EmployeeReportExport implements FromView,WithColumnFormatting ,WithEvents
     public function view(): View
     {
         $report_name = __('Employee Report');
-        $branch = $this->employees->first()->branch;
-        $branch_name = !empty($branch) ? $branch->name : '';
         $is_signature = false;
         $is_period = false;
         // Pass only the table-related data to the export view
         return view('employees.exports.employees_report_table', [
             'employees' => $this->employees,
             'report_name' => $report_name,
-            'branch' => $branch_name,
+            'branch' => $this->branchName,
+            'branches' => $this->branches,
             'is_signature' => $is_signature,
             'is_period' => $is_period,
         ]);

@@ -72,6 +72,47 @@ class Vender extends Authenticatable
         return $this->id;
     }
 
+    public function getDisplayNameAttribute()
+    {
+        return self::formatDisplayName($this->company_name, $this->name);
+    }
+
+    public static function formatDisplayName($companyName, $vendorName)
+    {
+        $parts = array_values(array_filter([
+            trim((string) $companyName),
+            trim((string) $vendorName),
+        ]));
+
+        return $parts ? implode(' - ', array_unique($parts)) : '-';
+    }
+
+    public static function optionsForCreator($creatorId, $placeholder = 'Select Vendor')
+    {
+        $vendors = self::where('created_by', $creatorId)
+            ->orderBy('company_name')
+            ->orderBy('name')
+            ->get(['id', 'company_name', 'name'])
+            ->mapWithKeys(function ($vendor) {
+                return [$vendor->id => $vendor->display_name];
+            });
+
+        return $placeholder === null ? $vendors : $vendors->prepend(__($placeholder), '');
+    }
+
+    public static function optionsForOwner($ownerId, $placeholder = 'Select Vendor')
+    {
+        $vendors = self::where('owned_by', $ownerId)
+            ->orderBy('company_name')
+            ->orderBy('name')
+            ->get(['id', 'company_name', 'name'])
+            ->mapWithKeys(function ($vendor) {
+                return [$vendor->id => $vendor->display_name];
+            });
+
+        return $placeholder === null ? $vendors : $vendors->prepend(__($placeholder), '');
+    }
+
     public function creatorId()
     {
         if($this->type == 'company' || $this->type == 'super admin')

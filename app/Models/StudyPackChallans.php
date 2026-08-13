@@ -12,6 +12,7 @@ class StudyPackChallans extends Model
         'total_amount',
         'voucher_id',
         'section_id',
+        'session_id',
     ];
     public function student()
     {

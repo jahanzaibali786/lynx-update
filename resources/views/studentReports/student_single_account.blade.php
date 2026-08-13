@@ -58,7 +58,6 @@
             background: #e5e7eb !important;
             font-weight: 700;
         }
-
         @keyframes finalizeGlow {
             0%, 100% {
                 text-shadow: 0 0 0 rgba(220, 53, 69, 0);
@@ -486,6 +485,17 @@
                                     {{ Form::select('student', $students, $selected_student, ['class' => 'form-control select custom-select', 'id' => 'student_select', 'required' => 'required']) }}
                                 </div>
                             </div>
+                            @if (\Auth::user()->type == 'company')
+                                <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
+                                    <div class="btn-box">
+                                        {{ Form::label('statement_view_mode', __('Statement View'), ['class' => 'form-label']) }}
+                                        <select id="statementViewMode" class="form-control select challan-wise-toggle">
+                                            <option value="default">{{ __('Default View') }}</option>
+                                            <option value="challan-wise">{{ __('Challan Wise') }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            @endif
                             <div
                                 class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-4 d-flex justify-content-end gap-2 align-items-center">
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
@@ -518,19 +528,6 @@
                                 </div>
                             </div>
                         </div>
-                        @if (\Auth::user()->type == 'company')
-                        <div class="row mt-2">
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
-                                <div class="btn-box">
-                                    {{ Form::label('statement_view_mode', __('Statement View'), ['class' => 'form-label']) }}
-                                    <select id="statementViewMode" class="form-control select challan-wise-toggle">
-                                        <option value="default">{{ __('Default View') }}</option>
-                                        <option value="challan-wise">{{ __('Challan Wise') }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        @endif
                         {{ Form::close() }}
                     </div>
                 </div>
@@ -701,11 +698,13 @@
                             <td>{{ $item['date'] }}</td>
                             <td>{{ $item['description'] }}</td>
                             <td>
+                                
                                 @php
-                                    $challanId = $item['raw_data']->challan_id ?? null;
+                                    $challanId = $item['challanId'] ?? null;
+                                    
                                 @endphp
                                 @if (!empty($challanId))
-                                    <a href="{{ route('installmentview', $challanId) }}" target="_blank" rel="noopener">
+                                    <a href="{{ route('challan.show', $challanId) }}" target="_blank" rel="noopener">
                                         {{ $item['challan_no'] ?? '-' }}
                                     </a>
                                 @else

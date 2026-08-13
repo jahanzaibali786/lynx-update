@@ -168,7 +168,7 @@ $(document).on('click', '.confirm-row-btn', function() {
         show_toastr('error', 'Please enter a valid quantity.', 'error');
         return;
     }
-    if (price <= 0) {
+    if (price < 0) {
         show_toastr('error', 'Please enter a valid price.', 'error');
         return;
     }

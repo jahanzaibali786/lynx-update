@@ -17,14 +17,16 @@
     </tr>
 </table>
 
-<script type="text/php">
-    if (isset($pdf)) {
-        $font = $fontMetrics->getFont("Helvetica", "normal");
-        $size = 10;
-        $x = $pdf->get_width() - 120; // right-aligned, adjust as needed
-        $y = 800; // just below the 'Generated at' line, adjust as needed
-        $pdf->page_script(function($pageNumber, $pageCount, $pdf) use ($font, $size, $x, $y) {
-            $pdf->text($x, $y, "Page $pageNumber of $pageCount", $font, $size);
-        });
-    }
-</script>
+@if (empty($disablePageScript))
+    <script type="text/php">
+        if (isset($pdf)) {
+            $font = $fontMetrics->getFont("Helvetica", "normal");
+            $size = 10;
+            $y = 800; // just below the 'Generated at' line, adjust as needed
+            $sampleText = "Page 999 of 999";
+            $sampleWidth = $fontMetrics->getTextWidth($sampleText, $font, $size);
+            $x = $pdf->get_width() - $sampleWidth - 24;
+
+        }
+    </script>
+@endif

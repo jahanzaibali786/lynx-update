@@ -496,10 +496,11 @@
         </div>
     </div>
     <div class="table-responsive">
-        <table class="table">
+        <table class="table datatable">
             <thead>
                 <tr class="table_heads">
                     <th>{{ __('#') }}</th>
+                    <th>{{ __('Roll No') }}</th>
                     <th>{{ __('Student') }}</th>
                     <th>{{ __('Concession') }}</th>
                     <th>{{ __('Applied') }}</th>
@@ -513,6 +514,7 @@
                 @foreach ($concessions as $concession)
                     <tr data-id="{{ $concession->id }}">
                         <td>{{ $loop->iteration }}</td>
+                        <td>{{ !empty($concession->student->roll_no) ? $concession->student->roll_no : '-' }}</td>
                         <td>{{ !empty($concession->student) ? $concession->student->stdname : '-' }}</td>
                         <td>{{ !empty($concession->concession) ? $concession->concession->title : '-' }}</td>
                         <td>{{ !empty($concession->apply_date) ? $concession->apply_date : '-' }}</td>
@@ -557,105 +559,103 @@
                             </div>
                         </td>
                         @php
-    $isAdmin   = Auth::user()->type === 'company';
-    $isApproved = $concession->status == 'Approved';
-    $hasOrder  = !empty($concession->concession_id);
-@endphp
-
-<td>
-    <div class="action-btn ms-2">
-
-        {{-- USER --}}
-        @if(!$isAdmin)
-            @if(!$isApproved)
-                <a href="{{ route('concession.change_status', [$concession->id, 'For Approval']) }}"
-                   class="btn btn-sm btn-outline-warning"
-                   title="Send For Approval">
-                    <i class="ti ti-send"></i>
-                </a>
-
-                <a href="#"
-                   data-url="{{ route('concession.edit', $concession->id) }}"
-                   data-ajax-popup="true"
-                   data-size="xl"
-                   class="btn btn-sm btn-outline-primary"
-                   title="Edit">
-                    <i class="ti ti-pencil"></i>
-                </a>
-            @endif
-        @endif
-
-        {{-- ADMIN --}}
-        @if($isAdmin)
-
-            {{-- Edit allowed only BEFORE approval --}}
-            @if(!$isApproved)
-                <a href="#"
-                   data-url="{{ route('concession.edit', $concession->id) }}"
-                   data-ajax-popup="true"
-                   data-size="xl"
-                   class="btn btn-sm btn-outline-primary"
-                   title="Edit">
-                    <i class="ti ti-pencil"></i>
-                </a>
-            @endif
-
-            {{-- Approved but order NOT generated --}}
-            @if($isApproved && !$hasOrder)
-                <form action="{{ route('concession-order', $concession->id) }}"
-                      method="POST"
-                      class="d-inline">
-                    @csrf
-                    <button type="submit"
-                            class="btn btn-sm btn-outline-success"
-                            title="Generate Order">
-                        Generate
-                    </button>
-                </form>
-
-                <a href="#"
-                   data-url="{{ route('concession.cancel', $concession->id) }}"
-                   data-ajax-popup="true"
-                   class="btn btn-sm btn-outline-danger"
-                   title="Cancel">
-                    <i class="ti ti-ban"></i>
-                </a>
-            @endif
-
-            {{-- Approved AND order exists → FULL LOCK --}}
-            {{-- Approved AND order exists -- FULL LOCK --}}
-            @if($isApproved && $hasOrder)
-                <form action="{{ route('concession-order', $concession->id) }}"
-                      method="POST"
-                      class="d-inline">
-                    @csrf
-                    <button type="submit"
-                            class="btn btn-sm btn-success text-white"
-                            title="Generate Order"
-                            style="box-shadow:none;">
-                        Generate
-                    </button>
-                </form>
-
-                <a href="#"
-                   data-url="{{ route('concession.endconcession', $concession->id) }}"
-                   data-ajax-popup="true"
-                   class="btn btn-sm btn-warning text-white"
-                   title="End Concession">
-                    <i class="ti ti-clock-pause"></i> End
-                </a>
-            @endif
-
-        @endif
-
-    </div>
-</td>
-
+                            $isAdmin   = Auth::user()->type === 'company';
+                            $isApproved = $concession->status == 'Approved';
+                            $hasOrder  = !empty($concession->concession_id);
+                        @endphp
+                        
+                        <td>
+                            <div class="action-btn ms-2">
+                        
+                                {{-- USER --}}
+                                @if(!$isAdmin)
+                                    @if(!$isApproved)
+                                        <a href="{{ route('concession.change_status', [$concession->id, 'For Approval']) }}"
+                                           class="btn btn-sm btn-outline-warning"
+                                           title="Send For Approval">
+                                            <i class="ti ti-send"></i>
+                                        </a>
+                        
+                                        <a href="#"
+                                           data-url="{{ route('concession.edit', $concession->id) }}"
+                                           data-ajax-popup="true"
+                                           data-size="xl"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit">
+                                            <i class="ti ti-pencil"></i>
+                                        </a>
+                                    @endif
+                                @endif
+                        
+                                {{-- ADMIN --}}
+                                @if($isAdmin)
+                        
+                                    {{-- Edit allowed only BEFORE approval --}}
+                                    @if(!$isApproved)
+                                        <a href="#"
+                                           data-url="{{ route('concession.edit', $concession->id) }}"
+                                           data-ajax-popup="true"
+                                           data-size="xl"
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Edit">
+                                            <i class="ti ti-pencil"></i>
+                                        </a>
+                                    @endif
+                        
+                                    {{-- Approved but order NOT generated --}}
+                                    @if($isApproved && !$hasOrder)
+                                        <form action="{{ route('concession-order', $concession->id) }}"
+                                              method="POST"
+                                              class="d-inline">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-success"
+                                                    title="Generate Order">
+                                                Generate
+                                            </button>
+                                        </form>
+                        
+                                        <a href="#"
+                                           data-url="{{ route('concession.cancel', $concession->id) }}"
+                                           data-ajax-popup="true"
+                                           class="btn btn-sm btn-outline-danger"
+                                           title="Cancel">
+                                            <i class="ti ti-ban"></i>
+                                        </a>
+                                    @endif
+                        
+                                    {{-- Approved AND order exists -- FULL LOCK --}}
+                                    @if($isApproved && $hasOrder)
+                                        <form action="{{ route('concession-order', $concession->id) }}"
+                                              method="POST"
+                                              class="d-inline">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-success text-white"
+                                                    title="Generate Order"
+                                                    style="box-shadow:none;">
+                                                Generate
+                                            </button>
+                                        </form>
+                        
+                                        <a href="#"
+                                           data-url="{{ route('concession.endconcession', $concession->id) }}"
+                                           data-ajax-popup="true"
+                                           class="btn btn-sm btn-warning text-white"
+                                           title="End Concession">
+                                            <i class="ti ti-clock-pause"></i> End
+                                        </a>
+                                    @endif
+                        
+                                @endif
+                        
+                            </div>
+                        </td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
-        @if ($concessions->hasPages())
+       {{-- @if ($concessions->hasPages())
             <div class="pagination">
                 <ul>
                     @if ($concessions->onFirstPage())
@@ -698,7 +698,7 @@
                     @endif
                 </ul>
             </div>
-        @endif
+        @endif--}}
     </div>
 
 

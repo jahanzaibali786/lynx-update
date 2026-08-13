@@ -31,7 +31,7 @@
         document.getElementById('guardiancnic').addEventListener('keyup', function() {
             formatCNIC(this);
         });
-        $(document).ready(function() {
+		$(document).ready(function() {
 
             $('#profileInput').on('change', function() {
                 let file = this.files[0];
@@ -126,7 +126,7 @@
             url = '{{ route('generateChallan') }}';
             var appurl = '{{ env('APP_URL') }}';
             var instview = '{{ route('installmentview', ':id') }}';
-
+   
             var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
             var xhr = new XMLHttpRequest();
@@ -138,8 +138,8 @@
                     if (xhr.status === 200) {
                         var response = JSON.parse(xhr.responseText); // Parse the JSON response
                         const basePath = window.location.pathname.split('/')[1];
-                        window.location.href = instview.replace(':id', response.data.id);
-                    } else if (xhr.status === 422) { // ✅ Correct way to check HTTP status
+                        window.location.href = instview.replace(':id', response.data.id); 
+					} else if (xhr.status === 422) { // ✅ Correct way to check HTTP status
                         console.error('Challan already generated.');
                         var response = JSON.parse(xhr.responseText);
                         alert(response.message); // Optionally show a message to the user
@@ -197,9 +197,7 @@
                 if (!label.length) {
                     label = $this.closest('.form-group').find('label').first();
                 }
-                if (label.length && !label.find('.required-star').length && !label.next(
-                        'span[style*="color:red"], span[style*="color: red"]').length && label.text()
-                    .indexOf('*') === -1) {
+                if (label.length && !label.find('.required-star').length && !label.next('span[style*="color:red"], span[style*="color: red"]').length && label.text().indexOf('*') === -1) {
                     label.append('<span class="required-star" style="color:red"> *</span>');
                 }
             });
@@ -233,8 +231,8 @@
             //     };
             //     sendFormData(formData);
             // });
-            $('#submitBtnSection1').click(function() {
-                if (!validateSection('#section1')) return;
+$('#submitBtnSection1').click(function() {
+				if (!validateSection('#section1')) return;
                 let sectionData = $('#section1 :input').serializeArray();
 
                 let file = $('#profileInput')[0].files[0];
@@ -274,7 +272,7 @@
                 }
             });
             $('#submitBtnSection2').click(function() {
-                if (!validateSection('#section2')) return;
+			if (!validateSection('#section2')) return;
                 var formData = {
                     sectionName: 'section2',
                     sectionData: $('#section2 :input').serializeArray()
@@ -283,7 +281,7 @@
             });
 
             $('#submitBtnSection3').click(function() {
-                if (!validateSection('#section3')) return;
+				if (!validateSection('#section3')) return;
                 var checkedRowsData = [];
                 var uncheckedRowsData = [];
                 var checkboxes = document.getElementsByName("checked[]");
@@ -389,40 +387,40 @@
         // });
 
         function formatCellNumber(value) {
-            // strip non‑digits
-            value = value.replace(/\D/g, '');
+    // strip non‑digits
+    value = value.replace(/\D/g, '');
 
-            // limit total digits
-            if (value.length > 44) {
-                value = value.substring(0, 44);
-            }
+    // limit total digits
+    if (value.length > 44) {
+      value = value.substring(0, 44);
+    }
 
-            // insert commas after 11th, 23rd, 35th digits
-            // note: do this in descending order so indexes don't shift
-            if (value.length > 35) {
-                value = value.slice(0, 35) + ',' + value.slice(35);
-            }
-            if (value.length > 23) {
-                value = value.slice(0, 23) + ',' + value.slice(23);
-            }
-            if (value.length > 11) {
-                value = value.slice(0, 11) + ',' + value.slice(11);
-            }
+    // insert commas after 11th, 23rd, 35th digits
+    // note: do this in descending order so indexes don't shift
+    if (value.length > 35) {
+      value = value.slice(0, 35) + ',' + value.slice(35);
+    }
+    if (value.length > 23) {
+      value = value.slice(0, 23) + ',' + value.slice(23);
+    }
+    if (value.length > 11) {
+      value = value.slice(0, 11) + ',' + value.slice(11);
+    }
 
-            return value;
-        }
+    return value;
+  }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            const cellInput = document.getElementById('fathercell');
+  document.addEventListener('DOMContentLoaded', function() {
+    const cellInput = document.getElementById('fathercell');
 
-            // 1️⃣ On page load, re‑format whatever came from the DB
-            cellInput.value = formatCellNumber(cellInput.value);
+    // 1️⃣ On page load, re‑format whatever came from the DB
+    cellInput.value = formatCellNumber(cellInput.value);
 
-            // 2️⃣ On each keyup, re‑format live
-            cellInput.addEventListener('keyup', function() {
-                this.value = formatCellNumber(this.value);
-            });
-        });
+    // 2️⃣ On each keyup, re‑format live
+    cellInput.addEventListener('keyup', function() {
+      this.value = formatCellNumber(this.value);
+    });
+  });
         document.getElementById('fatherphone').addEventListener('keyup', function() {
             // Remove all non-digit characters
             var value = this.value.replace(/\D/g, '');
@@ -459,11 +457,11 @@
             border-top-right-radius: 20px;
         }
     </style>
-    <style>
-        #paddingModal {
-            display: none !important;
-        }
-    </style>
+<style>
+            #paddingModal{
+                display:none !important;
+            }
+        </style>
     <div class="card py-2 px-4 mt-4">
         <div class="container">
             <!-- <button id="submitBtn" class="btn btn-primary mt-3" style="position: relative; left: 90%;">Save</button> -->
@@ -513,14 +511,13 @@
                                 Withdrawal</button>
                         </div> --}}
                         </div>
-                        <div class="img col-6 col-md-6 col-lg-6 d-flex justify-content-end align-items-start"
+                         <div class="img col-6 col-md-6 col-lg-6 d-flex justify-content-end align-items-start"
                             style="margin-top: 30px; display:grid !important;">
 
                             <label for="profileInput" style="cursor:pointer;">
                                 @php
                                     $profile =
-                                        $student->profile_image &&
-                                        file_exists(storage_path('app/public/' . $student->profile_image))
+                                        $student->profile_image && file_exists(storage_path('app/public/' . $student->profile_image))
                                             ? asset('storage/' . $student->profile_image)
                                             : asset('assets/images/Student_profile.png');
                                 @endphp
@@ -541,12 +538,11 @@
                     <div class="general-details col-12 col-md-12 col-lg-12">
                         <div class="mt-2 px-2">
                             <div class="form-group">
-                                <div class="d-flex" style="gap: 10px;">
+                                 <div class="d-flex" style="gap: 10px;">
                                     <div style="flex: 1;">
                                         {{ Form::label('branchname', __('Branch'), ['class' => 'form-label']) }}<span
                                             style="color: red"> *</span>
-                                        <select name="branch" id="branch" class="form-control select"
-                                            @if ($student->student_status == 'Registered') @else disabled @endif>
+                                        <select name="branch" id="branch" class="form-control select" @if($student->student_status == 'Registered') @else disabled @endif>
                                             @foreach ($branches as $key => $values)
                                                 <option value="{{ $key }}"
                                                     {{ $key == $student->owned_by ? 'selected' : '' }}>{{ $values }}
@@ -563,23 +559,23 @@
                             </div>
                             <div class="form-group">
                                 <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('reg_no', __('Registration No'), ['class' => 'form-label']) }}
                                         {{ Form::text('reg_no', $student->reg_no, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('roll_no', __('Roll No'), ['class' => 'form-label']) }}
-                                        {{ Form::text('roll_no', @$student->roll_no, ['class' => 'form-control', 'disabled' => 'disabled']) }}
+                                        {{ Form::text('roll_no', @$student->roll_no, ['class' => 'form-control' ,'disabled' => 'disabled']) }}
                                     </div>
                                 </div>
                             </div>
                             <div class="form-group">
                                 <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('name', __('Name'), ['class' => 'form-label']) }}
                                         {{ Form::text('name', $student->stdname, ['class' => 'form-control', 'required' => 'required', 'style' => 'text-transform: uppercase;']) }}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('dob', __('D.O.B'), ['class' => 'form-label']) }}<span
                                             style="color: red">*</s>
                                             {{ Form::date('dob', $student->dob, ['class' => 'form-control', 'id' => 'dob', 'required' => 'required']) }}
@@ -588,7 +584,7 @@
                             </div>
                             <div class="form-group">
                                 <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {!! Form::label('gender', __('Gender'), ['class' => 'form-label']) !!}
                                         <span style="color: red">*</span>
                                         {!! Form::select('gender', ['' => 'Select Gender', 'male' => 'Male', 'female' => 'Female'], $student->gender, [
@@ -596,7 +592,7 @@
                                             'required' => 'required',
                                         ]) !!}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('birth_place', __('Birth Place'), ['class' => 'form-label']) }}
                                         {{ Form::text('birth_place', $student->birth_place, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
@@ -605,11 +601,11 @@
 
                             <div class="form-group">
                                 <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('religion', __('Religion'), ['class' => 'form-label']) }}
                                         {{ Form::text('religion', $student->religion, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('nationality', __('Nationality'), ['class' => 'form-label']) }}
                                         {{ Form::text('nationality', $student->nationality, ['class' => 'form-control', 'required' => 'required']) }}
                                     </div>
@@ -624,7 +620,7 @@
                                             'required' => 'required',
                                         ]) !!}
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('mobile_phone', __('Phone Mobile'), ['class' => 'form-label']) }}
                                         {{ Form::text('mobile_phone', $student->fatherphone, ['class' => 'form-control', 'required' => 'required', 'id' => 'fatherphone']) }}
                                     </div>
@@ -632,13 +628,17 @@
                             </div>
                             <div class="form-group">
                                 <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('mobile_cell', __('Father Cell'), ['class' => 'form-label']) }}
-                                        <!-- in your Blade -->
-                                        <input type="text" name="mobile_cell" id="fathercell"
-                                            value="{{ $student->fatherphone }}" class="form-control" required>
+<!-- in your Blade -->
+<input type="text"
+       name="mobile_cell"
+       id="fathercell"
+       value="{{ $student->fatherphone }}"
+       class="form-control"
+       required>
                                     </div>
-                                    <div style="flex: 1;">
+									<div style="flex: 1;">
                                         {{ Form::label('prevschool', __('Previous School'), ['class' => 'form-label']) }}
                                         {{ Form::text('prevschool', $student->prevschool, ['class' => 'form-control', 'placeholder' => __('Previous School'), 'required' => 'required']) }}
                                     </div>
@@ -662,9 +662,7 @@
                             </div>
                             @php
                                 $presentParts = !empty($student->address) ? explode(', ', $student->address) : [];
-                                $permanentParts = !empty($student->permanent_address)
-                                    ? explode(', ', $student->permanent_address)
-                                    : [];
+                                $permanentParts = !empty($student->permanent_address) ? explode(', ', $student->permanent_address) : [];
                             @endphp
                             <div class="form-group">
                                 <div class="row mx-0">
@@ -700,8 +698,7 @@
                                     <div style="flex: 1;">
                                         <div class="d-flex align-items-center gap-2 mb-2">
                                             <h6 class="mb-0">{{ __('Permanent Address') }}</h6>
-                                            <button type="button" id="copyAddressBtn" class="btn btn-sm btn-info">Same
-                                                As Present
+                                            <button type="button" id="copyAddressBtn" class="btn btn-sm btn-info">Same As Present
                                                 Address</button>
                                         </div>
                                         <div class="row mx-0">
@@ -742,7 +739,7 @@
                 <div class="tab-pane fade mt-3" id="section2" role="tabpanel" aria-labelledby="section2-tab">
                     <div class="form-group">
                         <div class="d-flex" style="justify-content: space-between; gap: 10px;">
-                            <div style="flex: 1;">
+							<div style="flex: 1;">
                                 {{ Form::label('father_name', __('Father Name'), ['class' => 'form-label']) }}
                                 {{ Form::text('father_name', $student->fathername, ['class' => 'form-control', 'id' => 'fathername', 'required' => 'required']) }}
                             </div>
@@ -884,16 +881,14 @@
                         </div> --}}
                             <div style="flex: 1;">
                                 {{ Form::label('adm_session', __('Adm Session'), ['class' => 'form-label']) }}
-                                {!! Form::text('adm_session', @$student->session ? $student->session->year : '2023', [
-                                    'class' => 'form-control',
-                                    'required' => 'required',
-                                    'disabled' => 'disabled',
-                                ]) !!}
+                                {!! Form::text(
+                                    'adm_session', @$student->session ? $student->session->year : '2023',
+                                    ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
+                                ) !!}
                             </div>
                             <div style="flex: 1;">
                                 {{ Form::label('adm_class', __('Adm Class'), ['class' => 'form-label']) }}
-                                <select name="adm_class" class="form-control select " required
-                                    @if ($student->student_status == 'Registered') @else readonly @endif>
+                                 <select name="adm_class" class="form-control select " required @if($student->student_status == 'Registered') @else readonly @endif>
                                     @foreach ($classes as $key => $values)
                                         <option value="{{ $key }}"
                                             {{ $key == $student->reg_class ? 'selected' : '' }}>{{ $values }}
@@ -908,18 +903,16 @@
                             <div style="flex: 1;">
                                 {{ Form::label('current_session', __('Current Session'), ['class' => 'form-label']) }}
                                 {!! Form::text(
-                                    'current_session',
-                                    @$student->enrollment ? $student->enrollment->session->year : $student->session->year,
+                                    'current_session', @$student->enrollment ? $student->enrollment->session->year : $student->session->year,
                                     ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
                                 ) !!}
                             </div>
                             <div style="flex: 1;">
                                 {{ Form::label('current_class', __('Current Class'), ['class' => 'form-label']) }}
-                                {!! Form::text('current_class', @$student->class->name ? $student->class->name : '', [
-                                    'class' => 'form-control',
-                                    'required' => 'required',
-                                    'disabled' => 'disabled',
-                                ]) !!}
+                                {!! Form::text(
+                                    'current_class', @$student->class->name ? $student->class->name : '',
+                                    ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
+                                ) !!}
                             </div>
                         </div>
                     </div>
@@ -947,10 +940,8 @@
                         <div class="d-flex" style="gap: 10px;">
                             <div style="flex: 1;">
                                 {{ Form::label('section', __('Section'), ['class' => 'form-label']) }}
-                                {!! Form::text('section', @$student->enrollment->section ? @$student->enrollment->section->name : '', [
-                                    'class' => 'form-control',
-                                    'disabled' => 'disabled',
-                                ]) !!}
+                                {!! Form::text('section',  @$student->enrollment->section ? @$student->enrollment->section->name : '',
+                                   [ 'class' => 'form-control','disabled' => 'disabled',]) !!}
                             </div>
                             <div style="flex: 1;">
                                 {{ Form::label('discount_policy', __('Discount Policy'), ['class' => 'form-label']) }}
@@ -960,28 +951,31 @@
                         </div>
                     </div>
                     <div class="d-flex " style="justify-content: space-between;">
-                        <div class="form-group">
-                            <a href="{{ route('student.fee_generate', $student->id) }}"
-                                class="btn btn-sm btn-success">Generate
-                                fee structure for this class in this session</a>
-                        </div>
-                        <div class=''>
-                            <button id="submitBtnSection3" class="btn btn-primary m-1">Save</button>
-                        </div>
+                    <div class="form-group">
+                        <a href="{{ route('student.fee_generate', $student->id) }}"
+                            class="btn btn-sm btn-success">Generate
+                            fee structure for this class in this session</a>
+                    </div>
+                    <div class=''>
+                        <button id="submitBtnSection3" class="btn btn-primary m-1">Save</button>
+                    </div>
                     </div>
                     @if ($studentchallanexist && Auth::user()->type !== 'company')
+
                         {{-- Existing challan: non-company users cannot generate another --}}
                         <div class="card py-4 px-4">
                             <div>
                                 Admission challan already exists in the system.
-
+                    
                                 @if (!empty($studentchallanexist->challanNo))
                                     Challan No:
                                     <strong>{{ $studentchallanexist->challanNo }}</strong>
                                 @endif
                             </div>
                         </div>
+                    
                     @else
+                    
                         {{-- Show existing challan information to company user --}}
                         @if ($studentchallanexist && Auth::user()->type === 'company')
                             <div class="card py-4 px-4">
@@ -989,70 +983,88 @@
                                     Admission challan already exists in the system.
                                     Challan No:
                                     <strong>{{ $studentchallanexist->challanNo }}</strong>
-
+                    
                                     <br>
-
+                    
                                     <span class="text-warning">
                                         As a company user, you are allowed to create another admission challan.
                                     </span>
                                 </div>
-                            </div>  
+                            </div>
                         @endif
+                    
+                        {{-- 
+                            Form is available when:
+                            1. No admission challan exists, for any user.
+                            2. Admission challan exists, but logged-in user is company.
+                        --}}
                         <div class="card py-4 px-4">
                             <div class="row" style="gap: 20px; align-items: center;">
-
+                    
                                 <div class="col-md-3 col-lg-3">
                                     {!! Form::label('challan_date', __('Billing Month'), [
                                         'class' => 'form-label',
                                     ]) !!}
-
+                    
                                     <span style="color: red;">
                                         &nbsp;(for the month date)
                                     </span>
-
+                    
                                     {!! Form::month('challan_date', date('Y-m'), [
                                         'class' => 'form-control',
                                         'id' => 'challan_date',
                                         'required' => true,
                                     ]) !!}
                                 </div>
-
+                    
                                 <div class="col-md-3 col-lg-3">
                                     {!! Form::label('issueDate', __('Issue Date'), [
                                         'class' => 'form-label',
                                     ]) !!}
-
+                    
                                     <span style="color: red;">*</span>
-
+                    
                                     {!! Form::date('issueDate', date('Y-m-d'), [
                                         'class' => 'form-control',
                                         'id' => 'issueDate',
                                         'required' => true,
                                     ]) !!}
                                 </div>
-
+                    
                                 <div class="col-md-3 col-lg-3">
                                     {!! Form::label('dueDate', __('Due Date'), [
                                         'class' => 'form-label',
                                     ]) !!}
-
+                    
                                     <span style="color: red;">*</span>
-
-                                    {!! Form::date('dueDate', date('Y-m-d', strtotime('+3 days')), [
-                                        'class' => 'form-control',
-                                        'id' => 'dueDate',
-                                        'required' => true,
-                                    ]) !!}
+                    
+                                    {!! Form::date(
+                                        'dueDate',
+                                        date('Y-m-d', strtotime('+3 days')),
+                                        [
+                                            'class' => 'form-control',
+                                            'id' => 'dueDate',
+                                            'required' => true,
+                                        ],
+                                    ) !!}
                                 </div>
-
-                                <div class="col-md-2 col-lg-2" style="position: relative; top: 10px;">
-                                    <button type="button" onclick="getCheckedRowData()" class="btn btn-primary">
+                    
+                                <div
+                                    class="col-md-2 col-lg-2"
+                                    style="position: relative; top: 10px;"
+                                >
+                                    <button
+                                        type="button"
+                                        onclick="getCheckedRowData()"
+                                        class="btn btn-primary"
+                                    >
                                         Generate Admission Challan
                                     </button>
                                 </div>
-
+                    
                             </div>
                         </div>
+                    
                     @endif
                     <table class="">
                         <thead>
@@ -1070,7 +1082,7 @@
                             @foreach ($classfee as $fee)
                                 <tr>
                                     @php
-                                        $i = 0;
+                                        $i=0;
                                         $headNames = ['TUITION FEE', 'ADMISSION FEE', 'SECURITY FEE'];
                                     @endphp
                                     @if (!empty($fee->feehead->fee_head) && in_array($fee->feehead->fee_head, $headNames))
@@ -1083,88 +1095,93 @@
                                     </td>
                                     <td>
                                         <input type="number" name="amount" class="form-control amount"
-                                            value="{{ !empty($fee->amount) ? $fee->amount : '0' }}" disabled
-                                            {{ $i == 1 ? 'disabled' : '' }}>
+                                            value="{{ !empty($fee->amount) ? $fee->amount : '0' }}" disabled {{ $i == 1 ? 'disabled' : '' }}>
                                     </td>
                                     <td>
-                                        @php
-                                            $concessionPolicyHeads = null;
-                                            $amount = !empty($fee->amount) ? $fee->amount : 0;
-                                            $discountPercentage = 0;
-                                            $discountedAmount = 0; // Initialize this variable
+    @php
+        $concessionPolicyHeads = null;
+        $amount = !empty($fee->amount) ? $fee->amount : 0;
+        $discountPercentage = 0;
+        $discountedAmount = 0; // Initialize this variable
 
-                                            // Check if student has concession
-                                            if ($concession) {
-                                                $concessionPolicyHeads = \App\Models\ConcessionPolicyHead::where(
-                                                    'concession_id',
-                                                    $concession->concession_id,
-                                                )
-                                                    ->where('head_id', @$fee->head_id)
-                                                    ->first();
-                                            }
+        // Check if student has concession
+        if ($concession) {
+            $concessionPolicyHeads = \App\Models\ConcessionPolicyHead::where(
+                'concession_id',
+                $concession->concession_id,
+            )->where('head_id', @$fee->head_id)->first();
+        }
 
-                                            // Helper function to clean decimal display
-                                            $cleanPercentageDisplay = function ($value) {
-                                                if ($value == 0) {
-                                                    return '0';
-                                                }
-                                                $floatVal = (float) $value;
-                                                // If whole number, show without decimals
-                                                if ($floatVal == floor($floatVal)) {
-                                                    return (string) intval($floatVal);
-                                                }
-                                                // Otherwise remove trailing zeros
-                                                return rtrim(rtrim(number_format($floatVal, 8, '.', ''), '0'), '.');
-                                            };
+        // Helper function to clean decimal display
+        $cleanPercentageDisplay = function($value) {
+            if ($value == 0) {
+                return '0';
+            }
+            $floatVal = (float)$value;
+            // If whole number, show without decimals
+            if ($floatVal == floor($floatVal)) {
+                return (string)intval($floatVal);
+            }
+            // Otherwise remove trailing zeros
+            return rtrim(rtrim(number_format($floatVal, 8, '.', ''), '0'), '.');
+        };
 
-                                            // Determine discount percentage
-                                            if ($concessionPolicyHeads && $concessionPolicyHeads->percentage > 0) {
-                                                // Use concession policy percentage
-                                                $discountPercentage = $concessionPolicyHeads->percentage;
-                                            } else {
-                                                // Use individual fee structure discount
-                                                $discountPercentage = !empty($fee->discount) ? $fee->discount : 0;
-                                            }
+        // Determine discount percentage
+        if ($concessionPolicyHeads && $concessionPolicyHeads->percentage > 0) {
+            // Use concession policy percentage
+            $discountPercentage = $concessionPolicyHeads->percentage;
+        } else {
+            // Use individual fee structure discount
+            $discountPercentage = !empty($fee->discount) ? $fee->discount : 0;
+        }
 
-                                            // Calculate the discounted amount (final amount after discount)
-                                            $discountAmount = ($amount * $discountPercentage) / 100;
-                                            $discountedAmount = $amount - $discountAmount;
+        // Calculate the discounted amount (final amount after discount)
+        $discountAmount = ($amount * $discountPercentage) / 100;
+        $discountedAmount = $amount - $discountAmount;
+        
+        // Clean percentage for display
+        $displayPercentage = $cleanPercentageDisplay($discountPercentage);
+    @endphp
 
-                                            // Clean percentage for display
-                                            $displayPercentage = $cleanPercentageDisplay($discountPercentage);
-                                        @endphp
-
-                                        @if ($concessionPolicyHeads && $concessionPolicyHeads->percentage > 0)
-                                            {{-- Policy has discount for this head - use policy percentage and disable input --}}
-                                            <label for="discount" class="discountLabel" style="color: red;">
-                                                Discounted Amount : {{ number_format($discountAmount, 2) }}
-                                            </label>
-                                            <input type="text" class="form-control discount"
-                                                value="{{ $displayPercentage }}" disabled
-                                                {{ $i == 1 ? 'disabled' : '' }}>
-                                        @else
-                                            {{-- No policy OR policy has 0% for this head - use fee structure discount and enable input --}}
-                                            <label for="discount" class="discountLabel" style="color: red;">
-                                                Discounted Amount : {{ number_format($discountAmount, 2) }}
-                                            </label>
-                                            <input type="text" class="form-control discount"
-                                                value="{{ $cleanPercentageDisplay(!empty($fee->discount) ? $fee->discount : '0') }}"
-                                                {{ $i == 1 ? 'disabled' : '' }}>
-                                        @endif
-                                    </td>
+    @if ($concessionPolicyHeads && $concessionPolicyHeads->percentage > 0)
+        {{-- Policy has discount for this head - use policy percentage and disable input --}}
+        <label for="discount" class="discountLabel" style="color: red;">
+            Discounted Amount : {{ number_format($discountAmount, 2) }}
+        </label>
+        <input type="text" class="form-control discount"
+            value="{{ $displayPercentage }}"
+            disabled
+            {{ $i == 1 ? 'disabled' : '' }}
+        >
+    @else
+        {{-- No policy OR policy has 0% for this head - use fee structure discount and enable input --}}
+        <label for="discount" class="discountLabel" style="color: red;">
+            Discounted Amount : {{ number_format($discountAmount, 2) }}
+        </label>
+        <input type="text" class="form-control discount" 
+            value="{{ $cleanPercentageDisplay(!empty($fee->discount) ? $fee->discount : '0') }}" 
+            {{ $i == 1 ? 'disabled' : '' }}
+        >
+    @endif
+</td>
 
                                     <td>
-                                        <input type="text" class="form-control discounted-amount"
-                                            value="{{ number_format($discountedAmount, 2, '.', '') }}" disabled>
-                                    </td>
+    <input type="text"
+        class="form-control discounted-amount"
+        value="{{ number_format($discountedAmount, 2, '.', '') }}"
+        disabled>
+</td>
 
 
                                     <td>
                                         <input type="checkbox" name="checked[]"
                                             value="{{ !empty($fee->account_id) ? $fee->account_id : '-' }}"
-                                            @if (\Auth::user()->type != 'company') {{ $fee->checked_status == 1 ? 'checked' : '' }} {{ $i == 1 ? 'disabled' : '' }}
+                                            @if(\Auth::user()->type != 'company')
+                                            {{ $fee->checked_status == 1 ? 'checked' : '' }} {{ $i == 1 ? 'disabled' : '' }}
                                             @else
-                                           {{ $fee->checked_status == 1 ? 'checked' : '' }} @endif>
+                                           {{ $fee->checked_status == 1 ? 'checked' : '' }} 
+                                        @endif
+                                           >
 
                                     </td>
                                     <td style="display: none;">
@@ -1199,15 +1216,14 @@
                 });
             }
             calculateDiscount(index) {
-                this.discountLabel[index].innerHTML = 'Discounted Amount : ' + this.amountInputs[index].value * (this
-                    .discountInputs[index].value / 100);
+                this.discountLabel[index].innerHTML = 'Discounted Amount : ' + this.amountInputs[index].value * (this.discountInputs[index].value / 100);
                 let discountPercentage = parseFloat(this.discountInputs[index].value) || 0;
                 if (discountPercentage > 100) {
                     discountPercentage = 100;
                     this.discountInputs[index].value = discountPercentage;
                 }
                 const amount = parseFloat(this.amountInputs[index].value) || 0;
-                const discount = amount * (discountPercentage / 100);
+                const discount =amount * (discountPercentage / 100);
                 const finalAmount = amount - discount;
                 this.discountedAmountInputs[index].value = finalAmount < 0 ? 0 : finalAmount;
             }

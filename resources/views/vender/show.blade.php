@@ -7,7 +7,7 @@
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
     <li class="breadcrumb-item"><a href="{{route('vender.index')}}">{{__('Vendor')}}</a></li>
-    <li class="breadcrumb-item">{{$vendor['name']}}</li>
+    <li class="breadcrumb-item">{{ $vendor->display_name }}</li>
 
 @endsection
 
@@ -56,6 +56,17 @@
                                 {{ trim(($vendor->name_prefix ? $vendor->name_prefix . ' ' : '') . ($vendor->first_name ? $vendor->first_name . ' ' : '') . ($vendor->middle_initial ? $vendor->middle_initial . ' ' : '') . ($vendor->last_name ?? '')) }}
                             @else
                                 {{$vendor->name}}
+                            @endif
+                        </h6>
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="text-muted mb-1"><small>{{ __('Chart of Account') }}</small></p>
+                        <h6 class="mb-0 text-break">
+                            @if($vendor->ChartAccount)
+                                {{ $vendor->ChartAccount->code }} - {{ $vendor->ChartAccount->name }}
+                            @else
+                                -
                             @endif
                         </h6>
                     </div>

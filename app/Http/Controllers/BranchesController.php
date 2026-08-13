@@ -63,7 +63,17 @@ class BranchesController extends Controller
             else
             {
                 $customFields = CustomField::where('module', '=', 'client')->get();
-                $users = Employee::where('created_by',\Auth::user()->creatorId())->get()->pluck('name','user_id');
+                $users = Employee::where('created_by', \Auth::user()->creatorId())
+                    ->where('is_active', 1)
+                    ->orderBy('name')
+                    ->get()
+                    ->mapWithKeys(function ($employee) {
+                        $employeeCode = trim((string) ($employee->employee_id ?? ''));
+                        $employeeName = trim((string) ($employee->name ?? ''));
+                        $label = trim($employeeCode . ' - ' . $employeeName, ' -');
+
+                        return [$employee->user_id => $label];
+                    });
                 $bankAccount = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' (',holder_name,')') AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 return view('branches.create', compact('customFields','users','bankAccount'));
             }

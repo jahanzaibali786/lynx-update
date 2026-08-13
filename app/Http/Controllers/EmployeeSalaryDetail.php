@@ -8,6 +8,7 @@ use App\Exports\SalarySheetExport;
 use App\Exports\PaymodesSheetExport;
 use App\Exports\AdvanceSheetExport;
 use App\Models\AppointmentLetter;
+use App\Services\AppointmentLetterPlaceholderService;
 use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
 use App\Models\Department;
@@ -160,6 +161,9 @@ class EmployeeSalaryDetail extends Controller
             }
 
             $appLetter = AppointmentLetter::where('type', Str::lower($employee->category))->latest()->first();
+            $activeContract = \App\Models\EmployeeContract::where('employee_id', $request->employee_id)->where('status', 'active')->orderBy('from_date', 'desc')->first();
+            $contractId = $activeContract ? $activeContract->id : null;
+
             if (round(@$scale->net) == round($request->net) && $scale->id == $request->pay_scale && date('Y-m-d', strtotime(@$scale->updated_at)) == date('Y-m-d', strtotime($request->effect_from)) && $scale->working_days == $request->working_days) {
                 
                 $scale->security_receive_account  = $request->security_receive_account;
@@ -169,11 +173,13 @@ class EmployeeSalaryDetail extends Controller
                 $scale->other_dedu_payable_account = $request->other_dedu_payable_account;
                 $scale->advance_payable_account = $request->advance_payable_account;
                 $scale->net_payable_account = $request->net_payable_account;
+                $scale->contract_id = $contractId;
                 $scale->save();
             } else {
 
                 $payscaleattach = EmployeePayscaleDetail::create([
                     'employee_id' => $request->employee_id,
+                    'contract_id' => $contractId,
                     'appletter' => $appLetter->id,
                     'paymode' => $request->paymode,
                     'account_number' => $request->account_number,
@@ -690,7 +696,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -754,7 +760,7 @@ class EmployeeSalaryDetail extends Controller
             'isPdf' => true,
         ];
         $html = view('employee.emp_salary_detail.deduction_sheet', $viewData)->render();
-        $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
+        $footerHtml = view('employee.emp_salary_detail.pdf.footer', ['disablePageScript' => true])->render();
         $html = '<html><head>
              <style>
                  @page {
@@ -789,7 +795,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -869,7 +875,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -989,7 +995,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -1102,7 +1108,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -1218,7 +1224,7 @@ class EmployeeSalaryDetail extends Controller
         $exportType     = $request->input('export_type', 'pdf');
     
         $toDate   = $date ? \Carbon\Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? \Carbon\Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? \Carbon\Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
     
         // 1) Primary: employee_ids[]
         $employeeIds = collect($request->input('employee_ids', []))
@@ -1462,8 +1468,15 @@ class EmployeeSalaryDetail extends Controller
     public function generate_appointment_letter(Request $request, $id)
     {
         // dd($id);
-        $empscale = EmployeePayscaleDetail::with('employee', 'scale')->where('id', $id)->first();
+        $empscale = EmployeePayscaleDetail::with([
+            'employee.designation',
+            'employee.master.headmaster_name',
+            'scale.employeeScaleHeads.salaryHeads',
+        ])->where('id', $id)->first();
         $data = $request->all();
+        if (!$empscale) {
+            return response()->json(['error' => 'Scale Not attached . please attach payscale First.'], 404);
+        }
 
         // $employee = Employee::with([
         //     'employee_payscale_details',
@@ -1480,13 +1493,15 @@ class EmployeeSalaryDetail extends Controller
         if (!$appointmentletterdata) {
             return response()->json(['error' => 'No appointment letter found. Please create an appointment letter first.'], 404);
         }
-        if (!$empscale) {
-            return response()->json(['error' => 'Scale Not attached . please attach payscale First.'], 404);
-        }
         // dd($appointmentletterdata,$lastPayscaleDetail->appletter);
         $data['employee'] = $empscale->employee;
         $data['appointmentletterdata'] = $appointmentletterdata;
         $data['lastPayscaleDetail'] = $empscale;
+        $data['appointmentLetterContent'] = AppointmentLetterPlaceholderService::render(
+            (string) $appointmentletterdata->datacontent,
+            $empscale->employee,
+            $empscale
+        );
         // dd($employee);
         $html = view('employee.emp_salary_detail.emp-appointment-letter', $data)->render();
         $headerHtml = view('employee.emp_salary_detail.pdf.header')->render();
@@ -1513,6 +1528,16 @@ class EmployeeSalaryDetail extends Controller
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
+        $canvas = $dompdf->getCanvas();
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $font = $fontMetrics->getFont('Helvetica', 'normal');
+            $size = 10;
+            $y = 800;
+            $text = 'Page ' . $pageNumber . ' of ' . $pageCount;
+            $textWidth = $fontMetrics->getTextWidth($text, $font, $size);
+            $x = $canvas->get_width() - $textWidth - 24;
+            $canvas->text($x, $y, $text, $font, $size, [0, 0, 0]);
+        });
         $pdfContent = $dompdf->output();
         $base64Pdf = base64_encode($pdfContent);
         return response()->json(['base64Pdf' => $base64Pdf]);
@@ -1521,18 +1546,32 @@ class EmployeeSalaryDetail extends Controller
     public function generate_anexture(Request $request, $id)
     {
         $data = $request->all();
-        // Load all necessary relationships
-        $employee = Employee::with([
-            'employee_payscale_details',
-            'designation',
-            'department',
-            'branch',
-            'user',
-            'userbranch',
-            'employee_payscale_details.scale.employeeScaleHeads.salaryHeads',
-        ])->where('id', $id)->first();
+        $lastPayscaleDetail = EmployeePayscaleDetail::with([
+            'employee.designation',
+            'employee.department',
+            'employee.branch',
+            'employee.user',
+            'employee.userbranch',
+            'scale.employeeScaleHeads.salaryHeads',
+        ])->find($id);
+
+        if (!$lastPayscaleDetail) {
+            $employee = Employee::with([
+                'employee_payscale_details',
+                'designation',
+                'department',
+                'branch',
+                'user',
+                'userbranch',
+                'employee_payscale_details.scale.employeeScaleHeads.salaryHeads',
+            ])->where('id', $id)->first();
+
+            $lastPayscaleDetail = optional($employee)->employee_payscale_details->last();
+        } else {
+            $employee = $lastPayscaleDetail->employee;
+        }
+
         $data['employee'] = $employee;
-        $lastPayscaleDetail = $employee->employee_payscale_details->last();
         $data['lastPayscaleDetail'] = $lastPayscaleDetail;
         // Load SchoolDetails for the employee's branch
         $branches_school = null;
@@ -1584,7 +1623,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $query = Employee::with([
             'employee_payscale_details',
-            'employee_payscale_details.scale'
+            'employee_payscale_details.scale.employeeScaleHeads.salaryHeads'
         ])->where('created_by', \Auth::user()->creatorId());
         $employees = $query->get();
         $viewData = [
@@ -1718,6 +1757,11 @@ class EmployeeSalaryDetail extends Controller
                     ->first();
 
                 if ($salary) {
+                    if ((int) $salary->sal_final !== 0) {
+                        $errors[] = __('Salary rollback allowed only when Salary Final is unchecked for employee ID: ' . $id);
+                        continue;
+                    }
+
                     if ($salary->on_hold == 1) {
                         $errors[] = __('Salary On_Hold u can not delete: ' . $id);
                         continue;
@@ -1818,7 +1862,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
 
@@ -1950,7 +1994,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
 
@@ -2077,7 +2121,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -2171,7 +2215,7 @@ class EmployeeSalaryDetail extends Controller
         $paymode = $request->input('paymode');
         $branches = $request->input('branches');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -2220,7 +2264,7 @@ class EmployeeSalaryDetail extends Controller
         $branches = $request->input('branches');
         $paymode = $request->input('paymode');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : null;
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : null;
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : null;
         $datas = collect();
         if ($date || $department_id || $designation_id || $branches || $paymode) {
             if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {

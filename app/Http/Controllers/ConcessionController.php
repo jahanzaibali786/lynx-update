@@ -57,12 +57,9 @@ class ConcessionController extends Controller
             // $dateTo = ($currentMonth >= 7) ? date('Y-06-30', strtotime('+1 year')) : "$currentYear-06-30";
 
             $request->merge(['start_date' => $dateFrom]);
-            // $request->merge(['end_date' => $dateTo]);
-            // $query->whereBetween('start_date', [$dateFrom, $dateTo]);
             $query->whereDate('start_date', '>', $request->start_date);
         }
-
-        $concessions = $query->orderBy('id', 'Desc')->paginate(25);
+        $concessions = $query->orderBy('id', 'Desc')->get();
         $status = [
             '' => 'All',
             'Draft' => 'Draft',
@@ -72,6 +69,7 @@ class ConcessionController extends Controller
             'Canceled' => 'Canceled',
             'Rejected' => 'Rejected',
         ];
+        
         return view('students.concession.index', compact('concessions', 'status', 'branches', 'request'));
         // }
         // else
@@ -291,7 +289,35 @@ class ConcessionController extends Controller
     {
         //
     }
+public function endconcession($id)
+    {
+        return view('students.concession.end_concession', compact('id'));
+    }
 
+    public function updateendconcession(Request $request, $id)
+    {
+        $validator = \Validator::make(
+            $request->all(),
+            [
+                'end_remarks' => 'required',
+                'end_date' => 'required|date',
+            ]
+        );
+
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
+            return redirect()->back()->with('error', $messages->first());
+        }
+
+        $concession = Concession::findOrFail($id);
+        $concession->end_date = $request->end_date;
+        $concession->cancel_remarks = $request->end_remarks;
+        $concession->status = 'Canceled';
+        $concession->active_status = 0;
+        $concession->save();
+
+        return redirect()->route('concession.index')->with('success', 'Concession ended successfully.');
+    }
     public function class_student(Request $request)
     {
         $student = StudentRegistration::where('class_id', $request->class_id)->get();
@@ -337,35 +363,6 @@ class ConcessionController extends Controller
     }
 
 
-    public function endconcession($id)
-    {
-        return view('students.concession.end_concession', compact('id'));
-    }
-
-    public function updateendconcession(Request $request, $id)
-    {
-        $validator = \Validator::make(
-            $request->all(),
-            [
-                'end_remarks' => 'required',
-                'end_date' => 'required|date',
-            ]
-        );
-
-        if ($validator->fails()) {
-            $messages = $validator->getMessageBag();
-            return redirect()->back()->with('error', $messages->first());
-        }
-
-        $concession = Concession::findOrFail($id);
-        $concession->end_date = $request->end_date;
-        $concession->cancel_remarks = $request->end_remarks;
-        $concession->status = 'Canceled';
-        $concession->active_status = 0;
-        $concession->save();
-
-        return redirect()->route('concession.index')->with('success', 'Concession ended successfully.');
-    }
     public function cancelconcession($id)
     {
         return view('students.concession.cancel_concession', compact('id'));

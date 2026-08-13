@@ -264,7 +264,7 @@
             <table class="vendor-info">
                 <tr>
                     <td class="label">{{ __('Vendor Name') }}</td>
-                    <td class="value">{{ $vendor->name ?? '-' }}</td>
+                    <td class="value">{{ $vendor->display_name ?? '-' }}</td>
                 </tr>
                 <tr>
                     <td class="label">{{ __('Vendor Number') }}</td>
@@ -327,7 +327,7 @@
                 <div class="signature-row">
                     <div class="signature">
                         <div class="signature-title">3. {{ __('Received by') }}</div>
-                        <div class="signature-name">{{ $vendor->name ?? '-' }}</div>
+                        <div class="signature-name">{{ $vendor->display_name ?? '-' }}</div>
                     </div>
                     <div class="signature right">
                         <div class="signature-title">4. {{ __('Approved by') }}</div>

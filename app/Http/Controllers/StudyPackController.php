@@ -10,9 +10,9 @@ use App\Models\Classes;
 use App\Models\Session;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StudyPackBooklistExport;
+use Illuminate\Support\Facades\DB;
 class StudyPackController extends Controller
 {
     /**
@@ -406,7 +406,6 @@ class StudyPackController extends Controller
         }
         return view('students.studypack.challanform', compact('branch'));
     }
-
     public function booklistExport(Request $request)
     {
         $user = \Auth::user();

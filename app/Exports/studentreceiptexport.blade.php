@@ -7,6 +7,7 @@
                 font-family: Arial, Helvetica, sans-serif !important;
             }
         </style>
+        
         @php
             $branch = $params['branch'] ?? '';
             $report_name = $params['report_name'] ?? __('Student Receipt Report');
@@ -32,7 +33,7 @@
             <th style="font-size: 8px; font-weight: bold; text-align:center; border: 2px solid black; border-collapse: collapse; width: 80px; background-color:gray; font-family:Arial,Helvetica,sans-serif;">
                 {{ __('Total Fee') }}</th>
             <th style="font-size: 8px; font-weight: bold; text-align:center; border: 2px solid black; border-collapse: collapse; width: 80px; background-color:gray; font-family:Arial,Helvetica,sans-serif;">
-                {{ __('Rem. Fee') }}</th>
+                {{ __('Rem. Fees') }}</th>
             <th style="font-size: 8px; font-weight: bold; text-align:center; border: 2px solid black; border-collapse: collapse; width: 120px; background-color:gray; font-family:Arial,Helvetica,sans-serif;">
                 {{ __('Bank Account') }}</th>
             <th style="font-size: 8px; font-weight: bold; text-align:center; border: 2px solid black; border-collapse: collapse; width: 60px; background-color:gray; font-family:Arial,Helvetica,sans-serif;">

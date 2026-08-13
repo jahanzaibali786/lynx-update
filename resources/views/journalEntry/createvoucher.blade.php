@@ -47,26 +47,35 @@
 
         // Build account options HTML once (reused per row)
         var ACCOUNT_OPTS = '<option value="">— Select Account —</option>';
-        @foreach ($chartAccounts as $chartAccount)
-            ACCOUNT_OPTS += '<option value="{{ $chartAccount['id'] }}"' +
-                ' data-category="{{ $chartAccount['category'] ?? 'general' }}"' +
-                ' data-path="[{{ $chartAccount['code'] ?? $chartAccount['id'] }}] {{ addslashes($chartAccount['code_name']) }}">' +
-                '{{ addslashes($chartAccount['code_name']) }}</option>';
-            @foreach ($subAccounts as $subAccount)
-                @if ($chartAccount['id'] == $subAccount['account'])
-                    ACCOUNT_OPTS += '<option value="{{ $subAccount['id'] }}"' +
-                        ' data-category="{{ $subAccount['category'] ?? 'general' }}"' +
-                        ' data-path="[{{ $subAccount['code'] ?? $subAccount['id'] }}] {{ addslashes($chartAccount['code_name']) }} \u2192 {{ addslashes($subAccount['code_name']) }}">' +
-                        '\u00a0\u00a0\u00a0{{ addslashes($subAccount['code_name']) }}</option>';
-                @endif
-            @endforeach
-        @endforeach
+        @php
+            $ACCOUNT_OPTS = '<option value="">— Select Account —</option>';
 
+            foreach ($accountOptions as $account) {
+                $indent = str_repeat('&nbsp;&nbsp;&nbsp;', $account['level']);
+
+                $ACCOUNT_OPTS .=
+                    '<option value="' . e($account['id']) . '"' .
+                    ' data-category="' . e($account['category']) . '"' .
+                    ' data-path="' . e($account['path']) . '">' .
+                    $indent .
+                    e($account['code_name']) .
+                    '</option>';
+            }
+        @endphp
+        ACCOUNT_OPTS = @json($ACCOUNT_OPTS);
         // Build branch options HTML once
         var BRANCH_OPTS = '<option value="">— Branch —</option>';
         $.each(BRANCHES, function(id, name) {
             BRANCH_OPTS += '<option value="' + id + '">' + name + '</option>';
         });
+
+        function branchOptionsHtml(selected) {
+            var opts = '<option value="">Branch</option>';
+            $.each(BRANCHES, function(id, name) {
+                opts += '<option value="' + id + '"' + (String(selected || '') === String(id) ? ' selected' : '') + '>' + name + '</option>';
+            });
+            return opts;
+        }
 
         // Build department options HTML once
         var DEPT_OPTS = '<option value="">— Department —</option>';
@@ -140,7 +149,7 @@
                 $.each(journalEntries, function(_, entry) {
                     entry.debit = parseFloat(entry.debit) || 0;
                     entry.credit = parseFloat(entry.credit) || 0;
-                    $('#inline-entry-tbody').append(buildLockedRow(entry));
+                    $('#inline-entry-tbody').append(buildVoucherLineRow(entry));
                 });
                 renderHiddenInputs();
                 updateTotals();
@@ -292,18 +301,9 @@
             var row = '<tr data-row-id="' + rid + '" data-cat="general" class="inline-edit-row">' +
 
                 // ① Account + category fields stacked inside same td
-                '<td class="col-account">' +
-                '<select class="form-control form-control-sm row-account custom-select" data-rid="' + rid + '">' +
-                ACCOUNT_OPTS +
-                '</select>' +
-                '<div class="path-pill" id="path-pill-' + rid + '"></div>' +
-                '<div id="catcell-' + rid + '" class="catcell-wrap"></div>' +
-                '</td>' +
-
-                // Type column (using datalist)
-                '<td class="col-type">' +
-                '<input type="text" class="form-control form-control-sm row-types" list="type-options" data-rid="' + rid +
-                '" placeholder="Type" value="' + ($('#voucher_type').val() || 'jv').toUpperCase() + '">' +
+                '<td class="col-tradate">' +
+                '<input type="date" class="form-control form-control-sm row-tradate" data-rid="' + rid +
+                '" value="' + ($('input[name="date"]').val() || '') + '">' +
                 '</td>' +
 
                 // Ref No
@@ -312,28 +312,38 @@
                 '" placeholder="Ref No">' +
                 '</td>' +
 
-                // Date
-                '<td class="col-tradate">' +
-                '<input type="date" class="form-control form-control-sm row-tradate" data-rid="' + rid +
-                '" value="' + ($('input[name="date"]').val() || '') + '">' +
+                // Branch
+                '<td class="col-type">' +
+                '<select class="form-control form-control-sm row-branch custom-select" data-rid="' + rid + '">' +
+                BRANCH_OPTS +
+                '</select>' +
+                '</td>' +
+
+                // Account
+                '<td class="col-account">' +
+                '<select class="form-control form-control-sm row-account custom-select" data-rid="' + rid + '">' +
+                ACCOUNT_OPTS +
+                '</select>' +
+                '<div class="path-pill" id="path-pill-' + rid + '"></div>' +
+                '<div id="catcell-' + rid + '" class="catcell-wrap"></div>' +
                 '</td>' +
 
                 // ② Debit
+                '<td class="col-desc">' +
+                '<textarea class="form-control form-control-sm row-desc" data-rid="' + rid +
+                '" placeholder="Description..." rows="2"></textarea>' +
+                '</td>' +
+
+                // ③ Credit
                 '<td class="col-debit">' +
                 '<input type="number" class="form-control form-control-sm row-debit" data-rid="' + rid +
                 '" placeholder="0.00" min="0" step="0.01">' +
                 '</td>' +
 
-                // ③ Credit
-                '<td class="col-credit">' +
-                '<input type="number" class="form-control form-control-sm row-credit" data-rid="' + rid +
-                '" placeholder="0.00" min="0" step="0.01">' +
-                '</td>' +
-
                 // ④ Description
                 '<td class="col-desc">' +
-                '<input type="text" class="form-control form-control-sm row-desc" data-rid="' + rid +
-                '" placeholder="Description…">' +
+                '<textarea class="form-control form-control-sm row-desc" data-rid="' + rid +
+                '" placeholder="Description..." rows="2"></textarea>' +
                 '</td>' +
 
                 // ⑤ Actions
@@ -347,8 +357,18 @@
                 '</tr>';
 
             $('#inline-entry-tbody').append(row);
+            var $newRow = $('#inline-entry-tbody tr[data-row-id="' + rid + '"]');
+            $newRow.find('td.col-desc').last().replaceWith(
+                '<td class="col-credit">' +
+                '<input type="number" class="form-control form-control-sm row-credit" data-rid="' + rid +
+                '" placeholder="0.00" min="0" step="0.01">' +
+                '</td>'
+            );
+            if ($('#branches').val()) {
+                $('.row-branch[data-rid="' + rid + '"]').val($('#branches').val());
+            }
             CustomSelect.initContainer(
-                $('#inline-entry-tbody tr[data-row-id="' + rid + '"]')[0]
+                $newRow[0]
             );
             $('#empty-row').hide();
         }
@@ -373,9 +393,6 @@
                 cell.html(
                     '<div class="catcell-fields mt-1">' +
                     '<div class="catcell-row">' +
-                    '<select class="form-control form-control-sm hr-branch custom-select" data-rid="' + rid + '">' +
-                    BRANCH_OPTS +
-                    '</select>' +
                     '<select class="form-control form-control-sm hr-dept custom-select" data-rid="' + rid + '">' +
                     DEPT_OPTS +
                     '</select>' +
@@ -396,9 +413,6 @@
                 cell.html(
                     '<div class="catcell-fields mt-1">' +
                     '<div class="catcell-row">' +
-                    '<select class="form-control form-control-sm stu-branch custom-select" data-rid="' + rid + '">' +
-                    BRANCH_OPTS +
-                    '</select>' +
                     '<select class="form-control form-control-sm stu-student" data-rid="' + rid +
                     '" disabled>' +
                     '<option value="">— Student —</option>' +
@@ -410,9 +424,6 @@
                 cell.html(
                     '<div class="catcell-fields mt-1">' +
                     '<div class="catcell-row">' +
-                    '<select class="form-control form-control-sm inv-branch custom-select" data-rid="' + rid + '">' +
-                    BRANCH_OPTS +
-                    '</select>' +
                     '<select class="form-control form-control-sm inv-vendor" data-rid="' + rid +
                     '" disabled>' +
                     '<option value="">— Vendor —</option>' +
@@ -424,18 +435,12 @@
                 cell.html('');
             }
 
-            var selectedBranch = $('#branches').val();
-            if (selectedBranch) {
-                var $branchSelect = cell.find('.hr-branch, .stu-branch, .inv-branch');
-                $branchSelect.val(selectedBranch);
-            }
-
             if (typeof CustomSelect !== 'undefined') {
                 CustomSelect.initContainer(cell[0]);
             }
 
-            if (selectedBranch && (cat === 'student' || cat === 'inventory')) {
-                cell.find('.stu-branch, .inv-branch').trigger('change');
+            if ($('.row-branch[data-rid="' + rid + '"]').val()) {
+                $('.row-branch[data-rid="' + rid + '"]').trigger('change');
             }
         }
 
@@ -443,21 +448,24 @@
             var selectedBranch = $(this).val();
             clearHeaderPartySelection();
             loadHeaderPartyData(selectedBranch);
-            $('.hr-branch, .stu-branch, .inv-branch').each(function() {
+            $('.row-branch').each(function() {
                 $(this).val(selectedBranch);
                 refreshCustomSelect(this);
-                if ($(this).hasClass('stu-branch') || $(this).hasClass('inv-branch')) {
-                    $(this).trigger('change');
-                }
-                if ($(this).hasClass('hr-branch')) {
-                    $('.hr-desig[data-rid="' + $(this).data('rid') + '"]').trigger('change');
-                }
+                $(this).trigger('change');
             });
         });
 
-        $(document).off('change', '.hr-branch').on('change', '.hr-branch', function() {
+        $(document).off('change', '.row-branch').on('change', '.row-branch', function() {
             var rid = $(this).data('rid');
-            $('.hr-desig[data-rid="' + rid + '"]').trigger('change');
+            var cat = $('tr[data-row-id="' + rid + '"]').attr('data-cat') || 'general';
+
+            if (cat === 'hr') {
+                $('.hr-desig[data-rid="' + rid + '"]').trigger('change');
+            } else if (cat === 'student') {
+                loadRowStudents(rid, $(this).val());
+            } else if (cat === 'inventory') {
+                loadRowVendors(rid, $(this).val());
+            }
         });
 
         $(document).off('change', '.hr-dept').on('change', '.hr-dept', function() {
@@ -497,11 +505,65 @@
             });
         });
 
+        function loadRowStudents(rid, branchId) {
+            var $stu = $('.stu-student[data-rid="' + rid + '"]');
+            destroyCustomSelect($stu[0]);
+            $stu.html('<option value="">â€” Student â€”</option>').prop('disabled', true);
+            if (!branchId) return;
+
+            $.ajax({
+                url: '{{ route('get.branch-students') }}',
+                type: 'GET',
+                data: {
+                    branch_id: branchId
+                },
+                success: function(r) {
+                    var opts = '<option value="">â€” Student â€”</option>';
+                    $.each(r.students, function(id, name) {
+                        opts += '<option value="' + id + '">' + name + '</option>';
+                    });
+                    destroyCustomSelect($stu[0]);
+                    $stu.html(opts).prop('disabled', false);
+                    $stu[0].customSelectInstance = CustomSelect.create($stu[0]);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load students', 'error');
+                }
+            });
+        }
+
+        function loadRowVendors(rid, branchId) {
+            var $vendor = $('.inv-vendor[data-rid="' + rid + '"]');
+            destroyCustomSelect($vendor[0]);
+            $vendor.html('<option value="">â€” Vendor â€”</option>').prop('disabled', true);
+            if (!branchId) return;
+
+            $.ajax({
+                url: '{{ route('get.vendors') }}',
+                type: 'GET',
+                data: {
+                    branch_id: branchId
+                },
+                success: function(data) {
+                    var opts = '<option value="">â€” Vendor â€”</option>';
+                    $.each(data, function(i, v) {
+                        opts += '<option value="' + v.id + '">' + v.name + '</option>';
+                    });
+                    destroyCustomSelect($vendor[0]);
+                    $vendor.html(opts).prop('disabled', false);
+                    $vendor[0].customSelectInstance = CustomSelect.create($vendor[0]);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load vendors', 'error');
+                }
+            });
+        }
+
         $(document).off('change', '.hr-desig').on('change', '.hr-desig', function() {
             var rid = $(this).data('rid');
             var deptId = $('.hr-dept[data-rid="' + rid + '"]').val();
             var desigId = $(this).val();
-            var branchId = $('.hr-branch[data-rid="' + rid + '"]').val();
+            var branchId = $('.row-branch[data-rid="' + rid + '"]').val();
 
             // Only reset downstream — employee is the only dependent here
             var $emp = $('.hr-emp[data-rid="' + rid + '"]');
@@ -629,6 +691,9 @@
             var refNo = ($('.row-ref[data-rid="' + rid + '"]').val() || '').trim();
             var traDate = $('.row-tradate[data-rid="' + rid + '"]').val() || null;
             var desc = ($('.row-desc[data-rid="' + rid + '"]').val() || '').trim();
+            var branchSel = $('.row-branch[data-rid="' + rid + '"]');
+            var branchId = branchSel.val() || $('#branches').val() || '';
+            var branchName = cleanSelectLabel(branchSel.find('option:selected').text()) || $('#branches option:selected').text() || '';
 
             if (!accId) {
                 tr.data('confirming', false);
@@ -641,12 +706,15 @@
                 return;
             }
 
-            var meta = {},
+            var meta = {
+                    branch_id: branchId,
+                    branch_name: branchName,
+                },
                 metaLabel = '';
             if (cat === 'hr') {
                 meta = {
-                    branch_id: $('.hr-branch[data-rid="' + rid + '"]').val(),
-                    branch_name: $('.hr-branch[data-rid="' + rid + '"] option:selected').text(),
+                    branch_id: branchId,
+                    branch_name: branchName,
                     dept_id: $('.hr-dept[data-rid="' + rid + '"]').val(),
                     dept_name: $('.hr-dept[data-rid="' + rid + '"] option:selected').text(),
                     designation_id: $('.hr-desig[data-rid="' + rid + '"]').val(),
@@ -657,16 +725,16 @@
                 metaLabel = joinMemoParts([meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]);
             } else if (cat === 'student') {
                 meta = {
-                    branch_id: $('.stu-branch[data-rid="' + rid + '"]').val(),
-                    branch_name: $('.stu-branch[data-rid="' + rid + '"] option:selected').text(),
+                    branch_id: branchId,
+                    branch_name: branchName,
                     student_id: $('.stu-student[data-rid="' + rid + '"]').val(),
                     student_name: $('.stu-student[data-rid="' + rid + '"] option:selected').text(),
                 };
                 metaLabel = joinMemoParts([meta.branch_name, meta.student_name]);
             } else if (cat === 'inventory') {
                 meta = {
-                    branch_id: $('.inv-branch[data-rid="' + rid + '"]').val(),
-                    branch_name: $('.inv-branch[data-rid="' + rid + '"] option:selected').text(),
+                    branch_id: branchId,
+                    branch_name: branchName,
                     vendor_id: $('.inv-vendor[data-rid="' + rid + '"]').val(),
                     vendor_name: $('.inv-vendor[data-rid="' + rid + '"] option:selected').text(),
                 };
@@ -695,7 +763,7 @@
                 lineMemo: metaLabel ? '→ ' + metaLabel : '',
                 userType,
                 userId,
-                types: ($('.row-types[data-rid="' + rid + '"]').val() || ($('#voucher_type').val() || 'jv').toUpperCase()).toUpperCase(),
+                types: ($('#voucher_type').val() || 'jv').toUpperCase(),
                 ref_no: refNo,
                 tra_date: traDate,
                 debit,
@@ -703,7 +771,7 @@
                 desc
             };
             journalEntries.push(entry);
-            tr.replaceWith(buildLockedRow(entry));
+            tr.replaceWith(buildVoucherLineRow(entry));
             renderHiddenInputs();
             updateTotals();
             checkEmptyState();
@@ -728,6 +796,35 @@
                 '<td class="text-right">' + cr + '</td>' +
                 '<td style="font-size:13px;color:#6c757d;">' + (e.desc || '—') + '</td>' +
                 '<td class="text-center">' +
+                '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id +
+                '" title="Edit"><i class="ti ti-pencil"></i></a>' +
+                '<a href="#" class="remove-entry-btn text-danger" data-id="' + e.id +
+                '" title="Remove"><i class="ti ti-trash"></i></a>' +
+                '</td>' +
+                '</tr>';
+        }
+
+        function    buildVoucherLineRow(e) {
+            var badges = {
+                hr: '<span class="cat-badge cat-hr">HR</span>',
+                student: '<span class="cat-badge cat-student">Student</span>',
+                inventory: '<span class="cat-badge cat-inventory">Inventory</span>',
+                general: '<span class="cat-badge cat-general">General</span>'
+            };
+            var meta = e.metaLabel ? '<div class="entry-meta">&#8594; ' + e.metaLabel + '</div>' : '';
+            var branchName = (e.meta && e.meta.branch_name) ? e.meta.branch_name : '&mdash;';
+            var dr = e.debit ? '<span class="text-danger fw-semibold">' + e.debit.toFixed(2) + '</span>' : '<span class="text-muted">&mdash;</span>';
+            var cr = e.credit ? '<span class="text-primary fw-semibold">' + e.credit.toFixed(2) + '</span>' : '<span class="text-muted">&mdash;</span>';
+
+            return '<tr data-entry-id="' + e.id + '" class="confirmed-row">' +
+                '<td class="col-tradate">' + (e.tra_date || '&mdash;') + '</td>' +
+                '<td class="col-ref">' + (e.ref_no || '&mdash;') + '</td>' +
+                '<td class="col-type">' + branchName + '</td>' +
+                '<td class="col-account">' + (badges[e.cat] || '') + '<code class="account-path">' + e.path + '</code>' + meta + '</td>' +
+                '<td class="col-desc" style="font-size:13px;color:#6c757d;">' + (e.desc || '&mdash;') + '</td>' +
+                '<td class="col-debit text-right">' + dr + '</td>' +
+                '<td class="col-credit text-right">' + cr + '</td>' +
+                '<td class="col-actions text-center">' +
                 '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id +
                 '" title="Edit"><i class="ti ti-pencil"></i></a>' +
                 '<a href="#" class="remove-entry-btn text-danger" data-id="' + e.id +
@@ -773,16 +870,14 @@
                 appendHidden(w, p + '[user_type]', e.userType);
                 appendHidden(w, p + '[user_id]', e.userId);
                 appendHidden(w, p + '[types]', e.types || ($('#voucher_type').val() || 'jv').toUpperCase());
+                appendHidden(w, p + '[branch_id]', e.meta.branch_id || $('#branches').val() || '');
                 if (e.cat === 'hr') {
-                    appendHidden(w, p + '[branch_id]', e.meta.branch_id);
                     appendHidden(w, p + '[dept_id]', e.meta.dept_id);
                     appendHidden(w, p + '[designation_id]', e.meta.designation_id);
                     appendHidden(w, p + '[employee_id]', e.meta.employee_id);
                 } else if (e.cat === 'student') {
-                    appendHidden(w, p + '[branch_id]', e.meta.branch_id);
                     appendHidden(w, p + '[student_id]', e.meta.student_id);
                 } else if (e.cat === 'inventory') {
-                    appendHidden(w, p + '[branch_id]', e.meta.branch_id);
                     appendHidden(w, p + '[vendor_id]', e.meta.vendor_id);
                 }
             });
@@ -818,8 +913,10 @@
                 var rid = $(this).data('rid') || $(this).closest('[data-rid]').data('rid');
                 if (!rid) return;
 
+                var isDescription = $(this).hasClass('row-desc');
+
                 // SHIFT + ENTER => Confirm current row + add new row
-                if (e.key === 'Enter' && e.shiftKey) {
+                if (e.key === 'Enter' && e.shiftKey && !isDescription) {
                     e.preventDefault();
 
                     var confirmBtn = $('.confirm-row-btn[data-rid="' + rid + '"]');
@@ -843,8 +940,14 @@
 
                 }
 
+                // CTRL/CMD + ENTER => Confirm multiline description row
+                else if (e.key === 'Enter' && isDescription && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+                }
+
                 // ENTER => Confirm row only
-                else if (e.key === 'Enter') {
+                else if (e.key === 'Enter' && !isDescription) {
                     e.preventDefault();
                     $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
 
@@ -880,7 +983,7 @@
             var id = $(this).data('id');
             if (!id) return;
 
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 $('.save-edit-btn[data-id="' + id + '"]').trigger('click');
             } else if (e.key === 'Escape') {
@@ -900,45 +1003,48 @@
 
             var tr = $('tr[data-entry-id="' + id + '"]');
 
-            // Replace debit/credit/description/ref/date tds with editable inputs.
+            // Replace date/ref/branch/debit/credit/description tds with editable inputs.
             var drVal = entry.debit || '';
             var crVal = entry.credit || '';
             var descVal = entry.desc || '';
-            var typeVal = entry.types || '';
             var refVal = entry.ref_no || '';
             var dateVal = entry.tra_date || '';
+            var branchVal = (entry.meta && entry.meta.branch_id) || $('#branches').val() || '';
 
-            // td index: 0=account, 1=type, 2=ref_no, 3=tra_date, 4=debit, 5=credit, 6=desc, 7=actions
+            // td index: 0=date, 1=ref_no, 2=branch, 3=account, 4=desc, 5=debit, 6=credit, 7=actions
             // Whichever has a value is enabled; the other is disabled.
             // Both enable again once the filled one is cleared.
             var drDisabled = (drVal === '' && crVal !== '') ? 'disabled' : '';
             var crDisabled = (crVal === '' && drVal !== '') ? 'disabled' : '';
 
-            tr.find('td').eq(1).html(
-                '<input type="text" class="form-control form-control-sm edit-types" list="type-options" ' +
-                'value="' + typeVal + '" placeholder="Type" data-id="' + id + '">'
-            );
-            tr.find('td').eq(2).html(
-                '<input type="text" class="form-control form-control-sm edit-ref" ' +
-                'value="' + refVal + '" placeholder="Ref No" data-id="' + id + '">'
-            );
-            tr.find('td').eq(3).html(
+            tr.find('td').eq(0).html(
                 '<input type="date" class="form-control form-control-sm edit-tradate" ' +
                 'value="' + dateVal + '" data-id="' + id + '">'
             );
+            tr.find('td').eq(1).html(
+                '<input type="text" class="form-control form-control-sm edit-ref" ' +
+                'value="' + refVal + '" placeholder="Ref No" data-id="' + id + '">'
+            );
+            tr.find('td').eq(2).html(
+                '<select class="form-control form-control-sm edit-branch" data-id="' + id + '">' +
+                branchOptionsHtml(branchVal) +
+                '</select>'
+            );
             tr.find('td').eq(4).html(
+                '<textarea class="form-control form-control-sm edit-desc" placeholder="Description" data-id="' +
+                id + '" rows="2">' +
+                $('<div>').text(descVal).html() +
+                '</textarea>'
+            );
+            tr.find('td').eq(5).html(
                 '<input type="number" class="form-control form-control-sm edit-debit" ' +
                 'value="' + drVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 drDisabled + ' style="width:90px;">'
             );
-            tr.find('td').eq(5).html(
+            tr.find('td').eq(6).html(
                 '<input type="number" class="form-control form-control-sm edit-credit" ' +
                 'value="' + crVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
                 crDisabled + ' style="width:90px;">'
-            );
-            tr.find('td').eq(6).html(
-                '<input type="text" class="form-control form-control-sm edit-desc" ' +
-                'value="' + $('<div>').text(descVal).html() + '" placeholder="Description" data-id="' + id + '">'
             );
             tr.find('td').eq(7).html(
                 '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id +
@@ -975,9 +1081,10 @@
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var tr = $('tr[data-entry-id="' + id + '"]');
-            var typeVal = (tr.find('.edit-types').val() || '').trim().toUpperCase();
             var refVal = (tr.find('.edit-ref').val() || '').trim();
             var dateVal = tr.find('.edit-tradate').val() || null;
+            var branchVal = tr.find('.edit-branch').val() || $('#branches').val() || '';
+            var branchName = cleanSelectLabel(tr.find('.edit-branch option:selected').text()) || $('#branches option:selected').text() || '';
             var debit = parseFloat(tr.find('.edit-debit').val()) || 0;
             var credit = parseFloat(tr.find('.edit-credit').val()) || 0;
             var desc = (tr.find('.edit-desc').val() || '').trim();
@@ -988,13 +1095,16 @@
             var entry = journalEntries.find(function(e) {
                 return e.id === id;
             });
-            entry.types = typeVal;
+            entry.types = ($('#voucher_type').val() || 'jv').toUpperCase();
             entry.ref_no = refVal;
             entry.tra_date = dateVal;
+            entry.meta = entry.meta || {};
+            entry.meta.branch_id = branchVal;
+            entry.meta.branch_name = branchName;
             entry.debit = debit;
             entry.credit = credit;
             entry.desc = desc;
-            tr.replaceWith(buildLockedRow(entry));
+            tr.replaceWith(buildVoucherLineRow(entry));
             renderHiddenInputs();
             updateTotals();
         });
@@ -1006,7 +1116,7 @@
             var entry = journalEntries.find(function(e) {
                 return e.id === id;
             });
-            $('tr[data-entry-id="' + id + '"]').replaceWith(buildLockedRow(entry));
+            $('tr[data-entry-id="' + id + '"]').replaceWith(buildVoucherLineRow(entry));
         });
 
         // ─── Pre-Submit Validation Check ──────────────────────────────────────────────
@@ -1070,10 +1180,28 @@
             width: 120px;
         }
 
-        #inline-entry-table .col-desc {
-            min-width: 130px;
+        #inline-entry-table .col-type {
+            width: 190px;
+            max-width: 22pc !important;
         }
 
+        #inline-entry-table .col-desc {
+            min-width: 260px;
+        }
+
+        #inline-entry-table .row-desc,
+        #inline-entry-table .edit-desc {
+            min-height: 54px;
+            resize: vertical;
+        }
+        .custom-select-display {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 12px;
+            padding: 6px 6px;
+        }
         #inline-entry-table .col-actions {
             width: 80px;
         }
@@ -1130,8 +1258,8 @@
 
         /* Make account col wider to accommodate stacked selects */
         #inline-entry-table .col-account {
-            min-width: 280px;
-            width: 280px;
+            min-width: 220px;
+            width: 220px;
         }
 
         /* Path pill */
@@ -1144,7 +1272,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 175px;
+            max-width: 150px;
         }
 
         /* Badges */
@@ -1214,6 +1342,7 @@
         $transactionDate = $journalEntry->date ?? now()->toDateString();
         $voucherAmount = $isEdit ? max($journalEntry->totalDebit(), $journalEntry->totalCredit()) : 0;
         $selectedPaymentMode = $journalEntry->payment_mode ?? ($journalEntry->mode ?? '');
+        $selectedBankId = $journalEntry->bank_id ?? '';
         $selectedPartyType = $journalEntry->user_type ?? '';
         $selectedPartyId = $journalEntry->user_id ?? '';
     @endphp
@@ -1256,7 +1385,7 @@
                         </div>
                         <input type="hidden" name="voucher_series" id="voucher_series" value="MANUAL">
 
-                        <div class="col-lg- 3 col-md-3">
+                        <div class="col-lg-3 col-md-3">
                             <div class="form-group">
                                 {{ Form::label('journal_number', __('Journal Number'), ['class' => 'form-label', 'id' => 'journal-number']) }}
                                 <input type="text" class="form-control" id="journal-number-inp"
@@ -1306,6 +1435,12 @@
                         </div>
                         <div class="col-lg-3 col-md-3">
                             <div class="form-group">
+                                {{ Form::label('bank_id', __('Bank Name'), ['class' => 'form-label']) }}
+                                {{ Form::select('bank_id', $bankAccounts, $selectedBankId, ['class' => 'form-control custom-select', 'id' => 'bank_id']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
                                 {{ Form::label('amount', __('Amount'), ['class' => 'form-label']) }}
                                 <input type="number" class="form-control" id="voucher-amount-display"
                                     value="{{ number_format($voucherAmount, 2, '.', '') }}" step="0.01" disabled>
@@ -1315,13 +1450,13 @@
                         </div>
                         <div class="col-lg-3 col-md-3">
                             <div class="form-group">
-                                {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
+                                {{ Form::label('reference', __('Payment Reference'), ['class' => 'form-label']) }}
                                 {{ Form::text('reference', $journalEntry->reference ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
                         <div class="col-lg-3 col-md-3">
                             <div class="form-group">
-                                {{ Form::label('transaction_no', __('Transaction No'), ['class' => 'form-label']) }}
+                                {{ Form::label('transaction_no', __('Transaction / Invoice No'), ['class' => 'form-label']) }}
                                 {{ Form::text('transaction_no', $journalEntry->transaction_no ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
@@ -1486,13 +1621,13 @@
                     <table class="table table-sm mb-0" id="inline-entry-table">
                         <thead>
                             <tr>
-                                <th class="col-account">{{ __('Account') }}</th>
-                                <th class="col-type">{{ __('Memo') }}</th>
-                                <th class="col-ref">{{ __('Ref No') }}</th>
                                 <th class="col-tradate">{{ __('Date') }}</th>
+                                <th class="col-ref">{{ __('Ref No') }}</th>
+                                <th class="col-type">{{ __('Branch') }}</th>
+                                <th class="col-account">{{ __('Account') }}</th>
+                                <th class="col-desc">{{ __('Description') }}</th>
                                 <th class="col-debit text-right">{{ __('Debit') }}</th>
                                 <th class="col-credit text-right">{{ __('Credit') }}</th>
-                                <th class="col-desc">{{ __('Description') }}</th>
                                 <th class="col-actions"></th>
                             </tr>
                         </thead>

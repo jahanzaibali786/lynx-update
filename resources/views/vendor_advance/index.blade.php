@@ -90,7 +90,7 @@
                         @foreach ($advances as $advance)
                             <tr>
                                 <td>{{ ($advances->currentPage() - 1) * $advances->perPage() + $loop->iteration }}</td>
-                                <td>{{ $advance->vendor->name ?? '-' }}</td>
+                                <td>{{ $advance->vendor->display_name ?? '-' }}</td>
                                 <td>{{ !empty($advance->advance_date) ? \Carbon\Carbon::parse($advance->advance_date)->format('M Y') : '-' }}</td>
                                 <td>{{ !empty($advance->approval_date) ? \Carbon\Carbon::parse($advance->approval_date)->format('d-M-Y') : '-' }}</td>
                                 <td>{{ \Auth::user()->priceFormat($advance->advance_amount) }}</td>

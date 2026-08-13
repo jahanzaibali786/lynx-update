@@ -63,6 +63,24 @@ class ProductServiceController extends Controller
                 $productServices = $query->get();
                 return Excel::download(new ProductServiceReportExport($productServices), 'product_service_report.xlsx');
             }
+            if ($request->has('export') && $request->export == 'excel_with_account') {
+                $accountScope = function ($accountQuery) {
+                    $accountQuery->where('created_by', \Auth::user()->creatorId());
+                };
+                $productServices = $query
+                    ->with([
+                        'saleAccount' => $accountScope,
+                        'expenseAccount' => $accountScope,
+                        'inventoryAssetAccount' => $accountScope,
+                    ])
+                    ->orderBy('name')
+                    ->get();
+
+                return Excel::download(
+                    new ProductServiceReportExport($productServices, true),
+                    'product_service_with_account_report.xlsx'
+                );
+            }
             if ($request->has('export') && $request->export == 'pdf') {
                 $productServices = $query->get();
                 return Excel::download(new ProductServiceReportExport($productServices), 'product_service_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
@@ -1191,7 +1209,7 @@ class ProductServiceController extends Controller
         $accounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name, " (", chart_of_account_sub_types.name, ")") AS code_name, chart_of_accounts.id'))
             ->join('chart_of_account_sub_types', 'chart_of_accounts.sub_type', '=', 'chart_of_account_sub_types.id')
             ->join('chart_of_account_types', 'chart_of_accounts.type', '=', 'chart_of_account_types.id')
-            // ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())
+            ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())
             ->whereIn(\DB::raw('LOWER(chart_of_account_types.name)'), $normalizedTypes)
             ->orderBy('chart_of_account_sub_types.id')
             ->orderBy('chart_of_accounts.code')

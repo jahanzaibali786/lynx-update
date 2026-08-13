@@ -13,10 +13,10 @@ use App\Http\Controllers\EmployeeScaleHeads;
 use App\Http\Controllers\EmployeeSettlementController;
 use App\Http\Controllers\EobiAllocation;
 use App\Http\Controllers\HealthInsuracnePlanSetup;
-use App\Http\Controllers\RemoveLateFeeController;
 use App\Http\Controllers\HrDataImportController;
 use App\Http\Controllers\GrnController;
 use App\Http\Controllers\InventoryReportController;
+use App\Http\Controllers\RemoveLateFeeController;
 use App\Http\Controllers\JunkController;
 use App\Http\Controllers\LeaveAllocation;
 use App\Http\Controllers\RegisterOptionController;
@@ -51,6 +51,7 @@ use App\Http\Controllers\ProductServiceController;
 use App\Http\Controllers\ProductStockController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\VenderController;
+use App\Http\Controllers\ChartOfAccountSubTypeController;
 use App\Http\Controllers\VendorAdvanceController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BankTransferController;
@@ -138,7 +139,9 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskStageController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ContractTypeController;
+use App\Http\Controllers\StockTransferNoteController;
 use App\Http\Controllers\TimesheetController;
+use App\Http\Controllers\BulkTransferController;
 use App\Http\Controllers\ProjectstagesController;
 use App\Http\Controllers\BugStatusController;
 use App\Http\Controllers\PlanController;
@@ -208,7 +211,6 @@ use App\Http\Controllers\EmployeeConcessionOrder;
 use App\Http\Controllers\EmployeeReportsController;
 use App\Http\Controllers\EmployeeScaleController;
 use App\Http\Controllers\StudentTransferController;
-use App\Http\Controllers\BulkTransferController;
 use App\Http\Controllers\StudentWithdrawalController;
 use App\Http\Controllers\StudyPackController;
 use App\Http\Controllers\StudentReceipt;
@@ -265,8 +267,9 @@ Route::get('/run-journal-fix', function () {
     Artisan::call('fix:journal-data-fast');
     return 'Journal fix executed ✅';
 });
-Route::get('/fix-challans', [JunkController::class, 'fixDuplicateChallans'])->name('fix.challans');
 Route::get('/cleanup-june-july-late-fee', [JunkController::class, 'clearJuneJulyLateFeeChallans'])->name('cleanup.june_july_late_fee');
+
+Route::get('/fix-challans', [JunkController::class, 'fixDuplicateChallans'])->name('fix.challans');
 
 Route::get('/delete-receipts',[JunkController::class,'deleteReceipts'])->name('delete.receipts');
 Route::get('/remove-late',[JunkController::class,'deleteLateFeeBulk'])->name('delete.deleteLateFeeBulk');
@@ -718,11 +721,11 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('invoice/{id}/payment/{pid}/destroy', [InvoiceController::class, 'paymentDestroy'])->name('invoice.payment.destroy');
             Route::get('invoice/items', [InvoiceController::class, 'items'])->name('invoice.items');
 			Route::get('accounts/grn', [GrnController::class, 'accountsIndex'])->name('grn.accounts_index');
-
+			
 			Route::get('grn/{grn}/fw-to-ho', [GrnController::class, 'fwToHo'])->name('grn.fw_to_ho');
 			Route::match(['get', 'post'], 'grn/{grn}/finalize', [GrnController::class, 'finalize'])->name('grn.finalize');
             Route::get('grn/{grn}/fw-to-accounts', [GrnController::class, 'fwToAccounts'])->name('grn.fw_to_accounts');
-            Route::get('grn/{grn}/accounts-approve', [GrnController::class, 'accountsApprove'])->name('grn.accounts_approve');
+            Route::match(['get', 'post'], 'grn/{grn}/accounts-approve', [GrnController::class, 'accountsApprove'])->name('grn.accounts_approve');
             Route::get('grn/{grn}/reject', [GrnController::class, 'reject'])->name('grn.reject');
             Route::get('grn/draft-purchases', [GrnController::class, 'draftPurchases'])->name('grn.draft_purchases');
             Route::get('grn/purchase-items/{id}', [GrnController::class, 'purchaseItems'])->name('grn.purchase_items');
@@ -730,8 +733,20 @@ Route::group(['middleware' => ['verified']], function () {
 			Route::resource('grn', GrnController::class);
 
 
-            Route::get('invoice/draft-branch-purchases', [InvoiceController::class, 'draftBranchPurchases'])->name('invoice.draft_branch_purchases');
-            Route::get('invoice/branch-purchase-items/{id}', [InvoiceController::class, 'branchPurchaseItems'])->name('invoice.branch_purchase_items');
+            Route::resource('stock-transfer-order', \App\Http\Controllers\StockTransferOrderController::class)->except(['create']);
+            Route::get('stock-transfer-order/create/{cid}', [\App\Http\Controllers\StockTransferOrderController::class, 'create'])->name('stock-transfer-order.create');
+            Route::post('stock-transfer-order/vender', [\App\Http\Controllers\StockTransferOrderController::class, 'vender'])->name('stock-transfer-order.vender');
+            Route::post('stock-transfer-order/product', [\App\Http\Controllers\StockTransferOrderController::class, 'product'])->name('stock-transfer-order.product');
+            Route::get('stock-transfer-order/{id}/fw_to_ho', [\App\Http\Controllers\StockTransferOrderController::class, 'fwToHo'])->name('stock-transfer-order.fw_to_ho');
+            Route::post('stock-transfer-order/{id}/finalize', [\App\Http\Controllers\StockTransferOrderController::class, 'finalize'])->name('stock-transfer-order.finalize');
+            Route::get('stock-transfer-order/{id}/reject', [\App\Http\Controllers\StockTransferOrderController::class, 'reject'])->name('stock-transfer-order.reject');
+            Route::get('stock-transfer-order/{id}/convert-to-invoice', [\App\Http\Controllers\StockTransferOrderController::class, 'convertToInvoice'])->name('stock-transfer-order.convert_to_invoice');
+            Route::post('stock-transfer-order/{id}/convert-to-invoice', [\App\Http\Controllers\StockTransferOrderController::class, 'storeConvertedInvoice'])->name('stock-transfer-order.convert_to_invoice.store');
+			
+
+
+            Route::get('invoice/draft-demand-orders', [InvoiceController::class, 'draftDemandOrders'])->name('invoice.draft_demand_orders');
+            Route::get('invoice/demand-order-items/{id}', [InvoiceController::class, 'demandOrderItems'])->name('invoice.demand_order_items');
             Route::resource('invoice', InvoiceController::class);
             Route::get('invoice/create/{cid}', [InvoiceController::class, 'create'])->name('invoice.create');
             Route::post('company_contract', [InvoiceController::class, 'companycontract'])->name('company_contract');
@@ -740,6 +755,21 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('invoice_back/{id}', [InvoiceController::class, 'back'])->name('invoice_back');
             Route::post('branch_customer', [InvoiceController::class, 'branchCustomer'])->name('branch.customer');
             Route::post('branch_vender', [InvoiceController::class, 'branchVender'])->name('branch.vendor');
+            
+            
+            Route::get('/customer/stock-transfer-note/{id}/', [StockTransferNoteController::class, 'invoiceLink'])->name('stock-transfer-note.link.copy');
+            Route::get('stock-transfer-note/create/{cid?}', [StockTransferNoteController::class, 'create'])->name('stock-transfer-note.create');
+            Route::get('stock-transfer-note/draft-demand-orders', [StockTransferNoteController::class, 'draftDemandOrders'])->name('stock-transfer-note.draft_demand_orders');
+            Route::get('stock-transfer-note/demand-order-items/{id}', [StockTransferNoteController::class, 'demandOrderItems'])->name('stock-transfer-note.demand_order_items');
+            Route::post('stock-transfer-note/product/destroy', [StockTransferNoteController::class, 'destroyProduct'])->name('stock-transfer-note.product.destroy');
+            Route::post('stock-transfer-note/product', [StockTransferNoteController::class, 'product'])->name('stock-transfer-note.product');
+            Route::get('stock-transfer-note/items', [StockTransferNoteController::class, 'items'])->name('stock-transfer-note.items');
+            Route::post('stock-transfer-note/{id}/forward-to-ho', [StockTransferNoteController::class, 'forwardToHo'])->name('stock-transfer-note.forward-to-ho');
+            Route::post('stock-transfer-note/{id}/reject-by-ho', [StockTransferNoteController::class, 'rejectByHo'])->name('stock-transfer-note.reject-by-ho');
+            Route::post('stock-transfer-note/{id}/approve-by-ho', [StockTransferNoteController::class, 'approveByHo'])->name('stock-transfer-note.approve-by-ho');
+            Route::post('stock-transfer-note/{id}/issue', [StockTransferNoteController::class, 'issue'])->name('stock-transfer-note.issue');
+            Route::get('stock-transfer-note/{id}/print', [StockTransferNoteController::class, 'print'])->name('stock-transfer-note.print');
+            Route::resource('stock-transfer-note', StockTransferNoteController::class)->except(['create']);
 
             //report
             Route::get('invoice-report', [InvoiceController::class, 'inv_rep'])->name('invoice.report');
@@ -938,6 +968,9 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('invoice-report', [InvoiceController::class, 'inv_rep'])->name('invoice_report');
     Route::get('invoice_product_rep/report', [InvoiceController::class, 'invoiceProductReport'])->name('invoice_product_rep.report');
     Route::get('invoice-product-report', [InvoiceController::class, 'inv_pro_rep'])->name('invoice_product_report');
+                Route::resource('chart-of-account-sub-category', ChartOfAccountSubTypeController::class)->parameters([
+                'chart-of-account-sub-category' => 'chartOfAccountSubType',
+            ])->except(['show']);
     Route::group(
         [
             'middleware' => [
@@ -1175,6 +1208,10 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::post('employee/getdepartment', [EmployeeController::class, 'getDepartment'])->name('employee.getdepartment')->middleware(['auth', 'XSS']);
 
+    
+    Route::post('employee-contract/renew/{employee_id}', [App\Http\Controllers\EmployeeContractController::class, 'renew'])->name('employee.contract.renew')->middleware(['auth', 'XSS']);
+    Route::post('employee-contract/update/{id}', [App\Http\Controllers\EmployeeContractController::class, 'update'])->name('employee.contract.update')->middleware(['auth', 'XSS']);
+
     Route::resource('department', DepartmentController::class)->middleware(['auth', 'XSS']);
     Route::post('/department/{departmentId}/update-status', [DepartmentController::class, 'updatedepartmentStatus'])->name('update_department_status');
 
@@ -1354,11 +1391,6 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('emp-leaves', LeaveAllocation::class)->middleware(['auth', 'XSS']);
     Route::resource('emp-eobi-allocation', EobiAllocation::class)->middleware(['auth', 'XSS']);
     Route::resource('health-insurance-plan', HealthInsuracnePlanSetup::class)->middleware(['auth', 'XSS']);
-    Route::prefix('remove-late-fee')->name('remove-late-fee.')->group(function () {
-        Route::get('/', [RemoveLateFeeController::class, 'index'])->name('index')->middleware(['auth', 'XSS']);
-        Route::post('/search', [RemoveLateFeeController::class, 'search'])->name('search')->middleware(['auth', 'XSS']);
-        Route::post('/remove', [RemoveLateFeeController::class, 'remove'])->name('remove')->middleware(['auth', 'XSS']);
-    });
 	Route::get('assign-leaves', [LeaveAllocation::class, 'assignLeavesToAll'])->name('assign.leave')->middleware(['auth', 'XSS']);
     Route::get('report/leave', [ReportController::class, 'leave'])->name('report.leave')->middleware(['auth', 'XSS']);
     Route::get('employee/{id}/leave/{status}/{type}/{month}/{year}', [ReportController::class, 'employeeLeave'])->name('report.employee.leave')->middleware(['auth', 'XSS']);
@@ -1368,7 +1400,11 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::resource('leave', LeaveController::class)->middleware(['auth', 'XSS']);
 
-
+    Route::prefix('remove-late-fee')->name('remove-late-fee.')->group(function () {
+        Route::get('/', [RemoveLateFeeController::class, 'index'])->name('index')->middleware(['auth', 'XSS']);
+        Route::post('/search', [RemoveLateFeeController::class, 'search'])->name('search')->middleware(['auth', 'XSS']);
+        Route::post('/remove', [RemoveLateFeeController::class, 'remove'])->name('remove')->middleware(['auth', 'XSS']);
+    });
     Route::get('reports-leave', [ReportController::class, 'leave'])->name('report.leave')->middleware(['auth', 'XSS']);
     Route::get('employee/{id}/leave/{status}/{type}/{month}/{year}', [ReportController::class, 'employeeLeave'])->name('report.employee.leave')->middleware(['auth', 'XSS']);
 
@@ -1962,16 +1998,15 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('purchase/{id}/reject', [PurchaseController::class, 'reject'])->name('purchase.reject');
             Route::get('purchase/{id}/convert-to-grn', [PurchaseController::class, 'convertToGrn'])->name('purchase.convert_to_grn');
             Route::post('purchase/{id}/convert-to-grn', [PurchaseController::class, 'storeConvertedGrn'])->name('purchase.convert_to_grn.store');
-            Route::get('accounts/grn', [GrnController::class, 'accountsIndex'])->name('grn.accounts_index');
-            Route::resource('branchpurchase', \App\Http\Controllers\BranchPurchaseController::class);
-            Route::get('branchpurchase/create/{cid}', [\App\Http\Controllers\BranchPurchaseController::class, 'create'])->name('branchpurchase.create');
-            Route::post('branchpurchase/vender', [\App\Http\Controllers\BranchPurchaseController::class, 'vender'])->name('branchpurchase.vender');
-            Route::post('branchpurchase/product', [\App\Http\Controllers\BranchPurchaseController::class, 'product'])->name('branchpurchase.product');
-            Route::get('branchpurchase/{id}/fw_to_ho', [\App\Http\Controllers\BranchPurchaseController::class, 'fwToHo'])->name('branchpurchase.fw_to_ho');
-            Route::post('branchpurchase/{id}/finalize', [\App\Http\Controllers\BranchPurchaseController::class, 'finalize'])->name('branchpurchase.finalize');
-            Route::get('branchpurchase/{id}/reject', [\App\Http\Controllers\BranchPurchaseController::class, 'reject'])->name('branchpurchase.reject');
-            Route::get('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'convertToInvoice'])->name('branchpurchase.convert_to_invoice');
-            Route::post('branchpurchase/{id}/convert-to-invoice', [\App\Http\Controllers\BranchPurchaseController::class, 'storeConvertedInvoice'])->name('branchpurchase.convert_to_invoice.store');
+            Route::resource('demand-order', \App\Http\Controllers\DemandOrderController::class)->except(['create']);
+            Route::get('demand-order/create/{cid}', [\App\Http\Controllers\DemandOrderController::class, 'create'])->name('demand-order.create');
+            Route::post('demand-order/vender', [\App\Http\Controllers\DemandOrderController::class, 'vender'])->name('demand-order.vender');
+            Route::post('demand-order/product', [\App\Http\Controllers\DemandOrderController::class, 'product'])->name('demand-order.product');
+            Route::get('demand-order/{id}/fw_to_ho', [\App\Http\Controllers\DemandOrderController::class, 'fwToHo'])->name('demand-order.fw_to_ho');
+            Route::post('demand-order/{id}/finalize', [\App\Http\Controllers\DemandOrderController::class, 'finalize'])->name('demand-order.finalize');
+            Route::get('demand-order/{id}/reject', [\App\Http\Controllers\DemandOrderController::class, 'reject'])->name('demand-order.reject');
+            Route::get('demand-order/{id}/convert-to-invoice', [\App\Http\Controllers\DemandOrderController::class, 'convertToInvoice'])->name('demand-order.convert_to_invoice');
+            Route::post('demand-order/{id}/convert-to-invoice', [\App\Http\Controllers\DemandOrderController::class, 'storeConvertedInvoice'])->name('demand-order.convert_to_invoice.store');
 
         }
 
@@ -2079,6 +2114,7 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::get('appointment-letter', [AppointmentLetter::class, 'index'])->name('appointment-letter');
     Route::get('appointment-letter-create', [AppointmentLetter::class, 'create'])->name('appointment-letter-create');
+    Route::get('appointment-letter-preview/{id}', [AppointmentLetter::class, 'preview'])->name('appointment-letter-preview');
     Route::post('appointment-letter-store', [AppointmentLetter::class, 'store'])->name('appointment-letter-store');
     Route::get('appointment-letter-edit/{id}', [AppointmentLetter::class, 'edit'])->name('appointment-letter-edit');
     Route::put('appointment-letter-update/{id}', [AppointmentLetter::class, 'update'])->name('appointment-letter-update');
@@ -2308,10 +2344,13 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/concession/report', [ConcessionController::class, 'concessionReport'])->name('concession.report');
             Route::resource('/concession', ConcessionController::class);
             Route::resource('/transferstudent', StudentTransferController::class);
-            Route::get('/bulk-transfer', [BulkTransferController::class, 'index'])->name('bulk-transfer.index');
-            Route::post('/bulk-transfer/process', [BulkTransferController::class, 'processTransfer'])->name('bulk-transfer.process');
             Route::get('/transferapplication/{id}', [StudentTransferController::class, 'transferapplication'])->name('transferapplication');
             Route::get('/adminsend/{id}', [StudentTransferController::class, 'adminsend'])->name('adminsend');
+            Route::post('/studypackchallans/print-bulk', [StudyPackChallanController::class, 'printChallans'])->name('studypackchallans.printbulk');
+            Route::get('/studypackreceipts/daily', [StudyPackChallanController::class, 'dailyReceipts'])->name('studypackreceipts.daily');
+            Route::post('/studypackchallan/rollback', [StudyPackChallanController::class, 'rollback'])->name('studypackchallan.rollback');
+            Route::get('/bulk-transfer', [BulkTransferController::class, 'index'])->name('bulk-transfer.index');
+            Route::post('/bulk-transfer/process', [BulkTransferController::class, 'processTransfer'])->name('bulk-transfer.process');
             Route::get('transfer/change-status/{id}/{status}', [StudentTransferController::class, 'changeStatus'])->name('transfer.change_status');
             Route::post('/transfer-balance-calculate', [StudentTransferController::class, 'calculateBalance'])->name('transfer_balance.calculate');
             Route::post('/transfer-add-head', [StudentTransferController::class, 'challanheadadd'])->name('transfer.add_head');
@@ -2323,6 +2362,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('/calculate-balance', [StudentWithdrawalController::class, 'calculateBalance'])->name('calculate.balance');
             Route::get('/clearance-certificate/{id}', [StudentWithdrawalController::class, 'clearance_certificate'])->name('clearance_certificate');
             Route::get('/clearanceCertificate', [ClearanceCertificate::class, 'index'])->name('clearance.index');
+            Route::get('/track-registration', [StudentReportController::class, 'trackRegistrationReport'])->name('track_registration_report');
             Route::get('/student-challan-detail', [StudentWithdrawalController::class, 'studentchallandetail'])->name('student-challan-detail');
             Route::get('/student-adjust-detail', [StudentWithdrawalController::class, 'studentadjustdetail'])->name('student-adjust-detail');
             Route::get('/student-challan-detail', [StudentWithdrawalController::class, 'studentchallandetail'])->name('student-challan-detail');
@@ -2333,10 +2373,10 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('studypack/product', [StudyPackController::class, 'product'])->name('studypack.product');
             Route::get('studypack/{id}/payment', [StudyPackChallanController::class, 'payment'])->name('studypack.payment');
             Route::post('studypack/{id}/payment', [StudyPackChallanController::class, 'addpayment'])->name('studypack.addpayment');
+            Route::get('/studypack/booklist/export', [StudyPackController::class, 'booklistExport'])->name('studypack.booklist.export');
             // Route::get('studypackpayment',[StudyPackChallanController::class, 'addpayment'])->name('studypack.payment');
             Route::post('/studypackpaid',[StudyPackChallanController::class, 'paidstudypackchallan'])->name('studypackpaid');
-            Route::get('/challandata_for_studypackreceipt', [StudyPackChallanController::class, 'challandata_for_studypackreceipt'])->name('challandata_for_studypackreceipt');
-            Route::get('/studypackreceipts/daily', [StudyPackChallanController::class, 'dailyReceipts'])->name('studypackreceipts.daily');
+            Route::get('/challandata_for_studypackreceipt', [StudyPackChallanController::class, 'challandata_for_studypackreceipt'])->name('challandata_for_studypackreceipt');                
             Route::get('/studypackreceipts', [StudyPackChallanController::class, 'Studypackreceipts'])->name('studypackreceipts');
             Route::post('studypackchallan/product', [StudyPackChallanController::class, 'product'])->name('studypackchallan.product');
             Route::post('/deletestudypackChallanItems', [StudyPackChallanController::class, 'deleteChallanItems'])->name('deleteChallanItems');
@@ -2345,13 +2385,11 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('/studypackchallan/{id}/download', [StudyPackChallanController::class, 'show'])->name('studypackchallan.download');
             Route::get('/studypackchallan/{id}/print', [StudyPackChallanController::class, 'show'])->name('studypackchallan.print');
             Route::get('/studypackchallan/pdf/{id}', [StudyPackChallanController::class, 'print'])->name('studypackchallans.challanpdf');
-            Route::post('/studypackchallans/print-bulk', [StudyPackChallanController::class, 'printChallans'])->name('studypackchallans.printbulk');
-            Route::post('/studypackchallan/rollback', [StudyPackChallanController::class, 'rollback'])->name('studypackchallan.rollback');
             // Booklist routes
             Route::get('/studypackchallan/{id}/booklist', [StudyPackChallanController::class, 'booklist'])->name('studypackchallan.booklist');
             Route::post('/studypackchallan/{id}/booklist/download', [StudyPackChallanController::class, 'booklist'])->name('studypackchallan.booklist.download');
             Route::get('/studypackchallan/{id}/booklist/print', [StudyPackChallanController::class, 'booklist'])->name('studypackchallan.booklist.print');
-            Route::get('/studypack/booklist/export', [StudyPackController::class, 'booklistExport'])->name('studypack.booklist.export');
+            
             Route::post('/submit-adjustment', [StudentWithdrawalController::class, 'submit_adjustment'])->name('submit_adjustment');
             Route::post('/delete-adjustment', [StudentWithdrawalController::class, 'delete_adjustment'])->name('delete_adjustment');
 
@@ -2369,7 +2407,6 @@ Route::group(['middleware' => ['verified']], function () {
 			Route::get('/fee-revision-report', [StudentReportController::class, 'feeRevisionReport'])->name('fee_revision_report');
             Route::post('/student-report/filter-students', [StudentReportController::class, 'reportFilterStudents'])->name('student_report.filter_students');
             Route::get('/student-promotion-report', [StudentReportController::class, 'studentPromotionReport'])->name('student_promotion_report');
-            Route::get('/track-registration', [StudentReportController::class, 'trackRegistrationReport'])->name('track_registration_report');
 			Route::get('/student-fee-detail', [StudentReportController::class, 'studentFeeDetail'])->name('student_fee_detail');
             Route::get('/admissionwithdrawalreport', [StudentReportController::class, 'admissionwithdrawal'])->name('admissionwithdrawal.index');
             Route::get('/admissionwithdrawal/pdf/report', [StudentReportController::class, 'admissionwithdrawalPdfReport'])->name('admissionwithdrawalPdf.report');
@@ -2516,7 +2553,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('employee-leave-report', [EmployeeReportsController::class, 'empleaveReport'])->name('empleaveReport');
 			Route::get('employee-profile-report', [EmployeeReportsController::class, 'employeeProfileReport'])->name('employee_profile_report');
             //employee Transfer
-            Route::get('employee-transfer-approval/{id}', [EmployeeTransferController::class, 'approve'])->name('employee-transfer.approve');
+            Route::match(['get', 'post'], 'employee-transfer-approval/{id}', [EmployeeTransferController::class, 'approve'])->name('employee-transfer.approve');
             Route::resource('employee-transfer', EmployeeTransferController::class);
             Route::get('employee-transfer-print/{id}', [EmployeeTransferController::class, 'print'])->name('employee-transfer.print');
             //employee Advance
@@ -2575,14 +2612,14 @@ Route::post('class_student', [ConcessionController::class, 'class_student'])->na
 Route::get('concession/change-status/{id}/{status}', [ConcessionController::class, 'changeStatus'])->name('concession.change_status');
 Route::get('concession/cancel/{id}/', [ConcessionController::class, 'cancelconcession'])->name('concession.cancel');
 Route::post('concession/cancel/{id}/', [ConcessionController::class, 'removeconcession'])->name('concession.remove');
-Route::get('concession/end/{id}/', [ConcessionController::class, 'endconcession'])->name('concession.endconcession');
-Route::post('concession/end/{id}/', [ConcessionController::class, 'updateendconcession'])->name('concession.updateend');
 Route::get('concession/student-detail/{id}', [ConcessionController::class, 'concession_student_detail']);
 Route::post('concession_list', [ConcessionController::class, 'concession_search'])->name('concession_list');
 Route::get('concessionstatus/{id}', [ConcessionController::class, 'concessionstatus'])->name('concession.status')->middleware(['auth', 'XSS']);
 Route::post('concession_rejection/{id}', [ConcessionController::class, 'concessionrejection'])->name('concession.reject_reason')->middleware(['auth', 'XSS']);
 Route::post('concession_order/{id}', [ConcessionController::class, 'concessionorder'])->name('concession-order')->middleware(['auth', 'XSS']);
 
+Route::get('concession/end/{id}/', [ConcessionController::class, 'endconcession'])->name('concession.endconcession');
+Route::post('concession/end/{id}/', [ConcessionController::class, 'updateendconcession'])->name('concession.updateend');
 Route::any('/cookie-consent', [SystemController::class, 'CookieConsent'])->name('cookie-consent');
 
 Route::get('/clear', function () {

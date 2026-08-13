@@ -559,6 +559,28 @@
         function fetchSubTotal(studentId) {
 
         }
+
+        function updateProbationMonthsProfile() {
+            if ($('#department_id').length) {
+                var deptName = $('#department_id option:selected').text().trim().toLowerCase();
+                var probationMonths = (deptName === 'academic') ? 12 : 6;
+                $('#pro_date').val(probationMonths);
+                
+                var currentDate = new Date($('#joining_date').val());
+                if (!isNaN(currentDate.getTime())) {
+                    var futureDate = new Date(currentDate.setMonth(currentDate.getMonth() + probationMonths));
+                    var formattedDate = futureDate.toISOString().slice(0, 10);
+                    $('#pro_end_date').val(formattedDate);
+                }
+            }
+        }
+
+        $(document).ready(function() {
+            updateProbationMonthsProfile();
+            $(document).on('change', '#department_id', function() {
+                updateProbationMonthsProfile();
+            });
+        });
     </script>
     
 @endpush
@@ -707,6 +729,12 @@
                             role="tab" aria-controls="employee-childrens"
                             aria-selected="false">{{ __('Employee Childrens') }}</a>
                     </li>
+                    @if ($employee->category == 'Visiting' || $employee->category == 'Adhoc')
+                        <li class="nav-item">
+                            <a class="nav-link" id="contract-tab" data-bs-toggle="tab" href="#contract" role="tab"
+                                aria-controls="contract" aria-selected="false">{{ __('Contract Details') }}</a>
+                        </li>
+                    @endif
                 </ul>
                 <div class="tab-content" id="employeeTabContent">
                     <div class="tab-pane fade show active" id="personal-detail" role="tabpanel"
@@ -880,6 +908,14 @@
                                             {{ Form::text('designation', $designations[$employee->designation_id] ?? '', ['class' => 'form-control', 'readonly' => 'readonly']) }}
                                         </div>
                                     @endif
+                                    <div class="form-group col-md-6">
+                                        {{ Form::label('application_date', __('Application Date'), ['class' => 'form-label']) }}
+                                        {{ Form::date('application_date', $employee->application_date, ['class' => 'form-control', 'readonly' => \Auth::user()->type != 'company']) }}
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        {{ Form::label('interview_date', __('Interview Date'), ['class' => 'form-label']) }}
+                                        {{ Form::date('interview_date', $employee->interview_date, ['class' => 'form-control', 'readonly' => \Auth::user()->type != 'company']) }}
+                                    </div>
                                 </div>
                                 </form>
                                 <div class='d-flex justify-content-end'>
@@ -963,14 +999,13 @@
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-3">
-                                        {{-- if user is  company then can ernnter other wise readonly --}}
                                         {!! Form::label('probation_period', __('Probation Months'), ['class' => 'form-label']) !!}
                                         {!! Form::number('probation_period', !empty($employee->probation_period) ? $employee->probation_period : '', [
                                             'class' => 'form-control',
                                             'id' => 'pro_date',
                                             'required' => 'required',
                                             'min' => '1',
-                                            'readonly' => \Auth::user()->type != 'company'
+                                            'readonly' => 'readonly'
                                         ]) !!}
                                     </div>
                                     <div class="form-group col-md-3 pt-5">
@@ -1773,9 +1808,283 @@
                                 </tbody>
                             </table>
 
-                            </div>
                         </div>
                     </div>
+
+                    @if ($employee->category == 'Visiting' || $employee->category == 'Adhoc')
+                        <div class="tab-pane fade" id="contract" role="tabpanel" aria-labelledby="contract-tab">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5>{{ __('Contract Details') }}</h5>
+                                    <div>
+                                        @if (\Auth::user()->type == 'company')
+                                            @php
+                                                $currentContract = $employee->currentContract;
+                                            @endphp
+                                            @if ($currentContract)
+                                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editContractModal"
+                                                        data-id="{{ $currentContract->id }}"
+                                                        data-from="{{ $currentContract->from_date }}"
+                                                        data-to="{{ $currentContract->to_date }}"
+                                                        data-status="{{ $currentContract->getRawOriginal('status') }}"
+                                                        data-remarks="{{ $currentContract->remarks }}">
+                                                    <i class="ti ti-pencil"></i> {{ __('Edit Contract') }}
+                                                </button>
+                                            @endif
+                                            <button type="button" class="btn btn-sm btn-outline-success ms-2" data-bs-toggle="modal" data-bs-target="#renewContractModal">
+                                                <i class="ti ti-rotate"></i> {{ __('Renew Contract') }}
+                                            </button>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Current Contract Details -->
+                                    <div class="row mb-4">
+                                        <div class="col-md-3">
+                                            <strong>{{ __('Employee Type') }}:</strong>
+                                            <p>{{ $employee->category }}</p>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <strong>{{ __('Current Contract From Date') }}:</strong>
+                                            <p>{{ $employee->currentContract ? \Auth::user()->dateFormat($employee->currentContract->from_date) : '-' }}</p>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <strong>{{ __('Current Contract To Date') }}:</strong>
+                                            <p>{{ $employee->currentContract ? \Auth::user()->dateFormat($employee->currentContract->to_date) : '-' }}</p>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <strong>{{ __('Current Contract Status') }}:</strong>
+                                            <p>
+                                                @if ($employee->currentContract)
+                                                    @php
+                                                        $status = $employee->currentContract->status;
+                                                    @endphp
+                                                    @if ($status == 'active')
+                                                        <span class="badge bg-success text-white">{{ __('Active') }}</span>
+                                                    @elseif ($status == 'expired')
+                                                        <span class="badge bg-warning text-white">{{ __('Expired') }}</span>
+                                                    @else
+                                                        <span class="badge bg-danger text-white">{{ __('Terminated') }}</span>
+                                                    @endif
+                                                @else
+                                                    <span class="badge bg-secondary text-white">{{ __('No Active Contract') }}</span>
+                                                @endif
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Complete Contract History -->
+                                    <h5 class="mt-4 mb-3">{{ __('Complete Contract History') }}</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-striped">
+                                            <thead>
+                                                <tr class="table_heads">
+                                                    <th>{{ __('From Date') }}</th>
+                                                    <th>{{ __('To Date') }}</th>
+                                                    <th>{{ __('Duration') }}</th>
+                                                    <th>{{ __('Status') }}</th>
+                                                    <th>{{ __('Remarks') }}</th>
+                                                    @if (\Auth::user()->type == 'company')
+                                                        <th>{{ __('Action') }}</th>
+                                                    @endif
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse ($employee->contracts()->orderBy('from_date', 'desc')->get() as $contract)
+                                                    <tr>
+                                                        <td>{{ \Auth::user()->dateFormat($contract->from_date) }}</td>
+                                                        <td>{{ \Auth::user()->dateFormat($contract->to_date) }}</td>
+                                                        <td>
+                                                            @php
+                                                                $from = \Carbon\Carbon::parse($contract->from_date);
+                                                                $to = \Carbon\Carbon::parse($contract->to_date);
+                                                                $diff = $from->diff($to);
+                                                                $parts = [];
+                                                                if ($diff->y > 0) {
+                                                                    $parts[] = $diff->y . ' ' . ($diff->y == 1 ? __('year') : __('years'));
+                                                                }
+                                                                if ($diff->m > 0) {
+                                                                    $parts[] = $diff->m . ' ' . ($diff->m == 1 ? __('month') : __('months'));
+                                                                }
+                                                                if ($diff->d > 0) {
+                                                                    $parts[] = $diff->d . ' ' . ($diff->d == 1 ? __('day') : __('days'));
+                                                                }
+                                                                $durationString = implode(', ', $parts);
+                                                                if (empty($durationString)) {
+                                                                    $durationString = '0 ' . __('days');
+                                                                }
+                                                            @endphp
+                                                            {{ $durationString }}
+                                                        </td>
+                                                        <td>
+                                                            @php
+                                                                $cStatus = $contract->status;
+                                                            @endphp
+                                                            @if ($cStatus == 'active')
+                                                                <span class="badge bg-success text-white">{{ __('Active') }}</span>
+                                                            @elseif ($cStatus == 'expired')
+                                                                <span class="badge bg-warning text-white">{{ __('Expired') }}</span>
+                                                            @else
+                                                                <span class="badge bg-danger text-white">{{ __('Terminated') }}</span>
+                                                            @endif
+                                                        </td>
+                                                        <td>{{ $contract->remarks ?? '-' }}</td>
+                                                        @if (\Auth::user()->type == 'company')
+                                                            <td>
+                                                                <button type="button" class="btn btn-sm btn-primary edit-contract-btn" 
+                                                                        data-bs-toggle="modal" data-bs-target="#editContractModal"
+                                                                        data-id="{{ $contract->id }}"
+                                                                        data-from="{{ $contract->from_date }}"
+                                                                        data-to="{{ $contract->to_date }}"
+                                                                        data-status="{{ $contract->getRawOriginal('status') }}"
+                                                                        data-remarks="{{ $contract->remarks }}">
+                                                                    <i class="ti ti-pencil"></i>
+                                                                </button>
+                                                            </td>
+                                                        @endif
+                                                    </tr>
+                                                @empty
+                                                    <tr>
+                                                        <td colspan="6" class="text-center">{{ __('No contract history found.') }}</td>
+                                                    </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Edit Contract Modal -->
+                        <div class="modal fade" id="editContractModal" tabindex="-1" aria-labelledby="editContractModalLabel" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="" id="editContractForm" method="POST">
+                                        @csrf
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="editContractModalLabel">{{ __('Edit Contract') }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <input type="hidden" name="contract_id" id="edit_contract_id">
+                                            <div class="form-group mb-3">
+                                                <label for="edit_from_date" class="form-label">{{ __('From Date') }}</label>
+                                                <input type="date" name="from_date" id="edit_from_date" class="form-control" required>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label for="edit_to_date" class="form-label">{{ __('To Date') }}</label>
+                                                <input type="date" name="to_date" id="edit_to_date" class="form-control" required>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label for="edit_status" class="form-label">{{ __('Status') }}</label>
+                                                <select name="status" id="edit_status" class="form-control" required>
+                                                    <option value="active">{{ __('Active') }}</option>
+                                                    <option value="expired">{{ __('Expired') }}</option>
+                                                    <option value="terminated">{{ __('Terminated') }}</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label for="edit_remarks" class="form-label">{{ __('Remarks') }}</label>
+                                                <textarea name="remarks" id="edit_remarks" class="form-control" rows="3"></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                                            <button type="submit" class="btn btn-primary">{{ __('Save Changes') }}</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Renew Contract Modal -->
+                        <div class="modal fade" id="renewContractModal" tabindex="-1" aria-labelledby="renewContractModalLabel" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ route('employee.contract.renew', $employee->id) }}" method="POST">
+                                        @csrf
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="renewContractModalLabel">{{ __('Renew Contract') }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="alert alert-info">
+                                                {{ __('Renewing the contract will mark the previous active contract as Expired and create a new active contract.') }}
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label for="renew_from_date" class="form-label">{{ __('New From Date') }}</label>
+                                                <input type="date" name="from_date" id="renew_from_date" class="form-control" required>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label for="renew_to_date" class="form-label">{{ __('New To Date') }}</label>
+                                                <input type="date" name="to_date" id="renew_to_date" class="form-control" required>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label for="renew_remarks" class="form-label">{{ __('Remarks') }}</label>
+                                                <textarea name="remarks" id="renew_remarks" class="form-control" rows="3"></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                                            <button type="submit" class="btn btn-success">{{ __('Renew') }}</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <script>
+                            $(document).ready(function() {
+                                function updateMinToDate(fromId, toId) {
+                                    var fromVal = $(fromId).val();
+                                    if (fromVal) {
+                                        var nextDay = new Date(fromVal);
+                                        nextDay.setDate(nextDay.getDate() + 1);
+                                        var minFormatted = nextDay.toISOString().slice(0, 10);
+                                        $(toId).attr('min', minFormatted);
+                                    } else {
+                                        $(toId).removeAttr('min');
+                                    }
+                                }
+
+                                // Populate Edit Contract modal when opened
+                                $('#editContractModal').on('show.bs.modal', function(event) {
+                                    var button = $(event.relatedTarget);
+                                    var id = button.data('id');
+                                    var from = button.data('from');
+                                    var to = button.data('to');
+                                    var status = button.data('status');
+                                    var remarks = button.data('remarks');
+
+                                    var modal = $(this);
+                                    modal.find('#edit_contract_id').val(id);
+                                    modal.find('#edit_from_date').val(from);
+                                    modal.find('#edit_to_date').val(to);
+                                    modal.find('#edit_status').val(status);
+                                    modal.find('#edit_remarks').val(remarks);
+
+                                    var actionUrl = "{{ route('employee.contract.update', ':id') }}";
+                                    actionUrl = actionUrl.replace(':id', id);
+                                    modal.find('#editContractForm').attr('action', actionUrl);
+
+                                    updateMinToDate('#edit_from_date', '#edit_to_date');
+                                });
+
+                                $('#edit_from_date').change(function() {
+                                    updateMinToDate('#edit_from_date', '#edit_to_date');
+                                });
+
+                                $('#renew_from_date').change(function() {
+                                    updateMinToDate('#renew_from_date', '#renew_to_date');
+                                });
+
+                                $('#renewContractModal').on('show.bs.modal', function() {
+                                    updateMinToDate('#renew_from_date', '#renew_to_date');
+                                });
+                            });
+                        </script>
+                    @endif
+
                     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
                     <script>
                         function fetchAmount(studentId) {

@@ -25,8 +25,6 @@ use App\Models\Transaction;
 use App\Models\Vender;
 use App\Models\User;
 use App\Models\Utility;
-use App\Models\WarehouseProduct;
-use App\Models\WarehouseTransfer;
 use Illuminate\Support\Facades\Crypt;
 use App\Models\warehouse;
 use App\Services\PurchaseReceivingService;
@@ -58,9 +56,7 @@ class PurchaseController extends Controller
         }
 
         // dropdown list (id => name)
-        $vendorList = Vender::where('created_by', \Auth::user()->creatorId())
-            ->pluck('name', 'id')
-            ->prepend('Select Vendor', '');
+        $vendorList = Vender::optionsForCreator(\Auth::user()->creatorId());
     
         // base query for purchases
         $query = Purchase::where('created_by', \Auth::user()->creatorId());
@@ -81,8 +77,7 @@ class PurchaseController extends Controller
     public function pur_rep(Request $request)
     {
 
-        $vender = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $vender->prepend('Select Vendor', '');
+        $vender = Vender::optionsForCreator(\Auth::user()->creatorId());
         $status = Purchase::$statues;
         $query = Purchase::where('created_by', '=', \Auth::user()->creatorId());
         if (!empty($request->vender)) {
@@ -142,8 +137,7 @@ class PurchaseController extends Controller
 
     public function purchaseReport(Request $request)
     {
-        $vender = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $vender->prepend('Select Vendor', '');
+        $vender = Vender::optionsForCreator(\Auth::user()->creatorId());
         $status = Purchase::$statues;
         $query = Purchase::where('created_by', '=', \Auth::user()->creatorId());
         if (!empty($request->vender)) {
@@ -214,8 +208,7 @@ class PurchaseController extends Controller
     public function pur_pro_rep(Request $request)
     {
 
-        $vender = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $vender->prepend('Select Vendor', '');
+        $vender = Vender::optionsForCreator(\Auth::user()->creatorId());
         $categories = ProductServiceCategory::where('owned_by', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
         $categories->prepend('Select Category', '');
         $status = Purchase::$statues;
@@ -279,8 +272,7 @@ class PurchaseController extends Controller
     public function purchaseProductReport(Request $request)
     {
 
-        $vender = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $vender->prepend('Select Vendor', '');
+        $vender = Vender::optionsForCreator(\Auth::user()->creatorId());
         $categories = ProductServiceCategory::where('owned_by', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
         $categories->prepend('Select Category', '');
         $status = Purchase::$statues;
@@ -356,8 +348,7 @@ class PurchaseController extends Controller
     public function purchaseProductByVendorReport(Request $request)
     {
 
-        $vender = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $vender->prepend('Select Vendor', '');
+        $vender = Vender::optionsForCreator(\Auth::user()->creatorId());
         $categories = ProductServiceCategory::where('owned_by', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
         $categories->prepend('Select Category', '');
         $status = Purchase::$statues;
@@ -481,8 +472,7 @@ class PurchaseController extends Controller
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'purchase')->get();
 
             $purchase_number = \Auth::user()->purchaseNumberFormat($this->purchaseNumber());
-            $venders = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $venders->prepend('Select Vender', '');
+            $venders = Vender::optionsForCreator(\Auth::user()->creatorId(), 'Select Vender');
 
             $warehouse = warehouse::where('owned_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
@@ -614,7 +604,7 @@ class PurchaseController extends Controller
             $warehouse = warehouse::where('owned_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
             $purchase_number = \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
-            $venders = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $venders = Vender::optionsForCreator(\Auth::user()->creatorId(), null);
             $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
                 ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
 
@@ -1143,7 +1133,7 @@ class PurchaseController extends Controller
     {
         if (\Auth::user()->can('create payment purchase')) {
             $purchase = Purchase::where('id', $purchase_id)->first();
-            $venders = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $venders = Vender::optionsForCreator(\Auth::user()->creatorId(), null);
 
             $categories = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -1358,8 +1348,7 @@ class PurchaseController extends Controller
         $dateFrom = ($currentMonth >= 7) ? "$currentYear-07-01" : date('Y-07-01', strtotime('-1 year'));
         $dateTo = ($currentMonth >= 7) ? date('Y-06-30', strtotime('+1 year')) : "$currentYear-06-30";
 
-        $vender = Vender::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
-        $vender->prepend('Select Vendor', '');
+        $vender = Vender::optionsForCreator(\Auth::user()->creatorId());
 
         $categories = ProductServiceCategory::where('owned_by', \Auth::user()->ownedId())->pluck('name', 'id');
         $categories->prepend('Select Category', '');
@@ -1604,10 +1593,7 @@ class PurchaseController extends Controller
     {
         $user = \Auth::user();
 
-        $vendors = Vender::where('created_by', $user->creatorId())
-            ->orderBy('name')
-            ->pluck('name', 'id')
-            ->prepend('Select Vendor', '');
+        $vendors = Vender::optionsForCreator($user->creatorId());
 
         $warehouseRecords = warehouse::where('owned_by', $user->creatorId())
             ->orderBy('name')

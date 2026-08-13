@@ -179,6 +179,11 @@
                                             </button>
                                         </li>
                                         <li>
+                                            <button class="dropdown-item" type="submit" name="export" value="excel_with_account">
+                                                <i class="ti ti-file me-2"></i>{{ __('Excel With Account') }}
+                                            </button>
+                                        </li>
+                                        <li>
                                             <button class="dropdown-item" type="submit" name="export" value="pdf">
                                                 <i class="ti ti-download me-2"></i>Pdf
                                             </button>
@@ -219,7 +224,7 @@
                                     <th>{{ __('Damaged Qty') }}</th>
                                     <th>{{ __('Total Qty') }}</th>
                                 @endcan
-                                  @if (Gate::check('show product & service') || Gate::check('edit product & service') || Gate::check('delete product & service'))
+                                @if (Gate::check('show product & service') || Gate::check('edit product & service') || Gate::check('delete product & service'))
                                     <th>{{ __('Action') }}</th>
                                 @endif
                             </tr>

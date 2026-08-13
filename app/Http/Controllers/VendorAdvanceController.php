@@ -123,10 +123,7 @@ class VendorAdvanceController extends Controller
             ->orderByDesc('id')
             ->paginate(25);
 
-        $vendors = Vender::where('created_by', \Auth::user()->creatorId())
-            ->orderBy('name')
-            ->pluck('name', 'id');
-        $vendors->prepend(__('Select Vendor'), '');
+        $vendors = Vender::optionsForCreator(\Auth::user()->creatorId());
 
         return view('vendor_advance.index', compact('advances', 'vendors'));
     }
@@ -137,10 +134,7 @@ class VendorAdvanceController extends Controller
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        $vendors = Vender::where('created_by', \Auth::user()->creatorId())
-            ->orderBy('name')
-            ->pluck('name', 'id');
-        $vendors->prepend(__('Select Vendor'), '');
+        $vendors = Vender::optionsForCreator(\Auth::user()->creatorId());
 
         return view('vendor_advance.create', compact('vendors'));
     }
@@ -195,9 +189,7 @@ class VendorAdvanceController extends Controller
             return response()->json(['error' => __('Approved vendor advance cannot be edited.')], 401);
         }
 
-        $vendors = Vender::where('created_by', \Auth::user()->creatorId())
-            ->orderBy('name')
-            ->pluck('name', 'id');
+        $vendors = Vender::optionsForCreator(\Auth::user()->creatorId(), null);
 
         return view('vendor_advance.edit', compact('advance', 'vendors'));
     }

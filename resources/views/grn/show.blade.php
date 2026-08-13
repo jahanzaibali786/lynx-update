@@ -57,7 +57,7 @@
                                             @endif
                                         </p>
                                         <div class="timeline-action">
-                                            @if($grn->status == 0)
+                                            @if($grn->status == 0 || $grn->status == 10)
                                                 <a href="{{ route('grn.fw_to_ho', $grn->id) }}" class="btn mx-1 btn-sm btn-outline-warning">
                                                     <span class="btn-inner--icon"><i class="ti ti-mail-forward mr-2"></i></span>{{__('Fw to Ho')}}
                                                 </a>
@@ -149,8 +149,8 @@
                                             @endif
                                             @if($grn->status == 7 )
                                                 @can('account approve grn')
-                                                <a href="{{ route('grn.accounts_approve', $grn->id) }}" class="btn mx-1 btn-sm btn-success text-white" onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
-                                                    <span class="btn-inner--icon"><i class="ti ti-checks mr-2"></i></span>{{__('Approve')}}
+                                                <a href="{{ route('grn.accounts_approve', $grn->id) }}" class="btn mx-1 btn-sm btn-success text-white">
+                                                    <span class="btn-inner--icon"><i class="ti ti-checks mr-2"></i></span>{{__('Review Voucher')}}
                                                 </a>
                                                 <a href="{{ route('grn.reject', $grn->id) }}" class="btn mx-1 btn-sm btn-danger text-white" onclick="return confirm('{{ __('Are you sure you want to reject this GRN?') }}')">
                                                     <span class="btn-inner--icon"><i class="ti ti-x mr-2"></i></span>{{__('Reject')}}
@@ -191,7 +191,7 @@
                         </div>
                         <div class="col-md-3 mb-3">
                             <small class="text-muted d-block">{{ __('Vendor') }}</small>
-                            <strong>{{ optional($grn->vendor)->name ?? '-' }}</strong>
+                            <strong>{{ optional($grn->vendor)->display_name ?? '-' }}</strong>
                         </div>
                         <div class="col-md-3 mb-3">
                             <small class="text-muted d-block">{{ __('Store') }}</small>
@@ -215,6 +215,14 @@
                             <small class="text-muted d-block">{{ __('Approved By') }}</small>
                             <strong>{{ optional($grn->approvedBy)->name ?? __('Pending') }}</strong>
                         </div>
+                        @if($grn->voucher)
+                            <div class="col-md-3 mb-3">
+                                <small class="text-muted d-block">{{ __('Voucher') }}</small>
+                                <a href="{{ route('journal-entry.show', $grn->voucher->id) }}">
+                                    <strong>{{ $grn->voucher->getVoucherNumber() }}</strong>
+                                </a>
+                            </div>
+                        @endif
                         <div class="col-md-12">
                             <small class="text-muted d-block">{{ __('Remarks') }}</small>
                             <span>{{ $grn->remarks ?? '-' }}</span>
