@@ -29,6 +29,10 @@
         {{-- <div id="editor">{!! old('datacontent', $letter->datacontent) !!}</div> --}}
         <textarea name="datacontent" class="editor">{!! old('datacontent', $letter->datacontent) !!}</textarea>
     </div>
+    <small class="text-muted d-block mt-2">
+        {{ __('Use clause placeholders like [[CLAUSE:1]], [[CLAUSE:6:a]], or [[NO:6]][[ALP:a]] at the start of a paragraph for aligned numbering in preview, print, and PDF.') }}
+    </small>
+    @include('employee.appointmentletter.variables', ['variables' => $variables ?? []])
 
     <div class="modal-footer">
         <input type="button" value="{{__('Cancel')}}" class="btn btn-outline-light" data-bs-dismiss="modal">
@@ -174,14 +178,26 @@
 			} )
 			.then( editor => {
 				window.editor = editor;
-		
-				
-				
-				
-		
-				
-				
-				
+                window.appointmentLetterEditor = editor;
+
+                editor.keystrokes.set( 'Tab', function( data, cancel ) {
+                    if ( editor.commands.get( 'indent' ) && editor.commands.get( 'indent' ).isEnabled ) {
+                        editor.execute( 'indent' );
+                    } else {
+                        editor.model.change( function( writer ) {
+                            editor.model.insertContent( writer.createText( '\u00A0\u00A0\u00A0\u00A0' ), editor.model.document.selection );
+                        } );
+                    }
+
+                    cancel();
+                } );
+
+                editor.keystrokes.set( 'Shift+Tab', function( data, cancel ) {
+                    if ( editor.commands.get( 'outdent' ) && editor.commands.get( 'outdent' ).isEnabled ) {
+                        editor.execute( 'outdent' );
+                        cancel();
+                    }
+                } );
 			} )
 			.catch( error => {
 				console.error( 'Oops, something went wrong!' );
@@ -189,4 +205,57 @@
 				console.warn( 'Build id: ham5y13wy58n-y439t0y9ehh' );
 				console.error( error );
 			} );      
+
+    $(document).off('click.appointmentVariableInsert').on('click.appointmentVariableInsert', '.appointment-variable-insert', function () {
+        var placeholder = $(this).data('placeholder');
+        var editor = window.appointmentLetterEditor || window.editor;
+
+        if (editor) {
+            editor.model.change(function (writer) {
+                editor.model.insertContent(writer.createText(placeholder), editor.model.document.selection);
+            });
+        }
+    });
+
+    $(document).off('click.appointmentVariableCopy').on('click.appointmentVariableCopy', '.appointment-variable-copy', function () {
+        var placeholder = $(this).data('placeholder');
+
+        copyAppointmentPlaceholder(placeholder);
+    });
+
+    function getAppointmentClauseBuilderPlaceholder() {
+        var number = $('.appointment-clause-number-select').val() || '1';
+        var alpha = $('.appointment-clause-alpha-select').val() || '';
+
+        return '[[NO:' + number + ']]' + (alpha ? '[[ALP:' + alpha + ']]' : '');
+    }
+
+    function copyAppointmentPlaceholder(placeholder) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(placeholder);
+            return;
+        }
+
+        var tempInput = document.createElement('textarea');
+        tempInput.value = placeholder;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+    }
+
+    $(document).off('click.appointmentClauseBuilderCopy').on('click.appointmentClauseBuilderCopy', '.appointment-clause-builder-copy', function () {
+        copyAppointmentPlaceholder(getAppointmentClauseBuilderPlaceholder());
+    });
+
+    $(document).off('click.appointmentClauseBuilderInsert').on('click.appointmentClauseBuilderInsert', '.appointment-clause-builder-insert', function () {
+        var placeholder = getAppointmentClauseBuilderPlaceholder();
+        var editor = window.appointmentLetterEditor || window.editor;
+
+        if (editor) {
+            editor.model.change(function (writer) {
+                editor.model.insertContent(writer.createText(placeholder), editor.model.document.selection);
+            });
+        }
+    });
 </script>

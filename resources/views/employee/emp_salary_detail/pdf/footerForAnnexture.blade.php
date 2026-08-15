@@ -2,12 +2,12 @@
     {{-- for addres --}}
     <tr>
         <td style="width: 33.33%; text-align: left; vertical-align: top; font-size: 10px;">
-            <img style="max-width: 10px; max-height: 10px; vertical-align: middle; display: inline-block;" src="{{ asset('assets/images/location.png')}}" alt="location">
-            &nbsp; <span style="font-size: 10px; vertical-align: middle; display: inline-block;">{{ $branches_school->address ?? $employee->headOffice->address ?? 'House No 831 Street No 91 I-8/4, Islamabad, Pakistan' }}</span>
+             <img style="max-width: 10px; max-height: 10px; vertical-align: middle; display: inline-block;" src="{{ asset('assets/images/call.png')}}" alt="phone"> 
+            &nbsp; <span style="font-size: 10px; vertical-align: middle; display: inline-block;">{{ $branches_school->phone_no ?? $employee->headOffice->phone_no ?? '(051)4853745' }}</span>
         </td>
         <td style="width: 33.33%; text-align: center; vertical-align: top; font-size: 10px;">
-            <img style="max-width: 10px; max-height: 10px; vertical-align: middle; display: inline-block;" src="{{ asset('assets/images/call.png')}}" alt="phone"> 
-            &nbsp; <span style="font-size: 10px; vertical-align: middle; display: inline-block;">{{ $branches_school->phone_no ?? $employee->headOffice->phone_no ?? '(051)4853745' }}</span>
+            <!--<img style="max-width: 10px; max-height: 10px; vertical-align: middle; display: inline-block;" src="{{ asset('assets/images/call.png')}}" alt="phone"> -->
+            <!--&nbsp; <span style="font-size: 10px; vertical-align: middle; display: inline-block;"></span>-->
         </td>
         <td style="width: 33.33%; text-align: right; vertical-align: top; font-size: 10px;">
             <img style="max-width: 10px; max-height: 10px; vertical-align: middle; display: inline-block;" src="{{ asset('assets/images/email.png')}}" alt="email">

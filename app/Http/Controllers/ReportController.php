@@ -60,6 +60,33 @@ class ReportController extends Controller
         $this->ledgerService = $ledgerService;
     }
 
+    private function ledgerDateRange(Request $request): array
+    {
+        $startInput = $request->start_date ?: date('Y-m-01');
+        $endInput = $request->end_date ?: date('Y-m-d');
+
+        return [
+            Carbon::parse($startInput)->startOfDay(),
+            Carbon::parse($endInput)->endOfDay(),
+            Carbon::parse($startInput)->format('Y-m-d'),
+            Carbon::parse($endInput)->format('Y-m-d'),
+        ];
+    }
+
+    private function ledgerBranchFilter($branch)
+    {
+        return empty($branch) || $branch === 'All Branches' || $branch === 'null' ? null : $branch;
+    }
+
+    private function ledgerTotals($rows): array
+    {
+        return [
+            'debit' => (float) $rows->sum('debit'),
+            'credit' => (float) $rows->sum('credit'),
+            'balance' => (float) ($rows->last()['balance'] ?? 0),
+        ];
+    }
+
     public function incomeSummary(Request $request)
     {
         if (\Auth::user()->can('income report')) {
@@ -1290,11 +1317,10 @@ class ReportController extends Controller
             }
              
             $creatorId = $user->creatorId();
-            $start = $request->start_date ?? date('Y-m-01');
-            $end = $request->end_date ?? date('Y-m-d', strtotime('+1 day'));
+            [$start, $end, $startDisplay, $endDisplay] = $this->ledgerDateRange($request);
 
 
-            $selectedBranch = $request->branch ?? null;
+            $selectedBranch = $this->ledgerBranchFilter($request->branch ?? null);
 
             $isAccountFiltered = !empty($request->account);
             $type = $isAccountFiltered ? 'other' : 'group';
@@ -1323,15 +1349,16 @@ class ReportController extends Controller
                 'balance' => 0,
                 'credit' => 0,
                 'debit' => 0,
-                'startDateRange' => $start,
-                'endDateRange' => $end,
+                'startDateRange' => $startDisplay,
+                'endDateRange' => $endDisplay,
             ];
             if($request->old){
                 return view('report.ledger_summary_old', compact('filter', 'chart_accounts', 'accounts', 'subAccounts', 'type'));
             }
             $rows = $this->ledgerService->buildLedgerRows($chart_accounts, $type, $start, $end, $selectedBranch);
+            $grandTotals = $this->ledgerTotals($rows);
             // dd($rows);
-            return view('report.ledger_summary', compact('filter', 'chart_accounts', 'accounts', 'subAccounts', 'type', 'rows', 'branches'));      
+            return view('report.ledger_summary', compact('filter', 'chart_accounts', 'accounts', 'subAccounts', 'type', 'rows', 'branches', 'grandTotals'));      
         } else {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
@@ -3469,9 +3496,8 @@ class ReportController extends Controller
     {
         $user = \Auth::user();
         $creatorId = $user->creatorId();
-        $start = $request->start_date ?? date('Y-m-01');
-        $end = $request->end_date ?? date('Y-m-d', strtotime('+1 day'));
-        $selectedBranch = $request->branch ?? null;
+        [$start, $end] = $this->ledgerDateRange($request);
+        $selectedBranch = $this->ledgerBranchFilter($request->branch ?? null);
 
         $isAccountFiltered = !empty($request->account);
         $type = $isAccountFiltered ? 'other' : 'group';
@@ -3483,8 +3509,9 @@ class ReportController extends Controller
         $chart_accounts = $chartAccountsQuery->get();
 
         $rows = $this->ledgerService->buildLedgerRows($chart_accounts, $type, $start, $end, $selectedBranch);
+        $grandTotals = $this->ledgerTotals($rows);
 
-        $headings = ['#', 'Date', 'Account Name', 'Memo', 'Transaction Type', 'Debit', 'Credit', 'Balance'];
+        $headings = ['#', 'Date', 'Account Name', 'Category', 'User Type', 'User Name', 'Memo', 'Transaction Type', 'Debit', 'Credit', 'Balance'];
 
         $data = [];
         $i = 1;
@@ -3496,6 +3523,9 @@ class ReportController extends Controller
                 $i++,
                 $dateValue,
                 $row['account'],
+                $row['category'] ?? '',
+                $row['user_type'] ?? '',
+                $row['user_name'] ?? '',
                 $row['memo'],
                 $row['voucher'],
                 $row['debit'],
@@ -3503,6 +3533,19 @@ class ReportController extends Controller
                 $row['balance'],
             ];
         }
+        $data[] = [
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            'Grand Total',
+            $grandTotals['debit'],
+            $grandTotals['credit'],
+            $grandTotals['balance'],
+        ];
 
         $name = 'Ledger_Summary_' . now()->format('Y_m_d_H_i_s');
         $data = Excel::download(new LedgerExport($data, $headings), $name . '.xlsx');

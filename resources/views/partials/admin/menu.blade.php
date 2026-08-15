@@ -852,15 +852,13 @@
                                            
                                         </li>
                                         <li class="dash-item">
-                                            @if (\Auth::user()->type == 'company')
                                                 <a href="{{ route('salary_history') }}"
                                                     class="dash-link  {{ Request::segment(1) == 'salary-history' ? 'active dash-trigger' : '' }}">
                                                     {{ __('Salary History') }}
                                                 </a>
-                                            @endif
                                         </li>
 
-                                        <li class="dash-item   ">
+                                        <li class="dash-item">
                                             @if (\Auth::user()->type == 'company')
                                                 <a style="display: flex;" href="{{ route('salary_history_report') }}"
                                                     class="dash-link  {{ Request::segment(1) == 'salary-history-report' ? 'active dash-trigger' : '' }} ">

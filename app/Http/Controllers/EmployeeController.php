@@ -239,6 +239,10 @@ class EmployeeController extends Controller
                         // 'probation_period' => 'required',
                         // 'probation_end' => 'required',
                         //         'document.*' => 'mimes:jpeg,png,jpg,gif,svg,pdf,doc,zip|max:20480',
+                        'from_date' => 'required_if:category,Visiting,Adhoc|nullable|date',
+                        'to_date' => 'required_if:category,Visiting,Adhoc|nullable|date|after:from_date',
+                        'application_date' => 'nullable|date',
+                        'interview_date' => 'nullable|date',
                     ]
                 );
                 if ($validator->fails()) {
@@ -279,6 +283,14 @@ class EmployeeController extends Controller
                 } else {
                     $document_implode = null;
                 }
+                $dept = \App\Models\Department::find($request['department_id']);
+                $probationMonths = ($dept && strtolower($dept->name) === 'academic') ? 12 : 6;
+                $probationEnd = null;
+                if ($request['company_doj']) {
+                    $joiningDate = \Carbon\Carbon::parse($request['company_doj']);
+                    $probationEnd = $joiningDate->addMonths($probationMonths)->format('Y-m-d');
+                }
+
                 $employee = Employee::create(
                     [
                         'user_id' => $user->id,
@@ -302,8 +314,10 @@ class EmployeeController extends Controller
                         'department_id' => $request['department_id'],
                         'designation_id' => $request['designation_id'],
                         'company_doj' => $request['company_doj'],
-                        'probation_period' => $request['probation_period'],
-                        'probation_end' => $request['probation_end'],
+                        'application_date' => $request['application_date'],
+                        'interview_date' => $request['interview_date'],
+                        'probation_period' => $probationMonths,
+                        'probation_end' => $probationEnd,
                         'documents' => $document_implode,
                         'account_holder_name' => $request['account_holder_name'],
                         'account_number' => $request['account_number'],
@@ -380,6 +394,19 @@ class EmployeeController extends Controller
                         'owned_by' => \Auth::user()->ownedId(),
                         'created_by' => \Auth::user()->creatorId(),
                     ]);
+
+                    if ($employee->category === 'Visiting' || $employee->category === 'Adhoc') {
+                        \App\Models\EmployeeContract::create([
+                            'employee_id' => $employee->id,
+                            'created_by' => \Auth::user()->creatorId(),
+                            'owned_by' => $employee->owned_by,
+                            'from_date' => $request->from_date,
+                            'to_date' => $request->to_date,
+                            'status' => 'active',
+                            'remarks' => 'First contract created automatically on employee registration.',
+                            'added_by' => \Auth::user()->id,
+                        ]);
+                    }
                 }
                 ;
                 $setings = Utility::settings();
@@ -635,8 +662,16 @@ if ($path) {
     {
         $employee = Employee::findOrFail($id);
         $employee->company_doj = $request->input('company_doj');
-        $employee->probation_end = $request->input('probation_end');
-        $employee->probation_period = $request->input('probation_period');
+
+        $dept = Department::find($employee->department_id);
+        $probationMonths = ($dept && strtolower($dept->name) === 'academic') ? 12 : 6;
+        $employee->probation_period = $probationMonths;
+
+        if ($employee->company_doj) {
+            $joiningDate = \Carbon\Carbon::parse($employee->company_doj);
+            $employee->probation_end = $joiningDate->addMonths($probationMonths)->format('Y-m-d');
+        }
+
         $employee->is_res_ter = $request->input('includeIn_sal');
         $employee->security = $request->input('emp_security');
         $employee->pessi = $request->input('pessi');
@@ -882,10 +917,22 @@ if ($path) {
         $employee->ssc_id = $validatedData['ssc_id'];
         $employee->present_address = $validatedData['present_address'];
         $employee->address = $validatedData['address'];
+        $employee->application_date = $validatedData['application_date'] ?? null;
+        $employee->interview_date = $validatedData['interview_date'] ?? null;
         // $employee->branch_id = $validatedData['branch_id'];
         if (Auth::user()->type == 'company') {
             $employee->department_id = $validatedData['department_id'];
             $employee->designation_id = $validatedData['designation_id'];
+
+            // Automatically set probation period based on department
+            $dept = Department::find($employee->department_id);
+            $probationMonths = ($dept && strtolower($dept->name) === 'academic') ? 12 : 6;
+            $employee->probation_period = $probationMonths;
+
+            if ($employee->company_doj) {
+                $joiningDate = \Carbon\Carbon::parse($employee->company_doj);
+                $employee->probation_end = $joiningDate->addMonths($probationMonths)->format('Y-m-d');
+            }
         }
         
         $employee->save();

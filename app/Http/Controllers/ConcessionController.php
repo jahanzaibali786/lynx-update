@@ -19,6 +19,21 @@ use Dompdf\Options;
 
 class ConcessionController extends Controller
 {
+    private function studentBranchId($studentId)
+    {
+        $student = StudentRegistration::find($studentId);
+        if (!$student) {
+            return null;
+        }
+
+        $enrollment = StudentEnrollments::where('regId', $student->id)
+            ->orderByDesc('active_status')
+            ->orderByDesc('id')
+            ->first();
+
+        return $student->branch ?: optional($enrollment)->owned_by ?: $student->owned_by;
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -137,6 +152,11 @@ class ConcessionController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
             $std = StudentEnrollments::where('regId', $request->student_id)->first();
+            $studentBranchId = $this->studentBranchId($request->student_id);
+            if (empty($studentBranchId)) {
+                DB::rollback();
+                return redirect()->back()->with('error', __('Student branch not found.'));
+            }
             // dd($request->all());
             $concession = new Concession();
             $concession->student_id = $request->student_id;
@@ -150,7 +170,7 @@ class ConcessionController extends Controller
             $concession->start_date = $request->period_from;
             $concession->end_date = $request->period_to;
             $concession->remarks = $request->bill_remarks;
-            $concession->owned_by = $request->branch_id;
+            $concession->owned_by = $studentBranchId;
             $concession->created_by = \Auth::user()->creatorId();
             if($request->cancle_date != null || $request->cancle_remarks){
                 $prev_con = Concession::with('concession')
@@ -214,6 +234,7 @@ class ConcessionController extends Controller
         $concession_policy = ConcessionPolicy::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('title', 'id');
         $classes = Classes::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $student = StudentRegistration::where('class_id', $Concession->class_id)->pluck('stdname', 'id');
+        $Concession->branch_id = $this->studentBranchId($Concession->student_id) ?: $Concession->owned_by;
         $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get();
         // $student = DB::table('student_enrollments')->join('student_registrations', 'student_enrollments.regId', '=', 'student_registrations.id')
         // ->where('student_enrollments.class_id',$Concession->class_id)->pluck('student_registrations.stname','student_registrations.id');
@@ -251,6 +272,11 @@ class ConcessionController extends Controller
             $messages = $validator->getMessageBag();
             return redirect()->back()->with('error', $messages->first());
         }
+        $studentBranchId = $this->studentBranchId($request->student_id);
+        if (empty($studentBranchId)) {
+            return redirect()->back()->with('error', __('Student branch not found.'));
+        }
+
         $Concession->student_id = $request->student_id;
         $Concession->class_id = $request->class_id;
         $Concession->concession_id = $request->concession_id;
@@ -258,7 +284,7 @@ class ConcessionController extends Controller
         $Concession->start_date = $request->period_from;
         $Concession->end_date = $request->period_to;
         $Concession->remarks = $request->bill_remarks;
-        $Concession->owned_by = $request->branch_id;
+        $Concession->owned_by = $studentBranchId;
         if($request->cancle_date != null || $request->cancle_remarks){
             $prev_con = Concession::with('concession')
             ->where('student_id', $request->student_id)

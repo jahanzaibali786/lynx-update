@@ -50,6 +50,13 @@
             box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
             text-align: center;
         }
+
+        .accounting-voucher-btn,
+        .accounting-voucher-btn:hover,
+        .accounting-voucher-btn:focus,
+        .accounting-voucher-btn:active {
+            color: #fff !important;
+        }
     </style>
 @endpush
 
@@ -77,6 +84,8 @@
         $totalAmount = $salaries->sum('net_pay');
         $pendingApprovalCount = $salaries->filter(fn($salary) => trim(strtolower($salary->status ?? '')) === 'fwd_to_account')->count();
         $accountApprovedCount = $salaries->filter(fn($salary) => trim(strtolower($salary->status ?? '')) === 'account_approved')->count();
+        $partialPaidCount = $salaries->filter(fn($salary) => trim(strtolower($salary->status ?? '')) === 'partial_paid')->count();
+        $paidCount = $salaries->filter(fn($salary) => trim(strtolower($salary->status ?? '')) === 'paid')->count();
         $groupedSalaries = $salaries->groupBy(fn($salary) => optional(optional($salary->employee)->userbranch)->name ?: __('No Branch'));
         $emptyColspan = 12;
     @endphp
@@ -154,6 +163,8 @@
                     <span class="badge bg-secondary">{{ __('Total Rows') }} <strong>{{ $salaries->count() }}</strong></span>
                     <span class="badge bg-dark">{{ __('Pending Accounts Approval') }} <strong>{{ $pendingApprovalCount }}</strong></span>
                     <span class="badge bg-primary">{{ __('Account Approved') }} <strong>{{ $accountApprovedCount }}</strong></span>
+                    <span class="badge bg-warning text-dark">{{ __('Partial Paid') }} <strong>{{ $partialPaidCount }}</strong></span>
+                    <span class="badge bg-success">{{ __('Paid') }} <strong>{{ $paidCount }}</strong></span>
                     <span class="badge bg-success">{{ __('Total Amount') }} <strong>{{ number_format($totalAmount, 2) }}</strong></span>
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2">
@@ -192,10 +203,11 @@
                         @forelse ($groupedSalaries as $branchName => $branchSalaries)
                             @php
                                 $branchKey = 'branch-' . md5($branchName);
+                                $branchSelectableCount = $branchSalaries->filter(fn($salary) => trim(strtolower($salary->status ?? '')) !== 'paid')->count();
                             @endphp
                             <tr class="table-secondary">
                                 <td>
-                                    <input type="checkbox" class="accounting-branch-checkbox" data-branch="{{ $branchKey }}">
+                                    <input type="checkbox" class="accounting-branch-checkbox" data-branch="{{ $branchKey }}" {{ $branchSelectableCount === 0 ? 'disabled' : '' }}>
                                 </td>
                                 <td colspan="9" class="fw-bold">
                                     {{ $branchName }} <span class="badge bg-light text-dark ms-2">{{ $branchSalaries->count() }}</span>
@@ -206,9 +218,18 @@
                             @foreach ($branchSalaries as $salary)
                                 @php
                                     $salaryStatus = trim(strtolower($salary->status ?? ''));
+                                    $isPaidSalary = $salaryStatus === 'paid';
+                                    $paymentJournal = optional($salary->salaryPayment)->journal;
+                                    $paymentJournals = $salary->salaryPayments
+                                        ->map(function ($payment) {
+                                            return $payment->journal;
+                                        })
+                                        ->filter()
+                                        ->unique('id')
+                                        ->values();
                                 @endphp
                                 <tr data-branch="{{ $branchKey }}">
-                                    <td><input type="checkbox" class="accounting-salary-checkbox" data-branch="{{ $branchKey }}" data-employee-id="{{ $salary->employee_id }}" value="{{ $salary->id }}"></td>
+                                    <td><input type="checkbox" class="accounting-salary-checkbox" data-branch="{{ $branchKey }}" data-employee-id="{{ $salary->employee_id }}" value="{{ $salary->id }}" {{ $isPaidSalary ? 'disabled' : '' }}></td>
                                     <td>{{ $loop->parent->iteration }}.{{ $loop->iteration }}</td>
                                     <td class="font-style">
                                         <a href="#"
@@ -227,9 +248,74 @@
                                     <td>{{ !empty($salary->paid_date) ? date('d-M-Y', strtotime($salary->paid_date)) : '-' }}</td>
                                     <td>{{ $salary->paymode }}</td>
                                     <td>{{ $salary->account_number }}</td>
-                                    <td class="text-end">{{ number_format($salary->net_pay, 2) }}</td>
+                                    <td class="text-end">
+                                        {{ number_format($salary->net_pay, 2) }}
+                                        @if (!empty($salary->remaining_pay_amount) && $salaryStatus === 'partial_paid')
+                                            <div class="small text-warning">{{ __('Remaining:') }} {{ number_format($salary->remaining_pay_amount, 2) }}</div>
+                                        @endif
+                                    </td>
                                     <td>
-                                        @if ($salaryStatus === 'account_approved')
+                                        @if ($salaryStatus === 'paid')
+                                            <span class="badge bg-success">{{ __('Paid') }}</span>
+                                            @if ($paymentJournals->count() === 1)
+                                                <div class="mt-1">
+                                                    @php
+                                                        $voucherRoute = $paymentJournals->first()->voucher_type === 'CPV' ? 'cash-payment-voucher.show' : 'bank-payment-voucher.show';
+                                                    @endphp
+                                                    <a href="{{ route($voucherRoute, $paymentJournals->first()->id) }}" target="_blank" class="btn btn-sm btn-outline-success accounting-voucher-btn">
+                                                        {{ $paymentJournals->first()->getVoucherNumber() }}
+                                                    </a>
+                                                </div>
+                                            @elseif ($paymentJournals->count() > 1)
+                                                <div class="dropdown mt-1">
+                                                    <button class="btn btn-sm btn-success dropdown-toggle accounting-voucher-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        {{ __('View Vouchers') }}
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        @foreach ($paymentJournals as $voucherJournal)
+                                                            @php
+                                                                $voucherRoute = $voucherJournal->voucher_type === 'CPV' ? 'cash-payment-voucher.show' : 'bank-payment-voucher.show';
+                                                            @endphp
+                                                            <li>
+                                                                <a class="dropdown-item" href="{{ route($voucherRoute, $voucherJournal->id) }}" target="_blank">
+                                                                    {{ $voucherJournal->getVoucherNumber() }}
+                                                                </a>
+                                                            </li>
+                                                        @endforeach
+                                                    </ul>
+                                                </div>
+                                            @endif
+                                        @elseif ($salaryStatus === 'partial_paid')
+                                            <span class="badge bg-warning text-dark">{{ __('Partial Paid') }}</span>
+                                            @if ($paymentJournals->count() === 1)
+                                                <div class="mt-1">
+                                                    @php
+                                                        $voucherRoute = $paymentJournals->first()->voucher_type === 'CPV' ? 'cash-payment-voucher.show' : 'bank-payment-voucher.show';
+                                                    @endphp
+                                                    <a href="{{ route($voucherRoute, $paymentJournals->first()->id) }}" target="_blank" class="btn btn-sm btn-outline-warning accounting-voucher-btn">
+                                                        {{ $paymentJournals->first()->getVoucherNumber() }}
+                                                    </a>
+                                                </div>
+                                            @elseif ($paymentJournals->count() > 1)
+                                                <div class="dropdown mt-1">
+                                                    <button class="btn btn-sm btn-warning dropdown-toggle accounting-voucher-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        {{ __('View Vouchers') }}
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        @foreach ($paymentJournals as $voucherJournal)
+                                                            @php
+                                                                $voucherRoute = $voucherJournal->voucher_type === 'CPV' ? 'cash-payment-voucher.show' : 'bank-payment-voucher.show';
+                                                            @endphp
+                                                            <li>
+                                                                <a class="dropdown-item" href="{{ route($voucherRoute, $voucherJournal->id) }}" target="_blank">
+                                                                    {{ $voucherJournal->getVoucherNumber() }}
+                                                                </a>
+                                                            </li>
+                                                        @endforeach
+                                                    </ul>
+                                                </div>
+                                            @endif
+                                        @elseif ($salaryStatus === 'account_approved')
                                             <span class="badge bg-primary">{{ __('Account Approved') }}</span>
                                         @else
                                             <span class="badge bg-dark">{{ __('Pending Accounts Approval') }}</span>
@@ -252,29 +338,31 @@
 @push('script-page')
     <script>
         $(document).on('change', '#accounting-salary-check-all', function() {
-            $('.accounting-salary-checkbox').prop('checked', $(this).prop('checked'));
-            $('.accounting-branch-checkbox').prop('checked', $(this).prop('checked'));
+            $('.accounting-salary-checkbox:not(:disabled)').prop('checked', $(this).prop('checked'));
+            $('.accounting-branch-checkbox:not(:disabled)').prop('checked', $(this).prop('checked'));
         });
 
         $(document).on('change', '.accounting-branch-checkbox', function() {
             var branch = $(this).data('branch');
-            $('.accounting-salary-checkbox[data-branch="' + branch + '"]').prop('checked', $(this).prop('checked'));
+            $('.accounting-salary-checkbox[data-branch="' + branch + '"]:not(:disabled)').prop('checked', $(this).prop('checked'));
             $('#accounting-salary-check-all').prop(
                 'checked',
-                $('.accounting-salary-checkbox').length === $('.accounting-salary-checkbox:checked').length
+                $('.accounting-salary-checkbox:not(:disabled)').length > 0 &&
+                $('.accounting-salary-checkbox:not(:disabled)').length === $('.accounting-salary-checkbox:not(:disabled):checked').length
             );
         });
 
         $(document).on('change', '.accounting-salary-checkbox', function() {
             var branch = $(this).data('branch');
-            var branchBoxes = $('.accounting-salary-checkbox[data-branch="' + branch + '"]');
+            var branchBoxes = $('.accounting-salary-checkbox[data-branch="' + branch + '"]:not(:disabled)');
             $('.accounting-branch-checkbox[data-branch="' + branch + '"]').prop(
                 'checked',
-                branchBoxes.length === branchBoxes.filter(':checked').length
+                branchBoxes.length > 0 && branchBoxes.length === branchBoxes.filter(':checked').length
             );
             $('#accounting-salary-check-all').prop(
                 'checked',
-                $('.accounting-salary-checkbox').length === $('.accounting-salary-checkbox:checked').length
+                $('.accounting-salary-checkbox:not(:disabled)').length > 0 &&
+                $('.accounting-salary-checkbox:not(:disabled)').length === $('.accounting-salary-checkbox:not(:disabled):checked').length
             );
         });
 
@@ -475,7 +563,7 @@
                 data: { salary_ids: ids },
                 success: function(response) {
                     $('#commonModal .modal-title').html('{{ __('Pay Salary') }}');
-                    $('#commonModal .modal-dialog').removeClass('modal-sm modal-md modal-xl modal-fullscreen').addClass('modal-lg');
+                    $('#commonModal .modal-dialog').removeClass('modal-xl modal-xl modal-xl modal-fullscreen').addClass('modal-xl');
                     $('#commonModal .body').html(response);
                     $('#commonModal').modal('show');
                 },

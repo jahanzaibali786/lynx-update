@@ -12,7 +12,6 @@ class EmployeeMonthlySalary extends Model
         'employee_id',
         'department_id',
         'paymode',
-        'bank_from_id',
         'account_number',
         'scale_id',
         'scale_no',
@@ -71,6 +70,17 @@ class EmployeeMonthlySalary extends Model
     {
         return $this->hasMany(SalaryDeductionDetail::class, 'salary_id');
     }
+
+    public function salaryPayment()
+    {
+        return $this->hasOne(SalaryPayment::class, 'salary_id')->latestOfMany();
+    }
+
+    public function salaryPayments()
+    {
+        return $this->hasMany(SalaryPayment::class, 'salary_id');
+    }
+
     public function scaleHeads()
     {
         return $this->hasMany(EmployeeScaleHeads::class, 'scale_id', 'scale_id');

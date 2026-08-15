@@ -29,7 +29,7 @@
         <div class="col-12 col-md-6 col-lg-6">
             <div class="form-group">
                 {{ Form::label('hod_name', __('HOD Name'), ['class' => 'form-label']) }}
-                {{ Form::select('hod', $users, @$school->headmaster, ['class' => 'form-control', 'placeholder' => __('Select a User')]) }}
+                {{ Form::select('hod', $users, @$school->headmaster, ['class' => 'form-control select custom-select', 'placeholder' => __('Select a User')]) }}
             </div>
         </div>
         <div class="col-12 col-md-6 col-lg-6">

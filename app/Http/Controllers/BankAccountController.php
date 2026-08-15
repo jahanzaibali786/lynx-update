@@ -92,7 +92,7 @@ class BankAccountController extends Controller
                     'bank_name' => 'required',
                     'account_number' => 'required',
                     'chart_account_id' => 'required|unique:bank_accounts,chart_account_id,NULL,id,created_by,' . \Auth::user()->creatorId(),
-                    'type' => 'required|in:normal,head_imprest',
+                    'type' => 'required|in:cash,bank,head_imprest',
                     'opening_balance' => 'required',
                     'contact_number' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
                 ]
@@ -180,7 +180,7 @@ class BankAccountController extends Controller
                     'bank_name' => 'required',
                     'account_number' => 'required',
                     'chart_account_id' => 'required|unique:bank_accounts,chart_account_id,' . $bankAccount->id . ',id,created_by,' . \Auth::user()->creatorId(),
-                    'type' => 'required|in:normal,head_imprest',
+                    'type' => 'required|in:cash,bank,head_imprest',
                     'opening_balance' => 'required',
                     'contact_number' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
                 ]
@@ -231,13 +231,27 @@ class BankAccountController extends Controller
             $filter['startDateRange'] = $start;
             $filter['endDateRange'] = $end;
 
-            $oldBalance = JournalItem::where('bank_id', $id)
-                ->where('head', '0')
+            $bankChartAccountId = (int) ($bankAccount->chart_account_id ?? 0);
+
+            $oldBalance = JournalItem::where(function ($q) use ($id, $bankChartAccountId) {
+                    $q->where('bank_id', $id);
+
+                    if ($bankChartAccountId) {
+                        $q->orWhere('account', $bankChartAccountId);
+                    }
+                })
+                ->where(function ($q) {
+                    $q->where('head', '0')
+                        ->orWhereNull('head');
+                })
                 ->whereHas('journalEntery', function ($q) use ($start, $request) {
                     $q->where('date', '<', $start);
 
                     if ($request->branch) {
-                        $q->where('branch_id', $request->branch);
+                        $q->where(function ($branchQuery) use ($request) {
+                            $branchQuery->where('branch_id', $request->branch)
+                                ->orWhere('owned_by', $request->branch);
+                        });
                     }
                 })
                 ->selectRaw('SUM(debit) as totalDebit, SUM(credit) as totalCredit')
@@ -245,14 +259,28 @@ class BankAccountController extends Controller
 
             $openingBalance = ($oldBalance->totalDebit ?? 0) - ($oldBalance->totalCredit ?? 0);
 
-           $journalItems = JournalItem::with(['journalEntery', 'accounts'])->where('bank_id', $id)->where('head','0')
+           $journalItems = JournalItem::with(['journalEntery', 'accounts'])
+            ->where(function ($q) use ($id, $bankChartAccountId) {
+                $q->where('bank_id', $id);
+
+                if ($bankChartAccountId) {
+                    $q->orWhere('account', $bankChartAccountId);
+                }
+            })
+            ->where(function ($q) {
+                $q->where('head', '0')
+                    ->orWhereNull('head');
+            })
             ->whereHas('journalEntery', function($q) use ($start, $end) {
                 $q->whereBetween('date', [$start, $end]);
             });
 
          if ($request->branch) {
                 $journalItems->whereHas('journalEntery', function($q) use ($request) {
-                    $q->where('branch_id', $request->branch);
+                    $q->where(function ($branchQuery) use ($request) {
+                        $branchQuery->where('branch_id', $request->branch)
+                            ->orWhere('owned_by', $request->branch);
+                    });
                 });
             }
 

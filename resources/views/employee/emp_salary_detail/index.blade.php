@@ -187,7 +187,7 @@
                             <td>{{ $lastPayscaleDetail->scale->scale_no ?? '-' }}</td>
                             <td>{{ $lastPayscaleDetail->working_days ?? '-' }}</td>
                             <td>{{ $employee->eobi . '|' . $employee->eobi_employer }}</td>
-                            <td>{{ $eobiValue . '|' . $eobiEmployerValue }}</td>
+                            <td>{{ $lastPayscaleDetail->eobi . '|' . $lastPayscaleDetail->eobi_employer }}</td>
                             <td>{{ $employee->pessi . '|' . $employee->pessi_employer }}</td>
                             <td>{{ $pessiValue . '|' . $pessiEmployerValue }}</td>
                             <td>{{ $lastPayscaleDetail->emp_sec }}</td>

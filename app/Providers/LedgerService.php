@@ -80,7 +80,7 @@ class LedgerService
     $totals = ['balance' => 0];
 
     foreach ($chartAccounts as $account) {
-        $data = Utility::getAccountData($account->id, $start, $end, null, $branch = null);
+        $data = Utility::getAccountData($account->id, $start, $end, null, $branch);
 
         // Skip if no journal data
         if (empty($data['journalItem'])) {
@@ -100,6 +100,9 @@ class LedgerService
                     if ($openingBalance != 0) {
                         $rows->push([
                             'account'   => '',
+                            'category' => '',
+                            'user_type' => '',
+                            'user_name' => '',
                             'route' => null,
                             'memo'   => null,
                             'journal'   => null,
@@ -123,6 +126,9 @@ class LedgerService
 
             $rows->push([
                 'account' => $accountName,
+                'category' => $journalItemData->category ?? '-',
+                'user_type' => $journalItemData->ledger_user_type ?? '-',
+                'user_name' => $journalItemData->ledger_user_name ?? '-',
                 'memo' => $journalItemData->description,
                 'route' => $this->VoucherRoute($journalItemData->voucher_type), 
                 'journal' => $journalItemData->journal,

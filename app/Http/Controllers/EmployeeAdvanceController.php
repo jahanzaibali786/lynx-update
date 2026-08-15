@@ -33,6 +33,25 @@ class EmployeeAdvanceController extends Controller
         return $value;
     }
 
+    private function branchOptions($allLabel = 'Select Branch')
+    {
+        if (\Auth::user()->type == 'company') {
+            $branches = User::where('type', '=', 'branch')
+                ->where('created_by', \Auth::user()->creatorId())
+                ->get()
+                ->pluck('name', 'id');
+            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+        } else {
+            $branches = User::where('id', '=', \Auth::user()->ownedId())
+                ->get()
+                ->pluck('name', 'id');
+        }
+
+        $branches->prepend($allLabel, '');
+
+        return $branches;
+    }
+
     private function getLatestGeneratedSalaryMonth($employeeId)
     {
         $latestSalary = EmployeeMonthlySalary::where('employee_id', $employeeId)
@@ -314,9 +333,24 @@ class EmployeeAdvanceController extends Controller
 
     private function applyAdvanceIndexFilters($query, Request $request)
     {
+        if (!$request->filled('from_month') && !$request->filled('to_month')) {
+            $currentFiscalStartYear = Carbon::now()->month >= 7
+                ? Carbon::now()->year
+                : Carbon::now()->year - 1;
+
+            $request->merge([
+                'from_month' => Carbon::create($currentFiscalStartYear, 7, 1)->format('Y-m'),
+                'to_month' => Carbon::create($currentFiscalStartYear + 1, 6, 1)->format('Y-m'),
+            ]);
+        }
+
         if (!empty($request->branches)) {
-            $query->whereHas('employee', function ($query) use ($request) {
-                $query->where('branch_id', $request->branches);
+            $query->where(function ($query) use ($request) {
+                $query->where('owned_by', $request->branches)
+                    ->orWhereHas('employee', function ($employeeQuery) use ($request) {
+                        $employeeQuery->where('branch_id', $request->branches)
+                            ->orWhere('owned_by', $request->branches);
+                    });
             });
         }
         if (!empty($request->department_id)) {
@@ -348,16 +382,14 @@ class EmployeeAdvanceController extends Controller
     {
         if (\Auth::user()->type == 'company') {
             $query = EmployeeAdvance::with(['employee', 'approvedBy'])->where('created_by', \Auth::user()->creatorId());
-            $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
-            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+            $branches = $this->branchOptions('All Branches');
             $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $departments->prepend('Select Department', '');
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $designations->prepend('Select Designation', '');
         } else {
             $query = EmployeeAdvance::with(['employee', 'approvedBy'])->where('owned_by', \Auth::user()->ownedId());
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $branches->prepend('Select Branch', '');
+            $branches = $this->branchOptions('All Branches');
             $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $departments->prepend('Select Department', '');
             $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
@@ -366,7 +398,7 @@ class EmployeeAdvanceController extends Controller
 
         $query = $this->applyAdvanceIndexFilters($query, $request);
 
-        $advance = $query->orderByDesc('advance_date')->orderByDesc('id')->paginate(25);
+        $advance = $query->orderByDesc('advance_date')->orderByDesc('id')->get();
         $bankAccounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' - ',holder_name) AS name"))
             ->where('created_by', \Auth::user()->creatorId())
             ->get()
@@ -406,30 +438,20 @@ class EmployeeAdvanceController extends Controller
     public function create()
     {
         if (\Auth::user()->type == 'company') {
-            $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
-            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-            $branches->prepend('Select Branch', '');
+            $branches = $this->branchOptions();
             $employee = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $employee->prepend('Select Employee', '');
         } else {
             $employee = Employee::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $employee->prepend('Select Employee', '');
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $branches->prepend('Select Branch', '');
+            $branches = $this->branchOptions();
         }
         return view('employee.advance.create', compact('employee', 'branches'));
     }
 
     public function bulkCreate(Request $request)
     {
-        if (\Auth::user()->type == 'company') {
-            $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
-            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-            $branches->prepend('Select Branch', '');
-        } else {
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $branches->prepend('Select Branch', '');
-        }
+        $branches = $this->branchOptions();
 
         $selectedBranch = $request->input('branches');
         if (\Auth::user()->type != 'company') {
@@ -626,9 +648,7 @@ class EmployeeAdvanceController extends Controller
             return response()->json(['error' => __('Only admin can edit approved advance.')], 401);
         }
 
-        $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
-        $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-        $branches->prepend('Select Branch', '');
+        $branches = $this->branchOptions();
         $employee = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         return view('employee.advance.edit', compact('advance', 'branches', 'employee'));
     }

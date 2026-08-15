@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Http\Controllers\AccountWiseFeeStructure;
 use App\Http\Controllers\ChallanController;
@@ -1190,6 +1190,9 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::post('employee/getdepartment', [EmployeeController::class, 'getDepartment'])->name('employee.getdepartment')->middleware(['auth', 'XSS']);
 
+    Route::post('employee-contract/renew/{employee_id}', [App\Http\Controllers\EmployeeContractController::class, 'renew'])->name('employee.contract.renew')->middleware(['auth', 'XSS']);
+    Route::post('employee-contract/update/{id}', [App\Http\Controllers\EmployeeContractController::class, 'update'])->name('employee.contract.update')->middleware(['auth', 'XSS']);
+
     Route::resource('department', DepartmentController::class)->middleware(['auth', 'XSS']);
     Route::post('/department/{departmentId}/update-status', [DepartmentController::class, 'updatedepartmentStatus'])->name('update_department_status');
 
@@ -2089,6 +2092,7 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::get('appointment-letter', [AppointmentLetter::class, 'index'])->name('appointment-letter');
     Route::get('appointment-letter-create', [AppointmentLetter::class, 'create'])->name('appointment-letter-create');
+    Route::get('appointment-letter-preview/{id}', [AppointmentLetter::class, 'preview'])->name('appointment-letter-preview');
     Route::post('appointment-letter-store', [AppointmentLetter::class, 'store'])->name('appointment-letter-store');
     Route::get('appointment-letter-edit/{id}', [AppointmentLetter::class, 'edit'])->name('appointment-letter-edit');
     Route::put('appointment-letter-update/{id}', [AppointmentLetter::class, 'update'])->name('appointment-letter-update');

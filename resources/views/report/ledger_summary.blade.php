@@ -11,6 +11,54 @@
     <script type="text/javascript" src="{{ asset('js/html2pdf.bundle.min.js') }}"></script>
     <link rel="stylesheet" href="{{ asset('public/acron/searchselect.css') }}" />
     <script src="{{ asset('public/acron/searchselect.js') }}"></script>
+    <style>
+        .ledger-summary-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+
+        .ledger-summary-search {
+            max-width: 320px;
+        }
+
+        .ledger-summary-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        .ledger-summary-table th:nth-child(7),
+        .ledger-summary-table td:nth-child(7) {
+            width: 28%;
+            min-width: 280px;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .ledger-summary-table th:nth-child(1),
+        .ledger-summary-table td:nth-child(1) {
+            width: 44px;
+        }
+
+        .ledger-summary-table th:nth-child(2),
+        .ledger-summary-table td:nth-child(2) {
+            width: 110px;
+        }
+
+        .ledger-summary-table th:nth-child(6),
+        .ledger-summary-table td:nth-child(6) {
+            width: 180px;
+            min-width: 180px;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .ledger-summary-table tfoot td {
+            font-weight: 700;
+            background: #f8f9fa;
+            border-top: 2px solid #dee2e6;
+        }
+    </style>
     <script>
         var filename = $('#filename').val();
 
@@ -34,6 +82,29 @@
                 }
             };
             html2pdf().set(opt).from(element).save();
+        }
+
+        function filterLedgerSummaryRows() {
+            var input = document.getElementById('ledgerSummarySearch');
+            var table = document.querySelector('.ledger-summary-table');
+
+            if (!input || !table) {
+                return;
+            }
+
+            var query = (input.value || '').toLowerCase().trim();
+            var rows = table.querySelectorAll('tbody tr');
+
+            rows.forEach(function(row) {
+                var emptyStateCell = row.querySelector('td[colspan="11"]');
+                if (emptyStateCell) {
+                    row.style.display = query === '' ? '' : 'none';
+                    return;
+                }
+
+                var text = (row.textContent || '').toLowerCase();
+                row.style.display = query === '' || text.indexOf(query) !== -1 ? '' : 'none';
+            });
         }
 
         $(document).ready(function() {
@@ -159,12 +230,20 @@
                 <div class="card">
                     <div class="card-body table-border-style">
                         <div class="table-responsive">
-                            <table class="table datatable">
+                            <div class="ledger-summary-toolbar">
+                                <input type="text" id="ledgerSummarySearch" class="form-control ledger-summary-search"
+                                    oninput="filterLedgerSummaryRows()"
+                                    placeholder="{{ __('Search table...') }}">
+                            </div>
+                            <table class="table ledger-summary-table">
                                 <thead>
                                     <tr class="table_heads">
                                         <th>#</th>
                                         <th> {{ __('Date') }}</th>
                                         <th> {{ __('Account Name') }}</th>
+                                        <th> {{ __('Category') }}</th>
+                                        <th> {{ __('User Type') }}</th>
+                                        <th> {{ __('User Name') }}</th>
                                         <th> {{ __('Memo') }}</th>
                                         <th> {{ __('Transaction Type') }}</th>
                                         <th class="text-end"> {{ __('Debit') }}</th>
@@ -179,6 +258,9 @@
                                             <td>{{ $loop->iteration }}</td>
                                             <td>{{ $row['date'] }}</td>
                                             <td>{{ $row['account'] }}</td>
+                                            <td>{{ $row['category'] ?? '-' }}</td>
+                                            <td>{{ $row['user_type'] ?? '-' }}</td>
+                                            <td>{{ $row['user_name'] ?? '-' }}</td>
                                             <td>{{ $row['memo'] }}</td>
                                             <td>
                                                 {!! isset($row['route']) 
@@ -191,12 +273,20 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="11" class="text-center text-muted">
                                                 {{ __('No transactions for the selected period.') }}
                                             </td>
                                         </tr>
                                     @endforelse
                                 </tbody>
+                                <tfoot>
+                                    <tr class="fw-bold">
+                                        <td colspan="8" class="text-end">{{ __('Grand Total') }}</td>
+                                        <td class="text-end">{{ number_format((float) ($grandTotals['debit'] ?? 0), 2) }}</td>
+                                        <td class="text-end">{{ number_format((float) ($grandTotals['credit'] ?? 0), 2) }}</td>
+                                        <td class="text-end">{{ number_format((float) ($grandTotals['balance'] ?? 0), 2) }}</td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>

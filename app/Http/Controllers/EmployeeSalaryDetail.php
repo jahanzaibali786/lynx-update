@@ -8,6 +8,7 @@ use App\Exports\SalarySheetExport;
 use App\Exports\PaymodesSheetExport;
 use App\Exports\AdvanceSheetExport;
 use App\Models\AppointmentLetter;
+use App\Services\AppointmentLetterPlaceholderService;
 use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
 use App\Models\Department;
@@ -160,6 +161,9 @@ class EmployeeSalaryDetail extends Controller
             }
 
             $appLetter = AppointmentLetter::where('type', Str::lower($employee->category))->latest()->first();
+            $activeContract = \App\Models\EmployeeContract::where('employee_id', $request->employee_id)->where('status', 'active')->orderBy('from_date', 'desc')->first();
+            $contractId = $activeContract ? $activeContract->id : null;
+
             if (round(@$scale->net) == round($request->net) && $scale->id == $request->pay_scale && date('Y-m-d', strtotime(@$scale->updated_at)) == date('Y-m-d', strtotime($request->effect_from)) && $scale->working_days == $request->working_days) {
                 
                 $scale->security_receive_account  = $request->security_receive_account;
@@ -169,11 +173,13 @@ class EmployeeSalaryDetail extends Controller
                 $scale->other_dedu_payable_account = $request->other_dedu_payable_account;
                 $scale->advance_payable_account = $request->advance_payable_account;
                 $scale->net_payable_account = $request->net_payable_account;
+                $scale->contract_id = $contractId;
                 $scale->save();
             } else {
 
                 $payscaleattach = EmployeePayscaleDetail::create([
                     'employee_id' => $request->employee_id,
+                    'contract_id' => $contractId,
                     'appletter' => $appLetter->id,
                     'paymode' => $request->paymode,
                     'account_number' => $request->account_number,
@@ -374,7 +380,7 @@ class EmployeeSalaryDetail extends Controller
                 }
 
                 $salaryStatus = trim(strtolower($salary->status ?? 'unpaid'));
-                if (in_array($salaryStatus, ['paid', 'fwd_to_account', 'account_approved'], true)) {
+                if (in_array($salaryStatus, ['paid', 'partial_paid', 'fwd_to_account', 'account_approved'], true)) {
                     $errors[] = __('Paid, forwarded or accounts approved salary cannot be finalized/unfinalized for employee ID: ' . $salaryatt->employee_id);
                     continue;
                 }
@@ -754,7 +760,7 @@ class EmployeeSalaryDetail extends Controller
             'isPdf' => true,
         ];
         $html = view('employee.emp_salary_detail.deduction_sheet', $viewData)->render();
-        $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
+        $footerHtml = view('employee.emp_salary_detail.pdf.footer', ['disablePageScript' => true])->render();
         $html = '<html><head>
              <style>
                  @page {
@@ -1407,8 +1413,8 @@ class EmployeeSalaryDetail extends Controller
         $footerHtml = view('employee.emp_salary_detail.pdf.footer')->render();
         $html = '<html><head>
             <style>
-                @page { size: A4 portrait; margin: 12px 12px 18px 12px; }
-                .footer { position: fixed; bottom: -18px; height: 18px; left:0; right:0; }
+                @page { size: A4 portrait; margin: 8px 8px 14px 8px; }
+                .footer { position: fixed; bottom: -14px; height: 14px; left:0; right:0; }
             </style>
         </head><body>
           <div class="footer">'.$footerHtml.'</div>'.$html.'
@@ -1463,10 +1469,14 @@ class EmployeeSalaryDetail extends Controller
     {
         // dd($id);
         $empscale = EmployeePayscaleDetail::with([
-            'employee',
+            'employee.designation',
+            'employee.master.headmaster_name',
             'scale.employeeScaleHeads.salaryHeads',
         ])->where('id', $id)->first();
         $data = $request->all();
+        if (!$empscale) {
+            return response()->json(['error' => 'Scale Not attached . please attach payscale First.'], 404);
+        }
 
         // $employee = Employee::with([
         //     'employee_payscale_details',
@@ -1474,22 +1484,21 @@ class EmployeeSalaryDetail extends Controller
         //     'employee_payscale_details.scale'
         // ])->where('id', $id)->first();
         // $lastPayscaleDetail = $employee->employee_payscale_details->last();
-        if (\Auth::user()->type == 'company') {
             $appointmentletterdata = AppointmentLetter::where('id', $empscale->appletter)->where('created_by', \Auth::user()->creatorId())->first();
-        } else {
-            $appointmentletterdata = AppointmentLetter::where('id', $empscale->appletter)->where('owned_by', \Auth::user()->ownedId())->first();
-        }
+        
         // dd($appointmentletterdata);
         if (!$appointmentletterdata) {
             return response()->json(['error' => 'No appointment letter found. Please create an appointment letter first.'], 404);
-        }
-        if (!$empscale) {
-            return response()->json(['error' => 'Scale Not attached . please attach payscale First.'], 404);
         }
         // dd($appointmentletterdata,$lastPayscaleDetail->appletter);
         $data['employee'] = $empscale->employee;
         $data['appointmentletterdata'] = $appointmentletterdata;
         $data['lastPayscaleDetail'] = $empscale;
+        $data['appointmentLetterContent'] = AppointmentLetterPlaceholderService::render(
+            (string) $appointmentletterdata->datacontent,
+            $empscale->employee,
+            $empscale
+        );
         // dd($employee);
         $html = view('employee.emp_salary_detail.emp-appointment-letter', $data)->render();
         $headerHtml = view('employee.emp_salary_detail.pdf.header')->render();
@@ -1516,6 +1525,16 @@ class EmployeeSalaryDetail extends Controller
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
+        $canvas = $dompdf->getCanvas();
+        $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
+            $font = $fontMetrics->getFont('Helvetica', 'normal');
+            $size = 10;
+            $y = 800;
+            $text = 'Page ' . $pageNumber . ' of ' . $pageCount;
+            $textWidth = $fontMetrics->getTextWidth($text, $font, $size);
+            $x = $canvas->get_width() - $textWidth - 24;
+            $canvas->text($x, $y, $text, $font, $size, [0, 0, 0]);
+        });
         $pdfContent = $dompdf->output();
         $base64Pdf = base64_encode($pdfContent);
         return response()->json(['base64Pdf' => $base64Pdf]);
@@ -1681,6 +1700,12 @@ class EmployeeSalaryDetail extends Controller
                     ->first();
                 //    dd($salary);
                 if ($salary) {
+                    $salaryStatus = trim(strtolower((string) ($salary->status ?? 'unpaid')));
+                    if (!in_array($salaryStatus, ['unpaid', 'returned_to_hr'], true)) {
+                        $errors[] = __('Salary cannot be held/unheld after it is forwarded to accounts or paid for employee ID: ' . $id);
+                        continue;
+                    }
+
                     if (!empty($salary->carried_to_salary_id)) {
                         $errors[] = __('Salary already carried to another month for employee ID: ' . $id);
                         continue;
@@ -1735,6 +1760,12 @@ class EmployeeSalaryDetail extends Controller
                     ->first();
 
                 if ($salary) {
+                    $salaryStatus = trim(strtolower((string) ($salary->status ?? 'unpaid')));
+                    if (!in_array($salaryStatus, ['unpaid', 'returned_to_hr'], true)) {
+                        $errors[] = __('Salary rollback allowed only before forwarding to accounts for employee ID: ' . $id);
+                        continue;
+                    }
+
                     if ((int) $salary->sal_final !== 0) {
                         $errors[] = __('Salary rollback allowed only when Salary Final is unchecked for employee ID: ' . $id);
                         continue;

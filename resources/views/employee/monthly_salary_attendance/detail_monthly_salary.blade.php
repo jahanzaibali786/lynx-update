@@ -14,6 +14,7 @@
         (float) ($employeesalary->sal_advance ?? 0);
     $calculatedNetPay = max(0, (float) ($employeesalary->gross ?? 0) + (float) ($employeesalary->stop_sal ?? 0) - $salaryTotalDeductions);
     $employeeIsResigned = !empty(optional($employeesalary->employee)->is_res_ter) || !empty(optional($employeesalary->employee)->is_resigned);
+    $loanAdvanceDeductions = $loanAdvanceDeductions ?? collect();
 @endphp
 <div class="modal-body">
     @if (!$salaryEditable)
@@ -73,12 +74,12 @@
         <h5 class="mb-2">{{ __('Attendance') }}</h5>
         <div class="row">
             <div class="col-md-3"><b>{{ __('Attendance Month') }}</b>: {{ !empty($salaryAttendance->for_month_of) ? date('M-Y', strtotime($salaryAttendance->for_month_of)) : '-' }}</div>
+            <div class="col-md-3"><b>{{ __('Month Days') }}</b>: {{ number_format($attendanceMonthDays, 0) }}</div>
             <div class="col-md-3"><b>{{ __('Employee Working Days') }}</b>: {{ number_format($attendanceEmployeeWorkingDays, 0) }}</div>
             <div class="col-md-3"><b>{{ __('Holidays') }}</b>: {{ number_format($attendanceHolidays, 0) }}</div>
             <div class="col-md-3"><b>{{ __('Working Days') }}</b>: {{ number_format($attendanceWorkingDays, 0) }}</div>
             <div class="col-md-3"><b>{{ __('Absents') }}</b>: {{ number_format((float) ($salaryAttendance->absents ?? 0), 0) }}</div>
             <div class="col-md-3"><b>{{ __('Leave') }}</b>: {{ number_format((float) ($salaryAttendance->leave ?? 0), 0) }}</div>
-            <div class="col-md-3"><b>{{ __('Month Days') }}</b>: {{ number_format($attendanceMonthDays, 0) }}</div>
             <div class="col-md-3"><b>{{ __('Total Annual') }}</b>: {{ $salaryAttendance->total_annual ?? '-' }}</div>
             <div class="col-md-3"><b>{{ __('Bal. Annual') }}</b>: {{ $salaryAttendance->bal_annual ?? '-' }}</div>
             <div class="col-md-3"><b>{{ __('Total Casual') }}</b>: {{ $salaryAttendance->total_casual ?? '-' }}</div>
@@ -96,12 +97,13 @@
     @endif
     <hr>
     <div class="scale_heads_row row">
-        @if (@$lastPayscaleDetail && isset($lastPayscaleDetail->pay_scale_id))
         @php
-        $gross = 0;
-        $payscalesauto =
-        \App\Models\EmployeeScale::with('employeeScaleHeads','employeeScaleHeads.SalaryHeads','employeepayScaledetailHeads')->where('id',$lastPayscaleDetail->pay_scale_id)->first();
-        $salheads = \App\Models\EmployeeMonthlySalaryHeads::with('SalaryHead')->where('sal_id',$employeesalary->id)->get();
+            $salaryHeadGross = 0;
+            $salaryHeadBasic = 0;
+            $salheads = \App\Models\EmployeeMonthlySalaryHeads::with('SalaryHead')
+                ->where('sal_id', $employeesalary->id)
+                ->orderBy('id')
+                ->get();
         @endphp
         @foreach (@$salheads as $scale_head)
         <div class="form-group col-md-2">
@@ -110,21 +112,21 @@
                 class="form-control" readonly>
         </div>
         @php
-        if ($scale_head->SalaryHead->head == 'Initial Basic') {
-            $basic_new = @$scale_head->head_value;
-        }
-        $gross += @$scale_head->head_value;
+            $salaryHeadName = strtolower(trim((string) optional($scale_head->SalaryHead)->head));
+            if (in_array($salaryHeadName, ['initial basic', 'basic salary', 'basic'], true)) {
+                $salaryHeadBasic = (float) $scale_head->head_value;
+            }
+            $salaryHeadGross += (float) $scale_head->head_value;
         @endphp
         @endforeach
         <div class="form-group col-md-2">
             <label class="form-label">Basics</label>
-            <input type="basic" name="basic" value="{{ @$employeesalary->basics }}" class="form-control" readonly>
+            <input type="basic" name="basic" value="{{ $salaryHeadBasic }}" class="form-control" readonly>
         </div>
         <div class="form-group col-md-4">
             <label class="form-label">Gross</label>
-            <input type="gross" name="gross" value="{{ @$gross - $basic_new + @$employeesalary->basics }}" class="form-control" readonly>
+            <input type="gross" name="gross" value="{{ $salaryHeadGross }}" class="form-control" readonly>
         </div>
-        @endif
     </div>
     <div class="row">
 
@@ -204,12 +206,20 @@
             {{ Form::text('other_dedu_payable_account',  !empty($lastPayscaleDetail->other_dedu_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->other_dedu_payable_account)->first()->name : '', ['class' => 'form-control conditional-account-field', 'data-amount-field' => 'other_deduction']) }}
         </div>
         <div class="form-group col-md-6">
+            {!! Form::label('loan', __('Loan'), ['class' => 'form-label']) !!}
+            {{ Form::number('loan', !empty($employeesalary) ? $employeesalary->loan : '0', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-6">
+            {!! Form::label('emp_sec_loan', __('Security Loan'), ['class' => 'form-label']) !!}
+            {{ Form::number('emp_sec_loan', !empty($employeesalary) ? $employeesalary->emp_sec_loan : '0', ['class' => 'form-control', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-6">
             {!! Form::label('advance', __('Advance'), ['class' => 'form-label']) !!}
-            {{ Form::number('advance',  !empty($employeesalary) ? $employeesalary->sal_advance : '',  ['class' => 'form-control']) }}
+            {{ Form::number('advance',  !empty($employeesalary) ? $employeesalary->sal_advance : '',  ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance_payable_account', __('Advance Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::text('advance_payable_account',  !empty($lastPayscaleDetail->advance_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->advance_payable_account )->first()->name: '',  ['class' => 'form-control conditional-account-field', 'data-amount-field' => 'advance']) }}
+            {{ Form::text('advance_payable_account',  !empty($lastPayscaleDetail->advance_payable_account) ? \App\Models\ChartOfAccount::where('id', $lastPayscaleDetail->advance_payable_account )->first()->name: '',  ['class' => 'form-control conditional-account-field', 'data-amount-field' => 'advance', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('stop_sal', __('Stop Salary'), ['class' => 'form-label']) !!}
@@ -232,6 +242,45 @@
         </div>
     </div>
     <hr>
+
+    @if($loanAdvanceDeductions->isNotEmpty())
+    <div>
+        <h4><b>{{ __('Loan / Advance Deductions') }}</b></h4>
+        <table class="datatable">
+            <thead>
+                <tr>
+                    <th>{{ __('Sr.') }}</th>
+                    <th>{{ __('Type') }}</th>
+                    <th>{{ __('Sub Type') }}</th>
+                    <th>{{ __('Reference') }}</th>
+                    <th>{{ __('Account') }}</th>
+                    <th>{{ __('Note') }}</th>
+                    <th>{{ __('Amount') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($loanAdvanceDeductions as $deduction)
+                <tr>
+                    <td>{{ $loop->iteration }}</td>
+                    <td>{{ ucwords(str_replace('_', ' ', $deduction->type ?? '-')) }}</td>
+                    <td>{{ ucwords(str_replace('_', ' ', $deduction->sub_type ?? '-')) }}</td>
+                    <td>{{ $deduction->reference_id ?? '-' }}</td>
+                    <td>{{ optional($deduction->coa)->name ?? '-' }}</td>
+                    <td>{{ $deduction->note ?? '-' }}</td>
+                    <td>{{ number_format((float) ($deduction->amount ?? 0), 2) }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="6" class="text-end">{{ __('Total') }}</th>
+                    <th>{{ number_format((float) $loanAdvanceDeductions->sum('amount'), 2) }}</th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    <hr>
+    @endif
 
     @if(!empty($arrears) && count($arrears) > 0)
     <div>

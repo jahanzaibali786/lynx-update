@@ -5001,8 +5001,24 @@ class Utility extends Model
         // $payment = $payment->get();
 
         if ($type == 'group') {
-            $journalItems = JournalItem::select('journal_entries.journal_id', 'journal_entries.voucher_type', 'journal_entries.date as transaction_date', 'journal_items.*')
-                ->leftjoin('journal_entries', 'journal_entries.id', 'journal_items.journal')->where('journal_entries.created_by', '=', \Auth::user()->creatorId());
+            $journalItems = JournalItem::select(
+                'journal_entries.journal_id',
+                'journal_entries.voucher_type',
+                'journal_entries.date as transaction_date',
+                'journal_entries.category',
+                DB::raw('COALESCE(journal_items.user_type, journal_entries.user_type) as ledger_user_type'),
+                DB::raw("CASE
+                    WHEN LOWER(COALESCE(journal_items.user_type, journal_entries.user_type, '')) = 'student' THEN student_registrations.stdname
+                    WHEN LOWER(COALESCE(journal_items.user_type, journal_entries.user_type, '')) = 'employee' THEN employees.name
+                    ELSE users.name
+                END as ledger_user_name"),
+                'journal_items.*'
+            )
+                ->leftjoin('journal_entries', 'journal_entries.id', 'journal_items.journal')
+                ->leftJoin('student_registrations', 'student_registrations.id', '=', 'journal_items.user_id')
+                ->leftJoin('employees', 'employees.id', '=', 'journal_items.user_id')
+                ->leftJoin('users', 'users.id', '=', 'journal_items.user_id')
+                ->where('journal_entries.created_by', '=', \Auth::user()->creatorId());
             $journalItems->where('journal_items.created_at', '>=', $start);
             $journalItems->where('journal_items.created_at', '<=', $end);
             if (! empty($branch) && $branch != 'null') {
@@ -5011,8 +5027,25 @@ class Utility extends Model
             $journalItems = $journalItems->get()->groupBy('journal');
             $type = 'group';
         } else {
-            $journalItems = JournalItem::select('journal_entries.journal_id', 'journal_entries.voucher_type', 'journal_entries.date as transaction_date', 'journal_items.*', 'chart_of_account_types.name as type_name')
-                ->leftjoin('journal_entries', 'journal_entries.id', 'journal_items.journal')->leftJoin('chart_of_accounts', 'chart_of_accounts.id', '=', 'journal_items.account')
+            $journalItems = JournalItem::select(
+                'journal_entries.journal_id',
+                'journal_entries.voucher_type',
+                'journal_entries.date as transaction_date',
+                'journal_entries.category',
+                DB::raw('COALESCE(journal_items.user_type, journal_entries.user_type) as ledger_user_type'),
+                DB::raw("CASE
+                    WHEN LOWER(COALESCE(journal_items.user_type, journal_entries.user_type, '')) = 'student' THEN student_registrations.stdname
+                    WHEN LOWER(COALESCE(journal_items.user_type, journal_entries.user_type, '')) = 'employee' THEN employees.name
+                    ELSE users.name
+                END as ledger_user_name"),
+                'journal_items.*',
+                'chart_of_account_types.name as type_name'
+            )
+                ->leftjoin('journal_entries', 'journal_entries.id', 'journal_items.journal')
+                ->leftJoin('student_registrations', 'student_registrations.id', '=', 'journal_items.user_id')
+                ->leftJoin('employees', 'employees.id', '=', 'journal_items.user_id')
+                ->leftJoin('users', 'users.id', '=', 'journal_items.user_id')
+                ->leftJoin('chart_of_accounts', 'chart_of_accounts.id', '=', 'journal_items.account')
                 ->leftJoin('chart_of_account_types', 'chart_of_account_types.id', '=', 'chart_of_accounts.type')
                 ->where('journal_entries.created_by', '=', \Auth::user()->creatorId())->where('account', $account_id);
             $journalItems->where('journal_items.created_at', '>=', $start);
@@ -5949,11 +5982,21 @@ class Utility extends Model
     {
         DB::beginTransaction();
         try {
-            $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'CPV')->latest()->first();
-            $latest = $latest ? $latest->journal_id + 1 : 1;
+            $currentTimestamp = now();
+            $paymentCreatedAt = $data['created_at'] ?? $currentTimestamp;
+            $paymentUpdatedAt = $data['updated_at'] ?? $paymentCreatedAt;
+            $addedBy = \Auth::id() ?? ($data['created_by'] ?? null);
+
+            $nextManualSeries = ((int) JournalEntry::where('voucher_type', 'CPV')
+                ->where('voucher_series', 'MANUAL')
+                ->where('created_by', $data['created_by'])
+                ->max('manual_series_no')) + 1;
 
             $journal = new JournalEntry;
-            $journal->journal_id = $latest;
+            $journal->journal_id = $nextManualSeries;
+            $journal->voucher_series = 'MANUAL';
+            $journal->manual_series_no = $nextManualSeries;
+            $journal->manual_reference = 'M-CPV-' . str_pad($nextManualSeries, 6, '0', STR_PAD_LEFT);
             $journal->date = $data['date'];
             $journal->reference = $data['reference'];
             $journal->description = 'Salary for '.@$data['employee_name'].' (Salary ID: '.@$data['no'].') for the month of '.@$data['salary_month'];
@@ -5962,11 +6005,15 @@ class Utility extends Model
             $journal->voucher_type = 'CPV';
             $journal->user_id = @$data['user_id'];
             $journal->user_type = @$data['user_type'];
+            $journal->bank_id = $data['bank_id'] ?? null;
+            $journal->payment_mode = $data['payment_mode'] ?? 'cash';
             $journal->owned_by = $data['owned_by'];
             $journal->created_by = $data['created_by'];
+            $journal->added_by = $addedBy;
+            $journal->added_at = $currentTimestamp;
             $journal->save();
-            $journal->created_at = @$data['created_at'];
-            $journal->updated_at = @$data['updated_at'];
+            $journal->created_at = $paymentCreatedAt;
+            $journal->updated_at = $paymentUpdatedAt;
             $journal->save();
 
             foreach ($data['accounts'] as $acc) {
@@ -5974,10 +6021,18 @@ class Utility extends Model
                 JournalItem::create([
                     'journal' => $journal->id,
                     'account' => $account->id,
-                    'description' => $acc['name'].' against the salray no '.@$data['no'].' for the month of '.@$data['salary_month'],
+                    'description' => $acc['description'] ?? ($acc['name'].' against the salray no '.@$data['no'].' for the month of '.@$data['salary_month']),
                     'debit' => $acc['debit'],
                     'credit' => $acc['credit'],
-                    'created_at' => @$data['created_at'],
+                    'user_id' => $acc['user_id'] ?? ($data['user_id'] ?? null),
+                    'user_type' => $acc['user_type'] ?? ($data['user_type'] ?? null),
+                    'bank_id' => $acc['bank_id'] ?? ($data['bank_id'] ?? null),
+                    'types' => $acc['types'] ?? 'salary payment',
+                    'branch_id' => $acc['branch_id'] ?? ($data['owned_by'] ?? null),
+                    'added_by' => $addedBy,
+                    'added_at' => $currentTimestamp,
+                    'created_at' => $paymentCreatedAt,
+                    'updated_at' => $paymentUpdatedAt,
                 ]);
             }
             DB::commit();
@@ -5995,23 +6050,37 @@ class Utility extends Model
     {
         DB::beginTransaction();
         try {
-            $latest = JournalEntry::where('owned_by', '=', $data['owned_by'])->where('voucher_type', 'BPV')->latest()->first();
-            $latest = $latest ? $latest->journal_id + 1 : 1;
+            $currentTimestamp = now();
+            $paymentCreatedAt = $data['created_at'] ?? $currentTimestamp;
+            $paymentUpdatedAt = $data['updated_at'] ?? $paymentCreatedAt;
+            $addedBy = \Auth::id() ?? ($data['created_by'] ?? null);
+
+            $nextManualSeries = ((int) JournalEntry::where('voucher_type', 'BPV')
+                ->where('voucher_series', 'MANUAL')
+                ->where('created_by', $data['created_by'])
+                ->max('manual_series_no')) + 1;
             $journal = new JournalEntry;
-            $journal->journal_id = $latest;
+            $journal->journal_id = $nextManualSeries;
+            $journal->voucher_series = 'MANUAL';
+            $journal->manual_series_no = $nextManualSeries;
+            $journal->manual_reference = 'M-BPV-' . str_pad($nextManualSeries, 6, '0', STR_PAD_LEFT);
             $journal->date = $data['date'];
             $journal->reference = $data['reference'];
-            $journal->description = 'Salary for '.@$data['employee_name'].' (Salary ID: '.@$data['no'].') for the month of '.@$data['salary_month'];
-            $journal->reference_id = $data['id'];
+            $journal->description = $data['description'] ?? ('Salary for '.@$data['employee_name'].' (Salary ID: '.@$data['no'].') for the month of '.@$data['salary_month']);
+            $journal->reference_id = $data['id'] ?? null;
             $journal->category = $data['category']; // salary
             $journal->voucher_type = 'BPV';
-            $journal->user_id = @$data['user_id'];
-            $journal->user_type = @$data['user_type'];
+            $journal->user_id = $data['user_id'] ?? null;
+            $journal->user_type = $data['user_type'] ?? null;
+            $journal->bank_id = $data['bank_id'] ?? null;
+            $journal->payment_mode = $data['payment_mode'] ?? 'bank';
             $journal->owned_by = $data['owned_by'];
             $journal->created_by = $data['created_by'];
+            $journal->added_by = $addedBy;
+            $journal->added_at = $currentTimestamp;
             $journal->save();
-            $journal->created_at = @$data['created_at'];
-            $journal->updated_at = @$data['updated_at'];
+            $journal->created_at = $paymentCreatedAt;
+            $journal->updated_at = $paymentUpdatedAt;
             $journal->save();
 
             foreach ($data['accounts'] as $acc) {
@@ -6019,10 +6088,18 @@ class Utility extends Model
                 JournalItem::create([
                     'journal' => $journal->id,
                     'account' => $account->id,
-                    'description' => $acc['name'].' against the salray no '.@$data['no'].' for the month of '.@$data['salary_month'],
+                    'description' => $acc['description'] ?? ($acc['name'].' against the salray no '.@$data['no'].' for the month of '.@$data['salary_month']),
                     'debit' => $acc['debit'],
                     'credit' => $acc['credit'],
-                    'created_at' => @$data['created_at'],
+                    'user_id' => $acc['user_id'] ?? ($data['user_id'] ?? null),
+                    'user_type' => $acc['user_type'] ?? ($data['user_type'] ?? null),
+                    'bank_id' => $acc['bank_id'] ?? ($data['bank_id'] ?? null),
+                    'types' => $acc['types'] ?? 'salary payment',
+                    'branch_id' => $acc['branch_id'] ?? ($data['owned_by'] ?? null),
+                    'added_by' => $addedBy,
+                    'added_at' => $currentTimestamp,
+                    'created_at' => $paymentCreatedAt,
+                    'updated_at' => $paymentUpdatedAt,
                 ]);
             }
 
@@ -7301,6 +7378,8 @@ class Utility extends Model
         $journalItem = new JournalItem;
         $journalItem->journal = $journal->id;
         $journalItem->account = $bankto->chart_account_id;
+        $journalItem->bank_id = $data['bank_id'];
+        $journalItem->head = 0;
         $journalItem->description = 'Amount Received on Studypack Challan No : '.$data['no'];
         $journalItem->types = 'Studypack Challan Pay';
         $journalItem->user_id = @$data['user_id'];

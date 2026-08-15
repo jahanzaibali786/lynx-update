@@ -62,13 +62,13 @@
         margin: 0;
         color: #000;
         font-family: Helvetica, Arial, sans-serif;
-        font-size: 8.5px;
+        font-size: 9px;
     }
 
     .slip {
-        height: 350pt;
+        height: 392pt;
         box-sizing: border-box;
-        padding: 0 18px 5px;
+        padding: 0 14px 7px;
         overflow: hidden;
     }
 
@@ -88,9 +88,9 @@
 
     .slip-table td,
     .slip-table th {
-        padding: 1px 3px;
+        padding: 1.4px 3.5px;
         vertical-align: middle;
-        line-height: 1.3;
+        line-height: 1.35;
         overflow-wrap: break-word;
         word-break: normal;
     }
@@ -107,25 +107,28 @@
     }
 
     .branch-title {
-        font-size: 12px;
+        font-size: 12.5px;
         font-weight: bold;
         text-transform: uppercase;
-        padding-top: 5px !important;
+        padding-top: 4px !important;
         padding-bottom: 2px !important;
         line-height: 1.35;
     }
 
     .report-title {
-        font-size: 10px;
+        font-size: 10.5px;
         font-weight: bold;
         text-transform: uppercase;
-        padding-bottom: 5px !important;
+        padding-bottom: 4px !important;
         line-height: 1.35;
     }
 
     .logo {
-        width: 58px;
-        height: 58px;
+        display: block;
+        width: auto;
+        height: 54px;
+        max-width: 78px;
+        margin-left: auto;
     }
 
     .border {
@@ -201,12 +204,12 @@
 
     .dotted-separator {
         border-bottom: 1px dotted #000;
-        height: 8px;
+        height: 10px;
         padding: 0 !important;
     }
     .report-title-image {
-            width: 280px;
-            max-width: 280px;
+            width: 300px;
+            max-width: 300px;
             height: auto;
             display: inline-block;
         }
@@ -342,7 +345,7 @@
             <tr>
                 <td class="label nowrap left-border">Department</td><td colspan="2">{{ optional(optional($data->employee)->department)->name ?? '-' }}</td>
                 <td class="label">C.Balance</td><td class="center">{{ $clBal }}</td><td class="center">{{ $alBal }}</td>
-                <td class="label">N.T.N</td><td></td>
+                <td class="label">Account</td><td></td>
                 <td class="right-border">{{ $scale->account_number ?? '-' }}</td>
             </tr>
             <tr>
@@ -394,10 +397,11 @@
             </tr>
             <tr>
                 <td colspan="9" class="total-cell label one-line">Total Amount Disbursed Rs. 
-                <span class="total-cell disbursed-inline one-line">{{ $money($disbursed) }}/- </span> "{{ $amountWords($disbursed) }}"</td>
+                <span class="disbursed-inline one-line">{{ $money($disbursed) }}/- </span> "{{ $amountWords($disbursed) }}"</td>
             </tr>
             <tr><td colspan="9" class="muted">This is a system generated document and does not require a signature</td></tr>
             @if (!$loop->last)
+            <br>
                 <tr><td colspan="9" class="dotted-separator"></td></tr>
             @endif
         </table>

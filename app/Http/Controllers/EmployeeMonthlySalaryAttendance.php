@@ -482,7 +482,12 @@ class EmployeeMonthlySalaryAttendance extends Controller
         //     'employeemonthlysalary.salaryheads',
         //     'employeemonthlysalary.salaryheads.SalaryHead',
         // ])->where('adm_final', 1)->where('id', $id)->first();
-        $employeesalary = EmployeeMonthlySalary::with('employee', 'employee.designation', 'employee.department', 'employee.employee_payscale_details')->where('id', $id)->first();
+        $employeesalary = EmployeeMonthlySalary::with(
+            'employee',
+            'employee.designation',
+            'employee.department',
+            'employee.employee_payscale_details'
+        )->where('id', $id)->first();
         if (empty($employeesalary)) {
             return redirect()->route('emp-month-sal-attendance.index')->with('error', 'Salary not found.')->withInput();
         }
@@ -492,6 +497,17 @@ class EmployeeMonthlySalaryAttendance extends Controller
             ->whereMonth('for_month_of', $attendanceMonth)
             ->whereYear('for_month_of', $attendanceYear)
             ->first();
+        $deductionSalaryIds = array_values(array_unique(array_filter([
+            $employeesalary->id,
+            optional($salaryAttendance)->id,
+        ])));
+        $loanAdvanceDeductions = SalaryDeductionDetail::with('coa')
+            ->where('employee_id', $employeesalary->employee_id)
+            ->whereIn('salary_id', $deductionSalaryIds)
+            ->whereIn(\DB::raw('LOWER(type)'), ['loan', 'advance'])
+            ->orderByRaw('CASE WHEN salary_id = ? THEN 0 ELSE 1 END', [$employeesalary->id])
+            ->orderBy('id')
+            ->get();
         $salaryEditable = trim(strtolower($employeesalary->status ?? 'unpaid')) === 'unpaid'
             && (int) optional($salaryAttendance)->gm_final !== 1;
         $arrears = \App\Models\EmployeeMonthlySalary::where('employee_id', $employeesalary->employee_id)
@@ -500,7 +516,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
             ->where('on_hold', 0)
             ->whereNull('carried_to_salary_id')
             ->get();
-        return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears', 'salaryEditable', 'salaryAttendance'));
+        return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears', 'salaryEditable', 'salaryAttendance', 'loanAdvanceDeductions'));
     }
     public function final_attendance(Request $request)
     {
@@ -668,7 +684,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 if ($salary) {
                     $employeeName = optional($attendance->employee)->name ?: $attendance->employee_id;
                     $salaryMonth = Carbon::parse($salary->salary_date)->format('M-Y');
-                    if (in_array(trim(strtolower($salary->status ?? 'unpaid')), ['paid', 'fwd_to_account', 'account_approved'], true)) {
+                    if (in_array(trim(strtolower($salary->status ?? 'unpaid')), ['paid', 'partial_paid', 'fwd_to_account', 'account_approved'], true)) {
                         return response()->json([
                             'error' => "Salary already paid/forwarded/approved by accounts for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. It cannot be unfinalized.",
                         ]);
@@ -1890,8 +1906,11 @@ class EmployeeMonthlySalaryAttendance extends Controller
             'employee.userbranch',
             'employee.department',
             'employee.designation',
+            'salaryPayments.journal',
+            'salaryPayments',
+            'salaryPayment.journal',
         ])
-            ->whereIn('status', ['fwd_to_account', 'account_approved'])
+            ->whereIn('status', ['fwd_to_account', 'account_approved', 'partial_paid', 'paid'])
             ->where('on_hold', 0)
             ->whereYear('salary_date', $monthDate->year)
             ->whereMonth('salary_date', $monthDate->month);
@@ -1923,6 +1942,16 @@ class EmployeeMonthlySalaryAttendance extends Controller
         }
 
         $salaries = $query->get()
+            ->map(function ($salary) {
+                $totalPaid = $salary->salaryPayments->sum(function ($payment) {
+                    return (float) ($payment->amount ?? $payment->net_pay ?? 0);
+                });
+
+                $salary->total_paid_amount = round($totalPaid, 2);
+                $salary->remaining_pay_amount = round(max(((float) $salary->net_pay) - $totalPaid, 0), 2);
+
+                return $salary;
+            })
             ->sortBy(fn($salary) => strtolower(optional($salary->employee)->name ?? ''))
             ->values();
 
@@ -2073,33 +2102,58 @@ class EmployeeMonthlySalaryAttendance extends Controller
         }
 
         $selectedCount = count($ids);
-        $salaries = EmployeeMonthlySalary::with('employee')
+        $salaries = EmployeeMonthlySalary::with(['employee', 'salaryPayments'])
             ->whereIn('id', $ids)
-            ->where('status', 'account_approved')
+            ->whereIn('status', ['account_approved', 'partial_paid'])
             ->where('on_hold', 0)
             ->get();
 
         if ($salaries->isEmpty() || $salaries->count() !== $selectedCount) {
-            return response()->json(['success' => false, 'message' => __('Only accounts approved salaries can be paid.')], 422);
+            return response()->json(['success' => false, 'message' => __('Only accounts approved or partial paid salaries can be paid.')], 422);
         }
 
-        $bankAccounts = BankAccount::where(function ($q) {
+        $bankAccountRecords = BankAccount::where(function ($q) {
                 $q->where('created_by', \Auth::user()->creatorId())
                     ->orWhere('owned_by', \Auth::user()->ownedId());
             })
             ->orderBy('bank_name')
-            ->get()
-            ->mapWithKeys(function ($bank) {
+            ->get();
+
+        $bankAccounts = $bankAccountRecords->mapWithKeys(function ($bank) {
                 $label = trim($bank->bank_name . ' - ' . $bank->holder_name . ' (' . $bank->account_number . ')');
                 return [$bank->id => $label];
             });
         $bankAccounts->prepend('Select Bank Account', '');
 
         return view('employee.monthly_salary_attendance.accounting_salary_pay_modal', [
-            'salaries' => $salaries,
+            'salaries' => $salaries->map(function ($salary) {
+                $totalPaid = $salary->salaryPayments->sum(function ($payment) {
+                    return (float) ($payment->amount ?? $payment->net_pay ?? 0);
+                });
+
+                $salary->total_paid_amount = round($totalPaid, 2);
+                $salary->remaining_pay_amount = round(max(((float) $salary->net_pay) - $totalPaid, 0), 2);
+
+                return $salary;
+            }),
             'bankAccounts' => $bankAccounts,
+            'bankBalances' => $bankAccountRecords->mapWithKeys(function ($bank) {
+                return [
+                    $bank->id => [
+                        'type' => ucfirst(strtolower((string) ($bank->type ?: 'Bank'))),
+                        'balance' => round((float) ($bank->opening_balance ?? 0), 2),
+                        'formatted_balance' => \Auth::user()->priceFormat($bank->opening_balance ?? 0),
+                    ],
+                ];
+            }),
             'salaryIds' => $salaries->pluck('id')->all(),
-            'totalAmount' => $salaries->sum('net_pay'),
+            'totalAmount' => $salaries->sum(function ($salary) {
+                $totalPaid = $salary->salaryPayments->sum(function ($payment) {
+                    return (float) ($payment->amount ?? $payment->net_pay ?? 0);
+                });
+
+                return max(((float) $salary->net_pay) - $totalPaid, 0);
+            }),
         ]);
     }
 
@@ -2108,6 +2162,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
         $request->validate([
             'salary_ids' => 'required|array|min:1',
             'salary_ids.*' => 'integer',
+            'payment_amounts' => 'required|array',
             'bank_id' => 'required|integer',
             'payment_date' => 'required|date',
             'reference' => 'nullable|string|max:191',
@@ -2130,16 +2185,40 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
         \DB::beginTransaction();
         try {
-            $salaries = EmployeeMonthlySalary::with('employee')
+            $salaries = EmployeeMonthlySalary::with(['employee', 'salaryPayments'])
                 ->whereIn('id', $request->salary_ids)
                 ->lockForUpdate()
                 ->get();
 
+            $validatedSalaries = [];
+            $ownedBy = null;
+
             foreach ($salaries as $salary) {
                 $employeeName = optional($salary->employee)->name ?: $salary->employee_id;
 
-                if (trim(strtolower((string) $salary->status)) !== 'account_approved') {
+                if (!in_array(trim(strtolower((string) $salary->status)), ['account_approved', 'partial_paid'], true)) {
                     $errors[] = __('Salary is not approved by accounts manager for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $paymentAmount = round((float) ($request->payment_amounts[$salary->id] ?? 0), 2);
+                $alreadyPaid = round($salary->salaryPayments->sum(function ($payment) {
+                    return (float) ($payment->amount ?? $payment->net_pay ?? 0);
+                }), 2);
+                $remainingAmount = round(max(((float) $salary->net_pay) - $alreadyPaid, 0), 2);
+
+                if ($remainingAmount <= 0) {
+                    $errors[] = __('Salary is already fully paid for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ($paymentAmount <= 0) {
+                    $errors[] = __('Please enter a valid payment amount for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ($paymentAmount > $remainingAmount) {
+                    $errors[] = __('Payment amount cannot exceed remaining salary for ') . $employeeName . '.';
                     continue;
                 }
 
@@ -2164,66 +2243,148 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     continue;
                 }
 
-                $reference = $request->reference ?: 'SAL-' . $salary->id;
+                $salaryOwnedBy = optional($salary->employee)->owned_by ?: $salary->owned_by;
+                if ($ownedBy === null) {
+                    $ownedBy = $salaryOwnedBy;
+                } elseif ((int) $ownedBy !== (int) $salaryOwnedBy) {
+                    $errors[] = __('Please select salaries from the same branch/company for a single payment voucher.');
+                    continue;
+                }
 
-                $payment = SalaryPayment::create([
-                    'employee_id' => $salary->employee_id,
-                    'salary_id' => $salary->id,
-                    'net_pay' => round($salary->net_pay),
-                    'bank_id' => $bank->id,
-                    'account_number' => $salary->account_number ?: $salarydetail->account_number,
-                    'payment_method' => $salary->paymode ?: $salarydetail->paymode,
-                    'reference' => $reference,
-                    'description' => $request->description ?: 'Salary paid for ' . $employeeName . ' (Salary ID: ' . $salary->id . ') for the month of ' . date('F Y', strtotime($salary->salary_date)),
-                    'owned_by' => optional($salary->employee)->owned_by ?: $salary->owned_by,
-                    'created_by' => optional($salary->employee)->created_by ?: $salary->created_by,
-                ]);
-
-                $journalData = [
-                    'date' => $request->payment_date,
-                    'reference' => $reference,
+                $validatedSalaries[] = [
+                    'salary' => $salary,
+                    'salarydetail' => $salarydetail,
                     'employee_name' => $employeeName,
-                    'no' => $salary->id,
                     'salary_month' => date('F Y', strtotime($salary->salary_date)),
-                    'id' => $salary->id,
-                    'category' => 'salary',
-                    'user_id' => optional($salary->employee)->user_id,
-                    'user_type' => 'employee',
-                    'owned_by' => optional($salary->employee)->owned_by ?: $salary->owned_by,
+                    'payment_amount' => $paymentAmount,
+                    'already_paid' => $alreadyPaid,
+                    'remaining_amount' => $remainingAmount,
+                    'owned_by' => $salaryOwnedBy,
                     'created_by' => optional($salary->employee)->created_by ?: $salary->created_by,
-                    'accounts' => [
-                        [
-                            'account_id' => $bank->chart_account_id,
-                            'name' => 'Bank Account Credit against salary ' . $salary->id . ' of ' . $employeeName,
-                            'debit' => 0,
-                            'credit' => round($salary->net_pay),
-                        ],
-                        [
-                            'account_id' => $salarydetail->net_payable_account,
-                            'name' => 'Net Salary Payable',
-                            'debit' => round($salary->net_pay),
-                            'credit' => 0,
-                        ],
-                    ],
                 ];
-
-                $voucher = Utility::Salarybrvvoucher($journalData);
-
-                $salary->status = 'paid';
-                $salary->paid_date = $request->payment_date;
-                $salary->save();
-
-                $payment->journal_id = $voucher;
-                $payment->save();
-                $paidIds[] = $salary->id;
             }
 
-            if (empty($paidIds)) {
+            if (empty($validatedSalaries)) {
                 \DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => implode(' ', $errors) ?: __('No salary was paid.'),
                 ]);
+            }
+
+            $paymentTimestamp = Carbon::parse($request->payment_date)->setTimeFrom(now());
+            $salaryRows = collect($validatedSalaries);
+            $firstSalary = $salaryRows->first();
+            $salaryCount = $salaryRows->count();
+            $salaryMonthLabel = $salaryRows->pluck('salary_month')->unique()->implode(', ');
+            $salaryIds = $salaryRows->pluck('salary.id')->all();
+            $voucherMode = strtolower((string) $bank->type) === 'cash' ? 'cash' : 'bank';
+            $reference = $request->reference
+                ?: ($salaryCount === 1 ? 'SAL-' . $firstSalary['salary']->id : 'SAL-BATCH-' . strtoupper($voucherMode) . '-' . $firstSalary['salary']->id);
+            $journalHeaderUserId = $salaryCount > 1 ? null : optional($firstSalary['salary']->employee)->user_id;
+            $journalHeaderUserType = $salaryCount > 1 ? null : 'employee';
+            $totalNetPay = $salaryRows->sum(fn($row) => round((float) $row['payment_amount'], 2));
+
+            $availableBalance = round((float) ($bank->opening_balance ?? 0), 2);
+            $requiredAmount = round((float) $totalNetPay, 2);
+
+            if ($availableBalance < $requiredAmount) {
+                \DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Selected :type account balance is not enough for this salary payment. Available balance: :available, Required amount: :required', [
+                        'type' => strtolower((string) ($bank->type ?: 'bank')),
+                        'available' => \Auth::user()->priceFormat($availableBalance),
+                        'required' => \Auth::user()->priceFormat($requiredAmount),
+                    ]),
+                ], 422);
+            }
+
+            $journalAccounts = [];
+
+            foreach ($salaryRows as $row) {
+                $salary = $row['salary'];
+                $salarydetail = $row['salarydetail'];
+                $employeeName = $row['employee_name'];
+
+                $journalAccounts[] = [
+                    'account_id' => $salarydetail->net_payable_account,
+                    'name' => 'Net Salary Payable',
+                    'description' => 'Net Salary Payable against salary ' . $salary->id . ' of ' . $employeeName . ' for the month of ' . $row['salary_month'],
+                        'debit' => round((float) $row['payment_amount'], 2),
+                    'credit' => 0,
+                    'user_id' => optional($salary->employee)->user_id,
+                    'user_type' => 'Employee',
+                    'branch_id' => $row['owned_by'],
+                    'types' => 'salary payment',
+                ];
+            }
+
+            $journalAccounts[] = [
+                'account_id' => $bank->chart_account_id,
+                'name' => ($voucherMode === 'cash' ? 'Cash Account Credit against salary batch' : 'Bank Account Credit against salary batch'),
+                'description' => ($voucherMode === 'cash' ? 'Cash Account Credit' : 'Bank Account Credit') . ' against salary batch (' . implode(', ', $salaryIds) . ') for the month of ' . $salaryMonthLabel,
+                'debit' => 0,
+                'credit' => $totalNetPay,
+                'bank_id' => $bank->id,
+                'branch_id' => $ownedBy,
+                'types' => 'salary payment',
+            ];
+
+            $voucherPayload = [
+                'date' => $request->payment_date,
+                'reference' => $reference,
+                'description' => $request->description ?: ('Salary paid for ' . $salaryCount . ' employee(s) [' . strtoupper($voucherMode) . '] for the month of ' . $salaryMonthLabel),
+                'employee_name' => $salaryCount === 1 ? $firstSalary['employee_name'] : ($salaryCount . ' employees'),
+                'no' => $salaryCount === 1 ? $firstSalary['salary']->id : implode(',', $salaryIds),
+                'salary_month' => $salaryMonthLabel,
+                'id' => $salaryCount === 1 ? $firstSalary['salary']->id : null,
+                'category' => 'salary',
+                'user_id' => $journalHeaderUserId,
+                'user_type' => $journalHeaderUserType,
+                'owned_by' => $ownedBy,
+                'created_by' => $firstSalary['created_by'],
+                'bank_id' => $bank->id,
+                'payment_mode' => $voucherMode,
+                'created_at' => $paymentTimestamp,
+                'updated_at' => $paymentTimestamp,
+                'accounts' => $journalAccounts,
+            ];
+
+            $voucherId = $voucherMode === 'cash'
+                ? Utility::Salarycrvvoucher($voucherPayload)
+                : Utility::Salarybrvvoucher($voucherPayload);
+
+            foreach ($validatedSalaries as $row) {
+                $salary = $row['salary'];
+                $salarydetail = $row['salarydetail'];
+                $employeeName = $row['employee_name'];
+
+                $payment = SalaryPayment::create([
+                    'employee_id' => $salary->employee_id,
+                    'salary_id' => $salary->id,
+                    'amount' => round((float) $row['payment_amount'], 2),
+                    'net_pay' => round((float) $row['payment_amount'], 2),
+                    'bank_id' => $bank->id,
+                    'account_number' => $salary->account_number ?: $salarydetail->account_number,
+                    'payment_method' => $voucherMode,
+                    'payment_date' => $request->payment_date,
+                    'reference' => $reference,
+                    'description' => $request->description ?: 'Salary paid for ' . $employeeName . ' (Salary ID: ' . $salary->id . ') for the month of ' . $row['salary_month'],
+                    'owned_by' => $row['owned_by'],
+                    'created_by' => $row['created_by'],
+                    'journal_id' => $voucherId,
+                    'created_at' => $paymentTimestamp,
+                    'updated_at' => $paymentTimestamp,
+                ]);
+
+                $newTotalPaid = round($row['already_paid'] + $row['payment_amount'], 2);
+                $salary->status = $newTotalPaid >= round((float) $salary->net_pay, 2) ? 'paid' : 'partial_paid';
+                $salary->paid_date = $request->payment_date;
+                $salary->save();
+
+                $paidIds[] = $salary->id;
             }
 
             \DB::commit();

@@ -15,6 +15,7 @@ class EmployeePayscaleDetail extends Model
         'itax', 'tax_payable_account', 'eobi', 'eobi_employer', 'eobi_payable_account', 'pessi', 'pessi_employer',
         'pessi_payable_account', 'other_deduction', 'other_dedu_payable_account', 'advance','other_add',
         'advance_payable_account', 'net', 'net_payable_account','owned_by','created_by',
+        'contract_id',
     ];
 
     public function scale(){
@@ -22,6 +23,9 @@ class EmployeePayscaleDetail extends Model
     }
     public function employee(){
         return $this->belongsTo(Employee::class,'employee_id','id');
+    }
+    public function contract(){
+        return $this->belongsTo(EmployeeContract::class,'contract_id','id');
     }
 
     public function getResolvedBasicSalaryAttribute(): float

@@ -276,7 +276,9 @@ class StudentRegistration extends Controller
             $registration->custody_name = $request->input('custody_name');
             $registration->custody_cnic = $request->input('custody_cnic');
             $registration->student_status = 'Registered';
+            $registration->reg_branch_id = $request->input('branch');
             $registration->owned_by = $request->input('branch');
+            $registration->added_by = \Auth::id();
             $registration->created_by = \Auth::user()->creatorId();
             $registration->save();
 

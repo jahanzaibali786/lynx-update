@@ -19,6 +19,7 @@ use App\Exports\ClassWiseFeeStructureExport;
 use App\Exports\MonthlyChallanreport;
 use App\Exports\MonthlyPreChallanreport;
 use App\Exports\Student_defaulterReport;
+use App\Exports\RegistrationDetailReportExport;
 use App\Exports\StudentRegistrationExport;
 use App\Exports\TuitionFeeReportExport;
 use App\Exports\SessionWiseReportExport;
@@ -706,9 +707,11 @@ class StudentReportController extends Controller
         // Base query with optimized eager loading and select
         $query = StudentRegistration::with([
             'class:id,name',
+            'regclass:id,name,owned_by',
             'branches:id,name',
             'session:id,year',
-            'registeroption:id,name'
+            'registeroption:id,name',
+            'registrationChallan.branch:id,name',
         ])
             ->select([
                 'id',
@@ -718,6 +721,7 @@ class StudentReportController extends Controller
                 'fathername',
                 'session_id',
                 'class_id',
+                'reg_class',
                 'dob',
                 'gender',
                 'fatherphone',
@@ -726,7 +730,9 @@ class StudentReportController extends Controller
                 'registrationfee',
                 'owned_by',
                 'created_by',
-                'student_status'
+                'student_status',
+                'reg_branch_id',
+                'added_by',
             ]);
         $classes = Classes::where('created_by', $userCreatorId)->where('active_status', 1)->get()->pluck('name', 'id');
 
@@ -739,7 +745,13 @@ class StudentReportController extends Controller
             if ($request->branch == 'all') {
                 $query->where('created_by', $userCreatorId);
             } else {
-                $query->where('owned_by', $request->branch);
+                $query->where(function ($branchQuery) use ($request) {
+                    $branchQuery->where('reg_branch_id', $request->branch)
+                        ->orWhere(function ($fallbackQuery) use ($request) {
+                            $fallbackQuery->whereNull('reg_branch_id')
+                                ->where('owned_by', $request->branch);
+                        });
+                });
                 $branch = $branches[$request->branch];
                 $classes = Classes::where('owned_by', $request->branch)->where('active_status', 1)->get()->pluck('name', 'id');
             }
@@ -748,7 +760,7 @@ class StudentReportController extends Controller
         $classes->prepend('All Classes', '');
 
         if ($request->has('class') && $request->class != '' && $request->class != 'all') {
-            $query->where('class_id', $request->class);
+            $query->where('reg_class', $request->class);
         }
         if ($request->has('register') && $request->register != '') {
             $query->where('register_option', $request->register);
@@ -783,17 +795,7 @@ class StudentReportController extends Controller
             'Registered' => 'Not Enrolled',
         ];
 
-        // Get all student IDs first to optimize challan query
-        $studentIds = $query->pluck('id');
-
-        // Get all challans in one query
-        // $challansData = Challans::whereIn('student_id', $studentIds)
-        //     ->whereRaw('LOWER(challan_type) LIKE ?', [strtolower('%registration%')])
-        //     ->get()
-        //     ->keyBy('student_id');
-
-        // Get grouped student data
-        $studentData = $query->get()->groupBy('owned_by');
+        $studentData = $this->buildRegistrationDetailByBranchData($query->get(), $request);
 
         $branchTotals = [];
         $grandTotal = 0;
@@ -814,6 +816,13 @@ class StudentReportController extends Controller
         if ($request->has('export') && $request->export == 'excel') {
             $report_name = 'Student Registration Report';
             $branchName = $branches[$request->branch] ?? 'All Branches';
+            if ($request->boolean('dummy_export')) {
+                return Excel::download(
+                    new RegistrationDetailReportExport($studentData, $branches, $branchName, $report_name, $request->all(), $branchTotals, $grandTotal),
+                    'student_registration_report_dummy.xlsx'
+                );
+            }
+
             return Excel::download(
                 new StudentRegistrationExport($studentData, $branches, $branchName, $report_name, $request->all(), $branchTotals, $grandTotal),
                 'student_registration_report.xlsx'
@@ -840,6 +849,55 @@ class StudentReportController extends Controller
             'request',
             'registerOption'
         ));
+    }
+
+    private function buildRegistrationDetailByBranchData($students, Request $request)
+    {
+        return $students
+            ->map(function ($student) use ($request) {
+                $dummyPayload = $this->registrationDetailDummyCheck($student, $request);
+
+                $student->setAttribute('owned_by', $dummyPayload['branch_id']);
+                $student->setAttribute('regdate', $dummyPayload['report_date']);
+                $student->setAttribute('registrationfee', $dummyPayload['report_amount']);
+                $student->setAttribute('report_source', 'registration');
+                $student->setAttribute('registration_owned_by', $dummyPayload['registration_owned_by']);
+                $student->setAttribute('registration_reg_branch_id', $dummyPayload['registration_reg_branch_id']);
+                $student->setAttribute('registration_reg_class', $dummyPayload['registration_reg_class']);
+                $student->setAttribute('registration_added_by', $dummyPayload['registration_added_by']);
+                $student->setAttribute('class_branch_id', $dummyPayload['class_branch_id']);
+                $student->setAttribute('class_branch_name', $dummyPayload['class_branch_name']);
+                $student->setAttribute('challan_owned_by', $dummyPayload['challan_owned_by']);
+                $student->setAttribute('challan_owned_by_name', $dummyPayload['challan_owned_by_name']);
+                $student->setAttribute('registration_owned_by_name', $dummyPayload['registration_owned_by_name']);
+
+                return $student;
+            })
+            ->groupBy('reg_branch_id');
+    }
+
+    private function registrationDetailDummyCheck(StudentRegistration $student, Request $request): array
+    {
+        $branchId = $student->reg_branch_id;
+        $reportDate = $student->regdate;
+        $reportAmount = (float) $student->registrationfee;
+
+        return [
+            'branch_id' => $branchId,
+            'report_date' => $reportDate,
+            'report_amount' => $reportAmount,
+            'date_from' => $request->input('date_from'),
+            'date_to' => $request->input('date_to'),
+            'registration_owned_by' => $student->owned_by,
+            'registration_owned_by_name' => optional($student->branches)->name,
+            'registration_reg_branch_id' => $student->reg_branch_id,
+            'registration_reg_class' => $student->reg_class,
+            'registration_added_by' => $student->added_by,
+            'class_branch_id' => optional($student->regclass)->owned_by,
+            'class_branch_name' => optional(optional($student->regclass)->branch)->name,
+            'challan_owned_by' => optional($student->registrationChallan)->owned_by,
+            'challan_owned_by_name' => optional(optional($student->registrationChallan)->branch)->name,
+        ];
     }
     public function registrationdetailReportPdf(Request $request)
     {

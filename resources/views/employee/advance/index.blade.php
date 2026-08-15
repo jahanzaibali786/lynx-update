@@ -41,11 +41,20 @@
         }
 
         $(document).ready(function() {
-            $('#select_all_advances').on('change', function() {
+            var advanceTable = document.querySelector('#employee-advance-table');
+            if (advanceTable && window.simpleDatatables && !advanceTable.dataset.advanceDatatableReady) {
+                advanceTable.dataset.advanceDatatableReady = '1';
+                new simpleDatatables.DataTable(advanceTable, {
+                    paging: false,
+                    perPageSelect: false
+                });
+            }
+
+            $('#select_all_advances').off('change.employeeAdvance').on('change.employeeAdvance', function() {
                 $('.bulk-advance-check').prop('checked', $(this).is(':checked'));
             });
 
-            $('#open_bulk_approve_modal').on('click', function(event) {
+            $('#open_bulk_approve_modal').off('click.employeeAdvance').on('click.employeeAdvance', function(event) {
                 event.preventDefault();
                 var selectedIds = $('.bulk-advance-check:checked').map(function() {
                     return $(this).val();
@@ -124,13 +133,13 @@
                                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                             <div class="btn-box">
                                                 {{ Form::label('from_month', __('From Month'), ['class' => 'form-label']) }}
-                                                {{ Form::month('from_month', request('from_month'), ['class' => 'form-control']) }}
+                                                {{ Form::month('from_month', request('from_month'), ['class' => 'form-control', 'id' => 'advance_from_month']) }}
                                             </div>
                                         </div>
                                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                             <div class="btn-box">
                                                 {{ Form::label('to_month', __('To Month'), ['class' => 'form-label']) }}
-                                                {{ Form::month('to_month', request('to_month'), ['class' => 'form-control']) }}
+                                                {{ Form::month('to_month', request('to_month'), ['class' => 'form-control', 'id' => 'advance_to_month']) }}
                                             </div>
                                         </div>
 
@@ -228,7 +237,7 @@
     <div class="card-body full-card">
         <div class="table-responsive">
             @if (!$advance->isEmpty())
-                <table class="">
+                <table class="datatable" id="employee-advance-table">
                     <thead class="">
                         <tr class="table_heads">
                             <th style="width: 45px;">
@@ -254,7 +263,7 @@
                                         <input type="checkbox" class="bulk-advance-check" value="{{ $adv->id }}">
                                     @endif
                                 </td>
-                                <td>{{ ($advance->currentPage() - 1) * $advance->perPage() + $loop->iteration }}</td>
+                                <td>{{ $loop->iteration }}</td>
                                 <td>
                                     {{ !empty($adv->employee->name) ? $adv->employee->name : '' }}
                                 </td>
@@ -381,48 +390,5 @@
     </div>
 </div>
 </div>
-@if ($advance->hasPages())
-    <div class="pagination">
-        <ul>
-            @if ($advance->onFirstPage())
-                <li class="disabled">&laquo; Previous</li>
-            @else
-                <li><a href="{{ $advance->appends(request()->query())->previousPageUrl() }}" rel="prev">&laquo;
-                        Previous</a></li>
-            @endif
-            @if ($advance->currentPage() > 1)
-                <li><a href="{{ $advance->appends(request()->query())->url(1) }}">First</a></li>
-            @endif
-            @php
-                $currentPage = $advance->currentPage();
-                $lastPage = $advance->lastPage();
-                $startPage = max(1, $currentPage - 4);
-                $endPage = min($lastPage, $currentPage + 5);
-                if ($endPage - $startPage < 9) {
-                    if ($currentPage < $lastPage - 9) {
-                        $endPage = $startPage + 9;
-                    } else {
-                        $startPage = max(1, $lastPage - 9);
-                    }
-                }
-            @endphp
-            @for ($page = $startPage; $page <= $endPage; $page++)
-                <li class="{{ $page == $advance->currentPage() ? 'active' : '' }}">
-                    <a href="{{ $advance->appends(request()->query())->url($page) }}">{{ $page }}</a>
-                </li>
-            @endfor
-            @if ($advance->hasMorePages())
-                <li><a href="{{ $advance->appends(request()->query())->nextPageUrl() }}" rel="next">Next
-                        &raquo;</a></li>
-            @else
-                <li class="disabled">Next &raquo;</li>
-            @endif
-            @if ($advance->currentPage() < $advance->lastPage())
-                <li><a href="{{ $advance->appends(request()->query())->url($advance->lastPage()) }}">Last</a>
-                </li>
-            @endif
-        </ul>
-    </div>
-@endif
 </div>
 @endsection

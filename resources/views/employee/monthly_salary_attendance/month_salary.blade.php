@@ -143,6 +143,9 @@
 
                     var form = document.getElementById('employee_submit');
                     var formData = new FormData(form);
+                    checkedCheckboxes = Array.from(checkedCheckboxes).filter(function(checkbox) {
+                        return checkbox.dataset.accountLocked !== '1';
+                    });
                     checkedCheckboxes.forEach(function(checkbox) {
                         var row = checkbox.closest('tr');
                         var employeeId = row.getAttribute('data-employee-id');
@@ -224,6 +227,9 @@
                 );
                 var form = document.getElementById('employee_submit');
                 var formData = new FormData(form);
+                checkedCheckboxes = Array.from(checkedCheckboxes).filter(function(checkbox) {
+                    return checkbox.dataset.accountLocked !== '1';
+                });
                 checkedCheckboxes.forEach(function(checkbox) {
                     var row = checkbox.closest('tr');
                     var employeeId = row.getAttribute('data-employee-id');
@@ -303,7 +309,7 @@
     '.row-checkbox:checked'
 );
                 checkedCheckboxes = Array.from(checkedCheckboxes).filter(function(checkbox) {
-                    return checkbox.dataset.salaryFinal === '0';
+                    return checkbox.dataset.salaryFinal === '0' && checkbox.dataset.accountLocked !== '1';
                 });
                 var form = document.getElementById('employee_submit');
                 var formData = new FormData(form);
@@ -388,6 +394,9 @@
 );
                 var form = document.getElementById('employee_submit');
                 var formData = new FormData(form);
+                checkedCheckboxes = Array.from(checkedCheckboxes).filter(function(checkbox) {
+                    return checkbox.dataset.accountLocked !== '1';
+                });
                 checkedCheckboxes.forEach(function(checkbox) {
                     var row = checkbox.closest('tr');
                     var employeeId = row.getAttribute('data-employee-id');
@@ -476,6 +485,9 @@
             var checkboxes = document.querySelectorAll('.row-checkbox:checked');
             var selectedDate = document.querySelector('#date') ? document.querySelector('#date').value : '';
             checkboxes.forEach(function(checkbox) {
+                if (checkbox.dataset.accountLocked === '1') {
+                    return;
+                }
                 checkedRows.push({
                     id: checkbox.dataset.id || '',
                     employee_id: checkbox.dataset.employeeId || checkbox.value,
@@ -972,6 +984,7 @@
         $salaryUnpaidCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'unpaid')->count();
         $salaryFwdAccountCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'fwd_to_account')->count();
         $salaryAccountApprovedCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'account_approved')->count();
+        $salaryPartialPaidCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'partial_paid')->count();
         $salaryReturnedHrCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'returned_to_hr')->count();
         $salaryPaidCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && trim(strtolower($row->employeemonthlysalary->status ?? '')) == 'paid')->count();
         $salaryFinalCount = $datas->filter(fn($row) => !empty($row->employeemonthlysalary) && $row->employeemonthlysalary->sal_final)->count();
@@ -1089,6 +1102,7 @@
                     <span class="badge bg-warning text-dark">{{ __('Unpaid') }} <span class="badge-count">{{ $salaryUnpaidCount }}</span></span>
                     <span class="badge bg-dark">{{ __('FWD TO Accounts') }} <span class="badge-count">{{ $salaryFwdAccountCount }}</span></span>
                     <span class="badge bg-primary">{{ __('Account Approved') }} <span class="badge-count">{{ $salaryAccountApprovedCount }}</span></span>
+                    <span class="badge bg-warning text-dark">{{ __('Partial Paid') }} <span class="badge-count">{{ $salaryPartialPaidCount }}</span></span>
                     <span class="badge bg-warning text-dark">{{ __('Returned to HR') }} <span class="badge-count">{{ $salaryReturnedHrCount }}</span></span>
                     <span class="badge bg-success">{{ __('Paid') }} <span class="badge-count">{{ $salaryPaidCount }}</span></span>
                     <span class="badge bg-primary">{{ __('Final') }} <span class="badge-count">{{ $salaryFinalCount }}</span></span>
@@ -1153,6 +1167,7 @@
                             $salaryStatus = trim(strtolower(optional($data->employeemonthlysalary)->status ?? ''));
                             $isFwdToAccount = $salaryStatus === 'fwd_to_account';
                             $isAccountApproved = $salaryStatus === 'account_approved';
+                            $isAccountLocked = in_array($salaryStatus, ['fwd_to_account', 'account_approved', 'partial_paid', 'paid', 'carried'], true);
                             $salaryMonthNumber = !empty($data->for_month_of)
                                 ? \Carbon\Carbon::parse($data->for_month_of)->month
                                 : null;
@@ -1195,7 +1210,8 @@
                                     data-employee-id="{{ optional($data->employee)->id }}"
                                     data-date="{{ $data->for_month_of }}"
                                     data-salary-final="{{ optional($data->employeemonthlysalary)->sal_final == 1 ? '1' : '0' }}"
-                                    {{ ($isFwdToAccount || $isAccountApproved) ? 'disabled' : '' }}>
+                                    data-salary-status="{{ $salaryStatus }}"
+                                    data-account-locked="{{ $isAccountLocked ? '1' : '0' }}">
                             </td>
                             <td>{{ $loop->iteration }}</td>
                             <td class="font-style">
@@ -1305,6 +1321,8 @@ foreach ($heads as $scale_head) {
                                     <span class="badge bg-dark">{{ __('FWD TO Accounts') }}</span>
                                 @elseif (!empty($data->employeemonthlysalary) && $salaryStatus == 'account_approved')
                                     <span class="badge bg-primary">{{ __('Account Approved') }}</span>
+                                @elseif (!empty($data->employeemonthlysalary) && $salaryStatus == 'partial_paid')
+                                    <span class="badge bg-warning text-dark">{{ __('Partial Paid') }}</span>
                                 @elseif (!empty($data->employeemonthlysalary) && $salaryStatus == 'returned_to_hr')
                                     <span class="badge bg-warning text-dark">{{ __('Returned to HR') }}</span>
                                 @elseif (!empty($data->employeemonthlysalary) && $data->employeemonthlysalary->sal_final == 1)

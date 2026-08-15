@@ -12,6 +12,59 @@
     <script type="text/javascript" src="{{ asset('js/html2pdf.bundle.min.js') }}"></script>
     <link rel="stylesheet" href="{{ asset('public/acron/searchselect.css') }}" />
     <script src="{{ asset('public/acron/searchselect.js') }}"></script>
+    <style>
+        .bank-ledger-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+
+        .bank-ledger-search {
+            max-width: 320px;
+        }
+
+        .bank-ledger-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        .bank-ledger-table th:nth-child(1),
+        .bank-ledger-table td:nth-child(1) {
+            width: 44px;
+        }
+
+        .bank-ledger-table th:nth-child(2),
+        .bank-ledger-table td:nth-child(2) {
+            width: 110px;
+        }
+
+        .bank-ledger-table th:nth-child(3),
+        .bank-ledger-table td:nth-child(3) {
+            width: 110px;
+        }
+
+        .bank-ledger-table th:nth-child(5),
+        .bank-ledger-table td:nth-child(5) {
+            width: 28%;
+            min-width: 280px;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .bank-ledger-table th:nth-child(6),
+        .bank-ledger-table td:nth-child(6) {
+            width: 180px;
+            min-width: 180px;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .bank-ledger-table tfoot td {
+            font-weight: 700;
+            background: #f8f9fa;
+            border-top: 2px solid #dee2e6;
+        }
+    </style>
     <script>
         var filename = $('#filename').val();
 
@@ -35,6 +88,29 @@
                 }
             };
             html2pdf().set(opt).from(element).save();
+        }
+
+        function filterBankLedgerRows() {
+            var input = document.getElementById('bankLedgerSearch');
+            var table = document.querySelector('.bank-ledger-table');
+
+            if (!input || !table) {
+                return;
+            }
+
+            var query = (input.value || '').toLowerCase().trim();
+            var rows = table.querySelectorAll('tbody tr');
+
+            rows.forEach(function(row) {
+                var emptyStateCell = row.querySelector('td[colspan="9"]');
+                if (emptyStateCell) {
+                    row.style.display = query === '' ? '' : 'none';
+                    return;
+                }
+
+                var text = (row.textContent || '').toLowerCase();
+                row.style.display = query === '' || text.indexOf(query) !== -1 ? '' : 'none';
+            });
         }
 
         $(document).ready(function() {
@@ -117,7 +193,11 @@
                 <div class="card">
                     <div class="card-body table-border-style">
                         <div class="table-responsive">
-                            <table class="table datatable">
+                            <div class="bank-ledger-toolbar">
+                                <input type="text" id="bankLedgerSearch" class="form-control bank-ledger-search"
+                                    oninput="filterBankLedgerRows()" placeholder="{{ __('Search table...') }}">
+                            </div>
+                            <table class="table bank-ledger-table">
                                 <thead>
                                     <tr class="table_heads">
                                         <th>#</th>
@@ -133,7 +213,7 @@
                                 </thead>
 
                                 <tbody>
-                                    @forelse ($rows->lazy() as $row)
+                                    @forelse ($rows->reject(fn ($row) => ($row['memo'] ?? '') === 'Closing Balance')->lazy() as $row)
                                         <tr>
                                             <td>{{ $loop->iteration }}</td>
                                             <td>{{ date('d-M-Y', strtotime($row['date'])) }}</td>
@@ -151,12 +231,20 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted">
+                                            <td colspan="9" class="text-center text-muted">
                                                 {{ __('No transactions for the selected period.') }}
                                             </td>
                                         </tr>
                                     @endforelse
                                 </tbody>
+                                <tfoot>
+                                    <tr class="fw-bold">
+                                        <td colspan="6" class="text-end">{{ __('Closing Balance') }}</td>
+                                        <td class="text-end">{{ number_format((float) $totalDebit, 2) }}</td>
+                                        <td class="text-end">{{ number_format((float) $totalCredit, 2) }}</td>
+                                        <td class="text-end">{{ number_format((float) $balance, 2) }}</td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>

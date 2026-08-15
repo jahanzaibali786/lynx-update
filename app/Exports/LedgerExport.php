@@ -52,11 +52,14 @@ class LedgerExport implements FromArray, WithHeadings, WithStyles, WithColumnWid
             'A' => 8,
             'B' => 15,
             'C' => 25,
-            'D' => 25,
-            'E' => 20,
-            'F' => 15,
-            'G' => 15,
-            'H' => 15,
+            'D' => 18,
+            'E' => 15,
+            'F' => 25,
+            'G' => 30,
+            'H' => 20,
+            'I' => 15,
+            'J' => 15,
+            'K' => 15,
         ];
     }
 
@@ -71,7 +74,7 @@ class LedgerExport implements FromArray, WithHeadings, WithStyles, WithColumnWid
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $event->sheet->getStyle('A1:H1')->applyFromArray([
+                $event->sheet->getStyle('A1:K1')->applyFromArray([
                     'font' => [
                         'bold' => true,
                     ],

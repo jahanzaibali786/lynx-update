@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use App\Models\AppointmentLetter as ModelsAppointmentLetter;
+use App\Models\EmployeePayscaleDetail;
+use App\Services\AppointmentLetterPlaceholderService;
 use Illuminate\Http\Request;
 
 class AppointmentLetter extends Controller
@@ -16,7 +19,9 @@ class AppointmentLetter extends Controller
         return view('employee.appointmentletter.appointmentletter',compact('letters'));
     }
     public function create(){
-        return view('employee.appointmentletter.create');
+        $variables = AppointmentLetterPlaceholderService::variables();
+
+        return view('employee.appointmentletter.create', compact('variables'));
     }
     public function store(Request $request){
         // dd($request->all());
@@ -46,7 +51,46 @@ class AppointmentLetter extends Controller
 
     public function edit(Request $request,$id){
         $letter = ModelsAppointmentLetter::find($id);
-        return view('employee.appointmentletter.edit',compact('letter'));
+        $variables = AppointmentLetterPlaceholderService::variables();
+
+        return view('employee.appointmentletter.edit',compact('letter', 'variables'));
+    }
+
+    public function preview($id)
+    {
+        if (\Auth::user()->type == 'company') {
+            $letter = ModelsAppointmentLetter::where('id', $id)
+                ->where('created_by', \Auth::user()->creatorId())
+                ->firstOrFail();
+        } else {
+            $letter = ModelsAppointmentLetter::where('id', $id)
+                ->where('owned_by', \Auth::user()->ownedId())
+                ->firstOrFail();
+        }
+
+        $employee = new Employee([
+            'name' => '',
+            'company_doj' => $letter->date,
+            'probation_period' => '',
+        ]);
+
+        $payscaleDetail = new EmployeePayscaleDetail([
+            'effect_from' => $letter->date,
+            'working_days' => '',
+        ]);
+
+        $appointmentLetterContent = AppointmentLetterPlaceholderService::render(
+            (string) $letter->datacontent,
+            $employee,
+            $payscaleDetail
+        );
+
+        return view('employee.emp_salary_detail.emp-appointment-letter', [
+            'employee' => $employee,
+            'appointmentletterdata' => $letter,
+            'lastPayscaleDetail' => $payscaleDetail,
+            'appointmentLetterContent' => $appointmentLetterContent,
+        ]);
     }
 
     public function update(Request $request ,$id){

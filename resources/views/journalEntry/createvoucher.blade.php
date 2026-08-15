@@ -56,7 +56,9 @@
                 $ACCOUNT_OPTS .=
                     '<option value="' . e($account['id']) . '"' .
                     ' data-category="' . e($account['category']) . '"' .
-                    ' data-path="' . e($account['path']) . '">' .
+                    ' data-path="' . e($account['path']) . '"' .
+                    ' data-type-name="' . e($account['type_name'] ?? '') . '"' .
+                    ' data-sub-type-name="' . e($account['sub_type_name'] ?? '') . '">' .
                     $indent .
                     e($account['code_name']) .
                     '</option>';
@@ -113,6 +115,25 @@
 
         function formatAmount(value) {
             return (parseFloat(value) || 0).toFixed(2);
+        }
+
+        function accountMetaHtml(opt) {
+            if (!opt || !opt.length) {
+                return '';
+            }
+
+            var typeName = cleanSelectLabel(opt.data('type-name') || '');
+            var subTypeName = cleanSelectLabel(opt.data('sub-type-name') || '');
+            var parts = [];
+
+            if (typeName) {
+                parts.push(typeName);
+            }
+            if (subTypeName) {
+                parts.push(subTypeName);
+            }
+
+            return parts.join(' | ');
         }
 
         function uniqueJournalEntries(entries) {
@@ -325,6 +346,7 @@
                 ACCOUNT_OPTS +
                 '</select>' +
                 '<div class="path-pill" id="path-pill-' + rid + '"></div>' +
+                '<div class="account-meta-line" id="account-meta-' + rid + '"></div>' +
                 '<div id="catcell-' + rid + '" class="catcell-wrap"></div>' +
                 '</td>' +
 
@@ -379,10 +401,12 @@
             var opt = $(this).find('option:selected');
             var cat = opt.data('category') || 'general';
             var path = opt.data('path') || '';
+            var metaText = accountMetaHtml(opt);
 
             $('tr[data-row-id="' + rid + '"]').attr('data-cat', cat);
             var pill = $('#path-pill-' + rid);
             pill.text($(this).val() ? path : '');
+            $('#account-meta-' + rid).text($(this).val() ? metaText : '');
 
             renderCatFields(rid, cat);
         });
@@ -1030,6 +1054,16 @@
                 branchOptionsHtml(branchVal) +
                 '</select>'
             );
+            tr.find('td').eq(3).html(
+                '<select class="form-control form-control-sm edit-account custom-select" data-id="' + id + '">' +
+                ACCOUNT_OPTS +
+                '</select>' +
+                '<div class="path-pill mt-1">' + $('<div>').text(entry.path || '').html() + '</div>' +
+                '<div class="account-meta-line"></div>'
+            );
+            tr.find('.edit-account').val(entry.account_id || '');
+            var selectedAccountOpt = tr.find('.edit-account option:selected');
+            tr.find('.account-meta-line').text(accountMetaHtml(selectedAccountOpt));
             tr.find('td').eq(4).html(
                 '<textarea class="form-control form-control-sm edit-desc" placeholder="Description" data-id="' +
                 id + '" rows="2">' +
@@ -1052,6 +1086,18 @@
                 '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id +
                 '" title="Cancel"><i class="ti ti-x"></i></a>'
             );
+
+            if (typeof CustomSelect !== 'undefined') {
+                CustomSelect.initContainer(tr[0]);
+            }
+        });
+
+        $(document).off('change', '.edit-account').on('change', '.edit-account', function() {
+            var opt = $(this).find('option:selected');
+            var path = opt.data('path') || opt.text() || '';
+            var metaText = accountMetaHtml(opt);
+            $(this).siblings('.path-pill').text(path);
+            $(this).siblings('.account-meta-line').text(metaText);
         });
 
         // Debit/credit mutual exclusion in edit mode
@@ -1085,9 +1131,18 @@
             var dateVal = tr.find('.edit-tradate').val() || null;
             var branchVal = tr.find('.edit-branch').val() || $('#branches').val() || '';
             var branchName = cleanSelectLabel(tr.find('.edit-branch option:selected').text()) || $('#branches option:selected').text() || '';
+            var accountSel = tr.find('.edit-account');
+            var accountOpt = accountSel.find('option:selected');
+            var accountId = accountSel.val() || '';
+            var accountPath = accountOpt.data('path') || accountOpt.text() || '';
+            var accountCat = accountOpt.data('category') || 'general';
             var debit = parseFloat(tr.find('.edit-debit').val()) || 0;
             var credit = parseFloat(tr.find('.edit-credit').val()) || 0;
             var desc = (tr.find('.edit-desc').val() || '').trim();
+            if (!accountId) {
+                show_toastr('error', 'Please select an account.', 'error');
+                return;
+            }
             if (debit === 0 && credit === 0) {
                 show_toastr('error', 'Enter a debit or credit amount.', 'error');
                 return;
@@ -1098,6 +1153,9 @@
             entry.types = ($('#voucher_type').val() || 'jv').toUpperCase();
             entry.ref_no = refVal;
             entry.tra_date = dateVal;
+            entry.account_id = accountId;
+            entry.path = accountPath;
+            entry.cat = accountCat;
             entry.meta = entry.meta || {};
             entry.meta.branch_id = branchVal;
             entry.meta.branch_name = branchName;
@@ -1273,6 +1331,15 @@
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 150px;
+        }
+
+        .account-meta-line {
+            font-size: 10px;
+            color: #6c757d;
+            margin-top: 2px;
+            line-height: 1.3;
+            white-space: normal;
+            word-break: break-word;
         }
 
         /* Badges */

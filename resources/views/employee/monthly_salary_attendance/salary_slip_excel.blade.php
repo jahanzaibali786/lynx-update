@@ -54,9 +54,9 @@
                 The Lynx School
             </td>
 
-            <td colspan="2" style="vertical-align: middle; text-align:right;">
-                <img src="{{ public_path('assets/images/lynxlogo(2).png') }}" alt="School Logo" width="75"
-                    height="75" style="display:block;">
+            <td colspan="2" style="vertical-align: middle; text-align:right; width:90px;">
+                <img src="{{ public_path('assets/images/lynxLogo.png') }}" alt="School Logo"
+                    style="display:block; height:58px; width:auto; max-height:58px; max-width:80px; margin-left:auto;">
             </td>
         </tr>
         @if (@$is_branch)
@@ -514,7 +514,7 @@ $result = [
             <td style="text-align:center; font-size:9px;">{{ $cl_bal }}</td>
             <td style="text-align:center; font-size:9px;">{{ $al_bal }}</td>
             <td></td>
-            <td style="font-weight: bold; font-size: 9px;">N.T.N</td>
+            <td style="font-weight: bold; font-size: 9px;">Account</td>
             <td></td>
             <td style="font-size:9px;">
                 {{ optional($data->employee->employee_payscale_details->first())->account_number ?? '-' }}</td>
@@ -702,6 +702,10 @@ $result = [
             <td></td>
             <td colspan="12" style="color: #808080;">This is a system generated document and does not require a
                 signature</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td colspan="13" style="height: 28px;"></td>
         </tr>
         <tr>
             <td></td>

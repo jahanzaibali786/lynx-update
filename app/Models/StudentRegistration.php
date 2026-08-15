@@ -50,7 +50,9 @@ class StudentRegistration extends Model
         'reg_type',
 	'fee_exempt_jun_jul',
         'remarks',
+        'reg_branch_id',
         'owned_by',
+        'added_by',
         'created_by',
     ];
 	protected $casts = [
@@ -107,5 +109,12 @@ class StudentRegistration extends Model
     }
     public function teacherChild(){
         return $this->hasOne(EmpChildrens::class, 'student_id', 'id');
+    }
+
+    public function registrationChallan()
+    {
+        return $this->hasOne(Challans::class, 'student_id', 'id')
+            ->whereRaw('LOWER(challan_type) LIKE ?', [strtolower('%registration%')])
+            ->latest('id');
     }
 }

@@ -21,6 +21,7 @@ class SalarySlipExport implements FromArray, WithEvents
     protected array $totalRows = [];
     protected array $disbursedRows = [];
     protected array $dottedRows = [];
+    protected array $spacerRows = [];
     protected array $breakRows = [];
     protected array $logoRows = [];
     protected array $titleRows = [];
@@ -79,7 +80,7 @@ class SalarySlipExport implements FromArray, WithEvents
             $rows[] = $this->row(['', '', 'Employee#', optional($data->employee)->employee_id ?? optional($data->employee)->id, '', '', 'Leaves Balances', 'C/L', 'A/L', '', 'Payment Date', '', $data->paid_date ? date('d-M-y', strtotime($data->paid_date)) : '-']);
             $rows[] = $this->row(['', '', 'Name', optional($data->employee)->name, '', '', 'O.Balance', $clOpen, $alOpen, '', 'Mode', '', strtolower($scale->paymode ?? '') === 'cash' ? 'Cash' : 'Bank']);
             $rows[] = $this->row(['', '', 'Corporate Title', optional(optional($data->employee)->designation)->name, '', '', 'Leaves', $clTaken, $alTaken, '', 'Bank/Branch', '', $scale->paymode ?? '-']);
-            $rows[] = $this->row(['', '', 'Department', optional(optional($data->employee)->department)->name ?? '-', '', '', 'C.Balance', $clBal, $alBal, '', 'N.T.N', '', $scale->account_number ?? '-']);
+            $rows[] = $this->row(['', '', 'Department', optional(optional($data->employee)->department)->name ?? '-', '', '', 'C.Balance', $clBal, $alBal, '', 'Account', '', $scale->account_number ?? '-']);
             $rows[] = $this->row(['', '', '', '', '', '', 'Working Days', $workingDays]);
             $infoStartRow = count($rows) - 4;
             $this->infoRows = array_merge($this->infoRows, range($infoStartRow, $infoStartRow + 4));
@@ -138,6 +139,9 @@ class SalarySlipExport implements FromArray, WithEvents
             $this->merges[] = 'B' . count($rows) . ':N' . count($rows);
 
             if ($index % 3 !== 2 && $index < $datas->count() - 1) {
+                $spacerRow = count($rows) + 1;
+                $rows[] = $this->blankRow();
+                $this->spacerRows[] = $spacerRow;
                 $dottedRow = count($rows) + 1;
                 $rows[] = $this->blankRow();
                 $this->dottedRows[] = $dottedRow;
@@ -199,7 +203,11 @@ class SalarySlipExport implements FromArray, WithEvents
                     $sheet->getStyle("F{$row}:M{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 }
                 foreach ($this->dottedRows as $row) {
+                    $sheet->getRowDimension($row)->setRowHeight(24);
                     $sheet->getStyle("B{$row}:N{$row}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_DOTTED);
+                }
+                foreach ($this->spacerRows as $row) {
+                    $sheet->getRowDimension($row)->setRowHeight(28);
                 }
                 foreach ($this->breakRows as $row) {
                     $sheet->setBreak("A{$row}", Worksheet::BREAK_ROW);
@@ -250,12 +258,12 @@ class SalarySlipExport implements FromArray, WithEvents
                     }
                 }
 
-                $logoPath = public_path('assets/images/lynxlogo(2).png');
+                $logoPath = public_path('assets/images/lynxLogo.png');
                 if (file_exists($logoPath)) {
                     foreach ($this->logoRows as $row) {
                         $drawing = new Drawing();
                         $drawing->setPath($logoPath);
-                        $drawing->setHeight(38);
+                        $drawing->setHeight(34);
                         $drawing->setCoordinates("M{$row}");
                         $drawing->setWorksheet($sheet);
                     }

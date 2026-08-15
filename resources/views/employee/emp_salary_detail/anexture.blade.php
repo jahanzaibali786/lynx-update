@@ -130,19 +130,40 @@
                     </tr>
                     @php
                         $heads = $lastPayscaleDetail->scale->employeeScaleHeads ?? collect();
-                        $basic = $heads->first(function ($head) {
-                            $headName = strtolower(trim(optional($head->salaryHeads)->head ?? ''));
+                        $normalizeHeadName = function ($head) {
+                            return strtolower(trim(preg_replace('/\s+/', ' ', (string) optional($head->salaryHeads)->head)));
+                        };
+                        $findHeadByNames = function ($names) use ($heads, $normalizeHeadName) {
+                            $normalizedNames = collect($names)
+                                ->map(fn ($name) => strtolower(trim(preg_replace('/\s+/', ' ', (string) $name))))
+                                ->all();
 
-                            return in_array($headName, ['initial basic', 'basic salary'], true);
-                        });
-                        $house = $heads->where('head', function_exists('getSalaryHeadId') ? getSalaryHeadId('House Rent') : 2)->first();
-                        $medical = $heads->where('head', function_exists('getSalaryHeadId') ? getSalaryHeadId('Medical Allowance') : 3)->first();
-                        $others = $heads->whereNotIn('head', [($basic->head ?? 1), ($house->head ?? 2), ($medical->head ?? 3)]);
-                        $gross = $heads->sum('head_value');
+                            return $heads->first(function ($head) use ($normalizedNames, $normalizeHeadName) {
+                                return in_array($normalizeHeadName($head), $normalizedNames, true);
+                            });
+                        };
+                        $basic = $findHeadByNames(['Initial Basic', 'Basic Salary', 'Basic']);
+                        $house = $findHeadByNames(['House Rent', 'House Rent Allowance']);
+                        $medical = $findHeadByNames(['Medical', 'Medical Allowance']);
+                        $excludedHeadIds = collect([$basic, $house, $medical])
+                            ->filter()
+                            ->pluck('head')
+                            ->all();
+                        $otherScaleAllowance = $heads->whereNotIn('head', $excludedHeadIds)->sum('head_value');
+                        $otherDetailAllowance =
+                            (float) ($lastPayscaleDetail->other_add ?? 0)
+                            + (float) ($lastPayscaleDetail->conv ?? 0)
+                            + (float) ($lastPayscaleDetail->drns ?? 0)
+                            + (float) ($lastPayscaleDetail->misc ?? 0);
+                        $otherAllowance = $otherScaleAllowance + $otherDetailAllowance;
+                        $gross = (float) ($basic->head_value ?? 0)
+                            + (float) ($house->head_value ?? 0)
+                            + (float) ($medical->head_value ?? 0)
+                            + $otherAllowance;
                     @endphp
                     <tr>
                         <td style="font-weight: bold; padding: 3px 8px; font-size: 9px;">Basic Salary</td>
-                        <td style="padding: 3px 8px; font-size: 9px;">{{ number_format(!empty($lastPayscaleDetail) ? $lastPayscaleDetail->resolved_basic_salary : 0, 2) }}</td>
+                        <td style="padding: 3px 8px; font-size: 9px;">{{ number_format($basic->head_value ?? 0, 2) }}</td>
                     </tr>
                     <tr>
                         <td style="font-weight: bold; padding: 3px 8px; font-size: 9px;">House Rent <span style="font-weight: normal;">(40% of Basic)</span></td>
@@ -154,11 +175,11 @@
                     </tr>
                     <tr>
                         <td style="font-weight: bold; padding: 3px 8px; font-size: 9px;">Other Allowance</td>
-                        <td style="padding: 3px 8px; font-size: 9px;">{{ number_format($others->sum('head_value'), 2) }}</td>
+                        <td style="padding: 3px 8px; font-size: 9px;">{{ number_format($otherAllowance, 2) }}</td>
                     </tr>
                     <tr>
                         <td style="font-weight: bold; padding: 5px 8px; font-size: 9px;">GROSS SALARY (PM)</td>
-                        <td style="padding: 5px 8px; font-size: 9px;">{{ number_format(!empty($lastPayscaleDetail) ? $lastPayscaleDetail->resolved_gross_salary : 0, 2) }}</td>
+                        <td style="padding: 5px 8px; font-size: 9px;">{{ number_format($gross, 2) }}</td>
                     </tr>
                 </table>
 
@@ -267,7 +288,7 @@
                 <div style="width: 100%; border-bottom: 4px solid #d3d3d3; margin: 20px 0;"></div>
 
                 <!-- Signature Section -->
-                <table style="width: 100%; border-collapse: collapse; margin-top: 30px; table-layout: fixed;">
+                <table style="width: 100%; border-collapse: collapse; margin-top: 90px; table-layout: fixed;">
                     <tr>
                         <td style="width: 50%; text-align: left; vertical-align: bottom; padding: 20px 0;">
                             {{-- <div style="border-bottom: 1px solid #000; height: 30px; margin-bottom: 5px;"></div> --}}
@@ -280,10 +301,10 @@
                             {{-- <div style="border-bottom: 1px solid #000; height: 30px; margin-bottom: 5px;"></div> --}}
                             <div style="width: 180px; text-align: center; margin-left: auto;">
                                 <div style="font-size: 9px;">{{ optional($branches_school->headmaster_name)->name ?? '-' }}</div>
-                                <div style="font-size: 10px; font-weight: bold;">{{ optional($branches_school->headmaster_designation)->designation ?? '-' }}</div>
+                                <div style="font-size: 10px; font-weight: bold;">{{ optional($branches_school->headmaster_designation->designation)->name ?? '-' }}</div>
                             </div>
                         </td>
-                    </tr>
+                    </tr>@dd($branches_school->headmaster_designation->designation->name)
                 </table>
 
             </td>
