@@ -87,7 +87,7 @@
                     <td>{!! str_replace(' ', '&nbsp;', e($student->fathername)) !!}</td>
                     <td>{!! nl2br(str_replace(',', ",\n", e($student->fatherphone))) !!}</td>
                     <td>{{ !empty($student->session) ? $student->session->year : '-' }}</td>
-                    <td>{{ !empty($student->class) ? $student->class->name : '-' }}</td>
+                    <td>{{ !empty($student->regclass) ? $student->regclass->name : '-' }}</td>
                     <td>{{ $student->dob == '0000-00-00' || !$student->dob ? '' : date('d-M-Y', strtotime($student->dob)) }}
                     </td>
                     <td>{{ strtoupper($student->gender) }}</td>

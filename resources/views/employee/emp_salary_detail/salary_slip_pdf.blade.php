@@ -124,11 +124,8 @@
     }
 
     .logo {
-        display: block;
-        width: auto;
-        height: 54px;
-        max-width: 78px;
-        margin-left: auto;
+        width: 62px;
+        height: 62px;
     }
 
     .border {
@@ -401,7 +398,6 @@
             </tr>
             <tr><td colspan="9" class="muted">This is a system generated document and does not require a signature</td></tr>
             @if (!$loop->last)
-            <br>
                 <tr><td colspan="9" class="dotted-separator"></td></tr>
             @endif
         </table>

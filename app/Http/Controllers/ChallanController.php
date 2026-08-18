@@ -1385,9 +1385,15 @@ public function legacyShow($id, Request $request)
     {
         $checkedRowsData = $request->input('checkedRowsData');
         $existingChallanStudent = Challans::where('student_id', $request->input('student_id'))
-            ->where('challan_type', 'Admission')->exists();
-        if ($existingChallanStudent) {
-            return response()->json(['error' => true, 'message' => 'Admission Challan already been generated.', 'code' => 422], 422);
+            ->where('challan_type', 'Admission')
+            ->exists();
+
+        if ($existingChallanStudent && \Auth::user()->type != 'company') {
+            return response()->json([
+                'error' => true,
+                'message' => 'Admission Challan has already been generated.',
+                'code' => 422,
+            ], 422);
         }
         // $validatedData = $request->validate([
         //     'student_id' => 'required',
@@ -1401,7 +1407,7 @@ public function legacyShow($id, Request $request)
             $total = 0;
             $concession = 0;
             $item = [];
-            $session = Session::orderBy('id', 'Desc')->where('active_status', '1')->where('created_by', '=', \Auth::user()->creatorId())->first();
+            // $session = Session::orderBy('id', 'Desc')->where('active_status', '1')->where('created_by', '=', \Auth::user()->creatorId())->first();
             $student = StudentRegistration::where('id', $request->input('student_id'))->first();
 
             $challan = new Challans;
@@ -1416,7 +1422,7 @@ public function legacyShow($id, Request $request)
             $challan->issue_date = $request->input('issueDate');
             $challan->due_date = $request->input('dueDate');
             $challan->status = 'Issued';
-            $challan->session_id = $session->id;
+            $challan->session_id = $student->session_id;
             $challan->owned_by = $student->owned_by;
             $challan->created_by = $student->created_by;
             $challan->save();
@@ -1512,6 +1518,229 @@ public function legacyShow($id, Request $request)
         return (int) $latest->challanNo + 1;
     }
 
+    //   public function printChallans(Request $request)
+    // {
+    //     try {
+    //         $challanIds = $request->input('rowsdata');
+    //         $printType = $request->input('printType');
+
+    //         if (!is_array($challanIds)) {
+    //             return response()->json(['error' => 'Invalid data format'], 400);
+    //         }
+
+    //         if (empty($challanIds)) {
+    //             return response()->json(['error' => 'No challans selected'], 400);
+    //         }
+
+    //         $maxChallans = 1500;
+    //         if (count($challanIds) > $maxChallans) {
+    //             return response()->json([
+    //                 'error' => 'Maximum ' . $maxChallans . ' challans can be printed at once. You selected ' . count($challanIds) . '.'
+    //             ], 400);
+    //         }
+
+    //         $batchSize = $request->input('batchSize', 100);
+    //         $batchIndex = $request->input('batchIndex', 0);
+
+    //         // ================= SINGLE PDF =================
+    //         if ($printType === 'single') {
+    //             $pdfContentsArray = [];
+
+    //             foreach ($challanIds as $challanId) {
+    //                 $challan = Challans::findOrFail($challanId);
+    //                 $studentId = $challan->student_id;
+    //                 $previousUnpaidChallans = Challans::where('student_id', $studentId)
+    //                     ->whereNotIn('challan_type', ['Registration','Withdrawal'])
+    //                     ->whereRaw("LOWER(status) != 'paid'")
+    //                     ->where('id', '!=', $challan->id)
+    //                     ->whereRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') >= '2026-01-01'")
+    //                     ->whereRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') < STR_TO_DATE(?, '%Y-%m-%d')", [$challan->fee_month])
+    //                     ->get();
+    //                 $challanHeads = ChallanHead::where('challan_id', $challanId)->get();
+    //                 $heads = [];
+
+    //                 foreach ($challanHeads as $headItem) {
+    //                     $head = FeeHead::findOrFail($headItem->head_id);
+
+    //                     $studentFeeStructure = StudentFeeStructure::where('reg_id', $studentId)
+    //                         ->where('head_id', $headItem->head_id)
+    //                         ->first();
+
+    //                     $heads[] = [
+    //                         'name' => $head->fee_head,
+    //                         'amount' => $studentFeeStructure?->amount ? (float) $studentFeeStructure->amount : 0,
+    //                         'headamount' => $headItem->price ? (float) $headItem->price : 0,
+    //                         'concession' => (float) $headItem->concession,
+    //                     ];
+    //                 }
+
+    //                 $pdfContentsArray[] = $this->generateChallanPDF(
+    //                     'challans.printchallan',
+    //                     [
+    //                         'challan' => $challan,
+    //                         'heads' => $heads,
+    //                         'previousUnpaidChallans' => $previousUnpaidChallans,
+				// 			'showJunJulExemptionLabel' => $this->challanHasJunJulExemptionLabel($challan),
+    //                     ]
+    //                 );
+    //             }
+
+    //             $mergedPdfContent = $this->mergePdfs($pdfContentsArray);
+
+    //             return response()->json([
+    //                 'pdfs' => [base64_encode($mergedPdfContent)],
+    //                 'processedCount' => count($challanIds),
+    //                 'totalCount' => count($challanIds),
+    //                 'hasMoreBatches' => false,
+    //                 'printType' => 'single',
+    //                 'message' => 'Processing ' . count($challanIds) . '/' . count($challanIds) . ' challans...'
+    //             ]);
+    //         }
+
+    //         // ================= SEPARATE PDF =================
+    //         $totalBatches = ceil(count($challanIds) / $batchSize);
+    //         $startIndex = $batchIndex * $batchSize;
+    //         $endIndex = min($startIndex + $batchSize, count($challanIds));
+    //         $currentBatchIds = array_slice($challanIds, $startIndex, $endIndex - $startIndex);
+
+    //         $pdfContentsArray = [];
+
+    //         foreach ($currentBatchIds as $challanId) {
+    //             $challan = Challans::findOrFail($challanId);
+    //             $studentId = $challan->student_id;
+
+    //             // ✅ FIXED ARREARS LOGIC
+    //             $previousUnpaidChallans = Challans::where('student_id', $studentId)
+    //                 ->whereRaw("LOWER(status) != 'paid'")
+    //                 ->whereNotIn('challan_type', ['Registration'])
+    //                 ->where('id', '!=', $challan->id)
+    //                 ->whereRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') >= '2026-01-01'")
+    //                 ->whereRaw("STR_TO_DATE(fee_month, '%Y-%m-%d') < STR_TO_DATE(?, '%Y-%m-%d')", [$challan->fee_month])
+    //                 ->get();
+
+    //             $challanHeads = ChallanHead::where('challan_id', $challanId)->get();
+    //             $heads = [];
+
+    //             foreach ($challanHeads as $headItem) {
+    //                 $head = FeeHead::findOrFail($headItem->head_id);
+
+    //                 $studentFeeStructure = StudentFeeStructure::where('reg_id', $studentId)
+    //                     ->where('head_id', $headItem->head_id)
+    //                     ->first();
+
+    //                 $heads[] = [
+    //                     'name' => $head->fee_head,
+    //                     'amount' => $studentFeeStructure?->amount ? (float) $studentFeeStructure->amount : 0,
+    //                     'headamount' => $headItem->price ? (float) $headItem->price : 0,
+    //                     'concession' => (float) $headItem->concession,
+    //                 ];
+    //             }
+
+    //             $pdfContentsArray[] = $this->generateChallanPDF(
+    //                 'challans.printchallan',
+    //                 [
+    //                     'challan' => $challan,
+    //                     'heads' => $heads,
+    //                     'previousUnpaidChallans' => $previousUnpaidChallans,
+				// 		'showJunJulExemptionLabel' => $this->challanHasJunJulExemptionLabel($challan),
+    //                 ]
+    //             );
+    //         }
+
+    //         $hasMoreBatches = ($batchIndex < $totalBatches - 1);
+
+    //         return response()->json([
+    //             'pdfs' => array_map('base64_encode', $pdfContentsArray),
+    //             'batchIndex' => $batchIndex,
+    //             'totalBatches' => $totalBatches,
+    //             'processedCount' => $endIndex,
+    //             'totalCount' => count($challanIds),
+    //             'hasMoreBatches' => $hasMoreBatches,
+    //             'printType' => 'separate',
+    //             'message' => 'Downloading ' . $endIndex . '/' . count($challanIds) . ' challans...'
+    //         ]);
+
+    //     } catch (\Exception $e) {
+    //         \Log::error('Print Challans Error: ' . $e->getMessage());
+
+    //         return response()->json([
+    //             'error' => 'Failed to generate PDF: ' . $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
+    // private function generateChallanPDF($viewName, $data, $request = null)
+    // {
+    //     // Use simpler dompdf settings like the existing code
+    //     $html = view($viewName, $data)->render();
+    //     $options = new Options;
+    //     $options->set('defaultFont', 'DejaVu Sans');
+    //     $options->set('isHtml5ParserEnabled', true);
+    //     $options->set('isRemoteEnabled', true);
+    //     $dompdf = new Dompdf($options);
+    //     $dompdf->loadHtml($html);
+    //     $dompdf->setPaper('A3', 'landscape');
+    //     $dompdf->render();
+
+    //     // If request is provided and has type parameter, stream the PDF
+    //     if ($request && isset($request->type) && $request->type != '') {
+    //         if ($request->type == 'print') {
+    //             return $dompdf->stream('challan.pdf', ['Attachment' => false]);
+    //         } else {
+    //             return $dompdf->stream('challan.pdf');
+    //         }
+    //     }
+
+    //     // Otherwise return PDF content for further processing
+    //     return $dompdf->output();
+    // }
+
+    // private function mergePdfs(array $pdfContentsArray)
+    // {
+    //     $pdf = new FPDI;
+
+    //     // Use custom dimensions that match your challan template for proper fitting
+    //     // These dimensions ensure the challan fits the whole page properly
+    //     $customWidth = 1190.89;   // Custom width for challan
+    //     $customHeight = 841.89;   // Custom height for challan
+
+    //     foreach ($pdfContentsArray as $index => $pdfContent) {
+    //         try {
+    //             $pageCount = $pdf->setSourceFile(StreamReader::createByString($pdfContent));
+
+    //             // Add each page of the current student's challan
+    //             for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+    //                 $templateId = $pdf->importPage($pageNo);
+
+    //                 // Add new page for each student's challan with custom dimensions
+    //                 $pdf->AddPage('L', [$customWidth, $customHeight]);
+
+    //                 // Get the size of the imported page
+    //                 $size = $pdf->getTemplateSize($templateId);
+
+    //                 // Scale the template to fit the whole page
+    //                 $scaleX = $customWidth / $size['width'];
+    //                 $scaleY = $customHeight / $size['height'];
+    //                 $scale = min($scaleX, $scaleY); // Use the smaller scale to maintain aspect ratio
+
+    //                 // Center the content on the page
+    //                 $x = ($customWidth - ($size['width'] * $scale)) / 2;
+    //                 $y = ($customHeight - ($size['height'] * $scale)) / 2;
+
+    //                 // Use template with scaling and positioning to fit whole page
+    //                 $pdf->useTemplate($templateId, $x, $y, $size['width'] * $scale, $size['height'] * $scale);
+    //             }
+
+    //         } catch (\Exception $e) {
+    //             // Log error but continue with other PDFs
+    //             \Log::error('Error merging PDF for student ' . ($index + 1) . ': ' . $e->getMessage());
+
+    //             continue;
+    //         }
+    //     }
+
+    //     return $pdf->Output('S');
+    // }
        public function printChallans(Request $request)
     {
         try {
@@ -1533,8 +1762,8 @@ public function legacyShow($id, Request $request)
                 ], 400);
             }
 
-            $batchSize = $request->input('batchSize', 100);
-            $batchIndex = $request->input('batchIndex', 0);
+            $batchSize = max(10, (int) $request->input('batchSize', 10));
+            $batchIndex = (int) $request->input('batchIndex', 0);
 
             // ================= SINGLE PDF =================
             if ($printType === 'single') {
@@ -1595,7 +1824,7 @@ public function legacyShow($id, Request $request)
             $totalBatches = ceil(count($challanIds) / $batchSize);
             $startIndex = $batchIndex * $batchSize;
             $endIndex = min($startIndex + $batchSize, count($challanIds));
-            $currentBatchIds = array_slice($challanIds, $startIndex, $endIndex - $startIndex);
+            $currentBatchIds = array_slice($challanIds, $startIndex, $batchSize);
 
             $pdfContentsArray = [];
 
@@ -1665,7 +1894,6 @@ public function legacyShow($id, Request $request)
 
     private function generateChallanPDF($viewName, $data, $request = null)
     {
-        // Use simpler dompdf settings like the existing code
         $html = view($viewName, $data)->render();
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
@@ -1676,7 +1904,6 @@ public function legacyShow($id, Request $request)
         $dompdf->setPaper('A3', 'landscape');
         $dompdf->render();
 
-        // If request is provided and has type parameter, stream the PDF
         if ($request && isset($request->type) && $request->type != '') {
             if ($request->type == 'print') {
                 return $dompdf->stream('challan.pdf', ['Attachment' => false]);
@@ -1685,7 +1912,6 @@ public function legacyShow($id, Request $request)
             }
         }
 
-        // Otherwise return PDF content for further processing
         return $dompdf->output();
     }
 
@@ -1693,48 +1919,24 @@ public function legacyShow($id, Request $request)
     {
         $pdf = new FPDI;
 
-        // Use custom dimensions that match your challan template for proper fitting
-        // These dimensions ensure the challan fits the whole page properly
-        $customWidth = 1190.89;   // Custom width for challan
-        $customHeight = 841.89;   // Custom height for challan
-
         foreach ($pdfContentsArray as $index => $pdfContent) {
             try {
                 $pageCount = $pdf->setSourceFile(StreamReader::createByString($pdfContent));
 
-                // Add each page of the current student's challan
                 for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
                     $templateId = $pdf->importPage($pageNo);
-
-                    // Add new page for each student's challan with custom dimensions
-                    $pdf->AddPage('L', [$customWidth, $customHeight]);
-
-                    // Get the size of the imported page
-                    $size = $pdf->getTemplateSize($templateId);
-
-                    // Scale the template to fit the whole page
-                    $scaleX = $customWidth / $size['width'];
-                    $scaleY = $customHeight / $size['height'];
-                    $scale = min($scaleX, $scaleY); // Use the smaller scale to maintain aspect ratio
-
-                    // Center the content on the page
-                    $x = ($customWidth - ($size['width'] * $scale)) / 2;
-                    $y = ($customHeight - ($size['height'] * $scale)) / 2;
-
-                    // Use template with scaling and positioning to fit whole page
-                    $pdf->useTemplate($templateId, $x, $y, $size['width'] * $scale, $size['height'] * $scale);
+                    $pdf->AddPage('L', [1190.89, 841.89]);
+                    $pdf->useTemplate($templateId, 0, 0, 1190.89, 841.89);
                 }
-
             } catch (\Exception $e) {
-                // Log error but continue with other PDFs
                 \Log::error('Error merging PDF for student ' . ($index + 1) . ': ' . $e->getMessage());
-
                 continue;
             }
         }
 
         return $pdf->Output('S');
     }
+
 
 
     public function challandata_for_receipt(Request $request)
@@ -2711,6 +2913,7 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                     $challan->class_id = $student->class_id;
                     $challan->challanNo = $this->challanNo();
                     $challan->challan_date = date('Y-m-d');
+                    $challan->section_id = optional($student->enrollment)->section_id;
                     $challan->fee_month = $generatedMonthDates->first() ?: date('Y-m-01', strtotime($fee_month));
                     $challan->challan_type = 'Regular';
                     $challan->total_amount = 0;
@@ -2820,6 +3023,8 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                                 'account' => $lateFeeHead->account_id,
                                 'head' => $lateFeeHead->id,
                                 'entry_id' => $lateFeeHeadRecord->id,
+                                'model_id' => $oldChallan->id,
+                                'model_type' => Challan::class,
                                 'user_id' => $oldChallan->student_id,
                                 'user_type' => 'Student',
                                 'types' => 'Challan',
@@ -2828,6 +3033,8 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                                 'description' => 'Late Fee Income - Challan No ' . $oldChallan->challanNo,
                                 'created_at' => now(),
                                 'updated_at' => now(),
+                                'added_by' => $oldChallan->created_by,
+                                'added_at' => now(),
                             ],
                             [
                                 'journal' => $oldChallan->voucher_id,
@@ -2835,6 +3042,8 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                                 'head' => $lateFeeHead->id,
                                 'entry_id' => $lateFeeHeadRecord->id,
                                 'user_id' => $oldChallan->student_id,
+                                'model_id' => $oldChallan->id,
+                                'model_type' => Challan::class,
                                 'user_type' => 'Student',
                                 'types' => 'Challan',
                                 'credit' => 0,
@@ -2842,6 +3051,8 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                                 'description' => 'Late Fee Receivable - Challan No ' . $oldChallan->challanNo,
                                 'created_at' => now(),
                                 'updated_at' => now(),
+                                'added_by' => $oldChallan->created_by,
+                                'added_at' => now(),
                             ],
                         ]);
 
@@ -3345,7 +3556,22 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
     // }
 public function paidchallan(Request $request)
     {
-        // dd($request->all());
+       // Backend validation for cash account date restriction
+        $userType = \Auth::user()->type ?? '';
+        if ($userType !== 'company') {
+            $bank = \App\Models\BankAccount::with('chartAccount')->find($request->bank);
+            if ($bank && $bank->chartAccount) {
+                $chartName = strtoupper($bank->chartAccount->name);
+                if (str_contains($chartName, 'CSH') || str_contains($chartName, 'CASH')) {
+                    // Cash account validation: only allow today's date (no past dates)
+                    $receiptDate = \Carbon\Carbon::parse($request->recipt_date)->startOfDay();
+                    $today = \Carbon\Carbon::today();
+                    if ($receiptDate->ne($today)) {
+                        return response()->json(['error' => "Only today's date is allowed for cash accounts."], 400);
+                    }
+                }
+            }
+        }
         \DB::beginTransaction();
         $data = [];
         try {

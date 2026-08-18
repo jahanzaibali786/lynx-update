@@ -268,6 +268,7 @@ class TaxSlabsController extends Controller
             $lastscale = EmployeeMonthlySalary::where('employee_id', $employee_id)
                 ->orderBy('id', 'desc')
                 ->first();
+
             $otherAdditionsInSal = 0;
 
             if ($lastPayScale && !$isCurrentCashPaymode) {

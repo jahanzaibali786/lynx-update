@@ -55,7 +55,7 @@
                     $receiptId = $receipt->id;
                 @endphp
                 
-                {{-- Loop through each challan head to create separate rows --}}
+                {{-- Loop through each challan head/items to create separate rows --}}
                 @if($receipt->challan && $receipt->challan->heads)
                     @foreach($receipt->challan->heads as $challanHead)
                         @php
@@ -103,29 +103,15 @@
                             </tr>
                         @endif
                     @endforeach
-                @else
-                    {{-- Fallback: If no challan heads, try to match by amount --}}
-                    @php
-                        $receiptAmount = $receipt->recipt_amount;
-                        $matchedItem = null;
-                        
-                        foreach ($receipt->voucher as $voucherItem) {
-                            $itemKey = $voucherItem->journal . '_' . $voucherItem->id;
-                            
-                            if ($voucherItem->credit > 0 && 
-                                $voucherItem->credit == $receiptAmount &&
-                                $voucherItem->user_id == $studentId &&
-                                $voucherItem->head > 0 &&
-                                !in_array($itemKey, $usedVoucherItems)) {
-                                
-                                $matchedItem = $voucherItem;
-                                $usedVoucherItems[] = $itemKey;
-                                break;
+                @elseif($receipt->challan && $receipt->challan->items)
+                    @foreach($receipt->challan->items as $challanItem)
+                        @php
+                            $itemKey = 'sp_item_' . $challanItem->id;
+                            if (in_array($itemKey, $usedVoucherItems)) {
+                                continue;
                             }
-                        }
-                    @endphp
-                    
-                    @if($matchedItem)
+                            $usedVoucherItems[] = $itemKey;
+                        @endphp
                         <tr>
                             <td>{{ $globalSr++ }}</td>
                             <td>{{ $branchSr++ }}</td>
@@ -139,15 +125,47 @@
                             <!-- <td>{{ $receipt->challan?->billing_cycle }}</td> -->
                             <td>{{ $receipt->bank?->bank_name }}</td>
                             <td>{{ $receipt->receive_type }}</td>
-                            <td>{{ $matchedItem->heads?->fee_head ?? '' }}</td>
+                            <td>{{ $challanItem->product->name ?? '' }}</td>
                             <td>{{ $receipt->referance }}</td>
-                            <td>{{ $matchedItem->credit }}</td>
+                            <td>{{ $challanItem->price }}</td>
                             @php
-                                $branchTotal += $matchedItem->credit;
+                                $branchTotal += $challanItem->price;
                             @endphp
                             <td>0.0</td>
                         </tr>
-                    @endif
+                    @endforeach
+                @else
+                    {{-- Fallback: iterate voucher items directly --}}
+                    @foreach ($receipt->voucher as $voucherItem)
+                        @php
+                            $itemKey = $voucherItem->journal . '_' . $voucherItem->id;
+                            if ($voucherItem->credit <= 0 || in_array($itemKey, $usedVoucherItems)) {
+                                continue;
+                            }
+                            $usedVoucherItems[] = $itemKey;
+                        @endphp
+                        <tr>
+                            <td>{{ $globalSr++ }}</td>
+                            <td>{{ $branchSr++ }}</td>
+                            <td>{{ \Carbon\Carbon::parse($receipt->recipt_date)->format('d-M-Y') }}</td>
+                            <td>{{ $receipt->challan?->challan_type }}</td>
+                            <td>{{ $receipt->challan?->enrollstudent?->enrollId ?? $receipt->challan?->student?->roll_no }}</td>
+                            <td>{{ $receipt->challan?->student?->stdname }}</td>
+                            <td>{{ $receipt->challan?->class?->name }}</td>
+                            <td>{{ $receipt->challan?->challanNo }}</td>
+                            <td>{{ $receipt->challan?->fee_month ? \Carbon\Carbon::parse($receipt->challan->fee_month)->format('F Y') : '' }}</td>
+                            <!-- <td>{{ $receipt->challan?->billing_cycle }}</td> -->
+                            <td>{{ $receipt->bank?->bank_name }}</td>
+                            <td>{{ $receipt->receive_type }}</td>
+                            <td>{{ $voucherItem->heads?->fee_head ?? '' }}</td>
+                            <td>{{ $receipt->referance }}</td>
+                            <td>{{ $voucherItem->credit }}</td>
+                            @php
+                                $branchTotal += $voucherItem->credit;
+                            @endphp
+                            <td>0.0</td>
+                        </tr>
+                    @endforeach
                 @endif
             @endforeach
             

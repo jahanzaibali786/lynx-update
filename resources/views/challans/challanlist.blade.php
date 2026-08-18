@@ -225,6 +225,7 @@ function getCheckedRowData(printType) {
             var cells = row.querySelectorAll("td");
             var studentName = '';
             var studentId = '';
+            var challanNo = '';
 
             cells.forEach(function(cell) {
                 var cellContent;
@@ -242,21 +243,22 @@ function getCheckedRowData(printType) {
                 }
                 rowData.push(cellContent);
                 
-                // Fetch student name and ID
+                // Fetch student name, ID, and challan number
                 if (cell.classList.contains('student-name')) {
                     studentName = cellContent;
                 }
                 if (cell.classList.contains('student-id')) {
                     studentId = cellContent;
                 }
+                if (cell.cellIndex === 0) {
+                    challanNo = cellContent;
+                }
             });
             
-            rowData.push({ studentName: studentName, studentId: studentId });
+            rowData.push({ studentName: studentName, studentId: studentId, challanNo: challanNo });
             checkedRowsData.push(rowData);
         }
     });
-    console.log("Data of Checked Rows:", checkedRowsData);
-
     var csrfToken = $('meta[name="csrf-token"]').attr('content');
     $.ajaxSetup({
         headers: {
@@ -283,9 +285,12 @@ function getCheckedRowData(printType) {
                         var byteArray = new Uint8Array(byteNumbers);
                         var blob = new Blob([byteArray], { type: 'application/pdf' });
                         var url = window.URL.createObjectURL(blob);
-                        var studentName = checkedRowsData[index][checkedRowsData[index].length - 1].studentName;
-                        var studentId = checkedRowsData[index][checkedRowsData[index].length - 1].studentId;
-                        var filename = `${studentName}_${studentId}_challan.pdf`;
+                        var rowMeta = checkedRowsData[index][checkedRowsData[index].length - 1];
+                        var studentName = rowMeta.studentName;
+                        var studentId = rowMeta.studentId;
+                        var challanNo = rowMeta.challanNo;
+                        var challanMonth = '{{ \Carbon\Carbon::now()->format('F-Y') }}';
+                        var filename = `${studentId}_${studentName}_${challanMonth}_challan.pdf`;
                         var a = document.createElement('a');
                         a.href = url;
                         a.download = filename;

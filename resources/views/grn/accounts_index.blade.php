@@ -82,7 +82,7 @@
                     <td>{{ optional($grn->vendor)->name ?? '-' }}</td>
                     <td>{{ \Auth::user()->dateFormat($grn->grn_date) }}</td>
                     <td>{{ $grn->reference_no ?? '-' }}</td>
-                    <td>{{ \Auth::user()->priceFormat($grn->getTotal()) }}</td>
+                    <td>{{ \Auth::user()->priceFormat($grn->getSubTotal()) }}</td>
                     <td>
                         @php
                             $statusLabel = App\Models\Grn::$statues[$grn->status] ?? 'Draft';
@@ -108,7 +108,8 @@
                         @if($grn->status == 7)
                         @can('account approve grn')
                         <a href="{{ route('grn.accounts_approve', $grn->id) }}"
-                            class="mx-1 btn btn-sm btn-outline-success text-white align-items-center" title="{{ __('Review Voucher') }}">
+                            class="mx-1 btn btn-sm btn-outline-success text-white align-items-center" title="{{ __('Approve') }}"
+                            onclick="return confirm('{{ __('Approve this GRN from Accounts? Stock will be updated.') }}')">
                             <span class="btn-inner--icon"><i class="ti ti-checks"></i></span>
                         </a>
                         @endcan

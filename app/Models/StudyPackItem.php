@@ -16,9 +16,11 @@ class StudyPackItem extends Model
         'tax',
         'discount',
         'price',
+        'owned_by',
+        'created_by',
     ];
 
     public function product(){
-        return $this->hasOne('App\Models\ProductService', 'id', 'product_id')->first();
-    }
+    return $this->hasOne('App\Models\ProductService', 'id', 'product_id');
+}
 }

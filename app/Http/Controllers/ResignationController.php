@@ -122,12 +122,12 @@ class ResignationController extends Controller
     {
         if (\Auth::user()->can('create resignation')) {
             if (\Auth::user()->type == 'company') {
-                $employees = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $employees = Employee::where('created_by', \Auth::user()->creatorId())->where('is_res_ter',0)->get()->pluck('name', 'id');
                 $branches = User::where('type', '=', 'branch')->where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
             } else {
-                $employees = Employee::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $employees = Employee::where('owned_by', \Auth::user()->ownedId())->where('is_res_ter',0)->get()->pluck('name', 'id');
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
             }
@@ -161,16 +161,17 @@ class ResignationController extends Controller
             if ($user->type == 'Employee') {
                 $employee = Employee::where('user_id', $user->id)->first();
                 $resignation->employee_id = $employee->id;
-                $resignation->branch_id = $employee->id;
+                $resignation->branch_id = $employee-owned_by;
             } else {
                 $resignation->branch_id = $request->branches;
                 $resignation->employee_id = $request->employee_id;
+                $employee = Employee::where('id', $request->employee_id)->first();
             }
             $resignation->notice_date = $request->notice_date;
             $resignation->resignation_date = $request->resignation_date;
             $resignation->last_attendance_date = $request->last_attendance_date;
             $resignation->description = $request->description;
-            $resignation->owned_by = \Auth::user()->ownedId();
+            $resignation->owned_by =  $employee->owned_by;
             $resignation->created_by = \Auth::user()->creatorId();
 
             $resignation->save();

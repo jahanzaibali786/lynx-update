@@ -19,21 +19,6 @@ use Dompdf\Options;
 
 class ConcessionController extends Controller
 {
-    private function studentBranchId($studentId)
-    {
-        $student = StudentRegistration::find($studentId);
-        if (!$student) {
-            return null;
-        }
-
-        $enrollment = StudentEnrollments::where('regId', $student->id)
-            ->orderByDesc('active_status')
-            ->orderByDesc('id')
-            ->first();
-
-        return $student->branch ?: optional($enrollment)->owned_by ?: $student->owned_by;
-    }
-
     /**
      * Display a listing of the resource.
      *
@@ -48,16 +33,66 @@ class ConcessionController extends Controller
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
             $branches->prepend('Select Branch', '');
             $query = Concession::with('student', 'concession')->where('created_by', Auth::user()->creatorId());
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         } else {
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             // $branches->prepend('Select Branch', '');
             $query = Concession::with('student', 'concession')->where('owned_by', '=', \Auth::user()->ownedId());
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('owned_by', '=', \Auth::user()->ownedId())
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         }
         if (!empty($request->branches)) {
             $query->where('owned_by', '=', $request->branches);
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('owned_by', '=', $request->branches)
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         }
         if (!empty($request->status)) {
             $query->where('status', '=', $request->status);
+        }else{
+            $query->whereIn('status', ['For Approval','Draft']);
+        }
+        if (!empty($request->student) && $request->student != 'all') {
+            $query->where('student_id', '=', $request->student);
         }
         if (!empty($request->start_date)) {
             $query->whereDate('start_date', '>', $request->start_date);
@@ -72,14 +107,11 @@ class ConcessionController extends Controller
             // $dateTo = ($currentMonth >= 7) ? date('Y-06-30', strtotime('+1 year')) : "$currentYear-06-30";
 
             $request->merge(['start_date' => $dateFrom]);
-            // $request->merge(['end_date' => $dateTo]);
-            // $query->whereBetween('start_date', [$dateFrom, $dateTo]);
             $query->whereDate('start_date', '>', $request->start_date);
         }
-
-        $concessions = $query->orderBy('id', 'Desc')->paginate(25);
+        $concessions = $query->orderBy('id', 'Desc')->get();
         $status = [
-            '' => 'All',
+            '' => 'Select Status',
             'Draft' => 'Draft',
             'For Approval' => 'For Approval',
             'Approved' => 'Approved',
@@ -87,7 +119,8 @@ class ConcessionController extends Controller
             'Canceled' => 'Canceled',
             'Rejected' => 'Rejected',
         ];
-        return view('students.concession.index', compact('concessions', 'status', 'branches', 'request'));
+        
+        return view('students.concession.index', compact('concessions', 'status', 'branches', 'students', 'request'));
         // }
         // else
         // {
@@ -152,11 +185,6 @@ class ConcessionController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
             $std = StudentEnrollments::where('regId', $request->student_id)->first();
-            $studentBranchId = $this->studentBranchId($request->student_id);
-            if (empty($studentBranchId)) {
-                DB::rollback();
-                return redirect()->back()->with('error', __('Student branch not found.'));
-            }
             // dd($request->all());
             $concession = new Concession();
             $concession->student_id = $request->student_id;
@@ -170,7 +198,7 @@ class ConcessionController extends Controller
             $concession->start_date = $request->period_from;
             $concession->end_date = $request->period_to;
             $concession->remarks = $request->bill_remarks;
-            $concession->owned_by = $studentBranchId;
+            $concession->owned_by = $request->branch_id;
             $concession->created_by = \Auth::user()->creatorId();
             if($request->cancle_date != null || $request->cancle_remarks){
                 $prev_con = Concession::with('concession')
@@ -183,6 +211,11 @@ class ConcessionController extends Controller
                     $prev_con->cancel_remarks = $request->cancle_remarks;
                     $prev_con->save();
                 }
+            }
+            if(Auth::user()->type == 'company'){
+                $concession->status = 'Approved';
+                $concession->approved_by = \Auth::user()->name;
+                $concession->approved_date = date('Y-m-d');
             }
             $concession->save();
             DB::commit();
@@ -234,7 +267,6 @@ class ConcessionController extends Controller
         $concession_policy = ConcessionPolicy::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('title', 'id');
         $classes = Classes::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $student = StudentRegistration::where('class_id', $Concession->class_id)->pluck('stdname', 'id');
-        $Concession->branch_id = $this->studentBranchId($Concession->student_id) ?: $Concession->owned_by;
         $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get();
         // $student = DB::table('student_enrollments')->join('student_registrations', 'student_enrollments.regId', '=', 'student_registrations.id')
         // ->where('student_enrollments.class_id',$Concession->class_id)->pluck('student_registrations.stname','student_registrations.id');
@@ -272,11 +304,6 @@ class ConcessionController extends Controller
             $messages = $validator->getMessageBag();
             return redirect()->back()->with('error', $messages->first());
         }
-        $studentBranchId = $this->studentBranchId($request->student_id);
-        if (empty($studentBranchId)) {
-            return redirect()->back()->with('error', __('Student branch not found.'));
-        }
-
         $Concession->student_id = $request->student_id;
         $Concession->class_id = $request->class_id;
         $Concession->concession_id = $request->concession_id;
@@ -284,7 +311,7 @@ class ConcessionController extends Controller
         $Concession->start_date = $request->period_from;
         $Concession->end_date = $request->period_to;
         $Concession->remarks = $request->bill_remarks;
-        $Concession->owned_by = $studentBranchId;
+        $Concession->owned_by = $request->branch_id;
         if($request->cancle_date != null || $request->cancle_remarks){
             $prev_con = Concession::with('concession')
             ->where('student_id', $request->student_id)
@@ -317,7 +344,35 @@ class ConcessionController extends Controller
     {
         //
     }
+public function endconcession($id)
+    {
+        return view('students.concession.end_concession', compact('id'));
+    }
 
+    public function updateendconcession(Request $request, $id)
+    {
+        $validator = \Validator::make(
+            $request->all(),
+            [
+                'end_remarks' => 'required',
+                'end_date' => 'required|date',
+            ]
+        );
+
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
+            return redirect()->back()->with('error', $messages->first());
+        }
+
+        $concession = Concession::findOrFail($id);
+        $concession->end_date = $request->end_date;
+        $concession->cancel_remarks = $request->end_remarks;
+        $concession->status = 'Canceled';
+        $concession->active_status = 0;
+        $concession->save();
+
+        return redirect()->route('concession.index')->with('success', 'Concession ended successfully.');
+    }
     public function class_student(Request $request)
     {
         $student = StudentRegistration::where('class_id', $request->class_id)->get();

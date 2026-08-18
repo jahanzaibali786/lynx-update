@@ -79,7 +79,10 @@ class StudentRegistration extends Model
     {
         return $this->belongsTo(Classes::class, 'reg_class', 'id');
     }
-
+     public function reg_branch()
+    {
+        return $this->belongsTo(User::class, 'reg_branch_id', 'id');
+    }
     public function session()
     {
         return $this->belongsTo(Session::class, 'session_id', 'id');

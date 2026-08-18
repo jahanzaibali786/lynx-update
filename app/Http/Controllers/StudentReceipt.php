@@ -34,7 +34,13 @@ class StudentReceipt extends Controller
             ->pluck('name', 'id');
         $accounts->prepend('Select Bank', 'allbank');
 
-        $query = Receipt::with('challan');
+        $query = Receipt::with([
+            'challan:id,student_id,class_id,section_id,challanNo',
+            'challan.student:id,stdname,roll_no',
+            'challan.class:id,name',
+            'challan.section:id,name',
+            'bank:id,bank_name',
+        ]);
 
         if (\Auth::user()->type == 'company') {
             $query->where(function ($q) {
@@ -58,14 +64,20 @@ class StudentReceipt extends Controller
             $query->where('bank_id', $request->default_bank);
         }
 
-        $recipts = $query->get();
+        // Only get data for export, otherwise use pagination
+        if ($request->has('export')) {
+            $recipts = $query->get();
+            
+            if ($request->export == 'excel') {
+                return Excel::download(new StudentReceiptExport($recipts, $request->all()), 'student_receipt.xlsx');
+            }
+            if ($request->export == 'pdf') {
+                return Excel::download(new StudentReceiptExport($recipts, $request->all()), 'student_receipt.pdf', \Maatwebsite\Excel::Excel::MPDF);
+            }
+        }
 
-        if ($request->has('export') && $request->export == 'excel') {
-            return Excel::download(new StudentReceiptExport($recipts, $request->all()), 'student_receipt.xlsx');
-        }
-        if ($request->has('export') && $request->export == 'pdf') {
-            return Excel::download(new StudentReceiptExport($recipts, $request->all()), 'student_receipt.pdf', \Maatwebsite\Excel\Excel::MPDF);
-        }
+        // Use pagination for normal view to improve performance
+        $recipts = $query->orderBy('recipt_date', 'desc')->paginate(50);
 
         return view('students.studentreceipt.index', compact('accounts', 'recipts'));
     }
@@ -124,6 +136,153 @@ class StudentReceipt extends Controller
         $students = [];
 
         return view('students.studentreceipt.list', compact('accounts', 'recipts', 'session', 'class', 'students', 'branches'));
+    }
+
+    public function searchByReference(Request $request)
+    {
+        $reference = $request->input('reference');
+        $searchResults = null;
+
+        if ($reference) {
+            $user = \Auth::user();
+            
+            // Normalize reference: remove spaces and special characters for flexible matching
+            $normalizedReference = preg_replace('/[^a-zA-Z0-9]/', '', trim($reference));
+            
+            $searchQuery = Receipt::query()
+                ->with([
+                    'challan:id,student_id,class_id,owned_by,challanNo,challan_type,fee_month,other_months',
+                    'challan.student:id,stdname,roll_no,fathername',
+                    'challan.class:id,name',
+                    'challan.branch:id,name',
+                    'challan.enrollstudent:id,enrollId',
+                    'bank:id,bank_name',
+                    'journalItems',
+                    'journalItems.heads:id,fee_head',
+                ])
+                ->where(function($q) use ($reference, $normalizedReference) {
+                    // Exact match
+                    $q->where('referance', trim($reference))
+                      // Partial match with LIKE
+                      ->orWhere('referance', 'LIKE', '%' . trim($reference) . '%')
+                      // Match normalized reference (without spaces/special chars)
+                      ->orWhereRaw("REPLACE(REPLACE(REPLACE(referance, ' ', ''), '-', ''), '_', '') LIKE ?", ['%' . $normalizedReference . '%']);
+                });
+
+            if ($user->type == 'company') {
+                $searchQuery->where(function ($q) use ($user) {
+                    $q->where('created_by', $user->creatorId())
+                        ->orWhere('received_by', $user->id);
+                });
+            } else {
+                $searchQuery->where(function ($q) use ($user) {
+                    $q->where('owned_by', $user->ownedId())
+                        ->orWhere('received_by', $user->id);
+                });
+            }
+
+            $receipts = $searchQuery->get();
+
+            // Group by student and include receipt details
+            $searchResults = $receipts->groupBy('student_id')->map(function ($items) {
+                $first = $items->first();
+                $challan = $first->challan;
+                $student = $challan->student;
+
+                // Build receipt details similar to student fee receipt detail report
+                $receiptDetails = $items->map(function($receipt) use ($challan) {
+                    $journalItems = $receipt->journalItems ?? collect();
+                    $feeHeads = $journalItems->map(function($item) {
+                        return $item->heads ? $item->heads->fee_head : null;
+                    })->filter()->implode(', ');
+                    
+                    // Format billing month from challan
+                    $billingMonth = '';
+                    if (!empty($challan->other_months)) {
+                        // Parse comma-separated dates and format as "Jun-2026,July-2026"
+                        $dates = explode(',', $challan->other_months);
+                        $formattedDates = array_map(function($date) {
+                            try {
+                                return \Carbon\Carbon::parse(trim($date))->format('M-Y');
+                            } catch (\Exception $e) {
+                                return '';
+                            }
+                        }, $dates);
+                        $billingMonth = implode(',', array_filter($formattedDates));
+                    } elseif (!empty($challan->fee_month)) {
+                        $billingMonth = \Carbon\Carbon::parse($challan->fee_month)->format('F Y');
+                    }
+                    
+                    return [
+                        'id' => $receipt->id,
+                        'date' => \Carbon\Carbon::parse($receipt->recipt_date)->format('d-M-Y'),
+                        'challan_type' => $challan->challan_type ?? '',
+                        'challan_no' => $challan->challanNo ?? '',
+                        'billing_month' => $billingMonth,
+                        'bank_name' => $receipt->bank->bank_name ?? '',
+                        'receive_type' => $receipt->receive_type ?? '',
+                        'fee_head' => $feeHeads,
+                        'reference' => $receipt->referance ?? '',
+                        'amount' => $receipt->recipt_amount ?? 0,
+                    ];
+                })->values();
+
+                return [
+                    'id' => $student->id,
+                    'name' => $student->stdname ?? '',
+                    'roll_no' => $student->roll_no ?? '',
+                    'fathername' => $student->fathername ?? '',
+                    'class' => $challan->class->name ?? '',
+                    'branch' => optional($challan->branch)->name ?? '',
+                    'receipts' => $receiptDetails,
+                ];
+            })->values();
+        }
+
+        // Return JSON for AJAX requests
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'reference' => $reference,
+                'total_students' => $searchResults ? $searchResults->count() : 0,
+                'results' => $searchResults,
+            ]);
+        }
+
+        // Get the data needed for the index view
+        $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+            ->where('created_by', \Auth::user()->creatorId())
+            ->get()
+            ->pluck('name', 'id');
+        $accounts->prepend('Select Bank', 'allbank');
+
+        $query = Receipt::with('challan');
+
+        if (\Auth::user()->type == 'company') {
+            $query->where(function ($q) {
+                $q->where('created_by', \Auth::user()->creatorId())
+                    ->orWhere('received_by', \Auth::user()->id);
+            });
+        } else {
+            $query->where(function ($q) {
+                $q->where('owned_by', \Auth::user()->ownedId())
+                    ->orWhere('received_by', \Auth::user()->id);
+            });
+        }
+
+        if (!empty($request->date)) {
+            $query->whereDate('recipt_date', $request->date);
+        } else {
+            $query->whereDate('recipt_date', date("Y-m-d"));
+        }
+
+        if (!empty($request->default_bank) && $request->default_bank != 'allbank') {
+            $query->where('bank_id', $request->default_bank);
+        }
+
+        $recipts = $query->get();
+
+        return view('students.studentreceipt.index', compact('accounts', 'recipts', 'searchResults', 'reference'));
     }
 
     // =========================================================================

@@ -244,9 +244,8 @@ $(document).on('click', '.confirm-row-btn', function() {
 
 function buildLockedRow(e) {
     var sourceBadge = e.source ? '<div class="mb-1"><span class="badge bg-info" style="font-size:10px;">' + e.source + '</span></div>' : '';
-    var remainingBadge = (typeof e.remaining_quantity !== 'undefined') ? '<div class="mb-1"><span class="badge bg-light text-dark border" style="font-size:10px;">Remaining: ' + formatAmount(e.remaining_quantity) + '</span></div>' : '';
     return '<tr data-entry-id="' + e.id + '" class="confirmed-row">' +
-        '<td>' + sourceBadge + remainingBadge + e.item_name + '</td>' +
+        '<td>' + sourceBadge + e.item_name + '</td>' +
         '<td>' + e.quantity + (e.unit ? ' <small class="text-muted">' + e.unit + '</small>' : '') + '</td>' +
         '<td class="text-end">' + formatAmount(e.price) + '</td>' +
         '<td class="text-end">' + formatAmount(e.discount) + '</td>' +
@@ -329,7 +328,6 @@ function renderHiddenInputs() {
     $.each(invoiceItems, function(i, item) {
         var prefix = 'items[' + i + ']';
         appendHidden(wrapper, prefix + '[id]', '0');
-        appendHidden(wrapper, prefix + '[source_item_id]', item.source_item_id || item.id || '0');
         appendHidden(wrapper, prefix + '[item]', item.item_id);
         appendHidden(wrapper, prefix + '[quantity]', item.quantity);
         appendHidden(wrapper, prefix + '[price]', item.price);
@@ -442,11 +440,14 @@ $(document).on('submit', '#demand-order-convert-form', function(e) {
             </div>
         </div>
 
-<div class="col-12">
-    <div class="card" style="padding-bottom:100px!important;">
-        <div class="card-body py-3 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">{{ __('Product / Items') }}</h6>
-        </div>
+        <div class="col-12">
+            <div class="card" style="padding-bottom:100px!important;">
+                <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{{ __('Product / Items') }}</h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addItemBtn">
+                        <i class="ti ti-plus"></i> {{ __('Add Item') }}
+                    </button>
+                </div>
                 <div id="items-table-wrap" class="card-body table-border-style pt-0">
                     <table class="table table-sm mb-0" id="items-table">
                         <thead>

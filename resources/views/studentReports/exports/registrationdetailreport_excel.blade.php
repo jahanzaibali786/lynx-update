@@ -42,6 +42,7 @@
                 </td>
             </tr>
             @foreach ($students as $student)
+            @dd($student);
                 <tr>
                     <td>{{ $globalIndex++ }}</td>
                     <td>{{ $student->report_source ?? '-' }}</td>
@@ -49,7 +50,7 @@
                     <td>{{ $student->reg_no }}</td>
                     <td>{{ $student->stdname }}</td>
                     <td>{{ !empty($student->regdate) ? date('d M Y', strtotime($student->regdate)) : '' }}</td>
-                    <td>{{ $student->registration_reg_class ?? $student->reg_class ?? '-' }}</td>
+                    <td>{{ @$student->class->name }}</td>
                     <td>{{ $student->class_branch_name ?? ($branches[$student->class_branch_id] ?? ($student->class_branch_id ?? '-')) }}</td>
                     <td>{{ $student->registration_reg_branch_id ?? $student->reg_branch_id ?? '-' }}</td>
                     <td>{{ $student->registration_owned_by_name ?? ($branches[$student->registration_owned_by] ?? ($student->registration_owned_by ?? $student->owned_by ?? '-')) }}</td>

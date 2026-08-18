@@ -67,7 +67,7 @@ class StudyPackChallanController extends Controller
     
         $creatorId = $user->creatorId();
         $ownedId   = $user->ownedId();
-    
+        $selectedBranch = null;
     
         /*
         |--------------------------------------------------------------------------
@@ -75,104 +75,36 @@ class StudyPackChallanController extends Controller
         |--------------------------------------------------------------------------
         */
         if ($isCompany) {
-    
+
             $branches = User::where('type', 'branch')
                 ->where('created_by', $creatorId)
                 ->where('is_active', 1)
                 ->pluck('name', 'id');
-    
+
             $branches->prepend(
                 $user->name,
                 $user->id
             );
-    
+
             $branches->prepend(
                 'Select Branch',
                 ''
             );
-    
+
         } else {
-    
+
             /*
              * Branch user can only see their own branch.
              */
+            $selectedBranch = $ownedId;
             $branches = User::where('id', $ownedId)
                 ->where('is_active', 1)
                 ->pluck('name', 'id');
-    
-            $branches->prepend(
-                'Select Branch',
-                ''
-            );
         }
-    
-    
+
         /*
         |--------------------------------------------------------------------------
-        | Determine Selected / Allowed Branch
-        |--------------------------------------------------------------------------
-        |
-        | Company:
-        |   Use selected branch.
-        |
-        | Branch:
-        |   ALWAYS use ownedId().
-        |
-        */
-        if ($isCompany) {
-    
-            $selectedBranch = $request->filled('branch')
-                ? $request->branch
-                : null;
-    
-        } else {
-    
-            /*
-             * Never trust branch ID submitted by branch user.
-             */
-            $selectedBranch = $ownedId;
-        }
-    
-    
-        /*
-        |--------------------------------------------------------------------------
-        | Validate Company Branch
-        |--------------------------------------------------------------------------
-        |
-        | Only allow a company to select a branch belonging
-        | to the same company.
-        |
-        */
-        if (
-            $isCompany &&
-            $selectedBranch !== null &&
-            $selectedBranch !== ''
-        ) {
-    
-            $validBranch = User::where(
-                    'id',
-                    $selectedBranch
-                )
-                ->where(
-                    'type',
-                    'branch'
-                )
-                ->where(
-                    'created_by',
-                    $creatorId
-                )
-                ->where(
-                    'is_active',
-                    1
-                )
-                ->exists();
-    
-            if (!$validBranch) {
-                $selectedBranch = null;
-            }
-        }
-    
-    
+        | Sessions
         /*
         |--------------------------------------------------------------------------
         | Sessions
@@ -374,7 +306,7 @@ class StudyPackChallanController extends Controller
         | belongs to the selected branch through `owned_by`.
         |
         */
-        if ($request->filled('class')) {
+        if ($request->filled('class') && $request->class != 'all') {
     
             /*
              * Main StudyPack class filter.
@@ -475,7 +407,8 @@ class StudyPackChallanController extends Controller
                 'session',
                 'class',
                 'stdy_pack',
-                'studypacks'
+                'studypacks',
+                'selectedBranch'
             )
         );
     }
@@ -487,18 +420,22 @@ class StudyPackChallanController extends Controller
             $branches = User::where('type', '=', 'branch')->where('is_active', 1)->get()->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
             $branches->prepend('Select Branch', '');
+            $selectedBranch = '';
         } else {
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->where('is_active', 1)->get()->pluck('name', 'id');
-            $branches->prepend('Select Branch', '');
+            $selectedBranch = \Auth::user()->ownedId();
+            $branches = User::where('id', '=', $selectedBranch)->where('is_active', 1)->get()->pluck('name', 'id');
         }
         $session = Session::get()->pluck('year', 'id');
         $session->prepend('Select Session', '');
-        $class = Classes::where('created_by', \Auth::user()->creatorId())
-            ->where('active_status', 1)
-            ->pluck('name', 'id');
+        $classQuery = Classes::where('created_by', \Auth::user()->creatorId())
+            ->where('active_status', 1);
+        if (\Auth::user()->type !== 'company') {
+            $classQuery->where('owned_by', $selectedBranch);
+        }
+        $class = $classQuery->pluck('name', 'id');
         $class->prepend('Select Class', '');
         $stdy_pack = [];
-        return view('students.studypackChallan.challanform', compact('branches', 'session', 'class', 'stdy_pack'));
+        return view('students.studypackChallan.challanform', compact('branches', 'session', 'class', 'stdy_pack', 'selectedBranch'));
     }
     public function store(Request $request)
     {
@@ -597,6 +534,7 @@ class StudyPackChallanController extends Controller
                         $studypackchallan->branch_id = $branchId;
                         $studypackchallan->class_id = $classId;
                         $studypackchallan->section_id = $sectionId;
+                        $studypackchallan->session_id = $request->session;
                         $studypackchallan->challan_type = "Studypack";
                         $studypackchallan->year = $feeMonth->toDateString();
                         $studypackchallan->challan_date = $feeMonth->toDateString();

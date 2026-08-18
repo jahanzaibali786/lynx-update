@@ -773,4 +773,75 @@ public function deleteReceipts()
                 ->header('Content-Type', 'text/html');
         }
     }
+    // public function clearJuneJulyLateFeeChallans()
+    // {
+    //     set_time_limit(0);
+
+    //     $currentYear = (int) date('Y');
+    //     $juneMonth = sprintf('%d-06-01', $currentYear);
+    //     $julyMonthToken = sprintf('%d-07', $currentYear);
+
+    //     DB::beginTransaction();
+    //     try {
+    //         $challans = Challans::whereDate('fee_month', $juneMonth)
+    //             ->whereHas('heads', function ($query) {
+    //                 $query->where('head_id', 2)
+    //                     ->where('price', 0)->where('paid', 0);
+    //             })
+    //             ->whereHas('heads', function ($query) {
+    //                 $query->where('head_id', 6)
+    //                     ->where('price', 1200)->where('paid', 0);
+    //             })
+    //             ->where(function ($query) use ($juneMonth, $julyMonthToken) {
+    //                 $query->where('other_months', 'like', '%' . $juneMonth . '%')
+    //                     ->orWhere('other_months', 'like', '%' . $julyMonthToken . '%');
+    //             })
+    //             ->where('total_amount', 1200)
+    //             ->whereNotIn('challan_type', ['Admission', 'Registration'])
+    //             // ->where('challanNo',209435)
+    //             ->get();
+    //         $processed = 0;
+
+    //         foreach ($challans as $challan) {
+    //             ChallanHead::where('challan_id', $challan->id)
+    //                 ->where('head_id', 6)
+    //                 ->delete();
+
+    //             if ($challan->voucher_id) {
+    //                 JournalItem::where('journal', $challan->voucher_id)
+    //                     ->where('head', 6)
+    //                     ->delete();
+    //             }
+
+    //             $challan->paid_amount = 0;
+    //             $challan->concession_amount = 0;
+    //             $challan->total_amount = 0;
+    //             $challan->status = 'Paid';
+    //             $challan->paid_date = $challan->paid_date ?: date('Y-m-d');
+    //             $challan->save();
+
+    //             $processed++;
+    //         }
+
+    //         DB::commit();
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Late fee cleanup completed successfully.',
+    //             'processed' => $processed,
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         Log::error('Late fee cleanup failed', [
+    //             'message' => $e->getMessage(),
+    //             'line' => $e->getLine(),
+    //             'file' => $e->getFile(),
+    //         ]);
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
 }

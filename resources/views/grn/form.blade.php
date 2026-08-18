@@ -181,25 +181,11 @@
         }
 
         function recalcTotal() {
-            let totalQty = 0;
-            let totalPrice = 0;
-            let subTotal = 0;
-            $('#grn-items-table tbody tr').each(function() {
-                const qty = parseFloat($(this).find('.qty-input').val()) || 0;
-                const price = parseFloat($(this).find('.price-input').val()) || 0;
-                const amount = parseFloat($(this).find('.amount-cell').text()) || (qty * price);
-                totalQty += qty;
-                totalPrice += price;
-                subTotal += amount;
+            let total = 0;
+            $('.amount-cell').each(function() {
+                total += parseFloat($(this).text()) || 0;
             });
-            const grandTotal = Math.round(subTotal);
-            const roundOff = grandTotal - subTotal;
-
-            $('#grn-total-qty').text(totalQty.toFixed(2));
-            $('#grn-total-price').text(totalPrice.toFixed(2));
-            $('#grn-subtotal').text(subTotal.toFixed(2));
-            $('#grn-round-off').text((roundOff >= 0 ? '+' : '') + roundOff.toFixed(2));
-            $('#grn-total').text(grandTotal.toFixed(2));
+            $('#grn-total').text(total.toFixed(2));
         }
 
         function isGrnRowBlank($row) {
@@ -574,21 +560,8 @@
                     <tbody></tbody>
                     <tfoot>
                         <tr>
-                            <th colspan="3" class="text-end">{{ __('Sub Total') }}</th>
-                            <th class="text-end" id="grn-total-qty">0.00</th>
-                            <th class="text-end" id="grn-total-price">0.00</th>
-                            <th></th>
-                            <th class="text-end" id="grn-subtotal">0.00</th>
-                            <th></th>
-                        </tr>
-                        <tr>
-                            <th colspan="6" class="text-end">{{ __('Round Off') }}</th>
-                            <th class="text-end" id="grn-round-off">0.00</th>
-                            <th></th>
-                        </tr>
-                        <tr>
-                            <th colspan="6" class="text-end">{{ __('Grand Total') }}</th>
-                            <th class="text-end fw-bold" id="grn-total">0.00</th>
+                            <th colspan="6" class="text-end">{{ __('Total') }}</th>
+                            <th class="text-end" id="grn-total">0.00</th>
                             <th></th>
                         </tr>
                     </tfoot>

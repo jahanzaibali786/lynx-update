@@ -326,7 +326,14 @@ class StudentPromotions extends Controller
                     $stdfeestructure->owned_by = $branchTo;
                     $stdfeestructure->created_by = \Auth::user()->creatorId();
                     $stdfeestructure->save();
-
+                    //update class ,branch in student fee structure other heads.
+                    StudentFeeStructure::where('reg_id', $studentenroll->regId)
+                            ->update([
+                                'owned_by' => $branchTo,
+                                'class_id' => $classTo,
+                                'branch_id' => $branchTo
+                            ]);
+                    
                     StudentFeeRevisionItem::create([
                         'batch_id' => $batch->id,
                         'student_fee_structure_id' => $stdfeestructure->id,
@@ -349,6 +356,7 @@ class StudentPromotions extends Controller
 
         } catch (\Exception $e) {
             \DB::rollBack();
+            dd($e);
             \Log::error('Error promoting student: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',

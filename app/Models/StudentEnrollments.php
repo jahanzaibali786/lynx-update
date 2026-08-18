@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class StudentEnrollments extends Model
 {
     use HasFactory , LogsActions;
-    protected $fillable = ['regId', 'enrollId','adm_date', 'class_id','section_id','session_id','active_status', 'owned_by', 'created_by'];
+    protected $fillable = ['regId', 'enrollId','adm_date','adm_branch','adm_session', 'class_id','section_id','session_id','active_status', 'owned_by', 'created_by'];
 
 
     public function StudentRegistration()
@@ -37,6 +37,12 @@ class StudentEnrollments extends Model
     {
         return $this->belongsTo(User::class, 'owned_by', 'id');
     }
+    
+    public function admbranch()
+    {
+        return $this->belongsTo(User::class, 'adm_branch', 'id');
+    }
+
     public function master()
     {
         return $this->belongsTo(SchoolDetails::class, 'owned_by', 'branch_id');

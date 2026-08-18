@@ -224,6 +224,26 @@ class StudentWithdrawalController extends Controller
         DB::beginTransaction();
         try {
             $std = StudentEnrollments::where('regId', $request->student_id)->first();
+            if (!$std) {
+                DB::rollback();
+                return redirect()->back()->with('error', 'Student enrollment record not found.');
+            }
+
+            $draftWithdrawal = StudentWithdrawal::where('student_id', $std->regId)
+                ->where('status', 'draft')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($draftWithdrawal) {
+                $draftDate = $draftWithdrawal->apply_date
+                    ? \Carbon\Carbon::parse($draftWithdrawal->apply_date)->format('d-m-Y')
+                    : ($draftWithdrawal->created_at ? \Carbon\Carbon::parse($draftWithdrawal->created_at)->format('d-m-Y') : '-');
+
+                return redirect()->back()->with(
+                    'error',
+                    'This student already has a draft withdrawal application dated ' . $draftDate . '.'
+                );
+            }
 
             $withdrawal = new StudentWithdrawal;
             $withdrawal->document_no = $this->Documentno();
@@ -303,6 +323,82 @@ class StudentWithdrawalController extends Controller
         //     return redirect()->back()->with('error', 'Permission denied.');
         // }
     }
+public function reactive(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $withdrawal = StudentWithdrawal::findOrFail($id);
+            $reg = StudentRegistration::find($withdrawal->student_id);
+
+            if (!$reg) {
+                $reg = StudentRegistration::where('reg_no', $withdrawal->student_id)->first();
+            }
+
+            if (!$reg) {
+                DB::rollback();
+                return redirect()->back()->with('error', 'Student record not found for this withdrawal.');
+            }
+
+            $enrollment = StudentEnrollments::where('regId', $reg->id)->first();
+
+            $history = new StudentHistory();
+            $history->reg_id = $reg->id;
+            $history->student_id = $reg->roll_no ?: $reg->id;
+            $history->event_type = 'reactivate';
+            $history->from_session_id = $withdrawal->session_id ?: $reg->session_id;
+            $history->from_class_id = $withdrawal->class_id ?: $reg->class_id;
+            $history->from_branch_id = $withdrawal->branch_id ?: $reg->branch;
+            $history->to_session_id = $reg->session_id;
+            $history->to_class_id = $reg->class_id;
+            $history->to_branch_id = $reg->branch;
+            $history->effective_date = date('Y-m-d');
+            $history->remarks = 'Withdrawal reactivated from application dated ' . ($withdrawal->apply_date ? \Carbon\Carbon::parse($withdrawal->apply_date)->format('d-m-Y') : date('d-m-Y'));
+            $history->owned_by = $reg->owned_by;
+            $history->created_by = $reg->created_by ?? \Auth::user()->creatorId();
+            $history->save();
+
+            $reg->active_status = 1;
+            $reg->student_status = 'Enrolled';
+            $reg->save();
+
+            if ($enrollment) {
+                $enrollment->active_status = 1;
+                $enrollment->save();
+            }
+
+            $applicationDate = $withdrawal->apply_date ? \Carbon\Carbon::parse($withdrawal->apply_date) : null;
+            $withdrawalFeeMonth = $applicationDate ? $applicationDate->copy()->startOfMonth()->format('Y-m-d') : null;
+
+            $withdrawalChallanQuery = Challans::where('student_id', $reg->id)
+                ->where('challan_type', 'Withdrawal');
+
+            if ($withdrawalFeeMonth) {
+                $withdrawalChallanQuery->whereDate('fee_month', $withdrawalFeeMonth);
+            }
+
+            if ($applicationDate) {
+                $withdrawalChallanQuery->whereDate('challan_date', $applicationDate->format('Y-m-d'));
+            }
+
+            $withdrawalChallan = $withdrawalChallanQuery->orderByDesc('id')->first();
+            if ($withdrawalChallan) {
+                $withdrawalChallan->delete();
+            }
+
+            $withdrawal->status = 'reactive';
+            $withdrawal->save();
+
+
+            DB::commit();
+
+            return redirect()->route('withdrawlstudent.index')->with('success', 'Withdrawal reactivated successfully.');
+        } catch (\Exception $e) {
+            DB::rollback();
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
 
     /**
      * Display the specified resource.
@@ -958,6 +1054,10 @@ class StudentWithdrawalController extends Controller
             $studentwithdrawal->expected_readmission_date = $request->expected_readmission_date;
             $studentwithdrawal->remark = $request->remarks;
             $studentwithdrawal->ho_remarks = $request->ho_remarks;
+            $studentwithdrawal->beneficiary_name = $request->beneficiary_name;
+            $studentwithdrawal->bank_name = $request->bank_name;
+            $studentwithdrawal->cheque_no = $request->cheque_no;
+            $studentwithdrawal->cheque_date = $request->cheque_date;
             $studentwithdrawal->status = 'approved';
             $studentwithdrawal->save();
             $reg = StudentRegistration::where('id', $studentwithdrawal->student_id)->first();
@@ -1212,7 +1312,7 @@ class StudentWithdrawalController extends Controller
     // Latest paid billing must have an actual receipt. Zero-amount paid challans
     // can be auto-closed and should not become the "paid upto" month.
     $lastBillingPaid = (clone $lastBillingQuery)
-        ->where('status', 'Paid')
+        ->where('status','!=','Issued')
         ->whereHas('receipts', function ($query) {
             $query->where('recipt_amount', '>', 0);
         })
@@ -1393,6 +1493,7 @@ class StudentWithdrawalController extends Controller
             'admissionBranch' => $admissionBranch,
             'otherDeduction' => $otherDeduction,
             'excessRefund' => $excessRefund,
+            'adjustmentAmount' => $adjustmentAmount,
         ]
     );
 
@@ -1420,6 +1521,10 @@ class StudentWithdrawalController extends Controller
             ];
             $studentwithdrawal->branch_snapshot = $branchSnapshot;
             $studentwithdrawal->remark = $request->remarks;
+            $studentwithdrawal->beneficiary_name = $request->beneficiary_name;
+            $studentwithdrawal->bank_name = $request->bank_name;
+            $studentwithdrawal->cheque_no = $request->cheque_no;
+            $studentwithdrawal->cheque_date = $request->cheque_date;
             $studentwithdrawal->fwd_to_ho = 1;
             $studentwithdrawal->status = 'pending';
             $studentwithdrawal->save();

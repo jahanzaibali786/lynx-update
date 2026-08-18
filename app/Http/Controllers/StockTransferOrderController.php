@@ -642,7 +642,7 @@ class StockTransferOrderController extends Controller
                 'source' => __('Stock Transfer Requisition'),
             ];
         })->filter()->values();
-        dd($conversionItems->toArray());
+
         $view = view('stocktransferorder.convert_to_invoice', compact(
             'StockTransferOrder',
             'mainStore',

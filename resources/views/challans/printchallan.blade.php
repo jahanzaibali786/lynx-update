@@ -487,11 +487,12 @@
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    @if (@$challan->student->enrollment && @$challan->student->enrollment->class)
-                                        {{ @$challan->student->enrollment->class->name }}
-                                    @else
-                                        nill
-                                    @endif
+                                    @php
+                                        $printClassName = @$challan->class->name
+                                            ?? @$challan->student->enrollment->class->name
+                                            ?? 'nill';
+                                    @endphp
+                                    {{ $printClassName }}
                                 </td>
                                 <td class="detail-label" style="width: 0px !important; padding-right: 10px !important;">
                                     <b>Section:</b>
@@ -746,11 +747,12 @@
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    @if (@$challan->student->enrollment && @$challan->student->enrollment->class)
-                                        {{ @$challan->student->enrollment->class->name }}
-                                    @else
-                                        nill
-                                    @endif
+                                    @php
+                                        $printClassName = @$challan->class->name
+                                            ?? @$challan->student->enrollment->class->name
+                                            ?? 'nill';
+                                    @endphp
+                                    {{ $printClassName }}
                                 </td>
                                 <td class="detail-label"
                                     style="width: 0px !important; padding-right: 10px !important;"><b>Section:</b></td>
@@ -995,11 +997,12 @@
                             <tr>
                                 <td class="detail-label"><b>Class:</b></td>
                                 <td class="detail-value" style="text-transform: uppercase;">
-                                    @if (@$challan->student->enrollment && @$challan->student->enrollment->class)
-                                        {{ @$challan->student->enrollment->class->name }}
-                                    @else
-                                        nill
-                                    @endif
+                                    @php
+                                        $printClassName = @$challan->class->name
+                                            ?? @$challan->student->enrollment->class->name
+                                            ?? 'nill';
+                                    @endphp
+                                    {{ $printClassName }}
                                 </td>
                                 <td class="detail-label"
                                     style="width: 0px !important; padding-right: 10px !important;"><b>Section:</b></td>
@@ -1165,3 +1168,4 @@
 </body>
 
 </html>
+

@@ -440,7 +440,8 @@ class StudentRegistration extends Controller
         $teacherChildOption = Registring_option::where('name', 'TEACHER CHILD')->first();
         $type = ($teacherChildOption && $student->register_option == $teacherChildOption->id) ? 'teacher_child' : 'regular';
 
-        $classes = Classes::where('owned_by', $student->owned_by)->get()->pluck('name', 'id');
+        $classes = Classes::where('owned_by', $student->owned_by)->where('active_status', 1)->get()->pluck('name', 'id');
+        $sessions = Session::where('created_by', \Auth::user()->creatorId())->pluck('year', 'id');
         $classfee = StudentFeeStructure::with('feehead')->where('reg_id', $student->id)->where('owned_by', $student->owned_by)->get();
 
         if ($classfee->isEmpty()) {
@@ -487,7 +488,7 @@ class StudentRegistration extends Controller
 
         $showJunJulFeeExempt = $this->canShowJunJulFeeExempt($student);
 
-        return view('students.registration.show', ['branches' => $branches, 'concession' => $concession, 'student' => $student, 'classfee' => $classfee, 'studentchallanexist' => $studentchallanexist, 'registerOption' => $registerOptions, 'selectedOptionId' => $selectedRegisterOptionId, 'classes' => $classes, 'showJunJulFeeExempt' => $showJunJulFeeExempt]);
+        return view('students.registration.show', ['branches' => $branches, 'concession' => $concession, 'student' => $student, 'classfee' => $classfee, 'studentchallanexist' => $studentchallanexist, 'registerOption' => $registerOptions, 'selectedOptionId' => $selectedRegisterOptionId, 'classes' => $classes, 'sessions' => $sessions, 'showJunJulFeeExempt' => $showJunJulFeeExempt]);
     }
 
     /**
@@ -572,12 +573,13 @@ class StudentRegistration extends Controller
                     $sectionData['permanent_city_addr'] ?? '',
                     $sectionData['permanent_district_addr'] ?? '',
                 ]);
-                $student->permanent_address = strtoupper(implode(', ', $permanentParts));                
-                $student->save();
+                $student->permanent_address = strtoupper(implode(', ', $permanentParts));
+                
+                // Handle branch change
                 if (isset($sectionData['branch']) && $sectionData['branch']) {
                     if ($sectionData['branch'] != $student->owned_by) {
                         $pattern = '%Registration%';
-                        $challan = challans::whereRaw('LOWER(challan_type) LIKE ?', [strtolower($pattern)])->first();
+                        $challan = challans::where('student_id', $student->id)->whereRaw('LOWER(challan_type) LIKE ?', [strtolower($pattern)])->first();
                         if ($challan) {
                             $journal = JournalEntry::where('category', 'Registration')->where('id', $challan->voucher_id)->first();
                             if ($journal) {
@@ -588,9 +590,9 @@ class StudentRegistration extends Controller
                             $challan->save();
                         }
                         $patternadm = '%Admission%';
-                        $challanadm = challans::whereRaw('LOWER(challan_type) LIKE ?', [strtolower($patternadm)])->first();
+                        $challanadm = challans::where('student_id', $student->id)->whereRaw('LOWER(challan_type) LIKE ?', [strtolower($patternadm)])->first();
                         if ($challanadm) {
-                            $journaladm = JournalEntry::where('category', 'Admission')->where('id', $challanadm)->first();
+                            $journaladm = JournalEntry::where('category', 'Admission')->where('id', $challanadm->voucher_id)->first();
                             if ($journaladm) {
                                 $journalItem = JournalItem::where('journal', $journaladm->id)->delete();
                                 $journaladm->delete();
@@ -600,11 +602,54 @@ class StudentRegistration extends Controller
                         }
                         $student->owned_by = $sectionData['branch'];
                         $student->branch = $sectionData['branch'];
-                        $student->save();
-
                     }
-
                 }
+
+                // Handle session change
+                if (isset($sectionData['adm_session']) && $sectionData['adm_session']) {
+                    if ($sectionData['adm_session'] != $student->session_id) {
+                        $student->session_id = $sectionData['adm_session'];
+                        // Update registration challan session
+                        $pattern = '%Registration%';
+                        $challan = challans::where('student_id', $student->id)->whereRaw('LOWER(challan_type) LIKE ?', [strtolower($pattern)])->first();
+                        if ($challan) {
+                            $challan->session_id = $sectionData['adm_session'];
+                            $challan->save();
+                        }
+                        // Update admission challan session
+                        $patternadm = '%Admission%';
+                        $challanadm = challans::where('student_id', $student->id)->whereRaw('LOWER(challan_type) LIKE ?', [strtolower($patternadm)])->first();
+                        if ($challanadm) {
+                            $challanadm->session_id = $sectionData['adm_session'];
+                            $challanadm->save();
+                        }
+                    }
+                }
+
+                // Handle class change
+                if (isset($sectionData['adm_class']) && $sectionData['adm_class']) {
+                    if ($sectionData['adm_class'] != $student->reg_class) {
+                        $student->reg_class = $sectionData['adm_class'];
+                        // Update registration challan class
+                        $pattern = '%Registration%';
+                        $challan = challans::where('student_id', $student->id)->whereRaw('LOWER(challan_type) LIKE ?', [strtolower($pattern)])->first();
+                        if ($challan) {
+                            $challan->class_id = $sectionData['adm_class'];
+                            $challan->save();
+                        }
+                        // Update admission challan class
+                        $patternadm = '%Admission%';
+                        $challanadm = challans::where('student_id', $student->id)->whereRaw('LOWER(challan_type) LIKE ?', [strtolower($patternadm)])->first();
+                        if ($challanadm) {
+                            $challanadm->class_id = $sectionData['adm_class'];
+                            $challanadm->save();
+                        }
+                        // Delete fee structure and recreate for new class
+                        StudentFeeStructure::where('reg_id', $student->id)->delete();
+                    }
+                }
+                
+                $student->save();
                 if ($profileImage) {
 
                     if (strpos($profileImage, 'base64,') !== false) {
@@ -712,6 +757,28 @@ class StudentRegistration extends Controller
                     }
                 }
 
+                // Handle session change in section3
+                if (isset($sectionData['adm_session']) && $sectionData['adm_session']) {
+                    if ($sectionData['adm_session'] != $student->session_id) {
+                        $student->session_id = $sectionData['adm_session'];
+                        $student->save();
+                        // Update registration challan session
+                        $pattern = '%Registration%';
+                        $challan = challans::where('student_id', $student->id)->whereRaw('LOWER(challan_type) LIKE ?', [strtolower($pattern)])->first();
+                        if ($challan) {
+                            $challan->session_id = $sectionData['adm_session'];
+                            $challan->save();
+                        }
+                        // Update admission challan session
+                        $patternadm = '%Admission%';
+                        $challanadm = challans::where('student_id', $student->id)->whereRaw('LOWER(challan_type) LIKE ?', [strtolower($patternadm)])->first();
+                        if ($challanadm) {
+                            $challanadm->session_id = $sectionData['adm_session'];
+                            $challanadm->save();
+                        }
+                    }
+                }
+
                 if ($sectionData['adm_class']) {
                     // dd($sectionData['adm_class'],$student->reg_class);
                     if ($sectionData['adm_class'] != $student->reg_class && $student->student_status == 'Registered') {
@@ -727,12 +794,13 @@ class StudentRegistration extends Controller
                         $challanadm = challans::whereRaw('LOWER(challan_type) LIKE ?', [strtolower($patternadm)])
                             ->where('student_id', $student->id)->first();
                         if ($challanadm) {
-                            $challan->class_id = $sectionData['adm_class'];
+                            $challanadm->class_id = $sectionData['adm_class'];
+                            $challanadm->save();
                             StudentFeeStructure::where('reg_id', $student->id)->delete();
                         }
 
                         if ($student->student_status == 'Registered') {
-                            $student->reg_class = $sectionData['reg_class'];
+                            $student->reg_class = $sectionData['adm_class'];
                             $student->class_id = $sectionData['adm_class'];
                             $student->save();
                         }

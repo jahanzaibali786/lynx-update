@@ -71,6 +71,9 @@ class Grn extends Model
     {
         return $this->hasMany(GrnItem::class, 'grn_id');
     }
+
+
+
     public function linkedPurchases()
     {
         return $this->belongsToMany(Purchase::class, 'grn_items', 'grn_id', 'purchase_id')
@@ -80,26 +83,5 @@ class Grn extends Model
     public function getSubTotal()
     {
         return $this->items->sum(fn($item) => (float) $item->quantity * (float) $item->price);
-    }
-
-    public function getTotalQuantity()
-    {
-        return $this->items->sum(fn($item) => (float) $item->quantity);
-    }
-
-    public function getTotalPrice()
-    {
-        return $this->items->sum(fn($item) => (float) $item->price);
-    }
-
-    public function getRoundOff()
-    {
-        $subtotal = (float) $this->getSubTotal();
-        return round($subtotal) - $subtotal;
-    }
-
-    public function getTotal()
-    {
-        return round((float) $this->getSubTotal());
     }
 }

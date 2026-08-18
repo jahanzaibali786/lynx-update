@@ -11,6 +11,7 @@ class Challans extends Model
     protected $fillable = [
         'student_id',
         'class_id',
+        'section_id',
         'rollno',
         'challanNo',
         'concession_id',
@@ -38,10 +39,14 @@ class Challans extends Model
     {
         return $this->belongsTo(Classes::class, 'class_id', 'id');
     }
-    // public function section()
-    // {
-    //     return $this->belongsTo(Section::class, 'section_id', 'id');
-    // }
+    public function session()
+    {
+        return $this->belongsTo(Session::class, 'session_id', 'id');
+    }
+    public function section()
+    {
+        return $this->belongsTo(Section::class, 'section_id', 'id');
+    }
     public function branch()
     {
         return $this->belongsTo(User::class, 'owned_by', 'id');

@@ -317,11 +317,11 @@ class preChallanController extends Controller
         set_time_limit(0);
 
         $user = \Auth::user();
-        $creatorId = $user->type == 'company' ? $user->creatorId() : $user->ownedId();
         $isCompany = $user->type == 'company';
+        $creatorId = $isCompany ? $user->creatorId() : $user->ownedId();
         $rows = collect();
 
-        // ── Branch dropdown ───────────────────────────────────────────────────────
+        // -- Branch dropdown -----------------------------------------------------
         $branches = \DB::table('users')
             ->when(
                 $isCompany,
@@ -336,16 +336,18 @@ class preChallanController extends Controller
         $report = collect();
 
         if ($request->has('date') || $request->has('branches')) {
+            $month = $selectedDate;
 
-            $month = $selectedDate; // 'Y-m'
-
-            // ── 1. Pull pre-challan snapshots ─────────────────────────────────────
+            // -- 1. Pull pre-challan snapshots -------------------------------------
             $snapshotQuery = PreChallanSnapshot::with(['student.enrollment', 'student.class'])
-                ->where('month', $month)
-                ->where('created_by', $creatorId);
+                ->where('month', $month);
 
-            if ($selectedBranchId && $selectedBranchId !== 'all') {
-                $snapshotQuery->where('owned_by', $selectedBranchId);
+            if ($isCompany) {
+                if ($selectedBranchId && $selectedBranchId !== 'all') {
+                    $snapshotQuery->where('owned_by', $selectedBranchId);
+                }
+            } else {
+                $snapshotQuery->where('owned_by', $creatorId);
             }
 
             $snapshots = $snapshotQuery->get()->keyBy('student_id');
@@ -360,9 +362,7 @@ class preChallanController extends Controller
             }
 
             $studentIds = $snapshots->keys()->all();
-
-            // ── 2. Pull regular/advance challans for these students for the month ──
-            $feeMonthFormatted = $month; // 'Y-m'  — fee_month is varchar, matched via DATE_FORMAT
+            $feeMonthFormatted = $month;
 
             $regularChallans = Challans::select(
                 'student_id',
@@ -377,42 +377,31 @@ class preChallanController extends Controller
                 ->whereIn('student_id', $studentIds)
                 ->whereNotIn('challan_type', ['Registration', 'Withdrawal', 'Admission'])
                 ->where(function ($q) use ($feeMonthFormatted) {
-                    // fee_month is a varchar that can hold any date in the month (e.g. 2026-05-03,
-                    // 2026-05-01, etc.) so match only on Y-m using DATE_FORMAT
                     $q->whereRaw("DATE_FORMAT(STR_TO_DATE(fee_month, '%Y-%m-%d'), '%Y-%m') = ?", [$feeMonthFormatted])
-                        // OR subscription/advance challan where other_months contains 'Y-m-01'
                         ->orWhere(function ($q2) use ($feeMonthFormatted) {
-                        $q2->whereNotNull('other_months')
-                            ->whereRaw("FIND_IN_SET(?, other_months)", [$feeMonthFormatted . '-01']);
-                    });
+                            $q2->whereNotNull('other_months')
+                                ->whereRaw("FIND_IN_SET(?, other_months)", [$feeMonthFormatted . '-01']);
+                        });
                 })
                 ->whereRaw("LOWER(status) IN ('issued', 'pending', 'partially paid' , 'partial', 'paid')")
                 ->get();
-            // For advance/subscription challans that cover multiple months,
-            // divide the net evenly across months (same logic as the main report).
+
             $regularNetByStudent = [];
             foreach ($regularChallans as $challan) {
                 $net = (float) $challan->total_amount - (float) $challan->concession_amount;
                 $otherMonths = array_filter(array_map('trim', explode(',', $challan->other_months ?? '')));
                 $monthCount = max(1, count($otherMonths));
-
-                // Annual-like heads are not split — but at challan level we can only
-                // approximate by dividing total (mirrors applyMonthlySplit behaviour).
                 $monthlyNet = round($net / $monthCount, 2);
-
                 $sid = $challan->student_id;
                 $regularNetByStudent[$sid] = ($regularNetByStudent[$sid] ?? 0) + $monthlyNet;
             }
 
-            // ── 3. Fetch student meta (name, roll, class, adm_date) ───────────────
             $studentMeta = \App\Models\StudentRegistration::with(['class', 'enrollment'])
                 ->whereIn('id', $studentIds)
                 ->get()
                 ->keyBy('id');
 
-            // ── 4. Build comparison rows ──────────────────────────────────────────
             $rows = $snapshots->map(function ($snap) use ($regularNetByStudent, $studentMeta) {
-
                 $sid = $snap->student_id;
                 $student = $studentMeta->get($sid);
                 $regularNet = (float) ($regularNetByStudent[$sid] ?? 0);
@@ -421,13 +410,13 @@ class preChallanController extends Controller
 
                 return [
                     'student_id' => $sid,
-                    'roll_no' => $student->roll_no ?? '—',
-                    'student_name' => $student->stdname ?? '—',
+                    'roll_no' => $student->roll_no ?? '�',
+                    'student_name' => $student->stdname ?? '�',
                     'father_name' => $student->fathername ?? '',
-                    'class_name' => $student->class->name ?? '—',
+                    'class_name' => $student->class->name ?? '�',
                     'adm_date' => optional($student->enrollment)->adm_date
                         ? \Carbon\Carbon::parse($student->enrollment->adm_date)->format('d-M-Y')
-                        : '—',
+                        : '�',
                     'owned_by' => $snap->owned_by,
                     'regular_net' => $regularNet,
                     'pre_challan_net' => $preNet,
@@ -435,34 +424,36 @@ class preChallanController extends Controller
                 ];
             });
 
-            // ── 5. Sort & group by branch ─────────────────────────────────────────
             $report = $rows
                 ->sortBy(fn($r) => [$r['owned_by'], strtolower($r['student_name'])])
                 ->groupBy('owned_by')
                 ->sortKeys();
         }
 
-        // ── Export ────────────────────────────────────────────────────────────────
         if ($request->has('export') && !$report->isEmpty()) {
-
             $monthLabel = \Carbon\Carbon::createFromFormat('Y-m', $selectedDate)->format('M-Y');
             $branchLabel = ($selectedBranchId && $selectedBranchId !== 'all')
                 ? ($branches[$selectedBranchId] ?? 'Branch')
                 : 'All Branches';
+            $safeBranchLabel = str_replace(['/', '\\'], '-', $branchLabel);
+            $safeBranchLabel = preg_replace('/[^A-Za-z0-9 _-]+/', '', $safeBranchLabel);
+            $safeBranchLabel = trim(preg_replace('/\s+/', ' ', $safeBranchLabel), ' ._-');
+            $safeBranchLabel = $safeBranchLabel !== '' ? $safeBranchLabel : 'Branch';
 
-            $reportName = "Pre-Challan vs Regular Challan Comparison — {$monthLabel}";
-            $filename = "PreChallan_Comparison_{$monthLabel}_{$branchLabel}";
+            $reportName = "Pre-Challan vs Regular Challan Comparison � {$monthLabel}";
+            $filename = "PreChallan_Comparison_{$monthLabel}_{$safeBranchLabel}";
+            $filename = preg_replace('/\s+/', '_', $filename);
 
             if ($request->export == 'excel') {
                 return Excel::download(
-                    new PreChallanComparisonExport($branches, $report, $selectedBranchId, $reportName,'excel'),
+                    new PreChallanComparisonExport($branches, $report, $selectedBranchId, $reportName, 'excel'),
                     $filename . '.xlsx'
                 );
             }
 
             if ($request->export == 'pdf') {
                 return Excel::download(
-                    new PreChallanComparisonExport($branches, $report, $selectedBranchId, $reportName,'pdf'),
+                    new PreChallanComparisonExport($branches, $report, $selectedBranchId, $reportName, 'pdf'),
                     $filename . '.pdf',
                     \Maatwebsite\Excel\Excel::MPDF
                 );
@@ -470,7 +461,6 @@ class preChallanController extends Controller
         }
 
         $sortedRows = $rows->sortBy(fn($r) => [$r['owned_by'], strtolower($r['student_name'])]);
-
         $totalStudents = $sortedRows->count();
         $regChallanTotal = $sortedRows->sum('regular_net');
         $preChallanTotal = $sortedRows->sum('pre_challan_net');
@@ -478,9 +468,6 @@ class preChallanController extends Controller
 
         $report = $sortedRows->groupBy('owned_by')->sortKeys();
 
-        // ─────────────────────────────────────────────────────────────────────────
-// Replace your final return view() with this:
-// ─────────────────────────────────────────────────────────────────────────
         return view('studentReports.prechallan.comparison', [
             'branches' => $branches,
             'report' => $report,

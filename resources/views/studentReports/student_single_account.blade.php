@@ -45,6 +45,19 @@
             animation: finalizeGlow 1.2s ease-in-out infinite;
         }
 
+        .challan-wise-toggle {
+            min-width: 180px;
+        }
+
+        .challan-month-summary td {
+            background: #f3f4f6 !important;
+            font-weight: 700;
+        }
+
+        .challan-month-label td {
+            background: #e5e7eb !important;
+            font-weight: 700;
+        }
         @keyframes finalizeGlow {
             0%, 100% {
                 text-shadow: 0 0 0 rgba(220, 53, 69, 0);
@@ -199,6 +212,165 @@
             document.getElementById('student_single_account').submit();
         }
 
+        function formatStatementAmount(value) {
+            var amount = parseFloat(value || 0);
+            if (isNaN(amount)) {
+                amount = 0;
+            }
+            return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function restoreStatementRows() {
+            var tbody = document.getElementById('statementRowsBody');
+            if (!tbody || !tbody.dataset.originalRows) {
+                return;
+            }
+            tbody.innerHTML = tbody.dataset.originalRows;
+        }
+
+        function renderChallanWiseStatement() {
+            var tbody = document.getElementById('statementRowsBody');
+            if (!tbody) {
+                return;
+            }
+
+            if (!tbody.dataset.originalRows) {
+                tbody.dataset.originalRows = tbody.innerHTML;
+            }
+
+            var source = document.createElement('tbody');
+            source.innerHTML = tbody.dataset.originalRows;
+
+            var rows = Array.from(source.querySelectorAll('tr[data-statement-row="1"]')).filter(function(row) {
+                return !(row.classList.contains('opening-balance') || row.classList.contains('closing-balance'));
+            });
+
+            var grouped = {};
+            function parseBillingMonth(value) {
+                var raw = (value || '').trim();
+                if (!raw || raw === '-') {
+                    return null;
+                }
+
+                var parsed = Date.parse(raw);
+                if (!isNaN(parsed)) {
+                    return parsed;
+                }
+
+                var parts = raw.split(/[-,\/\s]+/).filter(Boolean);
+                if (parts.length >= 2) {
+                    var monthMap = {
+                        jan: 0, january: 0,
+                        feb: 1, february: 1,
+                        mar: 2, march: 2,
+                        apr: 3, april: 3,
+                        may: 4,
+                        jun: 5, june: 5,
+                        jul: 6, july: 6,
+                        aug: 7, august: 7,
+                        sep: 8, sept: 8, september: 8,
+                        oct: 9, october: 9,
+                        nov: 10, november: 10,
+                        dec: 11, december: 11
+                    };
+
+                    var first = parts[0].toLowerCase();
+                    var second = parts[1].toLowerCase();
+                    var monthIndex = monthMap[first] !== undefined ? monthMap[first] : monthMap[second];
+                    var yearPart = monthMap[first] !== undefined ? parts[1] : parts[0];
+                    var year = parseInt(yearPart, 10);
+
+                    if (!isNaN(monthIndex) && !isNaN(year)) {
+                        return new Date(year, monthIndex, 1).getTime();
+                    }
+                }
+
+                return raw.toLowerCase();
+            }
+
+            rows.forEach(function(row) {
+                var monthKey = (row.dataset.billingMonth || '-').trim();
+                var challanKey = (row.dataset.challanNo || '-').trim();
+                var groupKey = monthKey + '||' + challanKey;
+
+                if (!grouped[groupKey]) {
+                    grouped[groupKey] = {
+                        month: monthKey,
+                        challanNo: challanKey,
+                        rows: [],
+                        challanTotal: 0,
+                        receivingTotal: 0
+                    };
+                }
+
+                grouped[groupKey].rows.push(row.outerHTML);
+                grouped[groupKey].challanTotal += parseFloat(row.dataset.credit || 0);
+                grouped[groupKey].receivingTotal += parseFloat(row.dataset.debit || 0);
+            });
+
+            var groups = Object.values(grouped).sort(function(a, b) {
+                var aMonth = parseBillingMonth(a.month);
+                var bMonth = parseBillingMonth(b.month);
+
+                if (typeof aMonth === 'number' && typeof bMonth === 'number' && !isNaN(aMonth) && !isNaN(bMonth)) {
+                    if (aMonth !== bMonth) {
+                        return aMonth - bMonth;
+                    }
+                } else {
+                    var monthCompare = String(aMonth).localeCompare(String(bMonth));
+                    if (monthCompare !== 0) {
+                        return monthCompare;
+                    }
+                }
+
+                var aChallan = parseInt(a.challanNo, 10);
+                var bChallan = parseInt(b.challanNo, 10);
+                if (!isNaN(aChallan) && !isNaN(bChallan) && aChallan !== bChallan) {
+                    return aChallan - bChallan;
+                }
+
+                return String(a.challanNo).localeCompare(String(b.challanNo));
+            });
+
+            var html = '';
+            var runningOpening = 0;
+            groups.forEach(function(group) {
+                var closingBalance = runningOpening + group.challanTotal - group.receivingTotal;
+                var openingBalance = runningOpening;
+
+                html += '<tr class="challan-month-label">';
+                html += '<td colspan="13">Billing Month: ' + group.month + ' | Challan No: ' + group.challanNo + '</td>';
+                html += '</tr>';
+                html += '<tr class="challan-month-summary">';
+                html += '<td colspan="3" class="text-end">Opening Balance: ' + formatStatementAmount(openingBalance) + '</td>';
+                html += '<td colspan="3" class="text-end">Challan Total: ' + formatStatementAmount(group.challanTotal) + '</td>';
+                html += '<td colspan="3" class="text-end">Receiving Total: ' + formatStatementAmount(group.receivingTotal) + '</td>';
+                html += '<td colspan="4" class="text-end">Closing Balance: ' + formatStatementAmount(closingBalance) + '</td>';
+                html += '</tr>';
+
+                runningOpening = closingBalance;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function applyStatementViewMode() {
+            var mode = $('#statementViewMode').val();
+            if (mode === 'challan-wise') {
+                renderChallanWiseStatement();
+            } else {
+                restoreStatementRows();
+            }
+        }
+
+        $(document).on('change', '#statementViewMode', function() {
+            applyStatementViewMode();
+        });
+
+        $(function() {
+            applyStatementViewMode();
+        });
+
         function validateExport(exportType) {
             var studentSelect = document.getElementById('student_select');
 
@@ -313,6 +485,17 @@
                                     {{ Form::select('student', $students, $selected_student, ['class' => 'form-control select custom-select', 'id' => 'student_select', 'required' => 'required']) }}
                                 </div>
                             </div>
+                            @if (\Auth::user()->type == 'company')
+                                <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
+                                    <div class="btn-box">
+                                        {{ Form::label('statement_view_mode', __('Statement View'), ['class' => 'form-label']) }}
+                                        <select id="statementViewMode" class="form-control select challan-wise-toggle">
+                                            <option value="default">{{ __('Default View') }}</option>
+                                            <option value="challan-wise">{{ __('Challan Wise') }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            @endif
                             <div
                                 class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-4 d-flex justify-content-end gap-2 align-items-center">
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
@@ -487,7 +670,7 @@
                         <th>Balance</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="statementRowsBody">
                     @php
                         $totalCredit = 0; // Total receivables
                         $totalDebit = 0; // Total payments
@@ -510,11 +693,24 @@
                             }
                         @endphp
 
-                        <tr class="{{ $rowClass }}">
+                        <tr class="{{ $rowClass }}" data-statement-row="1" data-billing-month="{{ $item['billing_month'] ?? '-' }}" data-challan-no="{{ $item['challan_no'] ?? "-" }}" data-credit="{{ $item['credit'] ?? 0 }}" data-debit="{{ $item['debit'] ?? 0 }}" data-balance="{{ $item['balance'] ?? 0 }}">
                             <td>{{ $loop->iteration }}</td>
                             <td>{{ $item['date'] }}</td>
                             <td>{{ $item['description'] }}</td>
-                            <td>{{ $item['challan_no'] ?? '-' }}</td>
+                            <td>
+                                
+                                @php
+                                    $challanId = $item['challanId'] ?? null;
+                                    
+                                @endphp
+                                @if (!empty($challanId))
+                                    <a href="{{ route('challan.show', $challanId) }}" target="_blank" rel="noopener">
+                                        {{ $item['challan_no'] ?? '-' }}
+                                    </a>
+                                @else
+                                    {{ $item['challan_no'] ?? '-' }}
+                                @endif
+                            </td>
                             <td>
                                 {{ !empty($item['billing_month']) && $item['billing_month'] !== '-' ? $item['billing_month'] : '-' }}
                             </td>

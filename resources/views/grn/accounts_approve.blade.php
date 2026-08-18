@@ -15,7 +15,7 @@
         $(function() {
             var accountOptions = @json($chartAccountOptions);
             var branchOptions = @json($branchOptions);
-            var grnAmount = parseFloat({!! json_encode(number_format((float) $grn->getTotal(), 2, '.', '')) !!}) || 0;
+            var grnAmount = parseFloat({!! json_encode(number_format((float) $grn->getSubTotal(), 2, '.', '')) !!}) || 0;
             var defaultDate = {!! json_encode($grn->grn_date) !!};
             var defaultRef = {!! json_encode($grn->reference_no ?: ($voucherPreview['grn_number'] ?? '')) !!};
             var defaultBranch = {!! json_encode($grn->owned_by) !!};
@@ -265,7 +265,7 @@
         $debitLines = $voucherPreview['debit_lines'] ?? [];
         $creditLine = $voucherPreview['credit_line'] ?? null;
         $voucherTotal = (string) ($voucherPreview['total'] ?? '0.00');
-        $grnTotal = number_format((float) $grn->getTotal(), 2, '.', '');
+        $grnTotal = number_format((float) $grn->getSubTotal(), 2, '.', '');
         $allLines = $debitLines;
         if ($creditLine) {
             $allLines[] = $creditLine;

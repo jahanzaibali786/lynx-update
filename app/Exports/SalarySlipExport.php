@@ -21,7 +21,6 @@ class SalarySlipExport implements FromArray, WithEvents
     protected array $totalRows = [];
     protected array $disbursedRows = [];
     protected array $dottedRows = [];
-    protected array $spacerRows = [];
     protected array $breakRows = [];
     protected array $logoRows = [];
     protected array $titleRows = [];
@@ -139,9 +138,6 @@ class SalarySlipExport implements FromArray, WithEvents
             $this->merges[] = 'B' . count($rows) . ':N' . count($rows);
 
             if ($index % 3 !== 2 && $index < $datas->count() - 1) {
-                $spacerRow = count($rows) + 1;
-                $rows[] = $this->blankRow();
-                $this->spacerRows[] = $spacerRow;
                 $dottedRow = count($rows) + 1;
                 $rows[] = $this->blankRow();
                 $this->dottedRows[] = $dottedRow;
@@ -203,11 +199,7 @@ class SalarySlipExport implements FromArray, WithEvents
                     $sheet->getStyle("F{$row}:M{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 }
                 foreach ($this->dottedRows as $row) {
-                    $sheet->getRowDimension($row)->setRowHeight(24);
                     $sheet->getStyle("B{$row}:N{$row}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_DOTTED);
-                }
-                foreach ($this->spacerRows as $row) {
-                    $sheet->getRowDimension($row)->setRowHeight(28);
                 }
                 foreach ($this->breakRows as $row) {
                     $sheet->setBreak("A{$row}", Worksheet::BREAK_ROW);
@@ -258,12 +250,12 @@ class SalarySlipExport implements FromArray, WithEvents
                     }
                 }
 
-                $logoPath = public_path('assets/images/lynxLogo.png');
+                $logoPath = public_path('assets/images/lynxlogo(2).png');
                 if (file_exists($logoPath)) {
                     foreach ($this->logoRows as $row) {
                         $drawing = new Drawing();
                         $drawing->setPath($logoPath);
-                        $drawing->setHeight(34);
+                        $drawing->setHeight(38);
                         $drawing->setCoordinates("M{$row}");
                         $drawing->setWorksheet($sheet);
                     }

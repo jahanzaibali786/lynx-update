@@ -9,9 +9,12 @@
 
 @section('action-btn')
     <div class="col text-end">
-        <a href="#" data-url="{{ route('employee-salary-proporal.create') }}" data-size="lg" data-ajax-popup="true"
-            
-            data-bs-title="{{ __('Create Salary Proposal') }}" class="apply-btn btn mx-1 btn-sm btn-outline-primary">
+        <a href="#" data-url="{{ route('employee-salary-proporal.bulk.create') }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Bulk Proposals') }}" class="apply-btn btn mx-1 btn-sm btn-outline-success">
+            <span class="btn-inner--icon">
+                Bulk Proposals
+            </span>
+        </a>
+        <a href="#" data-url="{{ route('employee-salary-proporal.create') }}" data-size="lg" data-ajax-popup="true" data-bs-title="{{ __('Create Salary Proposal') }}" class="apply-btn btn mx-1 btn-sm btn-outline-primary">
             <span class="btn-inner--icon">
                 Create
             </span>

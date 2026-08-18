@@ -54,9 +54,9 @@
                 The Lynx School
             </td>
 
-            <td colspan="2" style="vertical-align: middle; text-align:right; width:90px;">
-                <img src="{{ public_path('assets/images/lynxLogo.png') }}" alt="School Logo"
-                    style="display:block; height:58px; width:auto; max-height:58px; max-width:80px; margin-left:auto;">
+            <td colspan="2" style="vertical-align: middle; text-align:right;">
+                <img src="{{ public_path('assets/images/lynxlogo(2).png') }}" alt="School Logo" width="75"
+                    height="75" style="display:block;">
             </td>
         </tr>
         @if (@$is_branch)
@@ -702,10 +702,6 @@ $result = [
             <td></td>
             <td colspan="12" style="color: #808080;">This is a system generated document and does not require a
                 signature</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td colspan="13" style="height: 28px;"></td>
         </tr>
         <tr>
             <td></td>

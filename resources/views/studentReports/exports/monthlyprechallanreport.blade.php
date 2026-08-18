@@ -211,7 +211,7 @@
         <tbody>
             @foreach ($report as $branchId => $students)
                 @php
-                   $totalCols = 18 + ($heads->count() * 3);
+                   $totalCols = 19 + ($heads->count() * 3);
                 @endphp
                 <tr>
                     <td colspan="4"
@@ -349,7 +349,7 @@
                                 : 'inherit');
                 @endphp
                 <tr>
-                    <td colspan="9"
+                    <td colspan="10"
                         style="background:gray; font-size:8px; text-align:center; border:1px solid black; font-weight:bold;">
                         Branch Total
                     </td>
@@ -406,7 +406,7 @@
                     $grandTotal['difference'] > 0 ? 'green' : ($grandTotal['difference'] < 0 ? '#cc0000' : 'inherit');
             @endphp
             <tr>
-                <td colspan="9"
+                <td colspan="10"
                     style="background:gray; font-size:8px; border:1px solid black; text-align:center;
                            border-top:2px double black; border-bottom:2px double black; font-weight:bold;">
                     Grand Total

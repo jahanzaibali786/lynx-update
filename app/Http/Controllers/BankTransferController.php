@@ -215,6 +215,8 @@ class BankTransferController extends Controller
                     'to_bank_id' => $to_account->id,
                     'from_account' => $bankAccounts->chart_account_id,
                     'to_account' => $to_account->chart_account_id,
+                    'added_at' => now(),
+                    'added_by' => \Auth::user()->id,
                     'owned_by' => $bankAccounts->owned_by,
                     'created_by' => \Auth::user()->creatorId(),
                     'user_id' => \Auth::user()->id, //Branch,User,Supplier,Customer,Employee,Vendor
@@ -382,22 +384,24 @@ class BankTransferController extends Controller
                     }
                 }
 
-                $data = [
+                 $data = [
                     'id' => $transfer->id,
                     'date' => $request->date,
-                    'reference' => $request->reference,
                     'description' => $request->description,
+                    'reference' => $request->reference,
                     'amount' => $request->amount,
+                    'from_bank_name' => $from_account->bank_name,
+                    'to_bank_name' => $to_account->bank_name,
                     'from_bank_id' => $from_account->id,
                     'to_bank_id' => $to_account->id,
                     'from_account' => $from_account->chart_account_id,
-                    'from_bank_name' => @$from_account->chartAccount->name,
-                    'to_bank_name' => @$to_account->chartAccount->name,
                     'to_account' => $to_account->chart_account_id,
+                    'added_at' => now(),
+                    'added_by' => \Auth::user()->id,
                     'owned_by' => $from_account->owned_by,
                     'created_by' => \Auth::user()->creatorId(),
-                    'user_id' => \Auth::user()->id,
-                    'user_type' => 'Branch',
+                    'user_id' => \Auth::user()->id, //Branch,User,Supplier,Customer,Employee,Vendor
+                    'user_type' => 'Branch', //Branch,User,Supplier,Customer,Employee,Vendor
                     'created_at' => $request->date . ' ' . Carbon::now()->format('H:i:s'),
                     'updated_at' => $request->date . ' ' . Carbon::now()->format('H:i:s'),
                 ];
@@ -415,6 +419,7 @@ class BankTransferController extends Controller
             }
         } catch (\Exception $e) {
             DB::rollBack();
+            dd($e);
             return redirect()->back()->with('error', $e->getMessage());
         }
     }

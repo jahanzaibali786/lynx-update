@@ -3,30 +3,37 @@
     <div class="row d-flex text-center">
         {{-- @dd($concession) --}}
         <h4 class="text-start">Student Detail</h4>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Registration No :</b> <br>
-            {{ @$concession->student->id }}</div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Roll No:</b> <br>
-            {{ @$concession->student->enrollment->enrollId }}</div>
-        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12"><b>Student Name : <br>
-            </b>{{ $concession->student->stdname }}</div>
-        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12"><b>Father Name : <br>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Branch :</b> <br>
+            @if(@$concession->student->student_status == 'Registered')    
+            {{ @$concession->student->reg_branch->name }}
+            @else
+            {{ @$concession->student->branch->name }}
+            @endif
+        </div>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Roll No:</b> <br>
+        {{ @$concession->student->enrollment->enrollId }}</div>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Student Name : <br>
+        </b>{{ $concession->student->stdname }}</div>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Registration No :</b> <br>
+        {{ @$concession->student->id }}</div>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Father Name : <br>
             </b>{{ $concession->student->fathername }}</div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Class: </b>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Class: </b>
             <br>{{ $concession->student->class->name }}
         </div>
         <hr>
         <h4 class="text-start">Concession Detail</h4>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Order No : <br>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Order No : <br>
             </b>{{ @$concession->id }}
         </div>
-        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Concession: <br>
+        <div class="col-xl-8 col-lg-8 col-md-6 col-sm-12 col-12"><b>Concession: <br>
             </b>{{ @$concession->concession->title }}
         </div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Apply Date: <br> </b>{{ @$concession->apply_date }}
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Apply Date: <br> </b>{{ @$concession->apply_date }}
         </div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Start Date: <br> </b>{{ @$concession->start_date }}
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Start Date: <br> </b>{{ @$concession->start_date }}
         </div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>End Date: <br> </b>{{ @$concession->end_date ?? '-' }}
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>End Date: <br> </b>{{ @$concession->end_date ?? '-' }}
         </div>
         <hr>
         <h4 class="text-start">Concession Heads</h4>

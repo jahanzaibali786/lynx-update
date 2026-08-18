@@ -33,15 +33,15 @@
         </div>
         <div class="form-group col-md-4">
             {{ Form::label('income_tax', __('Income Tax'), ['class' => 'form-label']) }}
-            {{ Form::text('income_tax', null, ['class' => 'form-control ', 'required' => 'required']) }}
+            {{ Form::text('income_tax', null, ['class' => 'form-control ', 'required' => 'required', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
             {{ Form::label('other_deduction', __('Other Deduction'), ['class' => 'form-label']) }}
-            {{ Form::text('other_deduction', null, ['class' => 'form-control ', 'required' => 'required']) }}
+            {{ Form::text('other_deduction', null, ['class' => 'form-control ', 'required' => 'required', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
             {{ Form::label('EOBI', __('EOBI'), ['class' => 'form-label']) }}
-            {{ Form::text('EOBI', null, ['class' => 'form-control ', 'required' => 'required']) }}
+            {{ Form::text('EOBI', null, ['class' => 'form-control ', 'required' => 'required', 'readonly' => 'readonly']) }}
         </div>
         {{-- // all fields gROSS,income tax,other deduction,EOBI,Net salary / --}}
         <div class="form-group col-md-6">

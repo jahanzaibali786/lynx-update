@@ -430,6 +430,60 @@ $('#submitBtnSection1').click(function() {
             }
             this.value = value;
         });
+
+        // Branch change handler - fetch classes and sessions
+        $(document).on('change', '#branch', function() {
+            var branchId = $(this).val();
+            if (branchId) {
+                // Fetch classes for this branch
+                $.ajax({
+                    url: '{{ route('branch.class') }}',
+                    type: 'POST',
+                    data: {
+                        branch_id: branchId,
+                        _token: "{{ csrf_token() }}"
+                    },
+                    success: function(data) {
+                        $('#adm_class').empty();
+                        $('#adm_class').append('<option value="">Select Class</option>');
+                        for (let index = 0; index < data.length; index++) {
+                            $('#adm_class').append('<option value="' + data[index]['id'] + '">' + data[index]['name'] + '</option>');
+                        }
+                    }
+                });
+
+                // Fetch sessions for this branch (sessions are independent of class)
+                $.ajax({
+                    url: '{{ route('branch.session_class') }}',
+                    type: 'POST',
+                    data: {
+                        id: branchId,
+                        _token: "{{ csrf_token() }}"
+                    },
+                    success: function(data) {
+                        $('#adm_session').empty();
+                        $('#adm_session').append('<option value="">Select Session</option>');
+                        if (data.session && data.session.length > 0) {
+                            for (let index = 0; index < data.session.length; index++) {
+                                $('#adm_session').append('<option value="' + data.session[index]['id'] + '">' + data.session[index]['year'] + '</option>');
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        // Class change handler - should NOT affect session
+        $(document).on('change', '#adm_class', function() {
+            // Class change does not affect session - they are independent
+            console.log('Class changed to: ' + $(this).val());
+        });
+
+        // Session change handler - should NOT affect class
+        $(document).on('change', '#adm_session', function() {
+            // Session change does not affect class - they are independent
+            console.log('Session changed to: ' + $(this).val());
+        });
     </script>
 @endpush
 @section('breadcrumb')
@@ -881,14 +935,17 @@ $('#submitBtnSection1').click(function() {
                         </div> --}}
                             <div style="flex: 1;">
                                 {{ Form::label('adm_session', __('Adm Session'), ['class' => 'form-label']) }}
-                                {!! Form::text(
-                                    'adm_session', @$student->session ? $student->session->year : '2023',
-                                    ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
-                                ) !!}
+                                <select name="adm_session" id="adm_session" class="form-control select" required @if($student->student_status == 'Registered') @else disabled @endif>
+                                    @foreach ($sessions as $key => $values)
+                                        <option value="{{ $key }}"
+                                            {{ $key == $student->session_id ? 'selected' : '' }}>{{ $values }}
+                                        </option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div style="flex: 1;">
                                 {{ Form::label('adm_class', __('Adm Class'), ['class' => 'form-label']) }}
-                                 <select name="adm_class" class="form-control select " required @if($student->student_status == 'Registered') @else readonly @endif>
+                                 <select name="adm_class" id="adm_class" class="form-control select" required @if($student->student_status == 'Registered') @else disabled @endif>
                                     @foreach ($classes as $key => $values)
                                         <option value="{{ $key }}"
                                             {{ $key == $student->reg_class ? 'selected' : '' }}>{{ $values }}
@@ -960,28 +1017,111 @@ $('#submitBtnSection1').click(function() {
                         <button id="submitBtnSection3" class="btn btn-primary m-1">Save</button>
                     </div>
                     </div>
-                    @if ($studentchallanexist == null)
+                    @if ($studentchallanexist && Auth::user()->type !== 'company')
+
+                        {{-- Existing challan: non-company users cannot generate another --}}
                         <div class="card py-4 px-4">
-                            <div class=" row" style="gap:20px; align-items: center;">
-                                <div class="col-md-3 col-lg-3">
-                                    {{ Form::label('challan_date', __('Billing Month'), ['class' => 'form-label']) }}<span
-                                        style="color: red">&nbsp;(for the month date)</span>
-                                    {!! Form::Month('challan_date', date('Y-m'), ['class' => 'form-control', 'id' => 'challan_date']) !!}
-                                </div>
-                                <div class="col-md-3 col-lg-3">
-                                    {!! Form::label('issueDate', __('Issue Date'), ['class' => 'form-label']) !!}<span style="color: red">
-                                        *</span>
-                                    {!! Form::date('issueDate', date('Y-m-d'), ['class' => 'form-control', 'id' => 'issueDate']) !!}
-                                </div>
-                                <div class="col-md-3 col-lg-3">
-                                    {!! Form::label('dueDate', __('Due Date'), ['class' => 'form-label']) !!}<span style="color: red"> *</span>
-                                    {!! Form::date('dueDate', date('Y-m-d', strtotime('+3 days')), ['class' => 'form-control', 'id' => 'dueDate']) !!}
-                                </div>
-                                <div class="col-md-2 col-lg-2" style="position: relative; top:10px;">
-                                    <button onclick="getCheckedRowData()" class="btn btn-primary">Generate Challan</button>
-                                </div>
+                            <div>
+                                Admission challan already exists in the system.
+                    
+                                @if (!empty($studentchallanexist->challanNo))
+                                    Challan No:
+                                    <strong>{{ $studentchallanexist->challanNo }}</strong>
+                                @endif
                             </div>
                         </div>
+                    
+                    @else
+                    
+                        {{-- Show existing challan information to company user --}}
+                        @if ($studentchallanexist && Auth::user()->type === 'company')
+                            <div class="card py-4 px-4">
+                                <div>
+                                    Admission challan already exists in the system.
+                                    Challan No:
+                                    <strong>{{ $studentchallanexist->challanNo }}</strong>
+                    
+                                    <br>
+                    
+                                    <span class="text-warning">
+                                        As a company user, you are allowed to create another admission challan.
+                                    </span>
+                                </div>
+                            </div>
+                        @endif
+                    
+                        {{-- 
+                            Form is available when:
+                            1. No admission challan exists, for any user.
+                            2. Admission challan exists, but logged-in user is company.
+                        --}}
+                        <div class="card py-4 px-4">
+                            <div class="row" style="gap: 20px; align-items: center;">
+                    
+                                <div class="col-md-3 col-lg-3">
+                                    {!! Form::label('challan_date', __('Billing Month'), [
+                                        'class' => 'form-label',
+                                    ]) !!}
+                    
+                                    <span style="color: red;">
+                                        &nbsp;(for the month date)
+                                    </span>
+                    
+                                    {!! Form::month('challan_date', date('Y-m'), [
+                                        'class' => 'form-control',
+                                        'id' => 'challan_date',
+                                        'required' => true,
+                                    ]) !!}
+                                </div>
+                    
+                                <div class="col-md-3 col-lg-3">
+                                    {!! Form::label('issueDate', __('Issue Date'), [
+                                        'class' => 'form-label',
+                                    ]) !!}
+                    
+                                    <span style="color: red;">*</span>
+                    
+                                    {!! Form::date('issueDate', date('Y-m-d'), [
+                                        'class' => 'form-control',
+                                        'id' => 'issueDate',
+                                        'required' => true,
+                                    ]) !!}
+                                </div>
+                    
+                                <div class="col-md-3 col-lg-3">
+                                    {!! Form::label('dueDate', __('Due Date'), [
+                                        'class' => 'form-label',
+                                    ]) !!}
+                    
+                                    <span style="color: red;">*</span>
+                    
+                                    {!! Form::date(
+                                        'dueDate',
+                                        date('Y-m-d', strtotime('+3 days')),
+                                        [
+                                            'class' => 'form-control',
+                                            'id' => 'dueDate',
+                                            'required' => true,
+                                        ],
+                                    ) !!}
+                                </div>
+                    
+                                <div
+                                    class="col-md-2 col-lg-2"
+                                    style="position: relative; top: 10px;"
+                                >
+                                    <button
+                                        type="button"
+                                        onclick="getCheckedRowData()"
+                                        class="btn btn-primary"
+                                    >
+                                        Generate Admission Challan
+                                    </button>
+                                </div>
+                    
+                            </div>
+                        </div>
+                    
                     @endif
                     <table class="">
                         <thead>

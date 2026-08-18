@@ -37,10 +37,7 @@
         }
 
         // ─── Add line button ──────────────────────────────────────────────────────────
-        $(document).off('click', '#addItemBtn').on('click', '#addItemBtn', function(e) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-
+        $(document).on('click', '#addItemBtn', function() {
             var openRows = $('#items-tbody tr[data-row-id]').length;
             if (openRows >= MAX_OPEN_ROWS) {
                 show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS + ' open).', 'warning');
@@ -50,15 +47,6 @@
         });
 
         function appendInlineRow() {
-            var tbody = document.getElementById('items-tbody');
-            var now = Date.now();
-            var lastAppendAt = parseInt(tbody.getAttribute('data-last-append-at') || '0', 10);
-
-            if (now - lastAppendAt < 300) {
-                return;
-            }
-
-            tbody.setAttribute('data-last-append-at', now);
             rowCounter++;
             var rid = rowCounter;
 
@@ -88,7 +76,7 @@
                 '<td class="col-actions" style="white-space:nowrap;">' +
                 '<button type="button" class="btn btn-sm btn-primary confirm-row-btn" data-rid="' + rid +
                 '" title="Confirm"><i class="ti ti-check"></i></button> ' +
-                '<button type="button" class="btn btn-sm btn-danger discard-row-btn" data-rid="' + rid +
+                '<button type="button" class="btn btn-sm btn-outline-danger discard-row-btn" data-rid="' + rid +
                 '" title="Discard"><i class="ti ti-x"></i></button>' +
                 '</td>' +
                 '</tr>';
@@ -123,7 +111,7 @@
         }
 
         // ─── Item change → load product details ──────────────────────────────────────
-        $(document).off('change', '.row-item').on('change', '.row-item', function() {
+        $(document).on('change', '.row-item', function() {
             var rid = $(this).data('rid');
             var itemId = $(this).val();
             
@@ -167,7 +155,7 @@
         }
 
         // ─── Quantity / Price change → recalculate amount ────────────────────────────
-        $(document).off('keyup change', '.row-quantity, .row-price').on('keyup change', '.row-quantity, .row-price', function() {
+        $(document).on('keyup change', '.row-quantity, .row-price', function() {
             var rid = $(this).data('rid');
             calculateRowAmount(rid);
         });
@@ -181,7 +169,7 @@
         }
 
         // ─── Confirm row ──────────────────────────────────────────────────────────────
-        $(document).off('click', '.confirm-row-btn').on('click', '.confirm-row-btn', function() {
+        $(document).on('click', '.confirm-row-btn', function() {
             var rid = $(this).data('rid');
             var tr = $('tr[data-row-id="' + rid + '"]');
 
@@ -237,13 +225,13 @@
         }
 
         // ─── Discard open row ─────────────────────────────────────────────────────────
-        $(document).off('click', '.discard-row-btn').on('click', '.discard-row-btn', function() {
+        $(document).on('click', '.discard-row-btn', function() {
             $('tr[data-row-id="' + $(this).data('rid') + '"]').remove();
             checkEmptyState();
         });
 
         // ─── Remove confirmed entry ───────────────────────────────────────────────────
-        $(document).off('click', '.remove-entry-btn').on('click', '.remove-entry-btn', function(e) {
+        $(document).on('click', '.remove-entry-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             if (!confirm('Remove this item?')) return;
@@ -258,7 +246,7 @@
         });
 
         // ─── Edit confirmed entry ─────────────────────────────────────────────────────
-        $(document).off('click', '.edit-entry-btn').on('click', '.edit-entry-btn', function(e) {
+        $(document).on('click', '.edit-entry-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var entry = studyPackItems.find(function(item) {
@@ -287,7 +275,7 @@
         });
 
         // Recalculate amount during edit
-        $(document).off('input', '.edit-quantity, .edit-price').on('input', '.edit-quantity, .edit-price', function() {
+        $(document).on('input', '.edit-quantity, .edit-price', function() {
             var id = parseInt($(this).data('id'));
             var tr = $('tr[data-entry-id="' + id + '"]');
             var entry = studyPackItems.find(function(item) {
@@ -302,7 +290,7 @@
         });
 
         // Save edit
-        $(document).off('click', '.save-edit-btn').on('click', '.save-edit-btn', function(e) {
+        $(document).on('click', '.save-edit-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var tr = $('tr[data-entry-id="' + id + '"]');
@@ -333,7 +321,7 @@
         });
 
         // Cancel edit
-        $(document).off('click', '.cancel-edit-btn').on('click', '.cancel-edit-btn', function(e) {
+        $(document).on('click', '.cancel-edit-btn', function(e) {
             e.preventDefault();
             var id = parseInt($(this).data('id'));
             var entry = studyPackItems.find(function(item) {
@@ -378,7 +366,7 @@
         }
 
         // ─── Keyboard shortcuts ──────────────────────────────────────────────────────
-        $(document).off('keydown', '.row-item, .row-quantity, .row-price').on('keydown', '.row-item, .row-quantity, .row-price', function(e) {
+        $(document).on('keydown', '.row-item, .row-quantity, .row-price', function(e) {
             var rid = $(this).data('rid');
             if (!rid) return;
 
@@ -407,7 +395,7 @@
             }
         });
 
-        $(document).off('keydown', '.edit-quantity, .edit-price').on('keydown', '.edit-quantity, .edit-price', function(e) {
+        $(document).on('keydown', '.edit-quantity, .edit-price', function(e) {
             var id = $(this).data('id');
             if (!id) return;
 
@@ -437,7 +425,7 @@
         });
 
         // ─── Form validation before submit ────────────────────────────────────────────
-        $(document).off('submit', '#studypack-form').on('submit', '#studypack-form', function(e) {
+        $(document).on('submit', '#studypack-form', function(e) {
             if (studyPackItems.length === 0) {
                 e.preventDefault();
                 show_toastr('error', 'Please add at least one item.', 'error');
@@ -446,7 +434,7 @@
         });
 
         // ─── Global Shift+Enter to add new row ────────────────────────────────────────
-        $(document).off('keydown.studypackAddRow').on('keydown.studypackAddRow', function(e) {
+        $(document).on('keydown', function(e) {
             // Check if Shift+Enter is pressed anywhere on the page
             if (e.key === 'Enter' && e.shiftKey) {
                 // Don't trigger if we're in a textarea or other multi-line input
@@ -625,3 +613,4 @@
         {{ Form::close() }}
     </div>
 @endsection
+

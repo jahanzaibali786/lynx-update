@@ -11,6 +11,7 @@
             <th>{{ __('Reg No #') }}</th>
             <th>{{ __('Roll No #') }}</th>
             <th>{{ __('Challan No #') }}</th>
+            <th>{{ __('Billing Month') }}</th>
             <th>{{ __('Admission Date') }}</th>
             <th>{{ __('Class') }}</th>
             <th>{{ __('Student Name') }}</th>
@@ -35,6 +36,7 @@
                     $challanData = $studentChallanData[$studentRegNo] ?? [
                         'challan_no' => '',
                         'challan_id' => '',
+                        'fee_month' => '',
                         'heads' => [],
                         'total' => 0,
                     ];
@@ -47,6 +49,7 @@
                     <td>{{ $student->id }}</td>
                     <td>{{ $student->enrollId ?? '' }}</td>
                     <td>{{ $challanData['challan_no'] }}</td>
+                    <td>{{ !empty($challanData['fee_month']) ? date('M Y', strtotime($challanData['fee_month'])) : '-' }}</td>
                     <td>{{ !empty($student->created_at) ? date('d M Y', strtotime($student->created_at)) : '' }}</td>
                     <td>{{ @$student->class->name }}</td>
                     <td>{{ @$student->StudentRegistration->stdname ?? '' }}</td>
@@ -58,22 +61,22 @@
                 </tr>
             @endforeach
             <tr>
-                <td colspan="{{ 8 + count($headNames) }}" style="text-align:center; font-size: 8px; background-color:gray; font-family: calibri; border: 1px solid #000;">Branch Total</td>
+                <td colspan="{{ 9 + count($headNames) }}" style="text-align:center; font-size: 8px; background-color:gray; font-family: calibri; border: 1px solid #000;">Branch Total</td>
                 <td style="text-align: right; font-size: 8px; font-family: calibri; background-color:gray; border: 1px solid #000;">{{ $branchTotals[$branchId] ?? 0 }}</td>
                 <td style="text-align: right; font-size: 8px; font-family: calibri; background-color:gray; border: 1px solid #000;"></td>
             </tr>
         @endforeach
         <tr>
-            <td colspan="{{ 8 + count($headNames) }}" style="height: 10px; border: none;"></td>
+            <td colspan="{{ 9 + count($headNames) }}" style="height: 10px; border: none;"></td>
         </tr>
         <tr>
-            <td colspan="{{ 8 + count($headNames) }}" style="height: 10px; border: none;"></td>
+            <td colspan="{{ 9 + count($headNames) }}" style="height: 10px; border: none;"></td>
         </tr>
         <tr>
-            <td colspan="{{ 8 + count($headNames) }}" style="height: 10px; border: none;"></td>
+            <td colspan="{{ 9 + count($headNames) }}" style="height: 10px; border: none;"></td>
         </tr>
         <tr>
-            <td colspan="{{ 8 + count($headNames) }}" style="text-align:center; background-color:gray; font-size: 8px; font-family: calibri; font-weight:bold; background: grey; border: 2px solid black; border-collapse: collapse; border-top: 6px double black; border-bottom: 6px double black;" >Grand Total</td>
+            <td colspan="{{ 9 + count($headNames) }}" style="text-align:center; background-color:gray; font-size: 8px; font-family: calibri; font-weight:bold; background: grey; border: 2px solid black; border-collapse: collapse; border-top: 6px double black; border-bottom: 6px double black;" >Grand Total</td>
             <td style="text-align: right; background-color:gray; font-size: 8px; font-family: calibri; font-weight:bold; background: grey; border: 2px solid black; border-collapse: collapse; border-top: 6px double black; border-bottom: 6px double black;">{{ $grandTotal }}</td>
             <td style="text-align: right; background-color:gray; font-size: 8px; font-family: calibri; font-weight:bold; background: grey; border: 2px solid black; border-collapse: collapse; border-top: 6px double black; border-bottom: 6px double black;"></td>
         </tr>

@@ -99,6 +99,11 @@
                                     <td class="Action">
                                         <span>
                                             <div class="action-btn ms-2">
+                                                <a href="{{ route('stock-transfer-order.print', Crypt::encrypt($StockTransferOrder->id)) }}"
+                                                        class="mx-1 btn btn-outline-secondary btn-sm align-items-center" target="_blank"
+                                                        data-bs-title="{{ __('Print') }}" title="{{ __('Print') }}">
+                                                        <span class="btn-inner--icon"><i class="ti ti-printer"></i></span>
+                                                    </a>
                                                 @if($canShowOrder)
                                                     <a href="{{ route('stock-transfer-order.show', Crypt::encrypt($StockTransferOrder->id)) }}"
                                                         class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center" data-bs-title="{{ __('Detail') }}">
@@ -112,6 +117,7 @@
                                                         class="mx-1 btn btn-outline-primary btn-sm align-items-center" data-bs-title="{{ __('Edit') }}">
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
+                                                    
                                                 @endif
                                                 @if($canForwardToHo)
                                                     <a href="{{ route('stock-transfer-order.fw_to_ho', $StockTransferOrder->id) }}"

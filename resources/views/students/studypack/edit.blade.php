@@ -79,7 +79,8 @@
 
             var openRows = $('#items-tbody tr[data-row-id]').length;
             if (openRows >= MAX_OPEN_ROWS) {
-                show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS + ' open).', 'warning');
+                show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS +
+                    ' open).', 'warning');
                 return;
             }
             appendInlineRow();
@@ -182,7 +183,8 @@
                     var product = data.product;
 
                     // Set price
-                    $('.row-price[data-rid="' + rid + '"]').val(parseFloat(product.sale_price || 0).toFixed(2));
+                    $('.row-price[data-rid="' + rid + '"]').val(parseFloat(product.sale_price || 0)
+                        .toFixed(2));
 
                     // Set unit
                     $('#unit-' + rid).text(data.unit || '');
@@ -203,10 +205,11 @@
         }
 
         // ─── Quantity / Price change → recalculate amount ────────────────────────────
-        $(document).off('keyup change', '.row-quantity, .row-price').on('keyup change', '.row-quantity, .row-price', function() {
-            var rid = $(this).data('rid');
-            calculateRowAmount(rid);
-        });
+        $(document).off('keyup change', '.row-quantity, .row-price').on('keyup change', '.row-quantity, .row-price',
+            function() {
+                var rid = $(this).data('rid');
+                calculateRowAmount(rid);
+            });
 
         function calculateRowAmount(rid) {
             var quantity = parseFloat($('.row-quantity[data-rid="' + rid + '"]').val()) || 0;
@@ -265,8 +268,10 @@
                 '<td class="text-end">' + formatAmount(e.price) + '</td>' +
                 '<td class="text-end fw-semibold">' + formatAmount(e.amount) + '</td>' +
                 '<td class="text-center">' +
-                '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id + '" title="Edit"><i class="ti ti-pencil"></i></a>' +
-                '<a href="#" class="remove-entry-btn text-danger" data-id="' + e.id + '" title="Remove"><i class="ti ti-trash"></i></a>' +
+                '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id +
+                '" title="Edit"><i class="ti ti-pencil"></i></a>' +
+                '<a href="#" class="remove-entry-btn text-danger" data-id="' + e.id +
+                '" title="Remove"><i class="ti ti-trash"></i></a>' +
                 '</td>' +
                 '</tr>';
         }
@@ -305,7 +310,8 @@
 
             // Replace quantity, price with editable inputs
             tr.find('td').eq(1).html(
-                '<input type="number" class="form-control form-control-sm edit-quantity" value="' + entry.quantity +
+                '<input type="number" class="form-control form-control-sm edit-quantity" value="' + entry
+                .quantity +
                 '" min="1" step="1" data-id="' + id + '" style="width:80px;">'
             );
             tr.find('td').eq(2).html(
@@ -316,8 +322,10 @@
                 '<span class="edit-amount text-end fw-semibold">' + formatAmount(entry.amount) + '</span>'
             );
             tr.find('td').eq(4).html(
-                '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id + '" title="Save"><i class="ti ti-check"></i></a>' +
-                '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id + '" title="Cancel"><i class="ti ti-x"></i></a>'
+                '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id +
+                '" title="Save"><i class="ti ti-check"></i></a>' +
+                '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id +
+                '" title="Cancel"><i class="ti ti-x"></i></a>'
             );
         });
 
@@ -411,34 +419,36 @@
         }
 
         // ─── Keyboard shortcuts ──────────────────────────────────────────────────────
-        $(document).off('keydown', '.row-item, .row-quantity, .row-price').on('keydown', '.row-item, .row-quantity, .row-price', function(e) {
-            var rid = $(this).data('rid');
-            if (!rid) return;
+        $(document).off('keydown', '.row-item, .row-quantity, .row-price').on('keydown',
+            '.row-item, .row-quantity, .row-price',
+            function(e) {
+                var rid = $(this).data('rid');
+                if (!rid) return;
 
-            // Disable Tab key navigation
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                return false;
-            }
+                // Disable Tab key navigation
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    return false;
+                }
 
-            if (e.key === 'Enter' && e.shiftKey) {
-                // Shift+Enter: Add new line
-                e.preventDefault();
-                $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
-                // Small delay to let the confirm complete, then add new row
-                setTimeout(function() {
-                    $('#addItemBtn').trigger('click');
-                }, 100);
-            } else if (e.key === 'Enter') {
-                // Enter: Confirm current row
-                e.preventDefault();
-                $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
-            } else if (e.key === 'Escape') {
-                // Escape: Discard current row
-                e.preventDefault();
-                $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
-            }
-        });
+                if (e.key === 'Enter' && e.shiftKey) {
+                    // Shift+Enter: Add new line
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+                    // Small delay to let the confirm complete, then add new row
+                    setTimeout(function() {
+                        $('#addItemBtn').trigger('click');
+                    }, 100);
+                } else if (e.key === 'Enter') {
+                    // Enter: Confirm current row
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+                } else if (e.key === 'Escape') {
+                    // Escape: Discard current row
+                    e.preventDefault();
+                    $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
+                }
+            });
 
         $(document).off('keydown', '.edit-quantity, .edit-price').on('keydown', '.edit-quantity, .edit-price', function(e) {
             var id = $(this).data('id');
@@ -562,7 +572,8 @@
             font-size: 10px;
             padding: 2px 6px;
         }
-         #items-tbody .custom-select-wrapper{
+
+        #items-tbody .custom-select-wrapper {
             width: 100% !important;
         }
     </style>
@@ -580,31 +591,40 @@
                     <div class="row">
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('session', __('Session'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
-                                {{ Form::select('session', $session, null, ['class' => 'form-control', 'required' => 'required']) }}
+                                {{ Form::label('session', __('Session'), ['class' => 'form-label']) }}<span
+                                    class="text-danger"> *</span>
+                                {{ Form::select('session', $session, $invoice->session_id, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
-                                {{ Form::select('class', $class ?? [], $invoice->class, ['class' => 'form-control', 'id' => 'class', 'required' => 'required']) }}
+                                 {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}<span
+                                    class="text-danger"> *</span>
+                                {{ Form::select('class', $class ?? [], $selectedClassId, [
+                                    'class' => 'form-control',
+                                    'id' => 'class',
+                                    'required' => 'required',
+                                ]) }}
                             </div>
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}<span class="text-danger">
+                                    *</span>
                                 {{ Form::date('date', date('Y-m-d', strtotime($invoice->date)), ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('title', __('Title'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::label('title', __('Title'), ['class' => 'form-label']) }}<span
+                                    class="text-danger"> *</span>
                                 {{ Form::text('title', null, ['class' => 'form-control', 'placeholder' => __('Enter StudyPack Title'), 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12">
                             <div class="form-group">
-                                {{ Form::label('study_pack_cost', __('Study Pack Cost'), ['class' => 'form-label']) }}<span class="text-danger"> *</span>
+                                {{ Form::label('study_pack_cost', __('Study Pack Cost'), ['class' => 'form-label']) }}<span
+                                    class="text-danger"> *</span>
                                 {{ Form::text('study_pack_cost', null, ['class' => 'form-control subtotal', 'placeholder' => __('Enter StudyPack Cost'), 'required' => 'required', 'readonly' => 'readonly']) }}
                             </div>
                         </div>
@@ -641,7 +661,8 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="3" class="text-end"><strong>{{ __('Total Amount') }} ({{ \Auth::user()->currencySymbol() }})</strong></td>
+                                <td colspan="3" class="text-end"><strong>{{ __('Total Amount') }}
+                                        ({{ \Auth::user()->currencySymbol() }})</strong></td>
                                 <td class="text-end totalAmount fw-bold">0.00</td>
                                 <td></td>
                             </tr>
@@ -652,7 +673,8 @@
         </div>
 
         <div class="modal-footer">
-            <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('studypack.index') }}';" class="btn btn-light me-3">
+            <input type="button" value="{{ __('Cancel') }}" onclick="location.href = '{{ route('studypack.index') }}';"
+                class="btn btn-light me-3">
             <input type="submit" value="{{ __('Update') }}" class="btn btn-primary">
         </div>
         {{ Form::close() }}

@@ -304,7 +304,7 @@
                                 <div style="font-size: 10px; font-weight: bold;">{{ optional($branches_school->headmaster_designation->designation)->name ?? '-' }}</div>
                             </div>
                         </td>
-                    </tr>@dd($branches_school->headmaster_designation->designation->name)
+                    </tr>
                 </table>
 
             </td>

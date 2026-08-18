@@ -16,6 +16,7 @@ class StudypackReceipts extends Model
         'challan_amount',
         'late_amount',
         'arrears',
+        'remaining_fee',
         'bank_id',
         'account_id',
         'voucher_id',

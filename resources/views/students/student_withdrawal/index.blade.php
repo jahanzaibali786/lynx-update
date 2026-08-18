@@ -221,7 +221,16 @@
                              data-bs-title="{{__('Edit')}}">
                             <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span></a>
                         @endif
-                            
+                             @if ($transfer->status == 'draft' && \Auth::user()->type == 'company' || \Auth::user()->type == 'super admin')
+                            {!! Form::open(['method' => 'POST', 'route' => ['withdrawlstudent.reactive', $transfer->id], 'id' => 'reactive-form-'.$transfer->id, 'class' => 'd-inline']) !!}
+                            <a href="#" role="button" class="mx-1 btn btn-sm btn-outline-warning bs-pass-para"
+                                title="{{ __('Reactive') }}" data-bs-toggle="tooltip" data-bs-title="{{__('Reactive')}}"
+                                data-confirm="{{__('Are You Sure?').'|'.__('This will reactivate the withdrawal and restore the student. Do you want to continue?')}}"
+                                data-confirm-yes="document.getElementById('reactive-form-{{$transfer->id}}').submit();">
+                                <span class="btn-inner--icon"><i class="ti ti-refresh"></i></span>
+                            </a>
+                            {!! Form::close() !!}
+                        @endif
                             <a href="{{ route('withdrawlapplication', ['id' => @$transfer->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Withdrawal Application')}}">
                                 <span class="btn-inner--icon"><i class="ti ti-eye"></i></</span></a>
                                 <a href="{{ route('student_withdrawal.settlement_certificate', ['id' => @$transfer->id]) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Clearance Certificate')}}">
