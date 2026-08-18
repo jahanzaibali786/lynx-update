@@ -4,7 +4,7 @@
         <div class="col-12 col-md-6 col-lg-6">
             <div class="form-group">
                 {{ Form::label('name', __('Name'), ['class' => 'form-label']) }}
-                {{ Form::text('name', null, ['class' => 'form-control', 'placeholder' => __('Enter Client Name'), 'required' => 'required']) }}
+                {{ Form::text('name', null, ['class' => 'form-control', 'placeholder' => __('Enter Client Name'), 'required' => 'required', 'readonly' => !empty($isHeadOffice) ? 'readonly' : null]) }}
             </div>
         </div>
         <div class="col-12 col-md-6 col-lg-6">
@@ -18,6 +18,12 @@
             <div class="form-group">
                 {{ Form::label('phone', __('Official Contact no'), ['class' => 'form-label']) }}
                 {{ Form::tel('phone', @$school->phone_no, ['class' => 'form-control', 'placeholder' => __('i.e. PTCL')]) }}
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-6">
+            <div class="form-group">
+                {{ Form::label('b_code', __('Short Code'), ['class' => 'form-label']) }}
+                {{ Form::text('b_code', @$school->branch_code, ['class' => 'form-control', 'placeholder' => __('Enter Short Code')]) }}
             </div>
         </div>
         <div class="col-12 col-md-6 col-lg-6">

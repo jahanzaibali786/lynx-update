@@ -5,6 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use App\Models\SchoolDetails;
+use App\Models\User;
+use App\Models\Employee;
 
 class EmployeePayscaleDetail extends Model
 {
@@ -15,7 +18,7 @@ class EmployeePayscaleDetail extends Model
         'itax', 'tax_payable_account', 'eobi', 'eobi_employer', 'eobi_payable_account', 'pessi', 'pessi_employer',
         'pessi_payable_account', 'other_deduction', 'other_dedu_payable_account', 'advance','other_add',
         'advance_payable_account', 'net', 'net_payable_account','owned_by','created_by',
-        'contract_id',
+        'contract_id', 'branch_head_user_id',
     ];
 
     public function scale(){
@@ -26,6 +29,21 @@ class EmployeePayscaleDetail extends Model
     }
     public function contract(){
         return $this->belongsTo(EmployeeContract::class,'contract_id','id');
+    }
+
+    public function branchSchool()
+    {
+        return $this->belongsTo(SchoolDetails::class, 'owned_by', 'branch_id');
+    }
+
+    public function branchHeadUser()
+    {
+        return $this->belongsTo(User::class, 'branch_head_user_id', 'id');
+    }
+
+    public function branchHeadEmployee()
+    {
+        return $this->belongsTo(Employee::class, 'branch_head_user_id', 'user_id');
     }
 
     public function getResolvedBasicSalaryAttribute(): float

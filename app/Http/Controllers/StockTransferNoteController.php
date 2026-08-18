@@ -206,18 +206,26 @@ class StockTransferNoteController extends Controller
             $branches->prepend('Select Branch', '');
         } else {
             $branches = collect();
-            $query->where('owned_by', $user->ownedId());
+            $query->whereHas('toStore', function ($storeQuery) use ($user) {
+                $storeQuery->where('owned_by', $user->ownedId());
+            });
         }
 
-        $store = warehouse::where('created_by', $user->creatorId())->get()->pluck('name', 'id');
+        $storeQuery = warehouse::where('created_by', $user->creatorId());
+        if ($user->type != 'company') {
+            $storeQuery->where('owned_by', $user->ownedId());
+        }
+        $store = $storeQuery->get()->pluck('name', 'id');
         $store->prepend('Select Store', '');
 
         if ($request->filled('branches')) {
-            $query->where('owned_by', $request->branches);
+            $query->whereHas('toStore', function ($storeQuery) use ($request) {
+                $storeQuery->where('owned_by', $request->branches);
+            });
         }
 
         if ($request->filled('store')) {
-            $query->where('store_from', $request->store);
+            $query->where('store_to', $request->store);
         }
 
         if ($request->filled('status')) {

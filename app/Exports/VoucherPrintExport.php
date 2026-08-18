@@ -27,6 +27,7 @@ class VoucherPrintExport implements FromView, WithColumnWidths, WithEvents
         return view('vouchers.print.export', [
             'data' => $this->data,
             'accounts' => $this->accounts,
+            'groupedAccounts' => collect($this->data['grouped_accounts'] ?? []),
             'payeeRows' => [
                 ['Name/Account Title:', $this->data['payee']['name'] ?? ''],
                 ['Account no:', $this->data['payee']['account_no'] ?? ''],

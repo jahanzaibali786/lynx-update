@@ -28,47 +28,55 @@
                         <div class="card text-center">
                             <div class="card-header border-0 pb-0">
 
-                                <div class="card-header-right">
-                                    <div class="btn-group card-option">
-                                        <button type="button" class="btn dropdown-toggle"
-                                                data-bs-toggle="dropdown" aria-haspopup="true"
-                                                aria-expanded="false">
-                                            <i class="ti ti-dots-vertical"></i>
-                                        </button>
+                                @if(in_array($branch->type, ['branch', 'company']))
+                                    <div class="card-header-right">
+                                        <div class="btn-group card-option">
+                                            <button type="button" class="btn dropdown-toggle"
+                                                    data-bs-toggle="dropdown" aria-haspopup="true"
+                                                    aria-expanded="false">
+                                                <i class="ti ti-dots-vertical"></i>
+                                            </button>
 
-                                        <div class="dropdown-menu dropdown-menu-end">
+                                            <div class="dropdown-menu dropdown-menu-end">
 
-                                            @can('edit companybranch')
-                                                <a href="#!" data-size="lg" data-url="{{ route('branches.edit',$branch->id) }}" data-ajax-popup="true" class="dropdown-item" data-bs-title="{{__('Edit Branch')}}">
-                                                    <i class="ti ti-pencil"></i>
-                                                    <span>{{__('Edit')}}</span>
-                                                </a>
-                                            @endcan
+                                                @can('edit companybranch')
+                                                    <a href="#!" data-size="lg" data-url="{{ route('branches.edit',$branch->id) }}" data-ajax-popup="true" class="dropdown-item" data-bs-title="{{ $branch->type === 'company' ? __('Edit Head Office') : __('Edit Branch') }}">
+                                                        <i class="ti ti-pencil"></i>
+                                                        <span>{{__('Edit')}}</span>
+                                                    </a>
+                                                @endcan
 
-                                            @can('delete companybranch')
-                                                {!! Form::open(['method' => 'DELETE', 'route' => ['branches.destroy', $branch['id']],'id'=>'delete-form-'.$branch['id']]) !!}
-                                                <a href="#!"  class="dropdown-item bs-pass-para">
-                                                    <i class="ti ti-archive"></i>
-                                                    <span> @if($branch->delete_status!=0){{__('Deactivate')}} @else {{__('Active')}}@endif</span>
-                                                </a>
+                                                @if($branch->type === 'branch')
+                                                    @can('delete companybranch')
+                                                        {!! Form::open(['method' => 'DELETE', 'route' => ['branches.destroy', $branch['id']],'id'=>'delete-form-'.$branch['id']]) !!}
+                                                        <a href="#!"  class="dropdown-item bs-pass-para">
+                                                            <i class="ti ti-archive"></i>
+                                                            <span> @if($branch->delete_status!=0){{__('Deactivate')}} @else {{__('Active')}}@endif</span>
+                                                        </a>
 
-                                                {!! Form::close() !!}
-                                            @endcan
+                                                        {!! Form::close() !!}
+                                                    @endcan
 
-                                            <a href="#!" data-url="{{route('branch.reset',\Crypt::encrypt($branch->id))}}" data-ajax-popup="true" class="dropdown-item" data-bs-title="{{__('Reset Password')}}">
-                                                <i class="ti ti-adjustments"></i>
-                                                <span>  {{__('Reset Password')}}</span>
-                                            </a>
+                                                    <a href="#!" data-url="{{route('branch.reset',\Crypt::encrypt($branch->id))}}" data-ajax-popup="true" class="dropdown-item" data-bs-title="{{__('Reset Password')}}">
+                                                        <i class="ti ti-adjustments"></i>
+                                                        <span>  {{__('Reset Password')}}</span>
+                                                    </a>
+                                                @endif
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                @endif
                             </div>
                             <div class="card-body full-card">
                                 <div class="img-fluid rounded-circle card-avatar">
                                     <img src="{{(!empty($branch->avatar))? asset(Storage::url("uploads/avatar/".$branch->avatar)): asset(Storage::url("uploads/avatar/avatar.png"))}}"  class="img-user wid-80 rounded-circle">
                                 </div>
                                 <h4 class="mt-2 text-primary">{{ $branch->name }}</h4>
-                                <p></p>
+                                <p class="mb-1">
+                                    <span class="badge bg-{{ $branch->type === 'company' ? 'primary' : 'info' }}">
+                                        {{ $branch->type === 'company' ? __('Head Office') : __('Branch') }}
+                                    </span>
+                                </p>
                                 <div class="row">
                                     <div class="col-12 col-sm-12">
                                         <div class="d-grid text-primary">

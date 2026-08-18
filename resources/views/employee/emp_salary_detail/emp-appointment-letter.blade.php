@@ -327,6 +327,9 @@
 
                 <!-- Signatures -->
                 <table width="100%" style="margin-top:40px;">
+                    @php
+                        $branchHeadSource = $branchHeadSource ?? ($employee->master ?? null);
+                    @endphp
                     <tr>
                         <!-- LEFT SIDE -->
                         <td width="48%" valign="top" style="text-align:left;">
@@ -335,12 +338,12 @@
                             <div style="width:220px; text-align:center;">
                                 <div style="height:20px;">
                                     <b style="text-transform:uppercase; font-weight:bold;">
-                                        {{ @$employee->master->headmaster_name->name }}
+                                        {{ optional($lastPayscaleDetail->branchHeadUser)->name ?? optional(optional($branchHeadSource)->headmaster_name)->name }}
                                     </b>
                                 </div>
 
                                 <div style="margin-top:8px;">
-                                   {{ @$employee->master->headmaster_designation->designation->name }}
+                                   {{ optional(optional($lastPayscaleDetail->branchHeadEmployee)->designation)->name ?? optional(optional(optional($branchHeadSource)->headmaster_designation)->designation)->name }}
                                 </div>
                             </div>
                         </td>

@@ -33,6 +33,7 @@ class AppointmentLetterPlaceholderService
                 'Contract End Date' => '[[CONTRACT_END_DATE]]',
                 'Contract Duration' => '[[CONTRACT_DURATION]]',
                 'Application Date' => '[[APPLICATION_DATE]]',
+                'Test Date' => '[[TEST_DATE]]',
                 'Interview Date' => '[[INTERVIEW_DATE]]',
                 'Per Day Salary' => '[[PER_DAY_SALARY]]',
             ],
@@ -113,6 +114,8 @@ class AppointmentLetterPlaceholderService
         $gross = $payscaleDetail ? $payscaleDetail->resolved_gross_salary : 0;
         $workingDays = $payscaleDetail ? (int) $payscaleDetail->working_days : 0;
         $perDaySalary = $workingDays > 0 ? ($gross / $workingDays) : 0;
+        $fallbackAppointmentDate = $employee->interview_date ?? $payscaleDetail->effect_from ?? $employee->company_doj ?? null;
+        $fallbackApplicationDate = $employee->application_date ?? $employee->company_doj ?? null;
 
         return [
             '[[EMPLOYEE_NAME]]' => self::boldUnderline($employee->name ?? ''),
@@ -124,8 +127,9 @@ class AppointmentLetterPlaceholderService
             '[[CONTRACT_START_DATE]]' => self::underline(self::formatDate($contract->from_date ?? null)),
             '[[CONTRACT_END_DATE]]' => self::underline(self::formatDate($contract->to_date ?? null)),
             '[[CONTRACT_DURATION]]' => self::underline($durationString),
-            '[[APPLICATION_DATE]]' => self::underline(self::formatDate($employee->application_date ?? null)),
-            '[[INTERVIEW_DATE]]' => self::underline(self::formatDate($employee->interview_date ?? null)),
+            '[[APPLICATION_DATE]]' => self::underline(self::formatDate($fallbackApplicationDate)),
+            '[[TEST_DATE]]' => self::underline(self::formatDate($fallbackAppointmentDate)),
+            '[[INTERVIEW_DATE]]' => self::underline(self::formatDate($fallbackAppointmentDate)),
             '[[PER_DAY_SALARY]]' => self::boldUnderline((string) round($perDaySalary)),
         ];
     }

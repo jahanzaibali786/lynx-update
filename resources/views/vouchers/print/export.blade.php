@@ -26,7 +26,7 @@
         }
     }
 
-    $entryCount = max(1, $accounts->count());
+    $entryCount = max(1, collect($groupedAccounts ?? [])->sum(fn ($group) => count($group['transactions'] ?? [])) + (collect($groupedAccounts ?? [])->count() * 2));
     $entryRowHeight = match (true) {
         $entryCount <= 2 => 30,
         $entryCount <= 4 => 25,
@@ -89,7 +89,7 @@
             top: 48%;
             width: 340px;
             height: auto;
-            opacity: 0.12;
+            opacity: 0.06;
             transform: translate(-50%, -50%);
             z-index: 0;
             pointer-events: none;
@@ -154,7 +154,7 @@
             .voucher-watermark {
                 top: 45%;
                 width: 300px;
-                opacity: 0.12;
+                opacity: 0.06;
             }
             .no-print {
                 display: none !important;
@@ -229,11 +229,12 @@
         }
 
         .entries th {
-            font-size: {{ $fontEntryHeading }} !important;
+            font-size: 13px !important;
             font-weight: bold;
+            font-family: Arial, sans-serif !important;
             text-align: center;
             border-top: 2px solid #000000;
-            border-bottom: 1px solid #000000;
+            border-bottom: 2px solid #000000;
             padding: 2px 4px;
         }
 
@@ -257,6 +258,35 @@
 
         .entries .amount-cell {
             white-space: nowrap;
+        }
+
+        .entries .group-header-row td {
+            font-weight: bold;
+            font-family: Arial, sans-serif !important;
+            /* border-top: 1px solid #000000;
+            border-bottom: 1px solid #000000; */
+            padding-top: 6px;
+            padding-bottom: 6px;
+            font-size: 12px !important;
+        }
+
+        .entries .sub-header-row td {
+            font-size: 11px !important;
+            font-weight: bold;
+            text-align: left;
+            border-bottom: 1px solid #000000;
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+
+        .entries .group-total-row td {
+            font-weight: bold;
+            padding-top: 4px;
+            padding-bottom: 6px;
+        }
+
+        .entries .group-total-label {
+            text-align: right;
         }
 
         .gap-right {
@@ -395,28 +425,45 @@
     <table class="entries" style="margin-top:12px;">
         <thead>
         <tr>
-            <th style="width:20%; text-align:left; font-size:{{ $fontEntryHeading }};" class="gap-right">Account Head</th>
-            <th style="width:45%; text-align:left; font-size:{{ $fontEntryHeading }};" class="gap-left gap-right">Description</th>
-            <th style="width:15%; font-size:{{ $fontEntryHeading }};" class="gap-left gap-right">Debit (Rs)</th>
-            <th style="width:15%; font-size:{{ $fontEntryHeading }};" class="gap-left">Credit (Rs)</th>
+            <th style="width:13%; text-align:left; font-size:{{ $fontEntryHeading }};" class="gap-right">Transaction Date</th>
+            <th style="width:12%; text-align:left; font-size:{{ $fontEntryHeading }};" class="gap-left gap-right">Check No.</th>
+            <th style="width:11%; text-align:left; font-size:{{ $fontEntryHeading }};" class="gap-left gap-right">Branch</th>
+            <th style="width:44%; text-align:left; font-size:{{ $fontEntryHeading }};" class="gap-left gap-right">Description</th>
+            <th style="width:10%; font-size:{{ $fontEntryHeading }};" class="gap-left gap-right">Debit (Rs)</th>
+            <th style="width:10%; font-size:{{ $fontEntryHeading }};" class="gap-left">Credit (Rs)</th>
         </tr>
         </thead>
         <tbody>
-        @foreach($accounts as $account)
-            <tr>
-                <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryStrong }};" class="gap-right entry-strong">{{ $account['account_head'] ?? '' }}</td>
-                <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-left gap-right data-value">{{ $account['description'] ?? '' }}</td>
-                <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-left gap-right amount-cell data-value">{{ $account['debit'] ?? '' }}</td>
-                <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-left amount-cell data-value">{{ $account['credit'] ?? '' }}</td>
+        @foreach($groupedAccounts as $group)
+            <tr class="group-header-row">
+                <td colspan="6" class="entry-strong" style=" text-decoration: underline;">
+                  {{ $group['account_head'] ?? '' }}
+                </td>
+            </tr>
+            @foreach(($group['transactions'] ?? []) as $transaction)
+                <tr>
+                    <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-right data-value">{{ $transaction['transaction_date'] ?? '' }}</td>
+                    <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-left gap-right data-value">{{ $transaction['check_no'] ?? '' }}</td>
+                    <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-left gap-right data-value">{{ $transaction['branch_adjustment'] ?? '' }}</td>
+                    <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-left gap-right data-value">{{ $transaction['description'] ?? '' }}</td>
+                    <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-left gap-right amount-cell data-value">{{ $transaction['debit_formatted'] ?? '' }}</td>
+                    <td style="height:{{ $entryRowHeight }}px; line-height:{{ max(17, $entryRowHeight - 4) }}px; font-size:{{ $fontEntryData }};" class="gap-left amount-cell data-value">{{ $transaction['credit_formatted'] ?? '' }}</td>
+                </tr>
+            @endforeach
+            <tr class="group-total-row">
+                <td colspan="4" style="font-size:{{ $fontEntryStrong }};" class="gap-right group-total-label">
+                    {{ __('Total for ') }} {{ $group['account_head'] ?? '' }}
+                </td>
+                <td style="font-size:{{ $fontEntryStrong }};" class="gap-left gap-right amount-cell">{{ $group['total_debit_formatted'] ?? '' }}</td>
+                <td style="font-size:{{ $fontEntryStrong }};" class="gap-left amount-cell">{{ $group['total_credit_formatted'] ?? '' }}</td>
             </tr>
         @endforeach
         <tr>
-            <td class="gap-right"></td>
-            <td style="text-align:center; font-size:{{ $fontEntryTotal }};" class="gap-left gap-right entry-total">Total</td>
-            <td style="border-top:2px solid #000000; border-bottom:3px double #000000; font-size:{{ $fontEntryTotal }};" class="gap-left gap-right amount-cell entry-total">
+            <td colspan="4" style="text-align:center; font-size:{{ $fontEntryTotal }};" class="gap-right entry-total">Grand Total</td>
+            <td style="border-top:2px solid #000000; border-bottom:2px solid  #000000; font-size:{{ $fontEntryTotal }};" class="gap-left gap-right amount-cell entry-total">
                 {{ $data['total_debit'] ?? '' }}
             </td>
-            <td style="border-top:2px solid #000000; border-bottom:3px double #000000; font-size:{{ $fontEntryTotal }};" class="gap-left amount-cell entry-total">
+            <td style="border-top:2px solid #000000; border-bottom:2px solid  #000000; font-size:{{ $fontEntryTotal }};" class="gap-left amount-cell entry-total">
                 {{ $data['total_credit'] ?? '' }}
             </td>
         </tr>

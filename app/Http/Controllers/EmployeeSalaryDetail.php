@@ -163,6 +163,11 @@ class EmployeeSalaryDetail extends Controller
             $appLetter = AppointmentLetter::where('type', Str::lower($employee->category))->latest()->first();
             $activeContract = \App\Models\EmployeeContract::where('employee_id', $request->employee_id)->where('status', 'active')->orderBy('from_date', 'desc')->first();
             $contractId = $activeContract ? $activeContract->id : null;
+            $employeeBranchId = $employee->owned_by ?: $employee->branch_id;
+            $branchSchool = \App\Models\SchoolDetails::with(['headmaster_name', 'headmaster_designation.designation'])
+                ->where('branch_id', $employeeBranchId)
+                ->first();
+            $branchHeadUserId = optional($branchSchool)->headmaster;
 
             if (round(@$scale->net) == round($request->net) && $scale->id == $request->pay_scale && date('Y-m-d', strtotime(@$scale->updated_at)) == date('Y-m-d', strtotime($request->effect_from)) && $scale->working_days == $request->working_days) {
                 
@@ -174,6 +179,9 @@ class EmployeeSalaryDetail extends Controller
                 $scale->advance_payable_account = $request->advance_payable_account;
                 $scale->net_payable_account = $request->net_payable_account;
                 $scale->contract_id = $contractId;
+                $scale->owned_by = $employeeBranchId;
+                $scale->created_by = \Auth::user()->creatorId();
+                $scale->branch_head_user_id = $branchHeadUserId;
                 $scale->save();
             } else {
 
@@ -209,6 +217,9 @@ class EmployeeSalaryDetail extends Controller
                     'advance_payable_account' => $request->advance_payable_account,
                     'net' => round($request->net),
                     'net_payable_account' => $request->net_payable_account,
+                    'owned_by' => $employeeBranchId,
+                    'created_by' => \Auth::user()->creatorId(),
+                    'branch_head_user_id' => $branchHeadUserId,
                 ]);
                 if($payscaleattach){
                     $employee->eobi = $request->eobi_percentage;
@@ -1471,7 +1482,12 @@ class EmployeeSalaryDetail extends Controller
         $empscale = EmployeePayscaleDetail::with([
             'employee.designation',
             'employee.master.headmaster_name',
+            'employee.master.headmaster_designation.designation',
             'scale.employeeScaleHeads.salaryHeads',
+            'branchSchool.headmaster_name',
+            'branchSchool.headmaster_designation.designation',
+            'branchHeadUser',
+            'branchHeadEmployee.designation',
         ])->where('id', $id)->first();
         $data = $request->all();
         if (!$empscale) {
@@ -1491,9 +1507,16 @@ class EmployeeSalaryDetail extends Controller
             return response()->json(['error' => 'No appointment letter found. Please create an appointment letter first.'], 404);
         }
         // dd($appointmentletterdata,$lastPayscaleDetail->appletter);
+        $scaleBranch = $empscale->branchSchool;
+        $employeeBranch = $empscale->employee?->master;
+        $branchHeadSource = $scaleBranch && (int) $scaleBranch->branch_id === (int) ($empscale->employee->owned_by ?: $empscale->employee->branch_id)
+            ? $scaleBranch
+            : $employeeBranch;
+
         $data['employee'] = $empscale->employee;
         $data['appointmentletterdata'] = $appointmentletterdata;
         $data['lastPayscaleDetail'] = $empscale;
+        $data['branchHeadSource'] = $branchHeadSource;
         $data['appointmentLetterContent'] = AppointmentLetterPlaceholderService::render(
             (string) $appointmentletterdata->datacontent,
             $empscale->employee,

@@ -11,6 +11,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\Customer;
 use App\Models\Employee;
+use App\Models\SchoolDetails;
 use App\Models\StudentRegistration;
 use App\Models\User;
 use App\Models\Utility;
@@ -115,6 +116,7 @@ class JournalEntryController extends Controller
         $totalDebit = $accounts->sum('debit');
         $totalCredit = $accounts->sum('credit');
         $voucherAmount = max($totalDebit, $totalCredit);
+        $groupedAccounts = $this->groupVoucherPrintAccounts($accounts, $journalEntry);
         $paymentInfo = $this->voucherPaymentInfo($journalEntry, $accounts, $voucherType);
         $payeeInfo = $this->voucherPayeeInfo($journalEntry, $accounts);
         $amountWords = $this->amountToWords($voucherAmount);
@@ -142,6 +144,7 @@ class JournalEntryController extends Controller
                     'credit' => (float) $account->credit > 0 ? number_format($account->credit, 2) : '',
                 ];
             })->values()->all(),
+            'grouped_accounts' => $groupedAccounts->values()->all(),
             'total_debit' => number_format($totalDebit, 2),
             'total_credit' => number_format($totalCredit, 2),
             'payee' => $payeeInfo,
@@ -163,6 +166,59 @@ class JournalEntryController extends Controller
         ]);
 
         return $export->view();
+    }
+
+    private function groupVoucherPrintAccounts($accounts, JournalEntry $journalEntry)
+    {
+        $branchIds = $accounts->pluck('branch_id')
+            ->filter()
+            ->push($journalEntry->owned_by)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $branchNames = User::whereIn('id', $branchIds)->pluck('name', 'id');
+        $branchCodes = SchoolDetails::whereIn('branch_id', $branchIds)->pluck('branch_code', 'branch_id');
+
+        return $accounts->groupBy('account')->map(function ($items) use ($branchNames, $branchCodes, $journalEntry) {
+            $firstItem = $items->first();
+            $accountModel = optional($firstItem)->accounts;
+            $accountHead = trim(
+                (optional($accountModel)->code ? optional($accountModel)->code . ': ' : '')
+                . (optional($accountModel)->name ?? '')
+            );
+
+            $transactions = collect($items)->map(function ($item) use ($branchNames, $branchCodes, $journalEntry) {
+                $transactionDate = $item->tra_date ?: $journalEntry->date;
+                $branchId = $item->branch_id ?: $journalEntry->owned_by;
+                $branchLabel = trim((string) (($branchCodes[$branchId] ?? '') ?: ($branchNames[$branchId] ?? '')));
+                $adjustmentLabel = trim((string) ($item->memo ?? ''));
+                $branchAdjustment = collect([$branchLabel, $adjustmentLabel])
+                    ->filter(fn ($value) => $value !== '')
+                    ->implode(' / ');
+
+                return [
+                    'transaction_date' => !empty($transactionDate) ? \Carbon\Carbon::parse($transactionDate)->format('M,d Y') : '',
+                    'check_no' => $item->ref_no ?? '',
+                    'branch_adjustment' => $branchAdjustment,
+                    'description' => $item->description ?: '',
+                    'debit' => (float) $item->debit,
+                    'credit' => (float) $item->credit,
+                    'debit_formatted' => (float) $item->debit > 0 ? number_format((float) $item->debit, 2) : '',
+                    'credit_formatted' => (float) $item->credit > 0 ? number_format((float) $item->credit, 2) : '',
+                ];
+            })->values();
+
+            return [
+                'account_id' => optional($firstItem)->account,
+                'account_head' => $accountHead,
+                'transactions' => $transactions->all(),
+                'total_debit' => (float) collect($items)->sum('debit'),
+                'total_credit' => (float) collect($items)->sum('credit'),
+                'total_debit_formatted' => number_format((float) collect($items)->sum('debit'), 2),
+                'total_credit_formatted' => number_format((float) collect($items)->sum('credit'), 2),
+            ];
+        });
     }
 
     private function renderVoucherPdf(VoucherPrintExport $export, string $watermarkLogo): string
@@ -669,8 +725,8 @@ class JournalEntryController extends Controller
         $ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
         $tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
         $units = [
-            10000000 => 'Crore',
-            100000 => 'Lac',
+            1000000000 => 'Billion',
+            1000000 => 'Million',
             1000 => 'Thousand',
             100 => 'Hundred',
         ];
@@ -857,6 +913,8 @@ class JournalEntryController extends Controller
                 'debit' => (float) $item->debit,
                 'credit' => (float) $item->credit,
                 'desc' => $description,
+                'ref_no' => $item->ref_no ?? '',
+                'tra_date' => !empty($item->tra_date) ? \Carbon\Carbon::parse($item->tra_date)->format('Y-m-d') : '',
             ];
         })->values();
     }

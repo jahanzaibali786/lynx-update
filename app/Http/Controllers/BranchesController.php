@@ -35,16 +35,41 @@ class BranchesController extends Controller
      */
     public function index()
     {
-        if (\Auth::user()->type == 'company') {
-           $user    = \Auth::user();
-            $branches = User::where('created_by', '=', $user->creatorId())->where('type', '=', 'branch')->get();
+        $user = \Auth::user();
+
+        if ($user->type == 'company') {
+            $company = User::where('id', $user->creatorId())
+                ->where('type', 'company')
+                ->first();
+
+            $branchCollection = User::where('created_by', '=', $user->creatorId())
+                ->where('type', '=', 'branch')
+                ->get();
+
+            $branches = collect();
+            if ($company) {
+                $branches->push($company);
+            }
+            $branches = $branches->merge($branchCollection);
         } else {
-            $user    = \Auth::user();
-            $branches = User::where('id', '=', $user->id)->where('type', '=', 'branch')->get();
+            $company = User::where('id', $user->creatorId())
+                ->where('type', 'company')
+                ->first();
+
+            $branch = User::where('id', '=', $user->id)
+                ->where('type', '=', 'branch')
+                ->first();
+
+            $branches = collect();
+            if ($company) {
+                $branches->push($company);
+            }
+            if ($branch) {
+                $branches->push($branch);
+            }
         }
-        // dd($branches);
+
         return view('branches.index', compact('branches'));
-        // if(\Auth::user()->can('view companybranch'))
     }
 
     /**
@@ -229,18 +254,20 @@ class BranchesController extends Controller
      */
     public function edit(User $branch,)
     {
-        $school = SchoolDetails::where( 'branch_id', $branch->id)->first();
+        $school = SchoolDetails::where('branch_id', $branch->id)->first();
         if(\Auth::user()->can('edit companybranch'))
         {
             $user = \Auth::user();
-            if($branch->created_by == $user->creatorId())
+            $isHeadOffice = $branch->type === 'company' && (int) $branch->id === (int) $user->creatorId();
+
+            if($branch->created_by == $user->creatorId() || $isHeadOffice)
             {
                 $users = Employee::where('created_by',\Auth::user()->creatorId())->get()->pluck('name','user_id');
                 $bankAccount = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' (',holder_name,')') AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $branch->customField = CustomField::getData($branch, 'branch');
                 $customFields        = CustomField::where('module', '=', 'branch')->get();
 
-                return view('branches.edit', compact('branch', 'customFields','users','school','bankAccount'));
+                return view('branches.edit', compact('branch', 'customFields','users','school','bankAccount', 'isHeadOffice'));
             }
             else
             {
@@ -265,38 +292,42 @@ class BranchesController extends Controller
         if(\Auth::user()->can('edit companybranch'))
         {
             $user = \Auth::user();
-            if($branch->created_by == $user->creatorId())
+            $isHeadOffice = $branch->type === 'company' && (int) $branch->id === (int) $user->creatorId();
+
+            if($branch->created_by == $user->creatorId() || $isHeadOffice)
             {
-                $validation = [
-                    'name' => 'required',
-                    // 'email' => 'required|email|unique:users,email,' . $branch->id,
-                ];
+                if (!$isHeadOffice) {
+                    $validation = [
+                        'name' => 'required',
+                    ];
 
-                $post         = [];
-                $post['name'] = $request->name;
-                if(!empty($request->password))
-                {
-                    $validation['password'] = 'required';
-                    $post['password']       = Hash::make($request->password);
+                    $post         = [];
+                    $post['name'] = $request->name;
+                    if(!empty($request->password))
+                    {
+                        $validation['password'] = 'required';
+                        $post['password']       = Hash::make($request->password);
+                    }
+
+                    $validator = \Validator::make($request->all(), $validation);
+                    if($validator->fails())
+                    {
+                        $messages = $validator->getMessageBag();
+
+                        return redirect()->back()->with('error', $messages->first());
+                    }
+                    $post['email'] = $request->email;
+
+                    $branch->update($post);
+                    CustomField::saveData($branch, $request->customField);
                 }
 
-                $validator = \Validator::make($request->all(), $validation);
-                if($validator->fails())
-                {
-                    $messages = $validator->getMessageBag();
-
-                    return redirect()->back()->with('error', $messages->first());
-                }
-                $post['email'] = $request->email;
-
-                $branch->update($post);
-                CustomField::saveData($branch, $request->customField);
                 $branch_school =SchoolDetails::where('branch_id', $branch->id)->first();
                 if(!$branch_school){
                     $branch_school =new SchoolDetails();
                     $branch_school->branch_id = $branch->id;
                 }
-                $branch_school->name = $request->name;
+                $branch_school->name = $isHeadOffice ? ($branch->name ?? $request->name) : $request->name;
                 $branch_school->branch_code=$request->b_code;
                 $branch_school->phone_no = $request->phone;
                 $branch_school->address = $request->address;
@@ -308,7 +339,7 @@ class BranchesController extends Controller
                 $branch_school->pessi_values= $request->pessi_values;
                 $branch_school->save();
                 // dd($branch_school);
-                return redirect()->back()->with('success', __('Branch Updated Successfully!'));
+                return redirect()->back()->with('success', $isHeadOffice ? __('Head Office details updated successfully!') : __('Branch Updated Successfully!'));
             }
             else
             {

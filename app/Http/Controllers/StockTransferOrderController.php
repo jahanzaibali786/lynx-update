@@ -558,27 +558,37 @@ class StockTransferOrderController extends Controller
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        $mainStore = warehouse::where(function ($query) {
-            $query->where('created_by', \Auth::user()->creatorId())
-                ->orWhere('owned_by', \Auth::user()->creatorId());
+        $creatorId = \Auth::user()->creatorId();
+        $companyStores = warehouse::where(function ($query) use ($creatorId) {
+            $query->where('created_by', $creatorId)
+                ->orWhere('owned_by', $creatorId);
         })
-            ->where('owned_by', \Auth::user()->creatorId())
-            ->first();
+            ->orderBy('id')
+            ->get();
+
+        $mainStore = $companyStores->firstWhere('owned_by', $creatorId) ?: $companyStores->first();
 
         if (!$mainStore) {
-            $mainStore = warehouse::where(function ($query) {
-                $query->where('created_by', \Auth::user()->creatorId())
-                    ->orWhere('owned_by', \Auth::user()->creatorId());
-            })->first();
+            return response()->json(['error' => __('Please create or assign a source store before converting to Stock Transfer Note.')], 422);
         }
 
-        $storeTo = warehouse::where(function ($query) {
-            $query->where('created_by', \Auth::user()->creatorId())
-                ->orWhere('owned_by', \Auth::user()->creatorId());
-        })
-            ->where('id', '!=', $mainStore ? $mainStore->id : 0)
-            ->get()
+        $selectedStoreTo = (int) ($StockTransferOrder->warehouse_id ?? 0);
+        $selectedStore = $companyStores->firstWhere('id', $selectedStoreTo);
+
+        $storeTo = $companyStores
+            ->filter(function ($store) use ($mainStore) {
+                return (int) $store->id !== (int) $mainStore->id;
+            })
             ->pluck('name', 'id');
+
+        if ($selectedStore && (int) $selectedStore->id !== (int) $mainStore->id && !$storeTo->has($selectedStore->id)) {
+            $storeTo->put($selectedStore->id, $selectedStore->name);
+        }
+
+        if ($storeTo->isEmpty()) {
+            return response()->json(['error' => __('Please create or assign a destination store before converting to Stock Transfer Note.')], 422);
+        }
+
         $sessions = AcademicSession::where('created_by', \Auth::user()->creatorId())
             ->orderByDesc('starting_date')
             ->pluck('year', 'id');
@@ -600,7 +610,7 @@ class StockTransferOrderController extends Controller
         $invoice_number = \Auth::user()->invoiceNumberFormat($this->stockTransferNoteNumber());
         $issueDate = date('Y-m-d');
         $dueDate = date('Y-m-d');
-        $selectedStoreTo = $StockTransferOrder->warehouse_id;
+
         $conversionItems = $StockTransferOrder->items->map(function ($item) {
             $shippedQuantity = (float) ($item->shipped_quantity ?? 0);
             $product = $item->product;
@@ -632,7 +642,7 @@ class StockTransferOrderController extends Controller
                 'source' => __('Stock Transfer Requisition'),
             ];
         })->filter()->values();
-
+        dd($conversionItems->toArray());
         $view = view('stocktransferorder.convert_to_invoice', compact(
             'StockTransferOrder',
             'mainStore',
@@ -693,14 +703,16 @@ class StockTransferOrderController extends Controller
                 'required',
                 'integer',
                 Rule::exists('warehouses', 'id')->where(function ($query) {
-                    $query->where('created_by', \Auth::user()->creatorId());
+                    $query->where('created_by', \Auth::user()->creatorId())
+                        ->orWhere('owned_by', \Auth::user()->creatorId());
                 }),
             ],
             'store_to' => [
                 'required',
                 'integer',
                 Rule::exists('warehouses', 'id')->where(function ($query) {
-                    $query->where('created_by', \Auth::user()->creatorId());
+                    $query->where('created_by', \Auth::user()->creatorId())
+                        ->orWhere('owned_by', \Auth::user()->creatorId());
                 }),
             ],
             'shipping_via' => 'nullable|string|max:50',
@@ -1004,7 +1016,10 @@ class StockTransferOrderController extends Controller
     private function storeUserMap()
     {
         return warehouse::with('assignedEmployee')
-            ->where('created_by', \Auth::user()->creatorId())
+            ->where(function ($query) {
+                $query->where('created_by', \Auth::user()->creatorId())
+                    ->orWhere('owned_by', \Auth::user()->creatorId());
+            })
             ->get()
             ->mapWithKeys(function ($store) {
                 return [
@@ -1014,5 +1029,36 @@ class StockTransferOrderController extends Controller
                     ],
                 ];
             });
+    }
+    public function print($ids)
+    {
+        $user = \Auth::user();
+
+        if (!$user->can('show stock transfer order')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $id = Crypt::decrypt($ids);
+        } catch (\Throwable $th) {
+            return redirect()->back()->with('error', __('Stock Transfer Requisition Not Found.'));
+        }
+
+        $StockTransferOrder = StockTransferOrder::with(['branchUser', 'items.product', 'academicSession', 'category'])->find($id);
+
+        if (!$StockTransferOrder || $StockTransferOrder->created_by != $user->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if ($user->type != 'company' && $StockTransferOrder->branch_id != $user->id) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $settings = Utility::settingsById($StockTransferOrder->created_by);
+        $branch = $StockTransferOrder->branchUser;
+        $iteams = $StockTransferOrder->items;
+        $session = optional($StockTransferOrder->academicSession)->year;
+
+        return view('stocktransferorder.print', compact('StockTransferOrder', 'branch', 'iteams', 'settings', 'session'));
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\warehouse; 
 use Illuminate\Support\Collection;
+use App\Models\Classes;
 
 class StockTransferNote extends Model
 {
@@ -166,9 +167,30 @@ class StockTransferNote extends Model
     {
         $this->loadMissing('items');
 
-        return $this->items
+        $rawClasses = $this->items
             ->pluck('study_pack_class')
             ->map(fn ($className) => trim((string) $className))
+            ->filter()
+            ->values();
+
+        $classIds = $rawClasses
+            ->filter(fn ($className) => ctype_digit((string) $className))
+            ->map(fn ($classId) => (int) $classId)
+            ->unique()
+            ->values();
+
+        $classNames = $classIds->isEmpty()
+            ? collect()
+            : Classes::whereIn('id', $classIds)->pluck('name', 'id');
+
+        return $rawClasses
+            ->map(function ($className) use ($classNames) {
+                if (ctype_digit((string) $className)) {
+                    return trim((string) ($classNames[(int) $className] ?? $className));
+                }
+
+                return $className;
+            })
             ->filter()
             ->unique(function ($className) {
                 return strtolower($className);
