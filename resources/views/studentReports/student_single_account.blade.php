@@ -660,6 +660,7 @@
                         <th>Description</th>
                         <th>Challan No</th>
                         <th>Billing Month</th>
+                        <th>class</th>
                         <th>Challan Type</th>
                         <th>Fee Head</th>
                         <th>Receipt Mode</th>
@@ -714,6 +715,7 @@
                             <td>
                                 {{ !empty($item['billing_month']) && $item['billing_month'] !== '-' ? $item['billing_month'] : '-' }}
                             </td>
+                            <td>{{ $item['class'] ?? '-' }}</td>
                             <td>{{ $item['challan_type'] ?? '-' }}</td>
                             <td>{{ $item['head_name'] ?? '-' }}</td>
                             <td>{{ $item['receipt_mode'] ?? '-' }}</td>

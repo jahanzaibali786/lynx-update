@@ -39,6 +39,7 @@
                 <th>Description</th>
                 <th>Challan No</th>
                 <th>Billing Month</th>
+                <th>Class</th>
                 <th>Challan Type</th>
                 <th>Fee Head</th>
                 <th>Receipt Mode</th>
@@ -74,6 +75,7 @@
                     <td>{{ $item['description'] }}</td>
                     <td>{{ $item['challan_no'] ?? '-' }}</td>
                     <td>{{ $item['billing_month'] ?? '-' }}</td>
+                    <td>{{ $item['class'] ?? '-' }}</td>
                     <td>{{ $item['challan_type'] ?? '-' }}</td>
                     <td>{{ $item['head_name'] ?? '-' }}</td>
                     <td>{{ $item['receipt_mode'] ?? '-' }}</td>

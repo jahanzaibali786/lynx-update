@@ -175,7 +175,7 @@
         $(document).ready(function() {
             function validateSection(sectionId) {
                 var valid = true;
-                $(sectionId + ' [required]').each(function() {
+                $(sectionId + ' [required]:not(:disabled)').each(function() {
                     if (!$(this).val() || $(this).val().trim() == '') {
                         $(this).css('border-color', 'red');
                         valid = false;
@@ -317,11 +317,33 @@ $('#submitBtnSection1').click(function() {
                     }
                 });
 
+                // serializeArray() skips disabled controls. Build the payload first,
+                // then explicitly include Adm Session and Adm Class even when disabled.
+                var sectionData = $('#section3 :input').serializeArray();
+
+                function setSectionValue(name, value) {
+                    var existing = sectionData.find(function(item) {
+                        return item.name === name;
+                    });
+
+                    if (existing) {
+                        existing.value = (value == null ? '' : value);
+                    } else {
+                        sectionData.push({
+                            name: name,
+                            value: (value == null ? '' : value)
+                        });
+                    }
+                }
+
+                setSectionValue('adm_session', $('#adm_session').val());
+                setSectionValue('adm_class', $('#adm_class').val());
+
                 var formData = {
                     sectionName: 'section3',
                     checkedRows: checkedRowsData,
                     uncheckedRows: uncheckedRowsData,
-                    sectionData: $('#section3 :input').serializeArray()
+                    sectionData: sectionData
                 };
                 sendFormData(formData);
             });
@@ -429,6 +451,60 @@ $('#submitBtnSection1').click(function() {
                 value = value.substring(0, 11);
             }
             this.value = value;
+        });
+
+        // Branch change handler - fetch classes and sessions
+        $(document).on('change', '#branch', function() {
+            var branchId = $(this).val();
+            if (branchId) {
+                // Fetch classes for this branch
+                $.ajax({
+                    url: '{{ route('branch.class') }}',
+                    type: 'POST',
+                    data: {
+                        branch_id: branchId,
+                        _token: "{{ csrf_token() }}"
+                    },
+                    success: function(data) {
+                        $('#adm_class').empty();
+                        $('#adm_class').append('<option value="">Select Class</option>');
+                        for (let index = 0; index < data.length; index++) {
+                            $('#adm_class').append('<option value="' + data[index]['id'] + '">' + data[index]['name'] + '</option>');
+                        }
+                    }
+                });
+
+                // Fetch sessions for this branch (sessions are independent of class)
+                $.ajax({
+                    url: '{{ route('branch.session_class') }}',
+                    type: 'POST',
+                    data: {
+                        id: branchId,
+                        _token: "{{ csrf_token() }}"
+                    },
+                    success: function(data) {
+                        $('#adm_session').empty();
+                        $('#adm_session').append('<option value="">Select Session</option>');
+                        if (data.session && data.session.length > 0) {
+                            for (let index = 0; index < data.session.length; index++) {
+                                $('#adm_session').append('<option value="' + data.session[index]['id'] + '">' + data.session[index]['year'] + '</option>');
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        // Class change handler - should NOT affect session
+        $(document).on('change', '#adm_class', function() {
+            // Class change does not affect session - they are independent
+            console.log('Class changed to: ' + $(this).val());
+        });
+
+        // Session change handler - should NOT affect class
+        $(document).on('change', '#adm_session', function() {
+            // Session change does not affect class - they are independent
+            console.log('Session changed to: ' + $(this).val());
         });
     </script>
 @endpush
@@ -881,14 +957,17 @@ $('#submitBtnSection1').click(function() {
                         </div> --}}
                             <div style="flex: 1;">
                                 {{ Form::label('adm_session', __('Adm Session'), ['class' => 'form-label']) }}
-                                {!! Form::text(
-                                    'adm_session', @$student->session ? $student->session->year : '2023',
-                                    ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
-                                ) !!}
+                                <select name="adm_session" id="adm_session" class="form-control select" required @if($student->student_status == 'Registered') @else disabled @endif>
+                                    @foreach ($sessions as $key => $values)
+                                        <option value="{{ $key }}"
+                                            {{ $key == $student->session_id ? 'selected' : '' }}>{{ $values }}
+                                        </option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div style="flex: 1;">
                                 {{ Form::label('adm_class', __('Adm Class'), ['class' => 'form-label']) }}
-                                 <select name="adm_class" class="form-control select " required @if($student->student_status == 'Registered') @else readonly @endif>
+                                 <select name="adm_class" id="adm_class" class="form-control select" required @if($student->student_status == 'Registered') @else disabled @endif>
                                     @foreach ($classes as $key => $values)
                                         <option value="{{ $key }}"
                                             {{ $key == $student->reg_class ? 'selected' : '' }}>{{ $values }}
@@ -903,14 +982,14 @@ $('#submitBtnSection1').click(function() {
                             <div style="flex: 1;">
                                 {{ Form::label('current_session', __('Current Session'), ['class' => 'form-label']) }}
                                 {!! Form::text(
-                                    'current_session', @$student->enrollment ? $student->enrollment->session->year : $student->session->year,
+                                    'current_session', optional(optional($student->enrollment)->session)->year ?? optional($student->session)->year ?? '',
                                     ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
                                 ) !!}
                             </div>
                             <div style="flex: 1;">
                                 {{ Form::label('current_class', __('Current Class'), ['class' => 'form-label']) }}
                                 {!! Form::text(
-                                    'current_class', @$student->class->name ? $student->class->name : '',
+                                    'current_class', optional($student->class)->name ?? '',
                                     ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled'],
                                 ) !!}
                             </div>
@@ -940,7 +1019,7 @@ $('#submitBtnSection1').click(function() {
                         <div class="d-flex" style="gap: 10px;">
                             <div style="flex: 1;">
                                 {{ Form::label('section', __('Section'), ['class' => 'form-label']) }}
-                                {!! Form::text('section',  @$student->enrollment->section ? @$student->enrollment->section->name : '',
+                                {!! Form::text('section', optional(optional($student->enrollment)->section)->name ?? '',
                                    [ 'class' => 'form-control','disabled' => 'disabled',]) !!}
                             </div>
                             <div style="flex: 1;">

@@ -355,13 +355,17 @@
 
         function exportToExcel() {
             // Get all values using jQuery to handle custom selects
+            var voucherTypeVal = $('[name="voucher_type[]"]').val();
+            if (voucherTypeVal && Array.isArray(voucherTypeVal)) {
+                voucherTypeVal = voucherTypeVal.join(',');
+            }
             var params = {
                 from_date: $('[name="from_date"]').val() || '',
                 to_date: $('[name="to_date"]').val() || '',
                 default_bank: $('#default_bank').val() || '',
                 head: $('[name="head"]').val() || '',
                 voucher: $('[name="voucher"]').val() || '',
-                voucher_type: $('[name="voucher_type"]').val() || '',
+                voucher_type: voucherTypeVal || '',
                 branches: $('#branch').val() || '',
                 class: $('#class_select').val() || '',
                 student: $('#student_select').val() || '',
@@ -382,13 +386,17 @@
 
         function exceltopdf() {
             // Get all values using jQuery to handle custom selects
+            var voucherTypeVal = $('[name="voucher_type[]"]').val();
+            if (voucherTypeVal && Array.isArray(voucherTypeVal)) {
+                voucherTypeVal = voucherTypeVal.join(',');
+            }
             var params = {
                 from_date: $('[name="from_date"]').val() || '',
                 to_date: $('[name="to_date"]').val() || '',
                 default_bank: $('#default_bank').val() || '',
                 head: $('[name="head"]').val() || '',
                 voucher: $('[name="voucher"]').val() || '',
-                voucher_type: $('[name="voucher_type"]').val() || '',
+                voucher_type: voucherTypeVal || '',
                 branches: $('#branch').val() || '',
                 class: $('#class_select').val() || '',
                 student: $('#student_select').val() || '',
@@ -456,7 +464,7 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('voucher_type', __('Voucher Type'), ['class' => 'form-label']) }}
-                                    {{ Form::select('voucher_type', $voucherTypeOptions, request()->get('voucher_type'), ['class' => 'form-control select custom-select']) }}
+                                    {{ Form::select('voucher_type[]', $voucherTypeOptions, request()->get('voucher_type', []), ['class' => 'form-control select custom-select', 'multiple' => 'multiple']) }}
                                 </div>
                             </div>
                            {{-- <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">

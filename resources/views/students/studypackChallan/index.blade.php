@@ -45,6 +45,12 @@
             }
         }
 
+        $(document).ready(function() {
+            var branchId = $('#branches_select').val();
+            if (branchId) {
+                branchcustomer(branchId);
+            }
+        });
         $(document).on('change', '#class_select', function() {
             var classId = $(this).val();
             if (classId) {
@@ -536,7 +542,7 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                    {{ Form::select('branches', $branches, request('branches'), ['class' => 'form-control select custom-select', 'onchange' => 'branchcustomer(this.value)']) }}
+                                    {{ Form::select('branches', $branches, request('branches', $selectedBranch ?? ''), ['class' => 'form-control select custom-select', 'id' => 'branches_select', 'onchange' => 'branchcustomer(this.value)']) }}
                                 </div>
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -702,3 +708,6 @@
         </div>
     </div>
 @endsection
+
+
+

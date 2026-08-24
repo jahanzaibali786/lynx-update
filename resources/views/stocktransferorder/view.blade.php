@@ -59,6 +59,11 @@ $('#finalizeForm').on('submit', function(e) {
                                                 </button>
                                             {{ Form::close() }}
                                         @endif
+                                        @can('show stock transfer order')
+                                            <a href="{{ route('stock-transfer-order.print', Crypt::encrypt($StockTransferOrder->id)) }}" class="btn mx-1 btn-sm btn-outline-secondary" target="_blank" data-bs-title="{{ __('Print') }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ __('Print') }}">
+                                                <span class="btn-inner--icon"><i class="ti ti-printer mr-2"></i></span>{{ __('Print') }}
+                                            </a>
+                                        @endcan
                                     </div>
                                 </div>
                             </div>

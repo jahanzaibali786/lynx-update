@@ -33,16 +33,66 @@ class ConcessionController extends Controller
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
             $branches->prepend('Select Branch', '');
             $query = Concession::with('student', 'concession')->where('created_by', Auth::user()->creatorId());
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         } else {
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             // $branches->prepend('Select Branch', '');
             $query = Concession::with('student', 'concession')->where('owned_by', '=', \Auth::user()->ownedId());
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('owned_by', '=', \Auth::user()->ownedId())
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         }
         if (!empty($request->branches)) {
             $query->where('owned_by', '=', $request->branches);
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('owned_by', '=', $request->branches)
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         }
         if (!empty($request->status)) {
             $query->where('status', '=', $request->status);
+        }else{
+            $query->whereIn('status', ['For Approval','Draft']);
+        }
+        if (!empty($request->student) && $request->student != 'all') {
+            $query->where('student_id', '=', $request->student);
         }
         if (!empty($request->start_date)) {
             $query->whereDate('start_date', '>', $request->start_date);
@@ -61,7 +111,7 @@ class ConcessionController extends Controller
         }
         $concessions = $query->orderBy('id', 'Desc')->get();
         $status = [
-            '' => 'All',
+            '' => 'Select Status',
             'Draft' => 'Draft',
             'For Approval' => 'For Approval',
             'Approved' => 'Approved',
@@ -70,7 +120,7 @@ class ConcessionController extends Controller
             'Rejected' => 'Rejected',
         ];
         
-        return view('students.concession.index', compact('concessions', 'status', 'branches', 'request'));
+        return view('students.concession.index', compact('concessions', 'status', 'branches', 'students', 'request'));
         // }
         // else
         // {
@@ -83,28 +133,93 @@ class ConcessionController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function create()
+    public function create(Request $request)
     {
-        // if(\Auth::user()->can('create session'))
-        // {
         if (\Auth::user()->type == 'company') {
-            $branches = User::where('type', '=', 'branch')->where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $branches = User::where('type', '=', 'branch')
+                ->where('created_by', '=', \Auth::user()->creatorId())
+                ->get()
+                ->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-            $classes = Classes::where('owned_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+
+            $classes = Classes::where('owned_by', '=', \Auth::user()->creatorId())
+                ->get()
+                ->pluck('name', 'id');
         } else {
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $classes = Classes::where('owned_by', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+            $branches = User::where('id', '=', \Auth::user()->ownedId())
+                ->get()
+                ->pluck('name', 'id');
+
+            $classes = Classes::where('owned_by', '=', \Auth::user()->ownedId())
+                ->get()
+                ->pluck('name', 'id');
         }
-        $concession_policy = ConcessionPolicy::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('title', 'id');
+
+        $concession_policy = ConcessionPolicy::where(
+            'created_by',
+            '=',
+            \Auth::user()->creatorId()
+        )->get()->pluck('title', 'id');
+
         $concession_policy->prepend('Select Concession Policy', '');
         $classes->prepend('Select Class', '');
+
         $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get();
-        return view('students.concession.create', compact('branches', 'concession_policy', 'classes', 'heads'));
-        // }
-        // else
-        // {
-        //     return response()->json(['error' => __('Permission denied.')], 401);
-        // }
+
+        // Readmission popup can pre-fill and lock branch/class/student.
+        $fromReadmission = $request->boolean('from_readmission');
+        $selectedBranchId = $request->input('branch_id');
+        $selectedClassId = $request->input('class_id');
+        $selectedStudentId = $request->input('student_id');
+
+        if ($selectedBranchId && ! $branches->has($selectedBranchId)) {
+            $branch = User::find($selectedBranchId);
+            if ($branch) {
+                $branches->put($branch->id, $branch->name);
+            }
+        }
+
+        if ($selectedClassId && ! $classes->has($selectedClassId)) {
+            $class = Classes::find($selectedClassId);
+            if ($class) {
+                $classes->put($class->id, $class->name);
+            }
+        }
+
+        $students = collect();
+        if ($selectedStudentId) {
+            $student = StudentRegistration::find($selectedStudentId);
+            if ($student) {
+                $students->put(
+                    $student->id,
+                    ($student->roll_no ? $student->roll_no.' - ' : '')
+                    .$student->stdname
+                    .' s/d/o '
+                    .$student->fathername
+                );
+            }
+        }
+
+        $readmissionContext = [
+            'enabled' => $fromReadmission,
+            'branch_id' => $selectedBranchId,
+            'class_id' => $selectedClassId,
+            'student_id' => $selectedStudentId,
+            'roll_no' => $request->input('readmission_roll_no'),
+            'period_from' => $request->input('period_from') ?: date('Y-m-d'),
+        ];
+
+        return view(
+            'students.concession.create',
+            compact(
+                'branches',
+                'concession_policy',
+                'classes',
+                'heads',
+                'students',
+                'readmissionContext'
+            )
+        );
     }
 
     /**
@@ -115,9 +230,8 @@ class ConcessionController extends Controller
      */
     public function store(Request $request)
     {
-        // if(\Auth::user()->can('create session'))
-        // {
         DB::beginTransaction();
+
         try {
             $validator = \Validator::make(
                 $request->all(),
@@ -125,17 +239,27 @@ class ConcessionController extends Controller
                     'concession_id' => 'required',
                     'class_id' => 'required',
                     'student_id' => 'required',
-                    // 'date' => 'required|date',
                     'period_from' => 'required|date',
                     'period_to' => 'nullable|date',
                 ]
             );
+
             if ($validator->fails()) {
+                DB::rollBack();
+
+                if ($request->boolean('from_readmission')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $validator->getMessageBag()->first(),
+                    ], 422);
+                }
+
                 $messages = $validator->getMessageBag();
                 return redirect()->back()->with('error', $messages->first());
             }
+
             $std = StudentEnrollments::where('regId', $request->student_id)->first();
-            // dd($request->all());
+
             $concession = new Concession();
             $concession->student_id = $request->student_id;
             $concession->class_id = $request->class_id;
@@ -143,37 +267,73 @@ class ConcessionController extends Controller
             $concession->concession_id = $request->concession_id;
             $concession->concession_by = \Auth::user()->name;
             $concession->type = $request->concession_type;
-            $concession->session_id = @$std->session_id;
+            $concession->session_id = optional($std)->session_id;
             $concession->apply_date = date('Y-m-d');
             $concession->start_date = $request->period_from;
             $concession->end_date = $request->period_to;
             $concession->remarks = $request->bill_remarks;
             $concession->owned_by = $request->branch_id;
             $concession->created_by = \Auth::user()->creatorId();
-            if($request->cancle_date != null || $request->cancle_remarks){
+
+            if ($request->cancle_date != null || $request->cancle_remarks) {
                 $prev_con = Concession::with('concession')
-                ->where('student_id', $request->student_id)
-                ->where('status', 'Approved')
-                ->orderByDesc('id')
-                ->first();
-                if($prev_con){
+                    ->where('student_id', $request->student_id)
+                    ->where('status', 'Approved')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($prev_con) {
                     $prev_con->cancel_date = $request->cancle_date;
                     $prev_con->cancel_remarks = $request->cancle_remarks;
                     $prev_con->save();
                 }
             }
+
+            if (Auth::user()->type == 'company') {
+                $concession->status = 'Approved';
+                $concession->active_status = 1;
+                $concession->approved_by = \Auth::user()->name;
+                $concession->approval_date = date('Y-m-d');
+            } elseif ($request->boolean('from_readmission')) {
+                // Readmission popup applications from branch go straight for approval.
+                $concession->status = 'For Approval';
+                $concession->active_status = 0;
+            }
+
             $concession->save();
+            $concession->loadMissing('concession');
+
             DB::commit();
-            return redirect()->route('concession.index')->with('success', 'Concession has been created successfully.');
+
+            if ($request->boolean('from_readmission')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Concession application has been created successfully.',
+                    'policy' => [
+                        'id' => $concession->id,
+                        'policy_title' => optional($concession->concession)->title,
+                        'status' => $concession->status,
+                        'active_status' => $concession->active_status,
+                        'start_date' => $concession->start_date,
+                        'end_date' => $concession->end_date,
+                    ],
+                ]);
+            }
+
+            return redirect()->route('concession.index')
+                ->with('success', 'Concession has been created successfully.');
         } catch (\Exception $e) {
             DB::rollback();
-            return redirect()->back()->with('error', $e);
+
+            if ($request->boolean('from_readmission')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 500);
+            }
+
+            return redirect()->back()->with('error', $e->getMessage());
         }
-        // }
-        // else
-        // {
-        //     return redirect()->back()->with('error', 'Permission denied.');
-        // }
     }
 
     /**
@@ -468,14 +628,19 @@ public function endconcession($id)
                     'concession_policies.order_no',
                     \DB::raw('SUM(CASE WHEN ' .
                         $this->buildMatchCase($filteredData) .
-                        ' THEN 1 ELSE 0 END) as match_count')
+                        ' THEN 1 ELSE 0 END) as match_count'),
+                    // Total non-zero heads defined on the policy. An exact match
+                    // requires the policy to have EXACTLY the searched heads —
+                    // i.e. every input head matched AND no extra non-zero head.
+                    \DB::raw('SUM(CASE WHEN concession_policy_heads.percentage <> 0 THEN 1 ELSE 0 END) as nonzero_head_count')
                 )
-                ->groupBy('concession_policies.id', 'concession_policies.title')
+                ->groupBy('concession_policies.id', 'concession_policies.title', 'concession_policies.order_no')
                 ->havingRaw('match_count > 0')
                 ->orderByRaw('match_count DESC')
                 ->get()
                 ->map(function ($policy) use ($totalInputHeads) {
-                    $policy->is_exact = ($policy->match_count == $totalInputHeads);
+                    $policy->is_exact = ($policy->match_count == $totalInputHeads
+                        && $policy->nonzero_head_count == $totalInputHeads);
                     return $policy;
                 });
 
@@ -515,16 +680,30 @@ public function endconcession($id)
     public function concessionrejection(Request $request, $id)
     {
         $concession = Concession::findOrFail($id);
-        if ($request->reject_reason == '') {
-            return redirect()->back()->with('error', 'Please give remarks to reject !');
+
+        // Rollback and Rejection share this endpoint but submit different
+        // fields: the rollback form sends `rollback_reason` + type=Rollback,
+        // the rejection form sends `reject_reason` + type=Rejected.
+        $isRollback = ($request->type == 'Rollback');
+        $reason = $isRollback ? $request->rollback_reason : $request->reject_reason;
+
+        if (trim((string) $reason) === '') {
+            $action = $isRollback ? 'rollback' : 'reject';
+            return redirect()->back()->with('error', "Please give remarks to {$action} !");
         }
-        if ($request->type == 'Rollbacked') {
-            $concession->status = 'Rollbacked';
-        } else {
-            $concession->status = 'Rejected';
-        }
-        $concession->cancel_remarks = $request->reject_reason;
+
+        $concession->cancel_remarks = $reason;
         $concession->active_status = 0;
+
+        if ($isRollback) {
+            // Send the concession back to Draft so the branch can edit it and
+            // resubmit it for approval.
+            $concession->status = 'Draft';
+            $concession->save();
+            return redirect()->back()->with('success', 'Concession has been rolled back to Draft successfully');
+        }
+
+        $concession->status = 'Rejected';
         $concession->save();
         return redirect()->back()->with('success', 'Concession has been Rejected Successfully');
     }

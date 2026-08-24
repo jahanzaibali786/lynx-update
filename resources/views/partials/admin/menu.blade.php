@@ -2058,7 +2058,7 @@
                                 </li>
                                 <li class="dash-item ">
                                     <a class="dash-link {{ Request::segment(1) == 'concession' ? 'active' : '' }}"
-                                        href="{{ route('concession.index', ['status' => 'Canceled']) }}">{{ __('Concession List') }}</a>
+                                        href="{{ route('concession.index') }}">{{ __('Concession List') }}</a>
                                 </li>
 
                                 @can('view spacetype')

@@ -43,10 +43,10 @@ class Challans extends Model
     {
         return $this->belongsTo(Session::class, 'session_id', 'id');
     }
-    // public function section()
-    // {
-    //     return $this->belongsTo(Section::class, 'section_id', 'id');
-    // }
+    public function section()
+    {
+        return $this->belongsTo(Section::class, 'section_id', 'id');
+    }
     public function branch()
     {
         return $this->belongsTo(User::class, 'owned_by', 'id');
@@ -67,12 +67,17 @@ class Challans extends Model
     }
     public function getStudentAttribute()
     {
-        // if ($this->studentCache != null) {
-        //     return $this->studentCache;
-        // }
-        // if ($this->relationLoaded('student') && $this->getRelation('student')) {
-        //     return $this->studentCache = $this->getRelation('student');
-        // }
+        // Prefer the eager-loaded relation when present. Accessors take
+        // precedence over relations for property access, so without this the
+        // `with('student')` eager load is ignored and every `$challan->student`
+        // access triggers a fresh query (N+1). Falls through to the reg_no
+        // lookup only for legacy rows where student_id references reg_no.
+        if ($this->relationLoaded('student')) {
+            $loaded = $this->getRelation('student');
+            if ($loaded) {
+                return $loaded;
+            }
+        }
         $student = StudentRegistration::find($this->student_id);
         if (!$student) {
             $student = StudentRegistration::where('reg_no', $this->student_id)->first();

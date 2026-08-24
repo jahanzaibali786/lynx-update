@@ -22,7 +22,7 @@ Create
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
     crossorigin="anonymous" referrerpolicy="no-referrer" />
-@if (\Auth::user()->type == 'company')
+{{-- @if (\Auth::user()->type == 'company') --}}
 <div class="row">
     <div class="col-sm-12">
         <div class="mt-2" id="multiCollapseExample1">
@@ -34,7 +34,7 @@ Create
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                             <div class="btn-box">
                                 {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                {{ Form::select('branches', $branches, '', ['class' => 'form-control select', 'onchange' => 'branchcustomer(this.value)']) }}
+                                {{ Form::select('branches', $branches, isset($selectedBranch) ? $selectedBranch : '', ['class' => 'form-control select', 'id' => 'branches_select', 'onchange' => 'branchcustomer(this.value)']) }}
                             </div>
                         </div>
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -106,7 +106,7 @@ Create
         </div>
     </div>
 </div>
-@endif
+{{-- @endif --}}
 
 <div class="card p-3" style="display: flex; justify-content:end; align-items:end;">
     <!-- <button id="printButton" class="btn mx-1 btn-sm btn-outline-success" onclick="getCheckedRowData()">Print Challan</button> -->
@@ -413,6 +413,14 @@ function classStudents(id) {
     });
 }
 
+
+        $(document).ready(function() {
+            var branchId = $("#branches_select").val();
+            if (branchId) {
+                branchcustomer(branchId);
+            }
+        });
+
 $(document).on('change', '#class_select', function() {
     var classId = $(this).val();
     if (classId) {
@@ -421,3 +429,4 @@ $(document).on('change', '#class_select', function() {
 });
 </script>
 @endsection
+

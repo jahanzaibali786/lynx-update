@@ -136,6 +136,81 @@
             padding: 2px 6px;
             margin-top: 2px;
         }
+
+        /* Tab styles */
+        .nav-tabs .nav-link {
+            color: #100773;
+            font-weight: 600;
+            border: 2px solid transparent;
+            border-bottom: none;
+            cursor: pointer;
+        }
+        .nav-tabs .nav-link.active {
+            color: #100773;
+            background-color: #fff;
+            border-color: #100773 #100773 #fff;
+            border-bottom: 2px solid #fff;
+        }
+        .nav-tabs .nav-link:hover {
+            color: #100773;
+            border-color: #100773 #100773 #fff;
+        }
+        .tab-content {
+            padding-top: 10px;
+        }
+
+        /* Searching animation */
+        #reference-searching {
+            display: none;
+            font-size: 12px;
+            color: #100773;
+            margin-left: 10px;
+        }
+        #reference-searching i {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Expandable student row styles */
+        .student-row {
+            cursor: pointer;
+            background-color: #aaaaaa;
+            font-weight: 600;
+        }
+        .student-row:hover {
+            background-color: #a3adb7;
+        }
+        .student-row .expand-icon {
+            transition: transform 0.2s;
+        }
+        .student-row.expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+        .receipt-details-row {
+            display: none;
+            background-color: #fff;
+        }
+        .receipt-details-row.show {
+            display: table-row;
+        }
+        .receipt-details-table {
+            width: 100%;
+            margin: 0;
+            font-size: 11px;
+        }
+        .receipt-details-table th {
+            background-color: #dddddd;
+            padding: 6px 8px;
+            font-weight: 600;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .receipt-details-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #dee2e6;
+        }
     </style>
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item">{{ __('Daily CMR Statement') }}</li>
@@ -143,6 +218,23 @@
 @section('action-btn')
 @endsection
 @section('content')
+    {{-- ══════════════════════════════════════════════════════════
+         TABS
+    ══════════════════════════════════════════════════════════ --}}
+    <ul class="nav nav-tabs" id="studentReceiptTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="daily-cmr-tab" data-bs-toggle="tab" data-bs-target="#daily-cmr" type="button" role="tab" aria-controls="daily-cmr" aria-selected="true">Daily CMR Statement</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="search-reference-tab" data-bs-toggle="tab" data-bs-target="#search-reference" type="button" role="tab" aria-controls="search-reference" aria-selected="false">Search by Reference</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="studentReceiptTabsContent">
+        {{-- ══════════════════════════════════════════════════════════
+             TAB 1: DAILY CMR STATEMENT
+        ══════════════════════════════════════════════════════════ --}}
+        <div class="tab-pane fade show active" id="daily-cmr" role="tabpanel" aria-labelledby="daily-cmr-tab">
     {{-- ══════════════════════════════════════════════════════════
          FILTER BAR
     ══════════════════════════════════════════════════════════ --}}
@@ -159,7 +251,7 @@
                             </div>
                             <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mr-2">
                                 {{ Form::label('default_bank', __('Default Bank'), ['class' => 'form-label']) }}
-                                                                {{ Form::select('default_bank', $accounts, request('default_bank'), ['class' => 'form-control custom-select', 'id' => 'default_bank', 'required' => 'required']) }}
+                                                                 {{ Form::select('default_bank', $accounts, request('default_bank'), ['class' => 'form-control custom-select', 'id' => 'default_bank', 'required' => 'required']) }}
                             </div>
                             <div class="col-auto float-end ms-2 mt-4">
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
@@ -174,9 +266,9 @@
                                         id="actionDropdown" data-bs-toggle="dropdown" aria-expanded="false">Export</button>
                                     <ul class="dropdown-menu" aria-labelledby="actionDropdown">
                                         <li><button class="dropdown-item" type="submit" name="export" value="excel"><i
-                                                    class="ti ti-file me-2"></i>Excel</button></li>
+                                                            class="ti ti-file me-2"></i>Excel</button></li>
                                         <li><button class="dropdown-item" type="submit" name="export" value="pdf"><i
-                                                    class="ti ti-download me-2"></i>Pdf</button></li>
+                                                            class="ti ti-download me-2"></i>Pdf</button></li>
                                     </ul>
                                 </div>
                             </div>
@@ -187,10 +279,6 @@
             </div>
         </div>
     </div>
-
-    {{-- ══════════════════════════════════════════════════════════
-         NEW RECEIPT ENTRY CARD
-    ══════════════════════════════════════════════════════════ --}}
     <div class="col-12" id="entry-card">
         <div class="entry-card-header">
             <i class="fa fa-plus-circle"></i>
@@ -404,6 +492,62 @@
                 @endforeach
             </tbody>
         </table>
+        @if ($recipts->hasPages())
+            <div class="d-flex justify-content-center mt-3">
+                {{ $recipts->appends(['date' => request('date'), 'default_bank' => request('default_bank')])->links() }}
+            </div>
+        @endif
+    </div>
+        </div>
+
+        {{-- ══════════════════════════════════════════════════════════
+             TAB 2: SEARCH BY REFERENCE
+        ══════════════════════════════════════════════════════════ --}}
+        <div class="tab-pane fade" id="search-reference" role="tabpanel" aria-labelledby="search-reference-tab">
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="mt-2">
+                        <div class="card">
+                            <div class="card-body" style="padding:12px;">
+                                <div class="row d-flex justify-content-end">
+                                    <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mr-2">
+                                        {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
+                                        <div class="input-group">
+                                            {{ Form::text('reference', old('reference', $reference ?? ''), ['class' => 'form-control', 'placeholder' => 'Enter reference number', 'id' => 'search_reference_input']) }}
+                                            <span id="reference-searching"><i class="fa fa-spinner fa-spin"></i> Searching…</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto float-end ms-2 mt-4">
+                                        <button type="button" id="btn_search_reference" class="btn mx-1 btn-sm btn-outline-primary">
+                                            <span class="btn-inner--icon">Search</span>
+                                        </button>
+                                        <button type="button" id="btn_clear_reference" class="btn mx-1 btn-sm btn-outline-danger">
+                                            <span class="btn-inner--icon">Clear</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="search_results_container" style="display:none;">
+                <div class="row mt-3">
+                    <div class="col-sm-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5>Search Results</h5>
+                                <p><strong>Reference:</strong> <span id="result_reference"></span></p>
+                                <p><strong>Total Students Found:</strong> <span id="result_total"></span></p>
+                                <hr>
+                                <div id="results_table_container"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- ══════════════════════════════════════════════════════════
@@ -463,6 +607,169 @@
             setTimeout(function() {
                 $('#challan_id').focus();
             }, 300);
+
+            // Switch to search by reference tab if reference is present
+            @if(isset($reference) && !empty($reference))
+                $('#search-reference-tab').tab('show');
+            @endif
+        });
+
+        // ── Tab switching helper ───────────────────────────────────────────
+        function switchToDailyTab() {
+            $('#daily-cmr-tab').tab('show');
+        }
+
+        // ── Reference search AJAX ───────────────────────────────────────────
+        let referenceSearchXHR = null;
+
+        $(document).on('click', '#btn_search_reference', function() {
+            var reference = $('#search_reference_input').val().trim();
+
+            if (!reference) {
+                show_toastr('error', 'Please enter a reference number', 'error');
+                return;
+            }
+
+            // Abort previous request if still running
+            if (referenceSearchXHR) {
+                referenceSearchXHR.abort();
+                referenceSearchXHR = null;
+            }
+
+            // Show searching animation
+            $('#reference-searching').show();
+            $('#btn_search_reference').prop('disabled', true);
+
+            // Hide previous results
+            $('#search_results_container').hide();
+
+            referenceSearchXHR = $.ajax({
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
+                url: "{{ route('student_receipt.search_by_reference') }}",
+                type: "GET",
+                data: {
+                    reference: reference
+                },
+                dataType: 'json',
+                success: function(response) {
+                    referenceSearchXHR = null;
+                    $('#reference-searching').hide();
+                    $('#btn_search_reference').prop('disabled', false);
+
+                    if (response.success) {
+                        $('#result_reference').text(response.reference);
+                        $('#result_total').text(response.total_students);
+
+                        if (response.total_students > 0) {
+                            var tableHtml = '<table class="datatable">' +
+                                '<thead class="table_heads">' +
+                                '<tr>' +
+                                '<th></th>' +
+                                '<th>Branch</th>' +
+                                '<th>Student Name</th>' +
+                                '<th>Roll No</th>' +
+                                '<th>Father Name</th>' +
+                                '<th>Class</th>' +
+                                '</tr>' +
+                                '</thead>' +
+                                '<tbody>';
+
+                            response.results.forEach(function(student, index) {
+                                var studentRowId = 'student_row_' + index;
+                                var receiptRowId = 'receipt_row_' + index;
+                                
+                                tableHtml += '<tr class="student-row" id="' + studentRowId + '" data-receipt-row="' + receiptRowId + '">' +
+                                    '<td style="width: 30px;"><i class="fa fa-chevron-right expand-icon"></i></td>' +
+                                    '<td>' + student.branch + '</td>' +
+                                    '<td>' + student.name + '</td>' +
+                                    '<td>' + student.roll_no + '</td>' +
+                                    '<td>' + student.fathername + '</td>' +
+                                    '<td>' + student.class + '</td>' +
+                                    '</tr>';
+                                
+                                // Receipt details row (hidden by default)
+                                tableHtml += '<tr class="receipt-details-row" id="' + receiptRowId + '">' +
+                                    '<td colspan="6">' +
+                                    '<table class="receipt-details-table">' +
+                                    '<thead>' +
+                                    '<tr>' +
+                                    '<th>Date</th>' +
+                                    '<th>Ch. Type</th>' +
+                                    '<th>Challan No</th>' +
+                                    '<th>Billing Month</th>' +
+                                    '<th>Bank/Cash</th>' +
+                                    '<th>Mode</th>' +
+                                    '<th>T.Head</th>' +
+                                    '<th>Ref.</th>' +
+                                    '<th>Rs.</th>' +
+                                    '</tr>' +
+                                    '</thead>' +
+                                    '<tbody>';
+                                
+                                student.receipts.forEach(function(receipt) {
+                                    tableHtml += '<tr>' +
+                                        '<td>' + receipt.date + '</td>' +
+                                        '<td>' + receipt.challan_type + '</td>' +
+                                        '<td>' + receipt.challan_no + '</td>' +
+                                        '<td>' + receipt.billing_month + '</td>' +
+                                        '<td>' + receipt.bank_name + '</td>' +
+                                        '<td>' + receipt.receive_type + '</td>' +
+                                        '<td>' + receipt.fee_head + '</td>' +
+                                        '<td>' + receipt.reference + '</td>' +
+                                        '<td>' + receipt.amount + '</td>' +
+                                        '</tr>';
+                                });
+                                
+                                tableHtml += '</tbody></table></td></tr>';
+                            });
+
+                            tableHtml += '</tbody></table>';
+                            $('#results_table_container').html(tableHtml);
+                        } else {
+                            $('#results_table_container').html('<p>No student receipts found for this reference.</p>');
+                        }
+
+                        $('#search_results_container').show();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    referenceSearchXHR = null;
+                    $('#reference-searching').hide();
+                    $('#btn_search_reference').prop('disabled', false);
+
+                    if (status !== 'abort') {
+                        show_toastr('error', 'An error occurred while searching. Please try again.', 'error');
+                    }
+                }
+            });
+        });
+
+        // Clear reference search
+        $(document).on('click', '#btn_clear_reference', function() {
+            $('#search_reference_input').val('');
+            $('#search_results_container').hide();
+            $('#results_table_container').html('');
+            $('#search_reference_input').focus();
+        });
+
+        // Allow Enter key to trigger search
+        $(document).on('keypress', '#search_reference_input', function(e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                $('#btn_search_reference').click();
+            }
+        });
+
+        // Expand/collapse student row to show receipt details
+        $(document).on('click', '.student-row', function() {
+            var $row = $(this);
+            var receiptRowId = $row.data('receipt-row');
+            var $receiptRow = $('#' + receiptRowId);
+            
+            $row.toggleClass('expanded');
+            $receiptRow.toggleClass('show');
         });
 
         // ── Receive-type helpers ──────────────────────────────────────────

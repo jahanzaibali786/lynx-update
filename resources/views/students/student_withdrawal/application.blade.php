@@ -285,6 +285,10 @@
             if (snapshot.total_payables !== undefined) $('#total_payables').val(snapshot.total_payables);
             if (snapshot.total_receivables !== undefined) $('#total_receivables').val(snapshot.total_receivables);
             if (snapshot.net_balance !== undefined) $('#net_balance').val(snapshot.net_balance);
+            if (snapshot.beneficiary_name !== undefined) $('[name="beneficiary_name"]').val(snapshot.beneficiary_name);
+            if (snapshot.bank_name !== undefined) $('[name="bank_name"]').val(snapshot.bank_name);
+            if (snapshot.cheque_no !== undefined) $('[name="cheque_no"]').val(snapshot.cheque_no);
+            if (snapshot.cheque_date !== undefined) $('[name="cheque_date"]').val(snapshot.cheque_date);
         }
 
         @if (!$isHO)
@@ -303,6 +307,10 @@
                 formData.append('total_receivables', $('#total_receivables').val());
                 formData.append('net_balance', $('#net_balance').val());
                 formData.append('remarks', $('#remarks').val());
+                formData.append('beneficiary_name', $('[name="beneficiary_name"]').val());
+                formData.append('bank_name', $('[name="bank_name"]').val());
+                formData.append('cheque_no', $('[name="cheque_no"]').val());
+                formData.append('cheque_date', $('[name="cheque_date"]').val());
 
                 $.ajax({
                     url: '{{ route('fwdtoho', $studentwithdrawal->id) }}',
@@ -448,32 +456,6 @@
                     {{ Form::label('ho_remarks', __('HO Remarks'), ['class' => 'form-label']) }}
                     {{ Form::textarea('ho_remarks', @$studentwithdrawal->ho_remarks, ['class' => 'form-control', 'rows' => 3]) }}
                 </div>
-                <div class="mt-2">
-                    <button type="button" id="saveBasicsBtn" class="btn btn-success">{{ __('Save Basics') }}</button>
-                </div>
-                <script>
-                    $(document).on('click', '#saveBasicsBtn', function() {
-                        var formData = new FormData();
-                        formData.append('_token', '{{ csrf_token() }}');
-                        formData.append('remarks', $('#remarks').val());
-                        formData.append('ho_remarks', $('#ho_remarks').val());
-
-                        $.ajax({
-                            url: '{{ route('withdrawlapplication.savebasics', $studentwithdrawal->id) }}',
-                            method: 'POST',
-                            data: formData,
-                            processData: false,
-                            contentType: false,
-                            success: function(response) {
-                                show_toastr('success', response.success);
-                            },
-                            error: function(xhr) {
-                                show_toastr('error', xhr.responseJSON ? xhr.responseJSON.error :
-                                    'Error saving basics');
-                            }
-                        });
-                    });
-                </script>
             </div>
         @endif
         <hr>
@@ -577,7 +559,7 @@
                         @foreach ($adj_entry as $pre)
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
-                                <td> <button id="rollback_{{ $pre->id }}" class="btn btn-sm btn-danger"
+                                <td> <button type="button" id="rollback_{{ $pre->id }}" class="btn btn-sm btn-danger"
                                         onclick="deleteAdjustment('{{ $pre->id }}')">Rollback</button>
                                 </td>
 
@@ -742,25 +724,25 @@
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('beneficiary_name', __('Cheque infavor of'), ['class' => 'form-label']) }}
-                    {{ Form::text('beneficiary_name', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
+                    {{ Form::text('beneficiary_name', @$studentwithdrawal->beneficiary_name, array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('bank_name', __('Bank Name'), ['class' => 'form-label']) }}
-                    {{ Form::text('bank_name', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
+                    {{ Form::text('bank_name', @$studentwithdrawal->bank_name, array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('cheque_no', __('Cheque No'), ['class' => 'form-label']) }}
-                    {{ Form::text('cheque_no', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
+                    {{ Form::text('cheque_no', @$studentwithdrawal->cheque_no, array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('cheque_date', __('Cheque Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('cheque_date', '', array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
+                    {{ Form::date('cheque_date', @$studentwithdrawal->cheque_date, array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             @if ($isHO)

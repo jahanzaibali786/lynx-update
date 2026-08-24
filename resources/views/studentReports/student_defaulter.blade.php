@@ -223,11 +223,15 @@
                 foreach ($reportData as $data) {
                     foreach ($data['challans'] as $challanGroup) {
                         foreach ($challanGroup as $chall) {
+                            // Bucket by the fee_month's YEAR-MONTH so challans whose
+                            // fee_month isn't stored on the 1st (e.g. Admission
+                            // challans dated on the admission day) still match.
+                            $feeTs = @$chall->fee_month ? strtotime($chall->fee_month) : false;
+                            $chFeeYm = $feeTs ? date('Y-m', $feeTs) : null;
+                            $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
                             foreach ($monthsArray as $l => $monthYear) {
                                 [$month, $year] = explode('-', $monthYear);
-                                $formattedDate = date('Y-m-01', strtotime("$year-$month-01"));
-                                if (@$chall->fee_month == $formattedDate) {
-                                    $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
+                                if ($chFeeYm !== null && $chFeeYm === "$year-$month") {
                                     $computedGrandMonthlyTotals[$l] += $price;
                                 }
                             }
@@ -269,7 +273,7 @@
                             <th rowspan="2">{{ __('Reg.') }}</th>
                             <th rowspan="2">{{ __('Class') }}</th>
                             <th rowspan="2">{{ __('Phone No') }}</th>
-                            <th rowspan="2">{{ __('Monthly Fee') }}</th>
+                            <th rowspan="2">{{ __('Tuition Fee') }}</th>
                             <th rowspan="2">{{ __('Arrears') }}</th>
                             @foreach (@$yearMonthCounts as $ak => $year)
                                 <th colspan="{{ $year }}" style="text-align: center;">{{ $ak }}</th>
@@ -304,20 +308,23 @@
                                     $studentMonthlyTotals = array_fill(0, count($monthsArray), 0);
                                     $studentTotal = 0;
                                     $firstChall = $challanGroup->first();
-                                    $studentMonthlyFee = 0;
-                                    $studentArrears = 0;
+                                    
+                                    // Use pre-calculated tuition fee from controller
+                                    $studentTuitionFee = $challanGroup->tuition_fee ?? 0;
+                                    
+                                    // Use arrears_amount calculated in controller (unpaid months before dateFrom)
+                                    $studentArrears = $challanGroup->arrears_amount ?? 0;
                                 @endphp
                                 @foreach ($challanGroup as $chall)
                                     @php
-                                        $studentMonthlyFee += $chall->monthly_fee ?? 0;
-                                        $studentArrears += $chall->arrears ?? 0;
+                                        $feeTs = @$chall->fee_month ? strtotime($chall->fee_month) : false;
+                                        $chFeeYm = $feeTs ? date('Y-m', $feeTs) : null;
+                                        $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
                                     @endphp
                                     @foreach ($monthsArray as $l => $monthYear)
                                         @php
                                             [$month, $year] = explode('-', $monthYear);
-                                            $formattedDate = date('Y-m-01', strtotime("$year-$month-01"));
-                                            if (@$chall->fee_month == $formattedDate) {
-                                                $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
+                                            if ($chFeeYm !== null && $chFeeYm === "$year-$month") {
                                                 $studentMonthlyTotals[$l] += $price;
                                             }
                                         @endphp
@@ -326,7 +333,7 @@
                                 @php
                                     $studentTotal = array_sum($studentMonthlyTotals);
                                 @endphp
-                                @if ($studentTotal == 0)
+                                @if ($studentTotal == 0 && $studentArrears == 0)
                                     @continue
                                 @endif
                                 <tr class="trNew">
@@ -338,7 +345,7 @@
                                     <td>{{ @$firstChall->student->registeroption->name }}</td>
                                     <td>{{ @$firstChall->class->name }}</td>
                                     <td>{!! str_replace(',', '<br>', @$firstChall->student->fatherphone) !!}</td>
-                                    <td>{{ $studentMonthlyFee }}</td>
+                                    <td>{{ $studentTuitionFee }}</td>
                                     <td>{{ $studentArrears }}</td>
                                     @foreach ($studentMonthlyTotals as $price)
                                         <td>{{ $price }}</td>
@@ -350,7 +357,7 @@
                                         $branchMonthlyTotals[$l] += $price;
                                         $grandMonthlyTotals[$l] += $price;
                                     }
-                                    $branchMonthlyFeeTotal += $studentMonthlyFee;
+                                    $branchMonthlyFeeTotal += $studentTuitionFee;
                                     $branchArrearsTotal += $studentArrears;
                                     $branchTotal += $studentTotal;
                                 @endphp

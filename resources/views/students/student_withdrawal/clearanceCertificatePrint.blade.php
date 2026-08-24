@@ -188,25 +188,28 @@
                 <tr>
                     <td style="width:50%;">
                         <table class="info-table">
-                            <tr><td class="label" style="width:40%; white-space:nowrap;">Branch</td><td class="rvalue" style="width:60%; white-space:nowrap;">{{ $branch->name ?? '-' }}</td></tr>
-                            <tr><td class="label">Withdrawal Order No</td><td class="rvalue">{{ $withdrawal->id ?? '-' }}</td></tr>
-                            <tr><td class="label">Student Name</td><td class="rvalue">{{ $student->stdname ?? '-' }}</td></tr>
+                            <tr><td class="label" style="width:40%; white-space:nowrap;">Student Name</td><td class="rvalue" style="width:60%; white-space:nowrap;">{{ $student->stdname ?? '-' }}</td></tr>
                             <tr><td class="label">Father Name</td><td class="rvalue">{{ $student->fathername ?? '-' }}</td></tr>
-                            <tr><td class="label">Admission Challan #</td><td class="rvalue">{{ $admissionChallanNo }}</td></tr>
+                            <tr><td class="label">Mother Name</td><td class="rvalue">{{ $student->mothername ?? '-' }}</td></tr>
+                            <tr><td class="label">Roll No</td><td class="rvalue">{{ $student->roll_no ?? '-' }}</td></tr>
                             <tr><td class="label">Admission Date</td><td class="rvalue">{{ $enrollment && $enrollment->adm_date ? \Carbon\Carbon::parse($enrollment->adm_date)->format('d M Y') : '-' }}</td></tr>
+                            <tr><td class="label">Admission Class</td><td class="rvalue">{{ $enrollment && $enrollment->class ? $enrollment->class->name : ($class->name ?? '-') }}</td></tr>
                             <tr><td class="label" style="white-space:nowrap;">Withdrawal Application Date</td><td class="rvalue">{{ $withdrawal->apply_date ? \Carbon\Carbon::parse($withdrawal->apply_date)->format('d M Y') : '-' }}</td></tr>
-                            <tr><td class="label" style="white-space:nowrap;">Reason of Leaving by Parents</td><td class="rvalue">{{ $withdrawal->reason ?? '-' }}</td></tr>
+                            <tr><td class="label" style="white-space:nowrap;">Last Date of Attendance</td><td class="rvalue" style="white-space:nowrap;">{{ $withdrawal->withdraw_date ? \Carbon\Carbon::parse($withdrawal->withdraw_date)->format('d M Y') : '-' }}</td></tr>
                         </table>
                     </td>
                     <td style="width:50%;">
                         <table class="info-table">
                             <tr><td class="label" style="width:55%;">Print Date</td><td class="rvalue" style="width:45%;">{{ now()->format('d M Y') }}</td></tr>
-                            <tr><td class="label">Roll No</td><td class="rvalue">{{ $student->roll_no ?? '-' }}</td></tr>
-                            <tr><td class="label">Mother Name</td><td class="rvalue">{{ $student->mothername ?? '-' }}</td></tr>
-                            <tr><td class="label">Admission Class</td><td class="rvalue">{{ $enrollment && $enrollment->class ? $enrollment->class->name : ($class->name ?? '-') }}</td></tr>
-                            <tr><td class="label" style="white-space:nowrap;">Admission Branch</td><td class="rvalue" style="white-space:nowrap;">{{ $admissionBranch ?? '-' }}</td></tr>
-                            <tr><td class="label" style="white-space:nowrap;">Withdrawal Application Received On</td><td class="rvalue">{{ $withdrawal->withdraw_date ? \Carbon\Carbon::parse($withdrawal->withdraw_date)->format('d M Y') : '-' }}</td></tr>
+                            <tr><td class="label">Branch</td><td class="rvalue" style="white-space:nowrap;">{{ $branch->name ?? '-' }}</td></tr>
                             <tr><td class="label">Current Class</td><td class="rvalue">{{ $class->name ?? '-' }}</td></tr>
+                            <tr><td class="label">Withdrawal Order No</td><td class="rvalue">{{ $withdrawal->id ?? '-' }}</td></tr>
+                            <tr><td class="label">Admission Branch</td><td class="rvalue" style="white-space:nowrap;">{{ $admissionBranch ?? '-' }}</td></tr>
+                            <tr><td class="label">Admission Challan #</td><td class="rvalue">{{ $admissionChallanNo }}</td></tr>
+                            {{-- <tr><td class="label">&nbsp;</td><td class="rvalue">&nbsp;</td></tr>
+                            <tr><td class="label">&nbsp;</td><td class="rvalue">&nbsp;</td></tr> --}}
+                            <tr><td class="label" style="white-space:nowrap;">Withdrawal Application Received On</td><td class="rvalue" style="white-space:nowrap;">{{ $withdrawal->withdraw_date ? \Carbon\Carbon::parse($withdrawal->withdraw_date)->format('d M Y') : '-' }}</td></tr>
+                            <tr><td class="label" style="white-space:nowrap;">Reason of Leaving by Parents</td><td class="rvalue">{{ $withdrawal->reason ?? '-' }}</td></tr>
                         </table>
                     </td>
                 </tr>
@@ -267,8 +270,8 @@
                     </td>
                     <td style="width:50%;">
                         <table class="info-table">
-                            <tr><td class="label">Challan #</td><td class="rvalue">{{ $securityChallanNo ?? '-' }}</td></tr>
-                            <tr><td class="label">Last Date of Attendance</td><td class="rvalue">{{ $withdrawal->withdraw_date ? \Carbon\Carbon::parse($withdrawal->withdraw_date)->format('d M Y') : '-' }}</td></tr>
+                            <tr><td class="label">Security Challan #</td><td class="rvalue">{{ $securityChallanNo ?? '-' }}</td></tr>
+                            <td style="color:#fff;">-</td>
                             <tr><td colspan="2" style="text-align:left;">{{ $lastBilling ? 'Rs. ' . number_format(($lastBilling->total_amount - $lastBilling->concession_amount), 2) : '-' }}</td></tr>
                             <tr><td colspan="2" style="text-align:left;">{{ $lastReceiptAmount ? 'Rs. ' . number_format($lastReceiptAmount, 2) : '-' }}</td></tr>
                         </table>
@@ -279,16 +282,37 @@
             {{-- ADJUSTMENTS --}}
             <div class="section-title-bar">ADJUSTMENTS</div>
 
+            @php
+                $hoSnapshot = $withdrawal->ho_snapshot ?? null;
+
+                if ($hoSnapshot) {
+                    $displayActualFee = $hoSnapshot['actual_fee'] ?? $arrearsTotal;
+                    $displayOtherDeduction = $hoSnapshot['other_deduction'] ?? $otherDeduction;
+                    $displayNetBalance = $hoSnapshot['net_balance'] ?? $netBalance;
+                } else {
+                    $displayActualFee = $arrearsTotal;
+                    $displayOtherDeduction = $otherDeduction;
+                    $displayNetBalance = $netBalance;
+                }
+                $displayAdjustment = $adjustmentAmount ?? 0;
+                if($adjustmentAmount > 0){
+                    $displayActualFee += $adjustmentAmount;
+                }
+            @endphp
+
             <table class="adj-table">
                 <tr>
                     <td style="width:50%;">
                         <table class="info-table">
-                            <tr><td class="label">Outstanding Fee</td><td class="rvalue">Rs. {{ number_format($arrearsTotal, 2) }}</td></tr>
-                            <tr><td class="label">Other Deduction</td><td class="rvalue">Rs. {{ number_format($otherDeduction, 2) }}</td></tr>
-                            <tr><td class="label">Payable / Receivable</td><td class="rvalue">Rs. {{ number_format($netBalance, 2) }}</td></tr>
+                            <tr><td class="label">Outstanding Fee</td><td class="rvalue">Rs. {{ number_format($displayActualFee, 2) }}</td></tr>
+                            @if($displayAdjustment > 0)
+                            <tr><td class="label">Outstanding Fee Adjusted</td><td class="rvalue">Rs. {{ number_format($displayAdjustment, 2) }}</td></tr>
+                            @endif
+                            <tr><td class="label">Other Deduction</td><td class="rvalue">Rs. {{ number_format($displayOtherDeduction, 2) }}</td></tr>
+                            <tr><td class="label">Payable / Receivable</td><td class="rvalue">Rs. {{ number_format($displayNetBalance, 2) }}</td></tr>
                             <tr><td class="label">Excess Fee Refund</td><td class="rvalue">Rs. {{ number_format($excessRefund, 2) }}</td></tr>
                             <tr><td class="label">Other Refund</td><td class="rvalue">Rs. 0.00</td></tr>
-                            <tr class="net-row"><td class="label">Net Payable / Receivable</td><td class="rvalue">Rs. {{ number_format(abs($netBalance), 2) }}</td></tr>
+                            <tr class="net-row"><td class="label">Net Payable / Receivable</td><td class="rvalue">Rs. {{ number_format(abs($displayNetBalance), 2) }}</td></tr>
                         </table>
                     </td>
                     <td style="width:50%;">
@@ -296,6 +320,12 @@
                             <tr>
                                 <td style="color:#fff;">-</td>
                             </tr>
+                            @if($displayAdjustment > 0)
+                            <tr>
+                                <td style="color:#fff;">-</td>
+                                
+                            </tr>
+                            @endif
                             <tr>
                                 <td style="color:#fff;">-</td>
                                 
@@ -332,14 +362,14 @@
                 <tr>
                     <td style="width:50%;">
                         <table class="info-table" style="table-layout:auto;">
-                            <tr><td class="label" style="white-space:nowrap; padding-right:0;">Cheque #</td><td style="border-bottom:1px solid #000; width:100%; padding-left:0;">&nbsp;</td></tr>
-                            <tr><td class="label" style="white-space:nowrap; padding-right:0;">Beneficiary Name</td><td style="border-bottom:1px solid #000; padding-left:0;">&nbsp;</td></tr>
+                            <tr><td class="label" style="white-space:nowrap; padding-right:0;">Cheque #</td><td style="border-bottom:1px solid #000; width:100%; padding-left:0;">@if($withdrawal->cheque_no){{ $withdrawal->cheque_no }}@else&nbsp;@endif</td></tr>
+                            <tr><td class="label" style="white-space:nowrap; padding-right:0;">Beneficiary Name</td><td style="border-bottom:1px solid #000; padding-left:0;">@if($withdrawal->beneficiary_name)&nbsp;&nbsp;&nbsp;&nbsp;{{ $withdrawal->beneficiary_name }}@else&nbsp;@endif</td></tr>
                         </table>
                     </td>
                     <td style="width:50%;">
                         <table class="info-table" style="table-layout:auto;">
-                            <tr><td class="label" style="white-space:nowrap; padding-right:0;">Bank</td><td style="border-bottom:1px solid #000; width:100%; padding-left:0;">&nbsp;</td></tr>
-                            <tr><td class="label" style="white-space:nowrap; padding-right:0;">Date</td><td style="border-bottom:1px solid #000; padding-left:0;">&nbsp;</td></tr>
+                            <tr><td class="label" style="white-space:nowrap; padding-right:0;">Bank</td><td style="border-bottom:1px solid #000; width:100%; padding-left:0;">@if($withdrawal->bank_name) &nbsp;&nbsp;&nbsp;&nbsp;{{ $withdrawal->bank_name }}@else&nbsp;@endif</td></tr>
+                            <tr><td class="label" style="white-space:nowrap; padding-right:0;">Date</td><td style="border-bottom:1px solid #000; width:100%; padding-left:0;">@if($withdrawal->cheque_date)&nbsp;&nbsp;&nbsp;&nbsp;{{ \Carbon\Carbon::parse($withdrawal->cheque_date)->format('d M Y') }}@else&nbsp;@endif</td></tr>
                         </table>
                     </td>
                 </tr>
@@ -368,7 +398,7 @@
                 <div class="clearfix" style="margin-top:12px;">
                     <div style="float:right; text-align:right;">
                         Parent's Signature: <span class="sig-line"></span>
-                        <br><br>
+                        <br>
                         Date: <span class="sig-line"></span>
                     </div>
                 </div>

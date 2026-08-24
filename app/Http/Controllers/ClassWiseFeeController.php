@@ -335,15 +335,109 @@ class ClassWiseFeeController extends Controller
     }
     public function getbranchstudent(Request $request)
     {
+        $includeRegistered = $request->input('include_registered', false);
+        $forReadmission = $request->boolean('readmission');
 
-        $students = StudentRegistration::where('owned_by', $request->branch_id)
-            ->where('student_status', 'Enrolled')
-            ->where('active_status', 1)
-            ->get()
-            ->mapWithKeys(function ($student) {
-                return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+        if ($forReadmission) {
+            // Readmission selection is branch-based, not class-based. Include students whose
+            // LATEST withdrawal is still draft/approved even when active_status is already 0.
+            $records = StudentRegistration::with('enrollment')
+                ->where(function ($query) use ($request) {
+                    $query->where('owned_by', $request->branch_id)
+                        ->orWhere('branch', $request->branch_id);
+                })
+                ->where('created_by', \Auth::user()->creatorId())
+                ->get()
+                ->filter(function ($student) {
+                    $withdrawal = \App\Models\StudentWithdrawal::where('student_id', $student->id)
+                        ->orderByDesc('id')
+                        ->first();
+
+                    return $withdrawal && in_array(
+                        strtolower(trim((string) $withdrawal->status)),
+                        ['draft', 'approved'],
+                        true
+                    );
+                })
+                ->values();
+
+            $students = $records->mapWithKeys(function ($student) {
+                $roll = optional($student->enrollment)->enrollId ?: $student->roll_no;
+                return [
+                    $student->id => trim(
+                        ($roll ? $roll . ' - ' : '')
+                        . $student->stdname
+                        . ($student->fathername ? ' s/d/o ' . $student->fathername : '')
+                    )
+                ];
             });
-        // dd($students);
+
+            $studentRecords = $records->map(function ($student) {
+                $enrollment = $student->enrollment;
+                $branchId = (int) (optional($enrollment)->owned_by ?: $student->owned_by ?: $student->branch);
+                $classId = (int) (optional($enrollment)->class_id ?: $student->class_id);
+                $sectionId = (int) (optional($enrollment)->section_id ?: $student->section_id);
+                $sessionId = (int) (optional($enrollment)->session_id ?: $student->session_id);
+
+                $doa = null;
+                foreach (['admission_date', 'date_of_admission', 'admissionDate', 'doa'] as $attribute) {
+                    $value = $student->{$attribute} ?? null;
+                    if (!empty($value)) {
+                        try {
+                            $doa = \Carbon\Carbon::parse($value)->toDateString();
+                        } catch (\Throwable $e) {
+                            $doa = $value;
+                        }
+                        break;
+                    }
+                }
+                if (!$doa && $student->created_at) {
+                    $doa = \Carbon\Carbon::parse($student->created_at)->toDateString();
+                }
+
+                return [
+                    'reg_id' => (int) $student->id,
+                    'id' => (int) $student->id,
+                    'roll_no' => optional($enrollment)->enrollId ?: $student->roll_no,
+                    'stdname' => $student->stdname,
+                    'fathername' => $student->fathername,
+                    'branch_id' => $branchId,
+                    'class_id' => $classId,
+                    'section_id' => $sectionId,
+                    'session_id' => $sessionId,
+                    'class' => optional(Classes::find($classId))->name,
+                    'section' => optional(\App\Models\Section::find($sectionId))->name,
+                    'session' => optional(Session::find($sessionId))->year,
+                    'date_of_admission' => $doa,
+                    'student_status' => $student->student_status,
+                ];
+            })->values();
+
+            return response()->json([
+                'status' => 'success',
+                'students' => $students,
+                'student_records' => $studentRecords,
+            ]);
+        }
+
+        // Existing behaviour preserved for every other screen using this route.
+        $query = StudentRegistration::where('owned_by', $request->branch_id)
+            ->where('active_status', 1);
+
+        if ($includeRegistered) {
+            $query->whereIn('student_status', ['Enrolled', 'Registered']);
+        } else {
+            $query->where('student_status', 'Enrolled');
+        }
+
+        $students = $query->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+
+                return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+            });
 
         return response()->json(['status' => 'success', 'students' => $students]);
     }
@@ -361,6 +455,159 @@ class ClassWiseFeeController extends Controller
         }
 
         return response()->json(['status' => 'error', 'message' => 'Invalid request.']);
+    }
+        public function updateFeeStructureSelection(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:student_registrations,id',
+            'session_id' => 'nullable|integer',
+            'selected_heads' => 'nullable|array',
+            'selected_heads.*' => 'integer',
+        ]);
+
+        try {
+            $student = StudentRegistration::findOrFail($request->student_id);
+
+            $selectedHeadIds = collect($request->input('selected_heads', []))
+                ->map(function ($headId) {
+                    return (int) $headId;
+                })
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            /*
+            |--------------------------------------------------------------------------
+            | StudentFeeStructure is ONE continuing student structure
+            |--------------------------------------------------------------------------
+            |
+            | Do NOT filter StudentFeeStructure by session. Session is used only when
+            | the student has no structure and we need to attach the initial complete
+            | ClassWiseFee structure selected in the readmission application.
+            |
+            */
+            $hasStudentStructure = StudentFeeStructure::where(
+                'reg_id',
+                $student->id
+            )->exists();
+
+            if (!$hasStudentStructure) {
+                $sessionId = (int) $request->input('session_id');
+
+                if (!$sessionId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Please select the application session. The student fee structure does not exist yet.',
+                    ], 422);
+                }
+
+                $teacherChildOption = \App\Models\Registring_option::where(
+                    'name',
+                    'TEACHER CHILD'
+                )->first();
+
+                $structureType = (
+                    $teacherChildOption
+                    && (int) $student->register_option === (int) $teacherChildOption->id
+                ) ? 'teacher_child' : 'regular';
+
+                $classFees = ClassWiseFee::where('session_id', $sessionId)
+                    ->where('class_id', $student->class_id)
+                    ->where('owned_by', $student->owned_by)
+                    ->where('type', $structureType)
+                    ->get();
+
+                if (
+                    $structureType === 'teacher_child'
+                    && $classFees->isEmpty()
+                ) {
+                    $classFees = ClassWiseFee::where('session_id', $sessionId)
+                        ->where('class_id', $student->class_id)
+                        ->where('owned_by', $student->owned_by)
+                        ->where('type', 'regular')
+                        ->get();
+                }
+
+                if ($classFees->isEmpty()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No ClassWiseFee structure was found for the selected application session, student branch and class.',
+                    ], 422);
+                }
+
+                \DB::transaction(function () use ($student, $classFees) {
+                    foreach ($classFees as $fee) {
+                        StudentFeeStructure::firstOrCreate(
+                            [
+                                'reg_id' => $student->id,
+                                'head_id' => $fee->head_id,
+                            ],
+                            [
+                                'student_id' => $student->roll_no,
+                                'branch_id' => $student->owned_by,
+                                'class_id' => $student->class_id,
+                                'amount' => $fee->amount,
+                                'discount' => 0,
+                                'checked_status' => 0,
+                                'owned_by' => $student->owned_by,
+                                'created_by' => $student->created_by
+                                    ?: \Auth::user()->creatorId(),
+                            ]
+                        );
+                    }
+                });
+            }
+
+            $studentHeadIds = StudentFeeStructure::where('reg_id', $student->id)
+                ->pluck('head_id')
+                ->map(function ($headId) {
+                    return (int) $headId;
+                })
+                ->unique();
+
+            $invalidHeadIds = collect($selectedHeadIds)->diff($studentHeadIds);
+
+            if ($invalidHeadIds->isNotEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'One or more selected fee heads are not attached to this student fee structure.',
+                ], 422);
+            }
+
+            \DB::transaction(function () use ($student, $selectedHeadIds) {
+                StudentFeeStructure::where('reg_id', $student->id)
+                    ->update([
+                        'checked_status' => 0,
+                    ]);
+
+                if (!empty($selectedHeadIds)) {
+                    StudentFeeStructure::where('reg_id', $student->id)
+                        ->whereIn('head_id', $selectedHeadIds)
+                        ->update([
+                            'checked_status' => 1,
+                        ]);
+                }
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Student fee structure selection updated successfully.',
+                'data' => [
+                    'student_id' => $student->id,
+                    'total_heads' => StudentFeeStructure::where(
+                        'reg_id',
+                        $student->id
+                    )->count(),
+                    'selected_head_ids' => $selectedHeadIds,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
      public function getClasswithdrawStudents(Request $request)
     {
@@ -397,7 +644,7 @@ class ClassWiseFeeController extends Controller
         return response()->json($result);
     }
 
-    public function student_fee_generate($id)
+    public function student_fee_generate(Request $request ,$id)
     {
         $student = StudentRegistration::where('id', $id)->first();
         if (!$student) {
@@ -437,6 +684,7 @@ class ClassWiseFeeController extends Controller
                             $sfs->update($values);
                         }
                     } else {
+                        $keys['student_id'] = @$student->roll_no;
                         StudentFeeStructure::create(array_merge($keys, $values));
                     }
                 }
@@ -444,10 +692,22 @@ class ClassWiseFeeController extends Controller
 
             $this->recordFeeStructureAmountHistory($student, $feeStructureBefore, 'classwise_fee_structure', 'Classwise fee structure generated');
             \DB::commit();
-
+            if ($request->ajax() || $request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Student Fee Structure Generated Successfully.',
+                    'reload_preview' => true,
+                ]);
+            }
             return redirect()->route('registration.show', ['registration' => $student->id])->with('success', 'Student Fee Structure Genereated Successfull.');
         } catch (\Exception $e) {
             \DB::rollBack();
+            if ($request->ajax() || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 500);
+            }
 
             return redirect()->back()->with('error', $e->getMessage());
         }

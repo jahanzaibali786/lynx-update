@@ -3,30 +3,42 @@
     <div class="row d-flex text-center">
         {{-- @dd($concession) --}}
         <h4 class="text-start">Student Detail</h4>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Registration No :</b> <br>
-            {{ @$concession->student->id }}</div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Roll No:</b> <br>
-            {{ @$concession->student->enrollment->enrollId }}</div>
-        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12"><b>Student Name : <br>
-            </b>{{ $concession->student->stdname }}</div>
-        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12"><b>Father Name : <br>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Branch :</b> <br>
+            {{-- 'branch' is a column on student_registrations, so $student->branch returns the id, not the User.
+                 Use reg_branch for registered students and the enrollment branch (owned_by) for enrolled ones;
+                 fall back to the concession's own branch (owned_by) so it is never blank. --}}
+            @if(@$concession->student->student_status == 'Registered')
+            {{ @$concession->student->reg_branch->name }}
+            @elseif(@$concession->student->enrollment)
+            {{ @$concession->student->enrollment->branch->name }}
+            @else
+            {{ @$concession->branches->name }}
+            @endif
+        </div>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Roll No:</b> <br>
+        {{ @$concession->student->enrollment->enrollId }}</div>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Student Name : <br>
+        </b>{{ $concession->student->stdname }}</div>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Registration No :</b> <br>
+        {{ @$concession->student->id }}</div>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Father Name : <br>
             </b>{{ $concession->student->fathername }}</div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Class: </b>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Class: </b>
             <br>{{ $concession->student->class->name }}
         </div>
         <hr>
         <h4 class="text-start">Concession Detail</h4>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Order No : <br>
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Order No : <br>
             </b>{{ @$concession->id }}
         </div>
-        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Concession: <br>
+        <div class="col-xl-8 col-lg-8 col-md-6 col-sm-12 col-12"><b>Concession: <br>
             </b>{{ @$concession->concession->title }}
         </div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Apply Date: <br> </b>{{ @$concession->apply_date }}
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Apply Date: <br> </b>{{ @$concession->apply_date }}
         </div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>Start Date: <br> </b>{{ @$concession->start_date }}
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>Start Date: <br> </b>{{ @$concession->start_date }}
         </div>
-        <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12"><b>End Date: <br> </b>{{ @$concession->end_date ?? '-' }}
+        <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12"><b>End Date: <br> </b>{{ @$concession->end_date ?? '-' }}
         </div>
         <hr>
         <h4 class="text-start">Concession Heads</h4>
@@ -160,14 +172,6 @@
                         <input type="hidden" name="type" value="Rollback">
                 </div>
                 <button type="submit" class="btn btn-outline-danger mt-1">Submit</button>
-                <a href="javascript:void(0);" id="reject-rol-btn" class="mx-1 btn btn-outline-danger" 
-                    data-bs-title="{{ __('Rejected') }}">
-                    Rejected
-                </a>
-                <a href="{{ route('concession.change_status', [$concession->id, 'Approved']) }}"
-                    class="mx-1 btn btn-outline-primary"  data-bs-title="{{ __('Approved') }}">
-                    Approved
-                </a>
             </form>
         </div>
 

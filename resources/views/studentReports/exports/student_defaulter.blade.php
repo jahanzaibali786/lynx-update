@@ -223,11 +223,14 @@
                 foreach ($reportData as $data) {
                     foreach ($data['challans'] as $challanGroup) {
                         foreach ($challanGroup as $chall) {
+                            // Match by fee_month's YEAR-MONTH (Admission challans
+                            // store fee_month on the admission day, not the 1st).
+                            $feeTs = @$chall->fee_month ? strtotime($chall->fee_month) : false;
+                            $chFeeYm = $feeTs ? date('Y-m', $feeTs) : null;
+                            $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
                             foreach ($monthsArray as $l => $monthYear) {
                                 [$month, $year] = explode('-', $monthYear);
-                                $formattedDate = date('Y-m-01', strtotime("$year-$month-01"));
-                                if (@$chall->fee_month == $formattedDate) {
-                                    $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
+                                if ($chFeeYm !== null && $chFeeYm === "$year-$month") {
                                     $computedGrandMonthlyTotals[$l] += $price;
                                 }
                             }
@@ -311,13 +314,14 @@
                                     @php
                                         $studentMonthlyFee += $chall->monthly_fee ?? 0;
                                         $studentArrears += $chall->arrears ?? 0;
+                                        $feeTs = @$chall->fee_month ? strtotime($chall->fee_month) : false;
+                                        $chFeeYm = $feeTs ? date('Y-m', $feeTs) : null;
+                                        $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
                                     @endphp
                                     @foreach ($monthsArray as $l => $monthYear)
                                         @php
                                             [$month, $year] = explode('-', $monthYear);
-                                            $formattedDate = date('Y-m-01', strtotime("$year-$month-01"));
-                                            if (@$chall->fee_month == $formattedDate) {
-                                                $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
+                                            if ($chFeeYm !== null && $chFeeYm === "$year-$month") {
                                                 $studentMonthlyTotals[$l] += $price;
                                             }
                                         @endphp

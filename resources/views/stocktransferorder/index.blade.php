@@ -104,6 +104,11 @@
                                                         class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center" data-bs-title="{{ __('Detail') }}">
                                                         <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                                     </a>
+                                                    <a href="{{ route('stock-transfer-order.print', Crypt::encrypt($StockTransferOrder->id)) }}"
+                                                        class="mx-1 btn btn-outline-secondary btn-sm align-items-center" target="_blank"
+                                                        data-bs-title="{{ __('Print') }}" title="{{ __('Print') }}">
+                                                        <span class="btn-inner--icon"><i class="ti ti-printer"></i></span>
+                                                    </a>
                                                 @endif
                                                 @if($canEditOrder)
                                                     <a href="#"

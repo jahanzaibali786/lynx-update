@@ -104,36 +104,32 @@
                         @endif
                     @endforeach
                 @elseif($receipt->challan && $receipt->challan->items)
-                    @foreach($receipt->challan->items as $challanItem)
+                    @php
+                        $studyPack = \App\Models\StudyPack::find($receipt->challan->studypack_id);
+                        $studyPackTitle = $studyPack ? $studyPack->title : '';
+                        $combinedAmount = $receipt->recipt_amount;
+                    @endphp
+                    <tr>
+                        <td>{{ $globalSr++ }}</td>
+                        <td>{{ $branchSr++ }}</td>
+                        <td>{{ \Carbon\Carbon::parse($receipt->recipt_date)->format('d-M-Y') }}</td>
+                        <td>{{ $receipt->challan?->challan_type }}</td>
+                        <td>{{ $receipt->challan?->enrollstudent?->enrollId ?? $receipt->challan?->student?->roll_no }}</td>
+                        <td>{{ $receipt->challan?->student?->stdname }}</td>
+                        <td>{{ $receipt->challan?->class?->name }}</td>
+                        <td>{{ $receipt->challan?->challanNo }}</td>
+                        <td>{{ $receipt->challan?->fee_month ? \Carbon\Carbon::parse($receipt->challan->fee_month)->format('F Y') : '' }}</td>
+                        <!-- <td>{{ $receipt->challan?->billing_cycle }}</td> -->
+                        <td>{{ $receipt->bank?->bank_name }}</td>
+                        <td>{{ $receipt->receive_type }}</td>
+                        <td>{{ $studyPackTitle }}</td>
+                        <td>{{ $receipt->referance }}</td>
+                        <td>{{ $combinedAmount }}</td>
                         @php
-                            $itemKey = 'sp_item_' . $challanItem->id;
-                            if (in_array($itemKey, $usedVoucherItems)) {
-                                continue;
-                            }
-                            $usedVoucherItems[] = $itemKey;
+                            $branchTotal += $combinedAmount;
                         @endphp
-                        <tr>
-                            <td>{{ $globalSr++ }}</td>
-                            <td>{{ $branchSr++ }}</td>
-                            <td>{{ \Carbon\Carbon::parse($receipt->recipt_date)->format('d-M-Y') }}</td>
-                            <td>{{ $receipt->challan?->challan_type }}</td>
-                            <td>{{ $receipt->challan?->enrollstudent?->enrollId ?? $receipt->challan?->student?->roll_no }}</td>
-                            <td>{{ $receipt->challan?->student?->stdname }}</td>
-                            <td>{{ $receipt->challan?->class?->name }}</td>
-                            <td>{{ $receipt->challan?->challanNo }}</td>
-                            <td>{{ $receipt->challan?->fee_month ? \Carbon\Carbon::parse($receipt->challan->fee_month)->format('F Y') : '' }}</td>
-                            <!-- <td>{{ $receipt->challan?->billing_cycle }}</td> -->
-                            <td>{{ $receipt->bank?->bank_name }}</td>
-                            <td>{{ $receipt->receive_type }}</td>
-                            <td>{{ $challanItem->product->name ?? '' }}</td>
-                            <td>{{ $receipt->referance }}</td>
-                            <td>{{ $challanItem->price }}</td>
-                            @php
-                                $branchTotal += $challanItem->price;
-                            @endphp
-                            <td>0.0</td>
-                        </tr>
-                    @endforeach
+                        <td>0.0</td>
+                    </tr>
                 @else
                     {{-- Fallback: iterate voucher items directly --}}
                     @foreach ($receipt->voucher as $voucherItem)

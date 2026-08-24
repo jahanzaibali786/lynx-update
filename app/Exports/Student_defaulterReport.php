@@ -66,6 +66,9 @@ class Student_defaulterReport implements FromView, WithEvents
 
                 // 🔁 Repeat heading row (row 5)
                 $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(9, 10);
+                // ❄️ Freeze the title + column-heading rows (1–10) so they stay
+                // visible on screen while the data rows (11+) scroll.
+                $sheet->freezePane('A11');
                 $sheet = $event->sheet->getDelegate();
                 $sheet->setShowGridlines(false);
                 // Optional: Margins
@@ -193,8 +196,8 @@ class Student_defaulterReport implements FromView, WithEvents
                 $sheet->getStyle("E11:E{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("F11:F{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle("H11:H{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_TOP)->setWrapText(true);
-                $sheet->getStyle("G11:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("I11:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("G11:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("I11:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                 $sheet->getStyle("A11:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
             },
         ];

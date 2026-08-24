@@ -9,170 +9,11 @@
     <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
     <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
     <script>
-        // function classStudents(id) {
-        //     var type = $('#type').val();
-        //     $.ajax({
-        //         headers: {
-        //             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        //         },
-        //         url: "{{ route('class.students') }}",
-        //         type: "POST",
-        //         data: {
-        //             class_id: id,
-        //             type: type
-        //         },
-        //         dataType: 'json',
-        //         success: function(result) {
-        //             console.log(result);
-        //             if (result.status == 'success') {
-        //                 var s = ` {{ Form::label('student_id', __('Students'), ['class' => 'form-label']) }}<span style="color: red">
-    //                             *</span><select name="student_id"  class="form-control select " id="student_select">
-    //                             <option value="all" selected >All Students</option> `;
+        // Variables to track the changes
+        var lastClassId = null;
+        var lastType = null;
+        var lastBranchId = null;
 
-
-        //                 for (var id in result.students) {
-        //                     if (result.students.hasOwnProperty(id)) {
-        //                         s += `<option value="` + id + `">` + result.students[id] + `</option>`;
-        //                         // $('#student_select').append($('<option>', { value: id, text: result.students[id] }));
-        //                     }
-        //                 }
-        //                 s += `</select>`;
-        //                 $('#std_names').empty();
-        //                 $('#std_names').html(s);
-        //                 if (result.length != 0) {
-        //                     $('#student_select').addClass('js-searchBox');
-        //                     JsSearchBox();
-        //                     updateWidths();
-        //                 }
-        //                 $('#student_select').val('all');
-        //             }
-
-        //         }
-        //     });
-        // }
-
-        // $(document).on('change', '#class_id', function() {
-        //     var classId = $(this).val();
-        //     $('.av').addClass('d-none');
-        //     $('#student-details').empty('');
-        //     if (classId) {
-        //         classStudents(classId);
-        //     } else {
-        //         $('#student_select').empty();
-        //     }
-        // });
-        // $(document).on('change', '#type', function() {
-        //     var classId = $('#class_id').val();
-        //     console.log(classId);
-        //     if (classId) {
-        //         classStudents(classId);
-        //     } else {
-        //         $('#student_select').empty();
-        //     }
-        // });
-
-        // $(document).on('change', '#branch', function() {
-        //     var branch = $(this).val();
-        //     $.ajax({
-        //         url: '{{ route('branch.class') }}',
-        //         type: 'POST',
-        //         data: {
-        //             "branch_id": branch,
-        //             "_token": "{{ csrf_token() }}",
-        //         },
-        //         success: function(data) {
-        //             $('#class_id').empty();
-        //             $('#class_id').append('<option value="" selected{{ __('Select Class') }}</option>');
-        //             for (let index = 0; index < data.length; index++) {
-        //                 $('#class_id').append('<option value="' + data[index]['id'] + '">' + data[index]
-        //                     ['name'] + '</option>');
-        //             }
-        //         }
-        //     });
-        // });
-
-        // $(document).on('change', '#student_select', function() {
-        //     var studentId = this.value;
-        //     $('.av').addClass('d-none');
-        //     $('#student-details').empty('');
-        //     if (studentId) {
-        //         fetchStudentDetails(studentId);
-        //     } else {
-        //         document.getElementById('student-details').innerHTML = '';
-        //     }
-        // });
-
-        // function fetchStudentDetails(studentId) {
-        //     fetch('{{ url('concession/student-detail') }}/' + studentId)
-        //         .then(response => response.json())
-        //         .then(data => {
-        //             displayStudentDetails(data);
-        //         })
-        //         .catch(error => console.error('Error:', error));
-        // }
-
-        // function displayStudentDetails(data) {
-        //     var detailsDiv = document.getElementById('student-details');
-        //     if (data) {
-        //         detailsDiv.innerHTML =
-        //             `<div style="display:grid; grid-template-columns:auto auto auto;"><p><strong>Student Name:</strong>${data.data.stdname}</p><p><strong>Father Name:</strong>${data.data.fathername}</p><p><strong>Father CNIC:</strong>${data.data.fathercnic}</p><p><strong>Email:</strong>${data.data.email}</p><p><strong>Roll No:</strong>${data.enroll.enrollId}</p><p><strong>Class:</strong>${data.class}</p><p><strong>Section:</strong>${data.section}</p><p><strong>Concession:</strong>${data.concession}</p></div>`;
-        //         if (data.concession != 'No Previous Concession') {
-        //             $('.av').removeClass('d-none');
-        //         }
-        //     } else {
-        //         detailsDiv.innerHTML = '<p>No details available for this student.</p>';
-        //     }
-        // }
-
-        // $(document).ready(function () {
-        //     $('table').on('click', 'tr[data-id]', function () {
-        //         var concession_id = $(this).data('id');
-        //         $.ajax({
-        //             {{-- url: '{{ route('concession.student_details') }}', --}}
-        //             type: 'POST',
-        //             data: {
-        //                 "concession_id": concession_id,
-        //                 "_token": "{{ csrf_token() }}",
-        //             },
-        //             success: function (data) {
-        //                 // Assuming your data structure is as follows
-        //                 console.log(data.data.email);
-        //                 console.log(data.data.stdname);
-        //                 console.log(data.data.fathername);
-        //                 console.log(data.data.fathercnic);
-        //                 console.log(data.enroll.enrollId);
-        //                 console.log(data.class);
-        //                 console.log(data.section);
-
-        //                 // Construct HTML content for modal body
-        //                 var modalBodyHtml = '<div style="display:grid; grid-template-columns:auto auto;">';
-        //                 modalBodyHtml += '<p><strong>Student Name:</strong> ' + data.data.stdname + '</p>';
-        //                 modalBodyHtml += '<p><strong>Father Name:</strong> ' + data.data.fathername + '</p>';
-        //                 modalBodyHtml += '<p><strong>Father CNIC:</strong> ' + data.data.fathercnic + '</p>';
-        //                 modalBodyHtml += '<p><strong>Email:</strong> ' + data.data.email + '</p>';
-        //                 modalBodyHtml += '<p><strong>Enroll ID:</strong> ' + data.enroll.enrollId + '</p>';
-        //                 modalBodyHtml += '<p><strong>Class:</strong> ' + data.class + '</p>';
-        //                 modalBodyHtml += '<p><strong>Section:</strong> ' + data.section + '</p>';
-        //                 modalBodyHtml += '</div>';
-
-        //                 // Set modal body HTML and display modal
-        //                 $('#studentDetailsModal .modal-body').html(modalBodyHtml);
-        //                 $('#studentDetailsModal').modal('show');
-        //             },
-        //             error: function (xhr, status, error) {
-        //                 console.error(xhr.responseText);
-        //             }
-        //         });
-        //     });
-        // });
-
-
-        //         function printReport() {
-        //     let form = document.getElementById('concession_submit');
-        //     let formData = new FormData(form);
-        //     let queryString = new URLSearchParams(formData).toString();
-        //     window.location.href = "{{ route('concession.report') }}?" + queryString;
-        // }
         function printReport() {
             var form = document.getElementById('concession_submit');
             var formData = new FormData(form);
@@ -203,8 +44,7 @@
                 }
             });
         }
-    </script>
-    <script>
+
         // Function to fetch students based on class ID and type
         function classStudents(id) {
             var type = $('#type').val();
@@ -257,10 +97,6 @@
                 }
             });
         }
-
-        // Variables to track the changes
-        let lastClassId = null;
-        let lastType = null;
 
         // Modified event handler for class_id change
         $(document).on('change', '#class_id', function() {
@@ -326,27 +162,65 @@
             }
         });
 
-        // Branch change event handler - no changes needed
+        // Branch change event handler - filter students by branch
         $(document).on('change', '#branch', function() {
             var branch = $(this).val();
+            if (branch) {
+                // Load students for this branch (active enrolled students)
+                branchStudents(branch);
+            }
+        });
+
+        // Function to load students by branch (similar to student account statement)
+        function branchStudents(branchId) {
             $.ajax({
-                url: '{{ route('branch.class') }}',
-                type: 'POST',
+                url: "{{ route('get.branch-students') }}",
+                type: "GET",
                 data: {
-                    "branch_id": branch,
-                    "_token": "{{ csrf_token() }}",
+                    branch_id: branchId,
+                    include_registered: true
                 },
-                success: function(data) {
-                    $('#class_id').empty();
-                    $('#class_id').append(
-                        '<option value="" selected>{{ __('Select Class') }}</option>');
-                    for (let index = 0; index < data.length; index++) {
-                        $('#class_id').append('<option value="' + data[index]['id'] + '">' + data[index]
-                            ['name'] + '</option>');
+                dataType: 'json',
+                success: function(result) {
+                    if (result.status == 'success') {
+                        var $studentSelect = $('#student_select');
+                        // Remove previous custom select wrapper and instance
+                        if ($studentSelect[0] && $studentSelect[0].customSelectInstance) {
+                            $studentSelect[0].customSelectInstance.destroy();
+                            delete $studentSelect[0].customSelectInstance;
+                        }
+                        if ($studentSelect.next('.custom-select-wrapper').length) {
+                            $studentSelect.next('.custom-select-wrapper').remove();
+                        }
+                        $studentSelect.removeClass('custom-select');
+
+                        // Clear and append new options
+                        $studentSelect.empty();
+                        $studentSelect.append($('<option>', {
+                            value: '',
+                            text: 'Select Student'
+                        }));
+
+                        for (var id in result.students) {
+                            if (result.students.hasOwnProperty(id)) {
+                                $studentSelect.append($('<option>', {
+                                    value: id,
+                                    text: result.students[id]
+                                }));
+                            }
+                        }
+
+                        // Re-add class and re-init
+                        $studentSelect.addClass('custom-select');
+                        $studentSelect.show();
+                        // Directly create new CustomSelect instance for this select only
+                        if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
+                            window.CustomSelect.create($studentSelect[0]);
+                        }
                     }
                 }
             });
-        });
+        }
 
         // Student select change handler - no changes needed
         $(document).on('change', '#student_select', function() {
@@ -371,6 +245,10 @@
 
         function displayStudentDetails(data) {
             var detailsDiv = document.getElementById('student-details');
+            if (!detailsDiv) {
+                console.error('student-details element not found');
+                return;
+            }
             if (data) {
                 let concessionTitle = data.concession?.concession?.title && data.concession.concession.title !== 'No Concession' 
                     ? data.concession.concession.title 
@@ -447,7 +325,7 @@
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                     <div class="btn-box">
                                         {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                        {{ Form::select('branches', $branches, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select']) }}
+                                        {{ Form::select('branches', $branches, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select', 'id' => 'branch']) }}
                                     </div>
                                 </div>
                             @endif
@@ -471,6 +349,12 @@
                                 </div>
                             </div>
                             --}}
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
+                                    {{ Form::label('student', __('Students'), ['class' => 'form-label']) }}
+                                    {{ Form::select('student', $students ?? [], isset($_GET['student']) ? $_GET['student'] : '', ['class' => 'form-control select custom-select', 'id' => 'student_select']) }}
+                                </div>
+                            </div>
                             <div class="col-auto float-end ms-2 mt-4">
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
                                     onclick="document.getElementById('concession_submit').submit(); return false;"
@@ -562,6 +446,10 @@
                             $isAdmin   = Auth::user()->type === 'company';
                             $isApproved = $concession->status == 'Approved';
                             $hasOrder  = !empty($concession->concession_id);
+                            // Branch may send for approval / edit only while the
+                            // concession is still a Draft or has been rolled back
+                            // (case-insensitive, so 'draft'/'Draft' both match).
+                            $isEditable = in_array(strtolower((string) $concession->status), ['draft', 'rollbacked']);
                         @endphp
                         
                         <td>
@@ -569,20 +457,21 @@
                         
                                 {{-- USER --}}
                                 @if(!$isAdmin)
-                                    @if(!$isApproved)
+                                    @if($isEditable)
                                         <a href="{{ route('concession.change_status', [$concession->id, 'For Approval']) }}"
-                                           class="btn btn-sm btn-outline-warning"
+                                           class="btn mx-1 btn-sm btn-warning text-white"
                                            title="Send For Approval">
-                                            <i class="ti ti-send"></i>
+                                            <i class="ti ti-send"></i> Send For Approval
                                         </a>
-                        
+
                                         <a href="#"
                                            data-url="{{ route('concession.edit', $concession->id) }}"
                                            data-ajax-popup="true"
                                            data-size="xl"
-                                           class="btn btn-sm btn-outline-primary"
+                                           style="background-color: #100773 !important;"
+                                           class="btn mx-1 btn-sm btn-primary text-white"
                                            title="Edit">
-                                            <i class="ti ti-pencil"></i>
+                                             Edit
                                         </a>
                                     @endif
                                 @endif
@@ -596,9 +485,10 @@
                                            data-url="{{ route('concession.edit', $concession->id) }}"
                                            data-ajax-popup="true"
                                            data-size="xl"
+                                           style="color: #fff !important; background-color: #100773 !important;"
                                            class="btn btn-sm btn-outline-primary"
                                            title="Edit">
-                                            <i class="ti ti-pencil"></i>
+                                             Edit
                                         </a>
                                     @endif
                         
@@ -609,7 +499,7 @@
                                               class="d-inline">
                                             @csrf
                                             <button type="submit"
-                                                    class="btn btn-sm btn-outline-success"
+                                                    class="btn mr-2 btn-sm btn-outline-success"
                                                     title="Generate Order">
                                                 Generate
                                             </button>
@@ -620,7 +510,7 @@
                                            data-ajax-popup="true"
                                            class="btn btn-sm btn-outline-danger"
                                            title="Cancel">
-                                            <i class="ti ti-ban"></i>
+                                            <i class="ti ti-ban"></i> Cancel
                                         </a>
                                     @endif
                         
@@ -631,7 +521,7 @@
                                               class="d-inline">
                                             @csrf
                                             <button type="submit"
-                                                    class="btn btn-sm btn-success text-white"
+                                                    class="btn mr-2 btn-sm btn-success text-white"
                                                     title="Generate Order"
                                                     style="box-shadow:none;">
                                                 Generate
@@ -641,7 +531,7 @@
                                         <a href="#"
                                            data-url="{{ route('concession.endconcession', $concession->id) }}"
                                            data-ajax-popup="true"
-                                           class="btn btn-sm btn-warning text-white"
+                                           class="btn ms-2 btn-sm btn-warning text-white"
                                            title="End Concession">
                                             <i class="ti ti-clock-pause"></i> End
                                         </a>

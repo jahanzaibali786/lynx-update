@@ -2,973 +2,66 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\StockTransferOrder;
-use App\Models\StockTransferOrderItem;
 use App\Models\CustomField;
-use App\Models\Invoice;
-use App\Models\InvoiceProduct;
 use App\Models\ProductService;
-use App\Models\ProductServiceCategory;
-use App\Models\Purchase;
 use App\Models\Session as AcademicSession;
 use App\Models\StockTransferNote;
 use App\Models\StockTransferNoteItem;
-use App\Models\User;
-use App\Models\Vender;
 use App\Models\StudyPack;
+use App\Models\User;
 use App\Models\Utility;
 use App\Models\warehouse;
+use App\Services\StockTransferNoteWorkflowService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
-class StockTransferOrderController extends Controller
+class StockTransferNoteController extends Controller
 {
-    public function index(Request $request)
+    protected function wantsJson(Request $request): bool
     {
-        $user = \Auth::user();
-        $creatorId = $user->creatorId();
-
-        if (!$user->can('manage stock transfer order')) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if ($user->type == 'company') {
-            $branchList = User::where('created_by', $creatorId)
-                ->where('type', 'branch')
-                ->where('is_active', 1)
-                ->pluck('name', 'id')
-                ->prepend('Select Branch', '');
-        } else {
-            $branchList = User::where('id', $user->ownedId())
-                ->where('type', 'branch')
-                ->where('is_active', 1)
-                ->pluck('name', 'id');
-        }
-
-        $query = StockTransferOrder::where('created_by', $creatorId);
-
-        if ($user->type != 'company') {
-            $query->where('branch_id', $user->id);
-        } elseif ($request->filled('branch')) {
-            $query->where('branch_id', $request->branch);
-        }
-
-        $StockTransferOrders = $query->paginate(25);
-        $status = StockTransferOrder::$statues;
-
-        return view('stocktransferorder.index', compact('StockTransferOrders', 'status', 'branchList'));
+        return $request->expectsJson() || $request->ajax();
     }
 
-    public function create($branchId = 0)
+    protected function stockTransferNoteNumber()
     {
-        $user = \Auth::user();
+        $user = Auth::user();
 
-        if (!$user->can('create stock transfer order')) {
-            return response()->json(['error' => __('Permission denied.')], 401);
-        }
-
-        if ($user->type == 'branch') {
-            $branchId = $user->id;
-        }
-
-        $customFields = CustomField::where('created_by', '=', $user->creatorId())->where('module', '=', 'purchase')->get();
-
-        $purchase_number = $user->stockTransferOrderNumberFormat($this->stockTransferOrderNumber());
-
-        if ($user->type == 'company') {
-            $branches = User::where('created_by', $user->creatorId())
-                ->where('type', 'branch')
-                ->where('is_active', 1)
-                ->pluck('name', 'id')
-                ->prepend('Select Branch', '');
-        } else {
-            $branches = User::where('id', $user->ownedId())
-                ->where('type', 'branch')
-                ->where('is_active', 1)
-                ->pluck('name', 'id');
-        }
-
-        $warehouse = warehouse::where('owned_by', $user->creatorId())->get()->pluck('name', 'id');
-        $sessions = AcademicSession::where('created_by', $user->creatorId())
-            ->orderByDesc('starting_date')
-            ->pluck('year', 'id');
-        $defaultSessionId = AcademicSession::where('created_by', $user->creatorId())
-            ->where('active_status', 1)
-            ->orderByDesc('starting_date')
-            ->value('id') ?? $sessions->keys()->first();
-
-        $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
-            ->where('created_by', $user->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
-        $product_services->prepend('Select Item', '');
-        $studyPackPayload = $this->studyPackPayload($user->creatorId());
-
-        if (request()->ajax()) {
-            return view('stocktransferorder.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse', 'sessions', 'defaultSessionId', 'studyPackPayload'))->renderSections()['content'] ?? '';
-        }
-
-        return view('stocktransferorder.create', compact('branches', 'purchase_number', 'product_services', 'customFields', 'branchId', 'warehouse', 'sessions', 'defaultSessionId', 'studyPackPayload'));
-    }
-
-    public function store(Request $request)
-    {
-        $user = \Auth::user();
-
-        if (!$user->can('create stock transfer order')) {
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
-            }
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        $validator = \Validator::make($request->all(), $this->stockTransferOrderRules(true));
-        if ($validator->fails()) {
-            $messages = $validator->getMessageBag();
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => $messages->first()]);
-            }
-
-            return redirect()->back()->with('error', $messages->first());
-        }
-
-        DB::beginTransaction();
-        try {
-            $StockTransferOrder = new StockTransferOrder();
-            $StockTransferOrder->branch_purchase_no = $this->stockTransferOrderNumber();
-            $StockTransferOrder->branch_id = $user->type == 'branch' ? $user->id : $request->branch_id;
-            $StockTransferOrder->warehouse_id = $request->warehouse_id;
-            $StockTransferOrder->session_id = $request->session_id;
-            $StockTransferOrder->purchase_date = $request->purchase_date;
-            $StockTransferOrder->category_id = $request->category_id;
-            $StockTransferOrder->status = StockTransferOrder::STATUS_DRAFT;
-            $StockTransferOrder->created_by = $user->creatorId();
-            $StockTransferOrder->owned_by = $user->ownedId();
-            $StockTransferOrder->save();
-
-            $products = $request->items;
-            for ($i = 0; $i < count($products); $i++) {
-                $item = new StockTransferOrderItem();
-                $item->branch_purchase_id = $StockTransferOrder->id;
-                $item->product_id = $products[$i]['item'];
-                $item->quantity = $products[$i]['quantity'] ?? 0;
-                $item->tax = $products[$i]['tax'] ?? 0;
-                $item->discount = $products[$i]['discount'] ?? 0;
-                $item->price = $products[$i]['price'] ?? 0;
-                $item->description = $products[$i]['description'] ?? '';
-                $item->study_pack_id = !empty($products[$i]['study_pack_id']) ? (int) $products[$i]['study_pack_id'] : null;
-                $item->study_pack_title = $products[$i]['study_pack_title'] ?? null;
-                $item->study_pack_class = $products[$i]['study_pack_class'] ?? null;
-                $item->save();
-            }
-
-            DB::commit();
-            if ($request->ajax()) {
-                return response()->json(['success' => true, 'message' => __('Stock Transfer Requisition successfully created in draft.')]);
-            }
-            return redirect()->route('stock-transfer-order.show', Crypt::encrypt($StockTransferOrder->id))->with('success', __('Stock Transfer Requisition successfully created in draft.'));
-        } catch (\Exception $e) {
-            DB::rollback();
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => $e->getMessage()]);
-            }
-            return redirect()->back()->with('error', $e->getMessage());
-        }
-    }
-
-    public function show($ids)
-    {
-        $user = \Auth::user();
-        $creatorId = $user->creatorId();
-
-        if (!$user->can('show stock transfer order')) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        try {
-            $id = Crypt::decrypt($ids);
-        } catch (\Throwable $th) {
-            return redirect()->back()->with('error', __('Stock Transfer Requisition Not Found.'));
-        }
-
-        $StockTransferOrder = StockTransferOrder::find($id);
-
-        if (!$StockTransferOrder || $StockTransferOrder->created_by != $creatorId) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if ($user->type == 'company') {
-            $branch = $StockTransferOrder->branchUser;
-            $iteams = $StockTransferOrder->items;
-            return view('stocktransferorder.view', compact('StockTransferOrder', 'branch', 'iteams'));
-        }
-
-        if ($user->type == 'branch' && $StockTransferOrder->branch_id == $user->id) {
-            $branch = $StockTransferOrder->branchUser;
-            $iteams = $StockTransferOrder->items;
-            return view('stocktransferorder.view', compact('StockTransferOrder', 'branch', 'iteams'));
-        }
-
-        return redirect()->back()->with('error', __('Permission denied.'));
-    }
-
-    public function edit($idsd)
-    {
-        $user = \Auth::user();
-
-        if (!$user->can('edit stock transfer order')) {
-            return response()->json(['error' => __('Permission denied.')], 401);
-        }
-
-        $idwww = Crypt::decrypt($idsd);
-        $StockTransferOrder = StockTransferOrder::find($idwww);
-
-        if (!$StockTransferOrder || $StockTransferOrder->created_by != $user->creatorId()) {
-            return response()->json(['error' => __('Permission denied.')], 401);
-        }
-
-        if ($user->type == 'branch' && $StockTransferOrder->branch_id != $user->id) {
-            return response()->json(['error' => __('Permission denied.')], 401);
-        }
-
-        $canEditCurrentStatus = (
-            $user->type == 'company' && in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)
-        ) || (
-            $user->type == 'branch' && $StockTransferOrder->branch_id == $user->id && in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)
-        );
-
-        if (!$canEditCurrentStatus) {
-            return response()->json(['error' => __('Stock Transfer Requisition cannot be edited in current status.')], 401);
-        }
-
-        $warehouse = warehouse::where('owned_by', $user->creatorId())->get()->pluck('name', 'id');
-        $purchase_number = $user->purchaseNumberFormat($StockTransferOrder->branch_purchase_no);
-
-        if ($user->type == 'company') {
-            $branches = User::where('created_by', $user->creatorId())
-                ->where('type', 'branch')
-                ->where('is_active', 1)
-                ->pluck('name', 'id')
-                ->prepend('Select Branch', '');
-        } else {
-            $branches = User::where('id', $user->ownedId())
-                ->where('type', 'branch')
-                ->where('is_active', 1)
-                ->pluck('name', 'id');
-        }
-        $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
-            ->where('created_by', $user->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
-        $sessions = AcademicSession::where('created_by', $user->creatorId())
-            ->orderByDesc('starting_date')
-            ->pluck('year', 'id');
-        $studyPackPayload = $this->studyPackPayload($user->creatorId());
-
-        if (request()->ajax()) {
-            return view('stocktransferorder.edit', compact('branches', 'product_services', 'StockTransferOrder', 'warehouse', 'purchase_number', 'sessions', 'studyPackPayload'))->renderSections()['content'] ?? '';
-        }
-
-        return view('stocktransferorder.edit', compact('branches', 'product_services', 'StockTransferOrder', 'warehouse', 'purchase_number', 'sessions', 'studyPackPayload'));
-    }
-
-    public function update(Request $request, $id)
-    {
-        $user = \Auth::user();
-
-        if (!$user->can('edit stock transfer order')) {
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
-            }
-
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        $StockTransferOrder = StockTransferOrder::find($id);
-
-        if (!$StockTransferOrder || $StockTransferOrder->created_by != $user->creatorId()) {
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
-            }
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if ($user->type == 'branch' && $StockTransferOrder->branch_id != $user->id) {
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
-            }
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        $canEditCurrentStatus = (
-            $user->type == 'company' && in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)
-        ) || (
-            $user->type == 'branch' && $StockTransferOrder->branch_id == $user->id && in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)
-        );
-
-        if (!$canEditCurrentStatus) {
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => __('Stock Transfer Requisition cannot be edited in current status.')]);
-            }
-            return redirect()->route('stock-transfer-order.index')->with('error', __('Stock Transfer Requisition cannot be edited in current status.'));
-        }
-
-        $validator = \Validator::make($request->all(), $this->stockTransferOrderRules(false));
-        if ($validator->fails()) {
-            $messages = $validator->getMessageBag();
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => $messages->first()]);
-            }
-
-            return redirect()->route('stock-transfer-order.index')->with('error', $messages->first());
-        }
-
-        DB::beginTransaction();
-        try {
-            $StockTransferOrder->branch_id = $user->type == 'branch' ? $user->id : $request->branch_id;
-            $StockTransferOrder->warehouse_id = $request->warehouse_id;
-            $StockTransferOrder->session_id = $request->session_id;
-            $StockTransferOrder->purchase_date = $request->purchase_date;
-            $StockTransferOrder->category_id = $request->category_id;
-            $StockTransferOrder->save();
-
-            $oldItems = StockTransferOrderItem::where('branch_purchase_id', $StockTransferOrder->id)->lockForUpdate()->get();
-            $newItemIds = [];
-
-            foreach ($request->items as $product) {
-                $itemId = $product['id'] ?? 0;
-                // Treat as new item if ID is 0, '0', or doesn't exist in DB
-                $item = ($itemId > 0)
-                    ? StockTransferOrderItem::where('branch_purchase_id', $StockTransferOrder->id)->find($itemId)
-                    : null;
-                if ($item) {
-                    if (isset($product['item']) && (int) $product['item'] !== (int) $item->product_id && (float) ($item->shipped_quantity ?? 0) > 0) {
-                        throw new \RuntimeException(__('Shipped Stock Transfer Requisition items cannot change product.'));
-                    }
-
-                    if (isset($product['item'])) {
-                        $item->product_id = $product['item'];
-                    }
-
-                    $shippedQuantity = (float) ($item->shipped_quantity ?? 0);
-                    $requestedQuantity = (float) $product['quantity'];
-                    if ($requestedQuantity < $shippedQuantity) {
-                        throw new \RuntimeException(__('Quantity cannot be less than already shipped quantity.'));
-                    }
-
-                    $item->quantity = $requestedQuantity;
-                    $item->tax = $product['tax'] ?? 0;
-                    $item->discount = $product['discount'] ?? 0;
-                    $item->price = $product['price'];
-                    $item->description = $product['description'] ?? '';
-                    $item->study_pack_id = !empty($product['study_pack_id']) ? (int) $product['study_pack_id'] : null;
-                    $item->study_pack_title = $product['study_pack_title'] ?? null;
-                    $item->study_pack_class = $product['study_pack_class'] ?? null;
-                    $item->save();
-                    $newItemIds[] = $item->id;
-                } else {
-                    if (($product['id'] ?? 0) > 0) {
-                        throw new \RuntimeException(__('The selected Stock Transfer Requisition item could not be found.'));
-                    }
-
-                    $item = new StockTransferOrderItem();
-                    $item->branch_purchase_id = $StockTransferOrder->id;
-                    $item->product_id = $product['item'];
-                    $item->quantity = $product['quantity'];
-                    $item->tax = $product['tax'] ?? 0;
-                    $item->discount = $product['discount'] ?? 0;
-                    $item->price = $product['price'];
-                    $item->description = $product['description'] ?? '';
-                    $item->study_pack_id = !empty($product['study_pack_id']) ? (int) $product['study_pack_id'] : null;
-                    $item->study_pack_title = $product['study_pack_title'] ?? null;
-                    $item->study_pack_class = $product['study_pack_class'] ?? null;
-                    $item->save();
-                    $newItemIds[] = $item->id;
-                }
-            }
-
-            foreach ($oldItems as $old) {
-                if (!in_array($old->id, $newItemIds)) {
-                    $old->delete();
-                }
-            }
-
-            DB::commit();
-            if ($request->ajax()) {
-                return response()->json(['success' => true, 'message' => __('Stock Transfer Requisition successfully updated.')]);
-            }
-            return redirect()->route('stock-transfer-order.index')->with('success', __('Stock Transfer Requisition successfully updated.'));
-        } catch (\Exception $e) {
-            DB::rollback();
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => $e->getMessage()]);
-            }
-            return redirect()->back()->with('error', $e->getMessage());
-        }
-    }
-
-    public function destroy(StockTransferOrder $StockTransferOrder)
-    {
-        $user = \Auth::user();
-
-        if (!$user->can('delete stock transfer order')) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if ($StockTransferOrder->created_by != $user->creatorId()) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if ($user->type == 'branch' && $StockTransferOrder->branch_id != $user->id) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if (!in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true) || $StockTransferOrder->invoice_converted) {
-            return redirect()->back()->with('error', __('Approved or converted Stock Transfer Requisitions cannot be deleted.'));
-        }
-
-        StockTransferOrderItem::where('branch_purchase_id', $StockTransferOrder->id)->delete();
-        $StockTransferOrder->delete();
-        return redirect()->route('stock-transfer-order.index')->with('success', __('Stock Transfer Requisition successfully deleted.'));
-    }
-
-    function stockTransferOrderNumber()
-    {
-        $latest = StockTransferOrder::where('created_by', '=', \Auth::user()->creatorId())->latest()->first();
-        if (!$latest) {
-            return 1;
-        }
-        return $latest->branch_purchase_no + 1;
-    }
-
-    public function fwToHo($id)
-    {
-        if (!\Auth::user()->can('forward stock transfer order')) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        $StockTransferOrder = StockTransferOrder::find($id);
-        if (!$StockTransferOrder || $StockTransferOrder->created_by != \Auth::user()->creatorId()) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if (\Auth::user()->type == 'branch' && $StockTransferOrder->branch_id != \Auth::id()) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if (!in_array($StockTransferOrder->status, [StockTransferOrder::STATUS_DRAFT, StockTransferOrder::STATUS_REJECTED], true)) {
-            return redirect()->back()->with('error', __('Only draft or rejected Stock Transfer Requisitions can be sent to Head Office.'));
-        }
-
-        $StockTransferOrder->status = StockTransferOrder::STATUS_SENT_TO_HO;
-        $StockTransferOrder->save();
-
-        return redirect()->back()->with('success', __('Stock Transfer Requisition successfully sent to Head Office.'));
-    }
-
-    public function finalize(Request $request, $id)
-    {
-        if (!\Auth::user()->can('approve stock transfer order')) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if (\Auth::user()->type != 'company') {
-            return redirect()->back()->with('error', __('Only company users can finalize.'));
-        }
-
-        $StockTransferOrder = StockTransferOrder::find($id);
-        if (!$StockTransferOrder || $StockTransferOrder->created_by != \Auth::user()->creatorId()) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if ($StockTransferOrder->status != StockTransferOrder::STATUS_SENT_TO_HO) {
-            return redirect()->back()->with('error', __('Stock Transfer Requisition must be in Sent to HO status.'));
-        }
-
-        DB::beginTransaction();
-        try {
-            if ($request->has('shipped_quantities')) {
-                foreach ($request->shipped_quantities as $itemId => $shippedQty) {
-                    $item = StockTransferOrderItem::find($itemId);
-                    if ($item && $item->branch_purchase_id == $StockTransferOrder->id) {
-                        $item->shipped_quantity = $shippedQty ?? $item->quantity;
-                        $item->save();
-                    }
-                }
-            }
-
-            $StockTransferOrder->status = StockTransferOrder::STATUS_APPROVED;
-            $StockTransferOrder->save();
-
-            DB::commit();
-            return redirect()->back()->with('success', __('Stock Transfer Requisition approved successfully.'));
-        } catch (\Exception $e) {
-            DB::rollback();
-            return redirect()->back()->with('error', $e->getMessage());
-        }
-    }
-
-    public function reject($id)
-    {
-        if (!\Auth::user()->can('reject stock transfer order')) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if (\Auth::user()->type != 'company') {
-            return redirect()->back()->with('error', __('Only company users can reject.'));
-        }
-
-        $StockTransferOrder = StockTransferOrder::find($id);
-        if (!$StockTransferOrder || $StockTransferOrder->created_by != \Auth::user()->creatorId()) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-
-        if ($StockTransferOrder->status != StockTransferOrder::STATUS_SENT_TO_HO) {
-            return redirect()->back()->with('error', __('Stock Transfer Requisition must be in Sent to HO status.'));
-        }
-
-        $StockTransferOrder->status = StockTransferOrder::STATUS_REJECTED;
-        $StockTransferOrder->save();
-
-        return redirect()->back()->with('success', __('Stock Transfer Requisition rejected successfully.'));
-    }
-
-    public function convertToInvoice($id)
-    {
-        if (!\Auth::user()->can('convert stock transfer order to invoice')) {
-            return response()->json(['error' => __('Permission denied.')], 401);
-        }
-
-        if (\Auth::user()->type != 'company') {
-            return response()->json(['error' => __('Only company users can convert to Stock Transfer Note.')], 401);
-        }
-
-        $StockTransferOrder = StockTransferOrder::with(['items.product', 'branchUser'])->find($id);
-        if (!$StockTransferOrder || $StockTransferOrder->created_by != \Auth::user()->creatorId()) {
-            return response()->json(['error' => __('Permission denied.')], 401);
-        }
-
-        if ($StockTransferOrder->status != StockTransferOrder::STATUS_APPROVED) {
-            return response()->json(['error' => __('Stock Transfer Requisition must be approved before conversion.')], 422);
-        }
-
-        if ($StockTransferOrder->invoice_converted) {
-            return response()->json(['error' => __('Already converted to Stock Transfer Note.')], 422);
-        }
-
-        if (!\Auth::user()->can('create stock transfer note')) {
-            return response()->json(['error' => __('Permission denied.')], 401);
-        }
-
-        $mainStore = warehouse::where(function ($query) {
-            $query->where('created_by', \Auth::user()->creatorId())
-                ->orWhere('owned_by', \Auth::user()->creatorId());
-        })
-            ->where('owned_by', \Auth::user()->creatorId())
-            ->first();
-
-        if (!$mainStore) {
-            $mainStore = warehouse::where(function ($query) {
-                $query->where('created_by', \Auth::user()->creatorId())
-                    ->orWhere('owned_by', \Auth::user()->creatorId());
-            })->first();
-        }
-
-        $storeTo = warehouse::where(function ($query) {
-            $query->where('created_by', \Auth::user()->creatorId())
-                ->orWhere('owned_by', \Auth::user()->creatorId());
-        })
-            ->where('id', '!=', $mainStore ? $mainStore->id : 0)
-            ->get()
-            ->pluck('name', 'id');
-        $sessions = AcademicSession::where('created_by', \Auth::user()->creatorId())
-            ->orderByDesc('starting_date')
-            ->pluck('year', 'id');
-        $defaultSessionId = $StockTransferOrder->session_id ?: (
-            AcademicSession::where('created_by', \Auth::user()->creatorId())
-                ->where('active_status', 1)
-                ->orderByDesc('starting_date')
-                ->value('id') ?? $sessions->keys()->first()
-        );
-        $studyPackPayload = $this->studyPackPayload(\Auth::user()->creatorId());
-        $storeUsers = $this->storeUserMap();
-        $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
-            ->where('created_by', \Auth::user()->creatorId())
-            ->where('type', '!=', 'service')
-            ->get()
-            ->pluck('name', 'id');
-        $product_services->prepend('Select Item', '');
-
-        $invoice_number = \Auth::user()->invoiceNumberFormat($this->stockTransferNoteNumber());
-        $issueDate = date('Y-m-d');
-        $dueDate = date('Y-m-d');
-        $selectedStoreTo = $StockTransferOrder->warehouse_id;
-        $conversionItems = $StockTransferOrder->items->map(function ($item) {
-            $shippedQuantity = (float) ($item->shipped_quantity ?? 0);
-            $product = $item->product;
-            $quantity = (float) $item->quantity - $shippedQuantity;
-
-            if ($quantity <= 0) {
-                return null;
-            }
-
-            return [
-                'id' => $item->id,
-                'source_item_id' => $item->id,
-                'item_id' => $item->product_id,
-                'item_name' => $product ? trim(($product->sku ? $product->sku . ' - ' : '') . $product->name) : '',
-                'quantity' => $quantity,
-                'ordered_quantity' => (float) $item->quantity,
-                'shipped_quantity' => $shippedQuantity,
-                'remaining_quantity' => $quantity,
-                'price' => (float) $item->price,
-                'discount' => (float) ($item->discount ?? 0),
-                'tax' => $item->tax ?? '',
-                'type' => 'new',
-                'unit' => $product && $product->unit() ? $product->unit()->name : '',
-                'amount' => ($quantity * (float) $item->price) - (float) ($item->discount ?? 0),
-                'description' => $item->description ?? '',
-                'study_pack_id' => $item->study_pack_id,
-                'study_pack_title' => $item->study_pack_title,
-                'study_pack_class' => $item->study_pack_class,
-                'source' => __('Stock Transfer Requisition'),
-            ];
-        })->filter()->values();
-
-        $view = view('stocktransferorder.convert_to_invoice', compact(
-            'StockTransferOrder',
-            'mainStore',
-            'storeTo',
-            'product_services',
-            'invoice_number',
-            'issueDate',
-            'dueDate',
-            'selectedStoreTo',
-            'conversionItems',
-            'sessions',
-            'defaultSessionId',
-            'studyPackPayload',
-            'storeUsers'
-        ));
-
-        if (request()->ajax()) {
-            return $view->renderSections()['content'] ?? '';
-        }
-
-        return $view;
-    }
-
-    public function storeConvertedInvoice(Request $request, $id)
-    {
-        if (!\Auth::user()->can('convert stock transfer order to invoice')) {
-            return response()->json(['success' => false, 'message' => __('Permission denied.')]);
-        }
-
-        if (\Auth::user()->type != 'company') {
-            return response()->json(['success' => false, 'message' => __('Only company users can convert to Stock Transfer Note.')]);
-        }
-
-        if (!\Auth::user()->can('create stock transfer note')) {
-            return response()->json(['success' => false, 'message' => __('Permission denied.')]);
-        }
-
-        $StockTransferOrder = StockTransferOrder::with('items')->find($id);
-        if (!$StockTransferOrder || $StockTransferOrder->created_by != \Auth::user()->creatorId()) {
-            return response()->json(['success' => false, 'message' => __('Permission denied.')]);
-        }
-
-        if ($StockTransferOrder->status != StockTransferOrder::STATUS_APPROVED) {
-            return response()->json(['success' => false, 'message' => __('Stock Transfer Requisition must be approved before conversion.')]);
-        }
-
-        $validator = \Validator::make($request->all(), [
-            'issue_date' => 'required|date',
-            'due_date' => 'required|date',
-            'session_id' => [
-                'required',
-                'integer',
-                Rule::exists('sessions', 'id')->where(function ($query) {
-                    $query->where('created_by', \Auth::user()->creatorId());
-                }),
-            ],
-            'store_from' => [
-                'required',
-                'integer',
-                Rule::exists('warehouses', 'id')->where(function ($query) {
-                    $query->where('created_by', \Auth::user()->creatorId());
-                }),
-            ],
-            'store_to' => [
-                'required',
-                'integer',
-                Rule::exists('warehouses', 'id')->where(function ($query) {
-                    $query->where('created_by', \Auth::user()->creatorId());
-                }),
-            ],
-            'shipping_via' => 'nullable|string|max:50',
-            'stn_type' => 'nullable|string|max:50',
-            'ref_number' => 'nullable|string|max:255',
-            'items' => 'required|array|min:1',
-            'items.*.source_item_id' => 'nullable|integer',
-            'items.*.item' => 'required|integer|exists:product_services,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => $validator->getMessageBag()->first()]);
-        }
-
-        DB::beginTransaction();
-        try {
-            $StockTransferOrder = StockTransferOrder::whereKey($id)->lockForUpdate()->first();
-            if (!$StockTransferOrder || $StockTransferOrder->created_by != \Auth::user()->creatorId()) {
-                throw new \RuntimeException(__('Permission denied.'));
-            }
-
-            if ($StockTransferOrder->status != StockTransferOrder::STATUS_APPROVED) {
-                throw new \RuntimeException(__('Stock Transfer Requisition must be approved before conversion.'));
-            }
-
-            $stockTransferItems = StockTransferOrderItem::where('branch_purchase_id', $StockTransferOrder->id)
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
-
-            $noteNumber = $this->stockTransferNoteNumber();
-            $storeFrom = warehouse::with('assignedEmployee')->find($request->store_from);
-            $storeTo = warehouse::with('assignedEmployee')->find($request->store_to);
-
-            $note = new StockTransferNote();
-            $note->stn_id = $noteNumber;
-            $note->sto_id = $StockTransferOrder->id;
-            $note->issue_date = $request->issue_date;
-            $note->due_date = $request->due_date;
-            $note->approve_date = null;
-            $note->ref_number = $request->ref_number;
-            $note->status = StockTransferNote::STATUS_DRAFT;
-            $note->category_id = $StockTransferOrder->category_id;
-            $note->shipping_via = $request->shipping_via;
-            $note->stn_type = $request->stn_type ?: 'From Requisition';
-            $note->store_from = $request->store_from;
-            $note->store_to = $request->store_to;
-            $note->session_id = $request->session_id;
-            $note->approved_by = null;
-            $note->issue_to = $request->store_to;
-            $note->recived_by = $storeTo?->assignedEmployee?->user_id;
-            $note->issue_by = $storeFrom?->assignedEmployee?->user_id;
-            $note->owned_by = \Auth::user()->ownedId();
-            $note->created_by = \Auth::user()->creatorId();
-            $note->save();
-
-            $newitems = $request->items;
-            foreach ($request->items as $index => $item) {
-                $quantity = (float) ($item['quantity'] ?? 0);
-                $price = (float) ($item['price'] ?? 0);
-                $sourceItemId = (int) ($item['source_item_id'] ?? 0);
-                if (empty($item['item']) || $quantity <= 0 || $price <= 0) {
-                    throw new \Exception(__('Please enter valid item, quantity and price for all rows.'));
-                }
-
-                $sourceItem = null;
-                $shippedQuantity = 0;
-                if ($sourceItemId > 0) {
-                    if (!isset($stockTransferItems[$sourceItemId])) {
-                        throw new \Exception(__('Selected Stock Transfer Requisition source item was not found.'));
-                    }
-
-                    $sourceItem = $stockTransferItems[$sourceItemId];
-                    if ((int) $sourceItem->product_id !== (int) $item['item']) {
-                        throw new \Exception(__('Stock Transfer Note item must match the selected Stock Transfer Requisition item.'));
-                    }
-
-                    $shippedQuantity = (float) ($sourceItem->shipped_quantity ?? 0);
-                    $remainingQuantity = max(0, (float) $sourceItem->quantity - $shippedQuantity);
-                    if ($quantity > $remainingQuantity) {
-                        throw new \Exception(__('Stock Transfer Note quantity cannot exceed the remaining Stock Transfer Requisition quantity.'));
-                    }
-                }
-
-                $noteItem = new StockTransferNoteItem();
-                $noteItem->stn_id = $note->id;
-                $noteItem->product_id = $item['item'];
-                $noteItem->quantity = $quantity;
-                $noteItem->price = $price;
-                $noteItem->type = $item['type'] ?? 'new';
-                $noteItem->description = $item['description'] ?? '';
-                $noteItem->study_pack_id = !empty($item['study_pack_id']) ? (int) $item['study_pack_id'] : null;
-                $noteItem->study_pack_title = $item['study_pack_title'] ?? null;
-                $noteItem->study_pack_class = $item['study_pack_class'] ?? null;
-                $noteItem->save();
-
-                $product = ProductService::find($item['item']);
-                if ($product) {
-                    $type = $item['type'] ?? 'new';
-                    if ($type === 'use') {
-                        $product->used_quantity = max(0, ($product->used_quantity ?? 0) - $quantity);
-                    } elseif ($type === 'damage') {
-                        $product->damaged_quantity = max(0, ($product->damaged_quantity ?? 0) - $quantity);
-                    } else {
-                        $product->quantity = max(0, ($product->quantity ?? 0) - $quantity);
-                    }
-                    $product->save();
-                }
-
-                if ($sourceItem) {
-                    $sourceItem->shipped_quantity = $shippedQuantity + $quantity;
-                    $sourceItem->save();
-                }
-
-                Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $item['item'], $quantity);
-                $newitems[$index]['prod_id'] = $noteItem->id;
-                $newitems[$index]['source_item_id'] = $sourceItemId;
-            }
-
-            $StockTransferOrder->load('items');
-            $StockTransferOrder->invoice_converted = $this->stockTransferOrderHasRemainingItems($StockTransferOrder) ? false : true;
-            $StockTransferOrder->save();
-
-            DB::commit();
-            return response()->json([
-                'success' => true,
-                'message' => __('Stock Transfer Requisition successfully converted to Stock Transfer Note.'),
-                'redirect_url' => route('stock-transfer-note.show', Crypt::encrypt($note->id)),
-            ]);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['success' => false, 'message' => $e->getMessage()]);
-        }
-    }
-
-    private function stockTransferNoteNumber(): int
-    {
-        $lastNumber = StockTransferNote::where('created_by', \Auth::user()->creatorId())->max('stn_id');
+        $lastNumber = StockTransferNote::where('created_by', $user->creatorId())->max('stn_id');
 
         return $lastNumber ? ((int) $lastNumber + 1) : 1;
     }
 
-    private function stockTransferOrderHasRemainingItems(StockTransferOrder $StockTransferOrder): bool
+    protected function storeUserMap()
     {
-        $StockTransferOrder->loadMissing('items');
-
-        return $StockTransferOrder->items->contains(function ($item) {
-            return max(0, (float) $item->quantity - (float) ($item->shipped_quantity ?? 0)) > 0;
-        });
+        return warehouse::with('assignedEmployee')
+            ->where('created_by', Auth::user()->creatorId())
+            ->get()
+            ->mapWithKeys(function ($store) {
+                return [
+                    $store->id => [
+                        'id' => $store->assignedEmployee?->user_id,
+                        'name' => $store->assignedEmployee?->name ?? '',
+                    ],
+                ];
+            });
     }
 
-    private function stockTransferOrderInvoiceNumber()
+    protected function resolveStoreUserId($storeId)
     {
-        $latest = Invoice::where('owned_by', '=', \Auth::user()->ownedId())->latest()->first();
-
-        if (!$latest) {
-            return 1;
+        if (empty($storeId)) {
+            return null;
         }
 
-        return $latest->invoice_id + 1;
+        $store = warehouse::with('assignedEmployee')
+            ->where('created_by', Auth::user()->creatorId())
+            ->find($storeId);
+
+        return $store?->assignedEmployee?->user_id;
     }
 
-    public function items(Request $request)
-    {
-        if (!\Auth::user()->can('show stock transfer order')) {
-            abort(403, __('Permission denied.'));
-        }
-
-        $StockTransferOrder = StockTransferOrder::where('created_by', \Auth::user()->creatorId())
-            ->when(\Auth::user()->type != 'company', function ($query) {
-                $query->where('branch_id', \Auth::id());
-            })
-            ->findOrFail($request->branch_purchase_id);
-        $items = $StockTransferOrder->items;
-
-        return response()->json($items);
-    }
-
-    public function product(Request $request)
-    {
-        if (!\Auth::user()->can('create stock transfer order') && !\Auth::user()->can('edit stock transfer order')) {
-            abort(403, __('Permission denied.'));
-        }
-
-        $product = ProductService::where('created_by', \Auth::user()->creatorId())
-            ->find($request->product_id);
-        if ($product) {
-            $taxes = [];
-            if ($product->tax_id) {
-                $taxData = \App\Models\Tax::find($product->tax_id);
-                if ($taxData) {
-                    $taxes[] = [
-                        'name' => $taxData->name,
-                        'rate' => $taxData->rate,
-                    ];
-                }
-            }
-
-            return response()->json(json_encode([
-                'product' => $product,
-                'taxes' => $taxes,
-                'unit' => $product->unit_id ? \App\Models\Unit::find($product->unit_id)->name ?? '' : '',
-            ]));
-        }
-        return response()->json('{}');
-    }
-
-    public function vender(Request $request)
-    {
-        if (!\Auth::user()->can('create stock transfer order') && !\Auth::user()->can('edit stock transfer order')) {
-            abort(403, __('Permission denied.'));
-        }
-
-        $branch = User::where('created_by', \Auth::user()->creatorId())
-            ->where('type', 'branch')
-            ->findOrFail($request->id);
-
-        return view('stocktransferorder.branch_detail', compact('branch'));
-    }
-
-    private function stockTransferOrderRules(bool $requireWarehouse): array
-    {
-        $creatorId = \Auth::user()->creatorId();
-        $rules = [
-            'branch_id' => [
-                'required',
-                'integer',
-                Rule::exists('users', 'id')->where(function ($query) use ($creatorId) {
-                    $query->where('created_by', $creatorId)->where('type', 'branch');
-                }),
-            ],
-            'session_id' => [
-                'required',
-                'integer',
-                Rule::exists('sessions', 'id')->where(function ($query) use ($creatorId) {
-                    $query->where('created_by', $creatorId);
-                }),
-            ],
-            'purchase_date' => ['required', 'date'],
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.item' => [
-                'required',
-                'integer',
-                Rule::exists('product_services', 'id')->where(function ($query) use ($creatorId) {
-                    $query->where('created_by', $creatorId)->where('type', '!=', 'service');
-                }),
-            ],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
-            'items.*.price' => ['required', 'numeric', 'min:0'],
-            'items.*.study_pack_id' => ['nullable', 'integer'],
-            'items.*.study_pack_title' => ['nullable', 'string'],
-            'items.*.study_pack_class' => ['nullable', 'string'],
-        ];
-
-        if ($requireWarehouse) {
-            $rules['warehouse_id'] = [
-                'required',
-                'integer',
-                Rule::exists('warehouses', 'id')->where(function ($query) use ($creatorId) {
-                    $query->where('created_by', $creatorId)->orWhere('owned_by', $creatorId);
-                }),
-            ];
-        }
-
-        return $rules;
-    }
-
-    private function studyPackPayload(int $creatorId)
+    protected function studyPackPayload(int $creatorId)
     {
         $studyPacks = StudyPack::with('items')
             ->where('created_by', $creatorId)
@@ -995,24 +88,913 @@ class StockTransferOrderController extends Controller
                         'quantity' => (float) $item->quantity,
                         'price' => (float) $item->price,
                         'description' => '',
+                        'type' => 'new',
                     ];
                 })->values()->all(),
             ];
         })->values();
     }
 
-    private function storeUserMap()
+    protected function stockTransferNoteItemsPayload($items)
     {
-        return warehouse::with('assignedEmployee')
-            ->where('created_by', \Auth::user()->creatorId())
+        return $items->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'item_id' => $item->product_id,
+                'item_name' => $item->product ? (trim(($item->product->sku ?? '') . ' - ' . ($item->product->name ?? ''), ' -')) : '',
+                'quantity' => (float) $item->quantity,
+                'price' => (float) $item->price,
+                'description' => $item->description ?? '',
+                'type' => $item->type ?? 'new',
+                'study_pack_id' => $item->study_pack_id,
+                'study_pack_title' => $item->study_pack_title ?? '',
+                'study_pack_class' => $item->study_pack_class ?? '',
+            ];
+        })->values();
+    }
+
+    protected function buildPublicView(StockTransferNote $invoice)
+    {
+        $user = User::find($invoice->created_by);
+        $settings = Utility::settingsById($invoice->created_by);
+        $items = $invoice->items;
+
+        return view('stock_transfer_note.public_show', compact('user', 'settings', 'invoice', 'items'));
+    }
+
+    protected function buildAdminView(StockTransferNote $invoice)
+    {
+        $iteams = $invoice->items;
+        $branch = $invoice->fromStore;
+        $store = $invoice->toStore;
+        $status = StockTransferNote::$statues;
+        $settings = Utility::settingsById($invoice->created_by);
+
+        return view('stock_transfer_note.show', compact('invoice', 'iteams', 'branch', 'store', 'status', 'settings'));
+    }
+
+    protected function renderIndexRow(StockTransferNote $invoice, $rowNumber = 1): string
+    {
+        $invoice->loadMissing(['fromStore', 'toStore']);
+
+        return view('stock_transfer_note.partials.index_row', [
+            'invoice' => $invoice,
+            'rowNumber' => $rowNumber,
+        ])->render();
+    }
+
+    protected function validateRequestedStock(array $items, int $creatorId): void
+    {
+        $requested = [];
+
+        foreach ($items as $row) {
+            $productId = (int) ($row['item'] ?? 0);
+            $type = $row['type'] ?? 'new';
+            $quantity = (int) ($row['quantity'] ?? 0);
+
+            if ($productId <= 0 || $quantity <= 0) {
+                continue;
+            }
+
+            $key = $productId . '|' . $type;
+            $requested[$key] = ($requested[$key] ?? 0) + $quantity;
+        }
+
+        foreach ($requested as $key => $quantity) {
+            [$productId, $type] = explode('|', $key);
+
+            $product = ProductService::where('created_by', $creatorId)->find((int) $productId);
+
+            if (!$product) {
+                throw new \RuntimeException(__('Selected product not found.'));
+            }
+
+            $available = match ($type) {
+                'use' => (int) ($product->used_quantity ?? 0),
+                'damage' => (int) ($product->damaged_quantity ?? 0),
+                default => (int) ($product->quantity ?? 0),
+            };
+
+            if ($quantity > $available) {
+                $productName = trim(($product->sku ? $product->sku . ' - ' : '') . $product->name);
+
+                throw new \RuntimeException(__('Requested quantity for :product exceeds available :type stock (:available).', [
+                    'product' => $productName,
+                    'type' => ucfirst($type),
+                    'available' => $available,
+                ]));
+            }
+        }
+    }
+
+    public function index(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user->can('manage stock transfer note')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $query = StockTransferNote::with(['fromStore.branch', 'toStore.branch', 'items'])
+            ->where('created_by', $user->creatorId());
+
+        if ($user->type == 'company') {
+            $branches = User::where('type', '=', 'branch')
+                ->where('created_by', $user->creatorId())
+                ->get()
+                ->pluck('name', 'id');
+            $branches->prepend('Select Branch', '');
+        } else {
+            $branches = collect();
+            $query->where('owned_by', $user->ownedId());
+        }
+
+        $store = warehouse::where('created_by', $user->creatorId())->get()->pluck('name', 'id');
+        $store->prepend('Select Store', '');
+
+        if ($request->filled('branches')) {
+            $query->where('owned_by', $request->branches);
+        }
+
+        if ($request->filled('store')) {
+            $query->where('store_from', $request->store);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('issue_date')) {
+            $query->whereDate('issue_date', $request->issue_date);
+        }
+
+        $invoices = $query->orderByDesc('id')->get();
+        $status = StockTransferNote::$statues;
+
+        return view('stock_transfer_note.index', compact('invoices', 'store', 'status', 'branches'));
+    }
+
+    public function create($customerId = 0)
+    {
+        $user = Auth::user();
+
+        if (!$user->can('create stock transfer note')) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        $store_from = warehouse::where(function ($query) use ($user) {
+            $query->where('created_by', $user->creatorId())
+                ->orWhere('owned_by', $user->creatorId());
+        })
+            ->orderBy('id')
+            ->first();
+
+        if (!$store_from) {
+            $message = __('Please create or assign a source store before creating a Stock Transfer Note.');
+
+            return request()->ajax()
+                ? response()->json(['error' => $message], 422)
+                : redirect()->back()->with('error', $message);
+        }
+
+        $store_to = warehouse::where(function ($query) use ($user) {
+            $query->where('created_by', $user->creatorId())
+                ->orWhere('owned_by', $user->creatorId());
+        })
+            ->where('id', '!=', $store_from->id)
             ->get()
-            ->mapWithKeys(function ($store) {
-                return [
-                    $store->id => [
-                        'id' => $store->assignedEmployee?->user_id,
-                        'name' => $store->assignedEmployee?->name ?? '',
-                    ],
-                ];
-            });
+            ->pluck('name', 'id');
+        $storeUsers = $this->storeUserMap();
+        $sessions = AcademicSession::where('created_by', $user->creatorId())
+            ->orderByDesc('starting_date')
+            ->pluck('year', 'id');
+        $defaultSessionId = AcademicSession::where('created_by', $user->creatorId())
+            ->where('active_status', 1)
+            ->orderByDesc('starting_date')
+            ->value('id') ?? $sessions->keys()->first();
+        $product_services = ProductService::select(DB::raw('CONCAT(sku, " - ", name) AS name, id'))
+            ->where('created_by', $user->creatorId())
+            ->where('type', '!=', 'service')
+            ->get()
+            ->pluck('name', 'id');
+        $product_services->prepend('Select item', '');
+        $studyPackPayload = $this->studyPackPayload($user->creatorId());
+        $invoice_number = $user->invoiceNumberFormat($this->stockTransferNoteNumber());
+        $customFields = CustomField::where('created_by', $user->creatorId())
+            ->where('module', 'invoice')
+            ->get();
+
+        if (request()->ajax()) {
+            return view('stock_transfer_note.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'storeUsers', 'sessions', 'defaultSessionId', 'customFields', 'studyPackPayload'))
+                ->renderSections()['content'] ?? '';
+        }
+
+        return view('stock_transfer_note.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'storeUsers', 'sessions', 'defaultSessionId', 'customFields', 'studyPackPayload'));
+    }
+
+    public function product(Request $request)
+    {
+        if (!Auth::user()->can('create stock transfer note') && !Auth::user()->can('edit stock transfer note')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        $product = ProductService::where('created_by', Auth::user()->creatorId())->find($request->product_id);
+
+        if (!$product) {
+            return json_encode([]);
+        }
+
+        $data['product'] = $product;
+        $data['unit'] = !empty($product->unit()) ? $product->unit()->name : '';
+        $data['taxRate'] = !empty($product->tax_id) ? $product->taxRate($product->tax_id) : 0;
+        $data['taxes'] = !empty($product->tax_id) ? $product->tax($product->tax_id) : 0;
+        $data['totalAmount'] = $product->sale_price;
+        $data['stock_new'] = $product->quantity ?? 0;
+        $data['stock_used'] = $product->used_quantity ?? 0;
+        $data['stock_damaged'] = $product->damaged_quantity ?? 0;
+
+        return json_encode($data);
+    }
+
+    public function items(Request $request)
+    {
+        if (!Auth::user()->can('edit stock transfer note')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        $note = StockTransferNote::where('created_by', Auth::user()->creatorId())->find($request->invoice_id);
+
+        if (!$note) {
+            return response()->json(['success' => false, 'message' => __('Stock Transfer Note Not Found.')], 404);
+        }
+
+        $item = StockTransferNoteItem::where('stn_id', $note->id)
+            ->where('product_id', $request->product_id)
+            ->first();
+
+        return json_encode($item);
+    }
+
+    public function store(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user->can('create stock transfer note')) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Permission denied.')])
+                : redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'issue_date' => 'required',
+            'due_date' => 'required',
+            'store_from' => 'required',
+            'store_to' => 'required|different:store_from',
+            'session_id' => 'required|integer',
+            'items' => 'required|array|min:1',
+            'items.*.item' => 'required|integer|exists:product_services,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.price' => 'required|numeric|min:0',
+            'items.*.type' => 'required|in:new,use,damage',
+            'items.*.description' => 'nullable|string',
+            'items.*.study_pack_id' => 'nullable|integer',
+            'items.*.study_pack_title' => 'nullable|string|max:255',
+            'items.*.study_pack_class' => 'nullable|string|max:255',
+            'shipping_via' => 'nullable|string|max:50',
+            'stn_type' => 'nullable|string|max:50',
+        ]);
+
+        if ($validator->fails()) {
+            $message = $validator->getMessageBag()->first();
+
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => $message])
+                : redirect()->back()->with('error', $message);
+        }
+
+        if (!$this->storesBelongToCompany([$request->store_from, $request->store_to], $user->creatorId())) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Selected store is outside your company scope.')], 422)
+                : redirect()->back()->with('error', __('Selected store is outside your company scope.'));
+        }
+
+        if (!$this->sessionBelongsToCompany($request->session_id, $user->creatorId())) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Selected session is outside your company scope.')], 422)
+                : redirect()->back()->withInput()->with('error', __('Selected session is outside your company scope.'));
+        }
+
+        $studyPackIds = collect($request->items)
+            ->pluck('study_pack_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $validStudyPackIds = StudyPack::where('created_by', $user->creatorId())
+            ->whereIn('id', $studyPackIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (count($validStudyPackIds) !== $studyPackIds->count()) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Selected Study Pack is outside your company scope.')], 422)
+                : redirect()->back()->withInput()->with('error', __('Selected Study Pack is outside your company scope.'));
+        }
+
+        $this->validateRequestedStock($request->items, $user->creatorId());
+
+        $issueByUserId = $this->resolveStoreUserId($request->store_from);
+        $receivedByUserId = $this->resolveStoreUserId($request->store_to);
+
+        if (!$issueByUserId || !$receivedByUserId) {
+            $message = __('Please assign an employee to both the source store and receiving store.');
+
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => $message], 422)
+                : redirect()->back()->withInput()->with('error', $message);
+        }
+
+        DB::beginTransaction();
+        try {
+            $noteNumber = $this->stockTransferNoteNumber();
+            $note = new StockTransferNote();
+            $note->stn_id = $noteNumber;
+            $note->sto_id = '';
+            $note->issue_date = $request->issue_date;
+            $note->due_date = $request->due_date;
+            $note->approve_date = null;
+            $note->ref_number = $request->ref_number;
+            $note->status = 0;
+            $note->category_id = $request->category_id ?? null;
+            $note->shipping_via = $request->shipping_via;
+            $note->stn_type = $request->stn_type;
+            $note->store_from = $request->store_from;
+            $note->store_to = $request->store_to;
+            $note->session_id = $request->session_id;
+            $note->approved_by = null;
+            $note->issue_to = $request->store_to;
+            $note->recived_by = $receivedByUserId;
+            $note->issue_by = $issueByUserId;
+            $note->owned_by = $user->ownedId();
+            $note->created_by = $user->creatorId();
+            $note->save();
+
+            foreach ($request->items as $row) {
+                $product = ProductService::where('created_by', $user->creatorId())->find($row['item']);
+                $type = $row['type'] ?? 'new';
+                $quantity = (int) ($row['quantity'] ?? 0);
+
+                if (!$product) {
+                    throw new \RuntimeException(__('Selected product not found.'));
+                }
+
+                if ($quantity <= 0) {
+                    throw new \RuntimeException(__('Transfer quantity must be greater than zero.'));
+                }
+
+                $item = new StockTransferNoteItem();
+                $item->stn_id = $note->id;
+                $item->product_id = $row['item'];
+                $item->quantity = $quantity;
+                $item->price = $row['price'] ?? 0;
+                $item->description = $row['description'] ?? '';
+                $item->type = $type;
+                $item->study_pack_id = !empty($row['study_pack_id']) ? (int) $row['study_pack_id'] : null;
+                $item->study_pack_title = $row['study_pack_title'] ?? null;
+                $item->study_pack_class = $row['study_pack_class'] ?? null;
+                $item->save();
+
+            }
+
+            DB::commit();
+
+            if ($this->wantsJson($request)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Stock Transfer Note successfully created.'),
+                    'row_html' => $this->renderIndexRow($note, 1),
+                ]);
+            }
+
+            return redirect()->route('stock-transfer-note.show', Crypt::encrypt($note->id))
+                ->with('success', __('Stock Transfer Note successfully created.'));
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => $e->getMessage()])
+                : redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function show($ids)
+    {
+        $user = Auth::user();
+
+        if (!$user->can('show stock transfer note')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $id = Crypt::decrypt($ids);
+        } catch (\Throwable $th) {
+            return redirect()->back()->with('error', __('Stock Transfer Note Not Found.'));
+        }
+
+        $invoice = StockTransferNote::with(['fromStore', 'toStore', 'items.product'])->find($id);
+
+        if (!$invoice || $invoice->created_by != $user->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        return $this->buildAdminView($invoice);
+    }
+
+    public function edit($ids)
+    {
+        $user = Auth::user();
+
+        if (!$user->can('edit stock transfer note')) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        try {
+            $id = Crypt::decrypt($ids);
+        } catch (\Throwable $th) {
+            return response()->json(['error' => __('Stock Transfer Note Not Found.')], 404);
+        }
+
+        $invoice = StockTransferNote::with(['items'])->find($id);
+
+        if (!$invoice || $invoice->created_by != $user->creatorId()) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        if (!in_array($invoice->status, [StockTransferNote::STATUS_DRAFT, StockTransferNote::STATUS_REJECTED], true)) {
+            return response()->json(['error' => __('Only draft or rejected notes can be edited.')], 422);
+        }
+
+        $store_from = warehouse::where('id', $invoice->store_from)
+            ->where(function ($query) use ($user) {
+                $query->where('created_by', $user->creatorId())
+                    ->orWhere('owned_by', $user->creatorId());
+            })
+            ->first();
+
+        if (!$store_from) {
+            return response()->json(['error' => __('Source store not found.')], 404);
+        }
+        $store_to = warehouse::where('created_by', $user->creatorId())
+            ->where('id', '!=', $store_from->id ?? 0)
+            ->get()
+            ->pluck('name', 'id');
+        $storeUsers = $this->storeUserMap();
+        $sessions = AcademicSession::where('created_by', $user->creatorId())
+            ->orderByDesc('starting_date')
+            ->pluck('year', 'id');
+        $product_services = ProductService::select(DB::raw('CONCAT(sku, " - ", name) AS name, id'))
+            ->where('created_by', $user->creatorId())
+            ->where('type', '!=', 'service')
+            ->get()
+            ->pluck('name', 'id');
+        $studyPackPayload = $this->studyPackPayload($user->creatorId());
+        $existingItemsPayload = $this->stockTransferNoteItemsPayload($invoice->items->load('product'));
+        $customFields = CustomField::where('created_by', $user->creatorId())
+            ->where('module', 'invoice')
+            ->get();
+        $invoice_number = $user->invoiceNumberFormat($invoice->invoice_id);
+
+        if (request()->ajax()) {
+            return view('stock_transfer_note.edit', compact('invoice', 'store_from', 'store_to', 'storeUsers', 'sessions', 'product_services', 'customFields', 'invoice_number', 'studyPackPayload', 'existingItemsPayload'))
+                ->renderSections()['content'] ?? '';
+        }
+
+        return view('stock_transfer_note.edit', compact('invoice', 'store_from', 'store_to', 'storeUsers', 'sessions', 'product_services', 'customFields', 'invoice_number', 'studyPackPayload', 'existingItemsPayload'));
+    }
+
+    public function update(Request $request, $ids)
+    {
+        $user = Auth::user();
+
+        if (!$user->can('edit stock transfer note')) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Permission denied.')])
+                : redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $id = Crypt::decrypt($ids);
+        } catch (\Throwable $th) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Stock Transfer Note Not Found.')])
+                : redirect()->back()->with('error', __('Stock Transfer Note Not Found.'));
+        }
+
+        $invoice = StockTransferNote::with('items')->find($id);
+
+        if (!$invoice || $invoice->created_by != $user->creatorId()) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Permission denied.')])
+                : redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if (!in_array($invoice->status, [StockTransferNote::STATUS_DRAFT, StockTransferNote::STATUS_REJECTED], true)) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Only draft or rejected notes can be edited.')], 422)
+                : redirect()->back()->with('error', __('Only draft or rejected notes can be edited.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'issue_date' => 'required',
+            'due_date' => 'required',
+            'store_from' => 'required',
+            'store_to' => 'required|different:store_from',
+            'session_id' => 'required|integer',
+            'items' => 'required|array|min:1',
+            'items.*.item' => 'required|integer|exists:product_services,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.price' => 'required|numeric|min:0',
+            'items.*.type' => 'required|in:new,use,damage',
+            'items.*.description' => 'nullable|string',
+            'items.*.study_pack_id' => 'nullable|integer',
+            'items.*.study_pack_title' => 'nullable|string|max:255',
+            'items.*.study_pack_class' => 'nullable|string|max:255',
+            'shipping_via' => 'nullable|string|max:50',
+            'stn_type' => 'nullable|string|max:50',
+        ]);
+
+        if ($validator->fails()) {
+            $message = $validator->getMessageBag()->first();
+
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => $message])
+                : redirect()->back()->with('error', $message);
+        }
+
+        if (!$this->storesBelongToCompany([$request->store_from, $request->store_to], $user->creatorId())) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Selected store is outside your company scope.')], 422)
+                : redirect()->back()->with('error', __('Selected store is outside your company scope.'));
+        }
+
+        if (!$this->sessionBelongsToCompany($request->session_id, $user->creatorId())) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Selected session is outside your company scope.')], 422)
+                : redirect()->back()->withInput()->with('error', __('Selected session is outside your company scope.'));
+        }
+
+        $studyPackIds = collect($request->items)
+            ->pluck('study_pack_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $validStudyPackIds = StudyPack::where('created_by', $user->creatorId())
+            ->whereIn('id', $studyPackIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (count($validStudyPackIds) !== $studyPackIds->count()) {
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => __('Selected Study Pack is outside your company scope.')], 422)
+                : redirect()->back()->withInput()->with('error', __('Selected Study Pack is outside your company scope.'));
+        }
+
+        $this->validateRequestedStock($request->items, $user->creatorId());
+
+        $issueByUserId = $this->resolveStoreUserId($request->store_from);
+        $receivedByUserId = $this->resolveStoreUserId($request->store_to);
+
+        if (!$issueByUserId || !$receivedByUserId) {
+            $message = __('Please assign an employee to both the source store and receiving store.');
+
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => $message], 422)
+                : redirect()->back()->withInput()->with('error', $message);
+        }
+
+        DB::beginTransaction();
+        try {
+            $invoice->items()->delete();
+
+            $invoice->issue_date = $request->issue_date;
+            $invoice->due_date = $request->due_date;
+            $invoice->ref_number = $request->ref_number;
+            $invoice->shipping_via = $request->shipping_via;
+            $invoice->stn_type = $request->stn_type;
+            $invoice->store_from = $request->store_from;
+            $invoice->store_to = $request->store_to;
+            $invoice->session_id = $request->session_id;
+            $invoice->issue_by = $issueByUserId;
+            $invoice->recived_by = $receivedByUserId;
+            $invoice->save();
+
+            CustomField::saveData($invoice, $request->customField);
+
+            foreach ($request->items as $row) {
+                $product = ProductService::where('created_by', $user->creatorId())->find($row['item']);
+                $type = $row['type'] ?? 'new';
+                $quantity = (int) ($row['quantity'] ?? 0);
+
+                if (!$product) {
+                    throw new \RuntimeException(__('Selected product not found.'));
+                }
+
+                if ($quantity <= 0) {
+                    throw new \RuntimeException(__('Transfer quantity must be greater than zero.'));
+                }
+
+                $item = new StockTransferNoteItem();
+                $item->stn_id = $invoice->id;
+                $item->product_id = $row['item'];
+                $item->quantity = $quantity;
+                $item->price = $row['price'] ?? 0;
+                $item->description = $row['description'] ?? '';
+                $item->type = $type;
+                $item->study_pack_id = !empty($row['study_pack_id']) ? (int) $row['study_pack_id'] : null;
+                $item->study_pack_title = $row['study_pack_title'] ?? null;
+                $item->study_pack_class = $row['study_pack_class'] ?? null;
+                $item->save();
+
+            }
+
+            DB::commit();
+
+            if ($this->wantsJson($request)) {
+                return response()->json(['success' => true, 'message' => __('Stock Transfer Note successfully updated.')]);
+            }
+
+            return redirect()->route('stock-transfer-note.show', Crypt::encrypt($invoice->id))
+                ->with('success', __('Stock Transfer Note successfully updated.'));
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return $this->wantsJson($request)
+                ? response()->json(['success' => false, 'message' => $e->getMessage()])
+                : redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function destroy($id)
+    {
+        if (!Auth::user()->can('delete stock transfer note')) {
+            return $this->wantsJson(request())
+                ? response()->json(['success' => false, 'message' => __('Permission denied.')], 403)
+                : redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $invoiceId = Crypt::decrypt($id);
+        } catch (\Throwable $e) {
+            $invoiceId = is_numeric($id) ? (int) $id : 0;
+        }
+
+        $invoice = StockTransferNote::with('items')
+            ->where('created_by', Auth::user()->creatorId())
+            ->find($invoiceId);
+
+        if (!$invoice) {
+            return $this->wantsJson(request())
+                ? response()->json(['success' => false, 'message' => __('Stock Transfer Note Not Found.')], 404)
+                : redirect()->back()->with('error', __('Stock Transfer Note Not Found.'));
+        }
+
+        if (!in_array($invoice->status, [StockTransferNote::STATUS_DRAFT, StockTransferNote::STATUS_REJECTED], true)) {
+            return $this->wantsJson(request())
+                ? response()->json(['success' => false, 'message' => __('Only draft or rejected stock transfer notes can be deleted.')], 422)
+                : redirect()->back()->with('error', __('Only draft or rejected stock transfer notes can be deleted.'));
+        }
+
+        DB::beginTransaction();
+        try {
+            $invoice->items()->delete();
+
+            $invoice->delete();
+            DB::commit();
+
+            if ($this->wantsJson(request())) {
+                return response()->json(['success' => true, 'message' => __('Stock Transfer Note deleted successfully.')]);
+            }
+
+            return redirect()->route('stock-transfer-note.index')->with('success', __('Stock Transfer Note deleted successfully.'));
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return $this->wantsJson(request())
+                ? response()->json(['success' => false, 'message' => $e->getMessage()], 500)
+                : redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function destroyProduct(Request $request)
+    {
+        if (!Auth::user()->can('edit stock transfer note')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        $itemId = $request->id;
+
+        if (empty($itemId)) {
+            return response()->json(['success' => false, 'message' => __('Item not found.')], 404);
+        }
+
+        $item = StockTransferNoteItem::find($itemId);
+
+        if (!$item) {
+            return response()->json(['success' => false, 'message' => __('Item not found.')], 404);
+        }
+
+        $note = StockTransferNote::where('created_by', Auth::user()->creatorId())->find($item->stn_id);
+
+        if (!$note || !in_array($note->status, [StockTransferNote::STATUS_DRAFT, StockTransferNote::STATUS_REJECTED], true)) {
+            return response()->json(['success' => false, 'message' => __('Only draft or rejected notes can be edited.')], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $item->delete();
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'message' => __('Item removed successfully.')]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function draftDemandOrders(Request $request)
+    {
+        return response('<div class="p-3 text-muted">' . __('No demand order picker is configured for Stock Transfer Note yet.') . '</div>');
+    }
+
+    public function demandOrderItems($id)
+    {
+        return response()->json([]);
+    }
+
+    public function invoice($invoice_id)
+    {
+        try {
+            $id = Crypt::decrypt($invoice_id);
+        } catch (\Throwable $th) {
+            return redirect()->back()->with('error', __('Stock Transfer Note Not Found.'));
+        }
+
+        $invoice = StockTransferNote::with(['fromStore', 'toStore', 'items.product'])->find($id);
+
+        if (!$invoice) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        return $this->buildPublicView($invoice);
+    }
+
+    public function invoiceLink($invoiceId)
+    {
+        return $this->invoice($invoiceId);
+    }
+
+    public function forwardToHo(Request $request, $ids, StockTransferNoteWorkflowService $workflow)
+    {
+        return $this->runWorkflowAction($request, $ids, 'forward stock transfer note', function ($note, $user) use ($workflow) {
+            return $workflow->forward($note, $user);
+        }, __('Stock Transfer Note sent for approval successfully.'));
+    }
+
+    public function rejectByHo(Request $request, $ids, StockTransferNoteWorkflowService $workflow)
+    {
+        return $this->runWorkflowAction($request, $ids, 'reject stock transfer note', function ($note, $user) use ($workflow) {
+            return $workflow->reject($note, $user);
+        }, __('Stock Transfer Note rejected.'));
+    }
+
+    public function approveByHo(Request $request, $ids, StockTransferNoteWorkflowService $workflow)
+    {
+        return $this->runWorkflowAction($request, $ids, 'approve stock transfer note', function ($note, $user) use ($workflow) {
+            return $workflow->approve($note, $user);
+        }, __('Stock Transfer Note approved and stock transferred successfully.'));
+    }
+
+    public function issue(Request $request, $ids, StockTransferNoteWorkflowService $workflow)
+    {
+        return $this->runWorkflowAction($request, $ids, 'issue stock transfer note', function ($note, $user) use ($workflow) {
+            return $workflow->issue($note, $user);
+        }, __('Stock Transfer Note issued successfully.'));
+    }
+
+    private function runWorkflowAction(Request $request, $ids, string $permission, callable $action, string $message)
+    {
+        $user = Auth::user();
+
+        if (!$user->can($permission)) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        try {
+            $id = Crypt::decrypt($ids);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => __('Stock Transfer Note Not Found.')], 404);
+        }
+
+        $noteQuery = StockTransferNote::where('created_by', $user->creatorId());
+
+        if ($user->type !== 'company') {
+            $noteQuery->where('owned_by', $user->ownedId());
+        }
+
+        $note = $noteQuery->find($id);
+
+        if (!$note) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        try {
+            $action($note, $user);
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    private function storesBelongToCompany(array $storeIds, int $creatorId): bool
+    {
+        $storeIds = array_values(array_unique(array_map('intval', $storeIds)));
+
+        if (count($storeIds) !== 2) {
+            return false;
+        }
+
+        return warehouse::whereIn('id', $storeIds)
+            ->where(function ($query) use ($creatorId) {
+                $query->where('created_by', $creatorId)
+                    ->orWhere('owned_by', $creatorId);
+            })
+            ->count() === 2;
+    }
+
+    private function sessionBelongsToCompany($sessionId, int $creatorId): bool
+    {
+        return AcademicSession::whereKey($sessionId)
+            ->where('created_by', $creatorId)
+            ->exists();
+    }
+
+    public function print($invoiceId)
+    {
+        $user = Auth::user();
+
+        if (!$user->can('show stock transfer note')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $id = Crypt::decrypt($invoiceId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Stock Transfer Note Not Found.'));
+        }
+
+        $query = StockTransferNote::with(['fromStore.branch', 'toStore.branch', 'items.product'])
+            ->where('created_by', $user->creatorId());
+
+        if ($user->type !== 'company') {
+            $query->where('owned_by', $user->ownedId());
+        }
+
+        $invoice = $query->find($id);
+
+        if (!$invoice) {
+            return redirect()->back()->with('error', __('Stock Transfer Note Not Found.'));
+        }
+
+        $settings = Utility::settingsById($invoice->created_by);
+        $unitNames = DB::table('product_service_units')
+            ->whereIn('id', $invoice->items->pluck('product.unit_id')->filter()->unique())
+            ->pluck('name', 'id');
+        $session = $invoice->academicSession?->year;
+
+        if (!$session) {
+            $session = AcademicSession::where('created_by', $invoice->created_by)
+                ->whereDate('starting_date', '<=', $invoice->issue_date)
+                ->whereDate('ending_date', '>=', $invoice->issue_date)
+                ->value('year');
+        }
+        $issuedBy = User::find($invoice->issue_by);
+        $receivedBy = User::find($invoice->recived_by);
+
+        return view('stock_transfer_note.print', compact(
+            'invoice',
+            'settings',
+            'unitNames',
+            'session',
+            'issuedBy',
+            'receivedBy'
+        ));
     }
 }

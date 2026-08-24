@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ReadmissionPaymentImplementationService;
+
 use App\Models\BankAccount;
 use App\Models\ChallanHead;
 use App\Models\Challans;
@@ -801,6 +803,9 @@ public function legacyShow($id, Request $request)
     {
         // dd($id, $request->all());
         $challan = Challans::where('id', '=', $id)->first();
+        if(!$challan){
+            return redirect()->back()->with('error','Challan Not found !');
+        }
         $challanhead = ChallanHead::where('challan_id', $challan->id)->get();
       $startDate = '2026-01-01';
         // $currentMonthStart = date('Y-m-01');
@@ -3664,6 +3669,36 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
                     'created_by' => \Auth::user()->creatorId(),
                 ]
             );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Readmission / Re-enrollment implementation trigger
+            |--------------------------------------------------------------------------
+            |
+            | Trigger on the FIRST POSITIVE receipt only.
+            |
+            | IMPORTANT:
+            | - Full payment is NOT required.
+            | - Even Rs. 1 triggers the implementation.
+            | - Readmission main challan = Re-Admission.
+            | - Re-enrollment main challan = Admission.
+            | - Ordinary Admission/other challans return false and continue
+            |   through the existing legacy enrollment logic below.
+            |
+            | This call is inside the SAME receipt transaction. If implementation
+            | fails, the receipt/payment is rolled back as well.
+            */
+            $handledReadmissionApplication = false;
+
+            if ((float) ($recipts->recipt_amount ?? 0) > 0) {
+                $handledReadmissionApplication = app(
+                    ReadmissionPaymentImplementationService::class
+                )->applyOnFirstReceipt(
+                    $challan,
+                    $recipts
+                );
+            }
+
             $feeMonth = $invoicePayment->fee_month;
             $isBeforeFeb2026 = $feeMonth && strtotime($feeMonth) < strtotime('2026-02-01');
 
@@ -3733,55 +3768,75 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
 
                 $dataret = Utility::brv_entry($data);
             }
-            if ($invoicePayment->challan_type == 'Admission') {
-                $Enroll = StudentEnrollments::where('regId', $invoicePayment->student_id)->first();
-                if ($Enroll) {
-                } else {
-                    $registration = StudentRegistration::findOrFail($invoicePayment->student_id);
-                    $section = ClassSection::where('class_id', $registration->class_id)->first();
-                    // $prevEnrollId = StudentEnrollments::max('enrollId');
-                    $prevEnrollId = StudentEnrollments::orderByDesc('enrollId')->value('enrollId');
-                    $newEnrollId = $prevEnrollId ? $prevEnrollId + 1 : 1;
-                    $enrollment = new StudentEnrollments;
-                    $enrollment->enrollId = $newEnrollId;
-                    $enrollment->regId = $registration->id;
-                    $enrollment->class_id = $registration->class_id;
-                    $enrollment->adm_date = $invoicePayment->paid_date;
-                    $enrollment->section_id = @$section->section_id ? @$section->section_id : '';
-                    $enrollment->session_id = $registration->session_id;
-                    $enrollment->adm_session = $registration->session_id;
-                    $enrollment->adm_branch = $registration->adm_branch;
-                    $enrollment->owned_by = $challan->owned_by;
-                    $enrollment->created_by = \Auth::user()->creatorId();
-                    $enrollment->save();
-                    $registration->roll_no = $newEnrollId;
-                    $registration->student_status = 'Enrolled';
-                    $registration->save();
+            /*
+             * Application-linked Readmission/Re-enrollment challans are handled
+             * completely by ReadmissionPaymentImplementationService above.
+             *
+             * Keep the old generic Admission/Readmission behavior only for
+             * ordinary/legacy challans that are NOT linked to a readmission
+             * application.
+             */
+            if (!$handledReadmissionApplication) {
+                if ($invoicePayment->challan_type == 'Admission') {
+                    $Enroll = StudentEnrollments::where('regId', $invoicePayment->student_id)->first();
 
-                    $invoicePayment->rollno = $newEnrollId;
-                    $invoicePayment->save();
-                    // $recipts->student_id = $newEnrollId;
-                    // $recipts->save();
+                    if (!$Enroll) {
+                        $registration = StudentRegistration::findOrFail($invoicePayment->student_id);
+                        $section = ClassSection::where('class_id', $registration->class_id)->first();
 
-                    if ($registration->fathercnic != null) {
-                        $ischild = Employee::where('cnic', $registration->fathercnic)->first();
-                        if ($ischild) {
-                            // student_id is id
-                            $empCh = new EmpChildrens;
-                            $empCh->emp_id = $ischild->id;
-                            $empCh->student_id = $registration->id;
-                            $empCh->branch_id = $registration->branch;
-                            $empCh->class_id = $registration->class_id;
-                            $empCh->amount = 0;
-                            $empCh->save();
+                        $prevEnrollId = StudentEnrollments::orderByDesc('enrollId')->value('enrollId');
+                        $newEnrollId = $prevEnrollId ? $prevEnrollId + 1 : 1;
+
+                        $enrollment = new StudentEnrollments;
+                        $enrollment->enrollId = $newEnrollId;
+                        $enrollment->regId = $registration->id;
+                        $enrollment->class_id = $registration->class_id;
+                        $enrollment->adm_date = $invoicePayment->paid_date;
+                        $enrollment->section_id = @$section->section_id ? @$section->section_id : '';
+                        $enrollment->session_id = $registration->session_id;
+                        $enrollment->adm_session = $registration->session_id;
+                        $enrollment->adm_branch = $registration->adm_branch;
+                        $enrollment->owned_by = $challan->owned_by;
+                        $enrollment->created_by = \Auth::user()->creatorId();
+                        $enrollment->save();
+
+                        $registration->roll_no = $newEnrollId;
+                        $registration->student_status = 'Enrolled';
+                        $registration->save();
+
+                        $invoicePayment->rollno = $newEnrollId;
+                        $invoicePayment->save();
+
+                        if ($registration->fathercnic != null) {
+                            $ischild = Employee::where('cnic', $registration->fathercnic)->first();
+
+                            if ($ischild) {
+                                $empCh = new EmpChildrens;
+                                $empCh->emp_id = $ischild->id;
+                                $empCh->student_id = $registration->id;
+                                $empCh->branch_id = $registration->branch;
+                                $empCh->class_id = $registration->class_id;
+                                $empCh->amount = 0;
+                                $empCh->save();
+                            }
                         }
                     }
-                }
-            } else if ($invoicePayment->challan_type == 'Readmission') {
-                $Enroll = StudentEnrollments::where('regId', $invoicePayment->student_id)->first();
-                if ($Enroll) {
-                    $Enroll->adm_date = $invoicePayment->paid_date;
-                    $Enroll->save();
+                } elseif (
+                    in_array(
+                        $invoicePayment->challan_type,
+                        ['Readmission', 'Re-Admission'],
+                        true
+                    )
+                ) {
+                    $Enroll = StudentEnrollments::where(
+                        'regId',
+                        $invoicePayment->student_id
+                    )->first();
+
+                    if ($Enroll) {
+                        $Enroll->adm_date = $invoicePayment->paid_date;
+                        $Enroll->save();
+                    }
                 }
             }
             if (\Auth::user()->type == 'company') {
@@ -4900,16 +4955,16 @@ public function storeChallan(Request $request)
         $installmentChallans = Challans::with('heads')->where('student_id', $challan->student_id)
             ->where('challan_type', 'Admission')
             ->get();
-
         // Array of all heads records
         $allHeads = $installmentChallans->flatMap(function ($challan) {
             return $challan->heads;
         })->toArray();
-
+        
         // Get all head IDs in one array
         $headIds = $installmentChallans->flatMap(function ($challan) {
             return $challan->heads->pluck('head_id');
-        })->toArray();
+            })->toArray();
+            // dd($installmentChallans,$allHeads,$headIds);
 
         return view('students.challanlists.installmentview', compact('challan', 'studentData', 'classfee', 'concession', 'installmentChallans', 'allHeads', 'headIds'));
     }
@@ -4951,98 +5006,223 @@ public function storeChallan(Request $request)
         $headIds = $installmentChallans->flatMap(function ($challan) {
             return $challan->heads->pluck('head_id');
         })->toArray();
-
         return view('students.challanlists.installmentview', compact('challan', 'studentData', 'classfee', 'concession', 'installmentChallans', 'allHeads', 'headIds'));
     }
 
-     public function installment_challan(Request $request, $id)
+    public function installment_challan(Request $request, $id)
     {
-        DB::beginTransaction();
         try {
             $existingChallan = Challans::with('heads', 'heads.feeHead')->findOrFail($id);
+
             $issueDate = Carbon::now()->toDateString();
             $dueDate = Carbon::now()->addWeek()->toDateString();
+
             $challanDate = Carbon::parse($existingChallan->challan_date);
-            $feeHeadIds = $request->input('fee_head_id');
-            $inst1Amounts = $request->input('head_amount_inst1');
-            $inst2Amounts = $request->input('head_amount_inst2');
+
+            $feeHeadIds   = $request->input('fee_head_id', []);
+            $inst1Amounts = $request->input('head_amount_inst1', []);
+            $inst2Amounts = $request->input('head_amount_inst2', []);
+
             $student = StudentRegistration::findOrFail($existingChallan->student_id);
+
             $challan = $existingChallan;
             $heads = $feeHeadIds;
 
+            /*
+            |--------------------------------------------------------------------------
+            | VIEW
+            |--------------------------------------------------------------------------
+            */
             if ($request->type == 'view') {
-                return view('challans.installchallan', compact('challan', 'heads', 'inst1Amounts', 'inst2Amounts', 'feeHeadIds'));
+                return view(
+                    'challans.installchallan',
+                    compact(
+                        'challan',
+                        'heads',
+                        'inst1Amounts',
+                        'inst2Amounts',
+                        'feeHeadIds'
+                    )
+                );
             }
 
-            $totalInst1 = 0;
-            $totalInst2 = 0;
-            $feeHeadsInst1 = [];
-            $feeHeadsInst2 = [];
-            $concessionInst1 = 0;
-            $concessionInst2 = 0;
+            DB::beginTransaction();
 
-            // ----------------------------------------------------------------
-            // Helper: build jrentry-compatible item array from collected heads
-            // ----------------------------------------------------------------
-            $buildItems = function (array $feeHeads) {
+            /*
+            |--------------------------------------------------------------------------
+            | Create allocation map
+            |--------------------------------------------------------------------------
+            |
+            | IMPORTANT:
+            | Do NOT depend on array indexes between fee_head_id and
+            | head_amount_inst1/head_amount_inst2.
+            |
+            | Everything is mapped using the actual fee head ID.
+            |
+            */
+
+            $allocation = [];
+
+            foreach ($feeHeadIds as $index => $feeHeadId) {
+
+                if (!$feeHeadId) {
+                    continue;
+                }
+
+                $inst1 = $inst1Amounts[$index] ?? null;
+                $inst2 = $inst2Amounts[$index] ?? null;
+
+                $allocation[(string) $feeHeadId] = [
+                    'inst1' => $inst1,
+                    'inst2' => $inst2,
+                ];
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Helper: Get allocation for a fee head
+            |--------------------------------------------------------------------------
+            */
+            $getAllocation = function ($headId) use ($allocation) {
+
+                return $allocation[(string) $headId]
+                    ?? [
+                        'inst1' => null,
+                        'inst2' => null,
+                    ];
+            };
+
+            /*
+            |--------------------------------------------------------------------------
+            | Helper: Delete challan journal
+            |--------------------------------------------------------------------------
+            */
+            $deleteChallanJournal = function ($challanId, $category = 'Admission') {
+
+                $voucher = JournalEntry::where('category', $category)
+                    ->where('reference_id', $challanId)
+                    ->first();
+
+                if ($voucher) {
+
+                    JournalItem::where('journal', $voucher->id)->delete();
+
+                    $voucher->delete();
+                }
+            };
+
+            /*
+            |--------------------------------------------------------------------------
+            | Helper: Build Journal Items
+            |--------------------------------------------------------------------------
+            */
+            $buildJournalItems = function ($feeHeads) {
+
                 $items = [];
+
                 foreach ($feeHeads as $feeHead) {
-                    // Support both array (from flatMap) and Eloquent object
-                    $isArray = is_array($feeHead);
+
+                    $headId = is_array($feeHead)
+                        ? ($feeHead['head_id'] ?? null)
+                        : ($feeHead->head_id ?? null);
+
+                    $price = is_array($feeHead)
+                        ? ($feeHead['price'] ?? 0)
+                        : ($feeHead->price ?? 0);
+
+                    $concession = is_array($feeHead)
+                        ? ($feeHead['concession'] ?? 0)
+                        : ($feeHead->concession ?? 0);
+
+                    $prodId = is_array($feeHead)
+                        ? ($feeHead['id'] ?? null)
+                        : ($feeHead->id ?? null);
+
                     $items[] = [
-                        'prod_id' => $isArray ? ($feeHead['id'] ?? null) : ($feeHead->id ?? null),
-                        'head' => $isArray ? $feeHead['head_id'] : $feeHead->head_id,
-                        'price' => $isArray ? $feeHead['price'] : $feeHead->price,
+                        'prod_id' => $prodId,
+                        'head' => $headId,
+                        'price' => $price,
                         'quantity' => 1,
-                        'concession' => $isArray ? $feeHead['concession'] : $feeHead->concession,
-                        'total' => $isArray
-                            ? ($feeHead['price'] - $feeHead['concession'])
-                            : ($feeHead->price - $feeHead->concession),
+                        'concession' => $concession,
+                        'total' => $price - $concession,
                     ];
                 }
+
                 return $items;
             };
 
-            // ----------------------------------------------------------------
-            // Helper: wipe existing heads + journal items for a challan,
-            // re-insert heads, then call jrentry (which handles all JV lines
-            // including concession discount entries — exactly as bulkchallan)
-            // ----------------------------------------------------------------
-            $rebuildChallan = function (Challans $challanModel, array $feeHeads, float $total, float $concession, string $category = 'Admission') use ($student, $buildItems) {
+            /*
+            |--------------------------------------------------------------------------
+            | Helper: Rebuild Challan
+            |--------------------------------------------------------------------------
+            */
+            $rebuildChallan = function (
+                Challans $challanModel,
+                $feeHeads,
+                $total,
+                $concession,
+                $category = 'Admission'
+            ) use ($deleteChallanJournal, $buildJournalItems) {
 
-                // 1. Update challan totals
+                /*
+                |--------------------------------------------------------------------------
+                | Delete old journal
+                |--------------------------------------------------------------------------
+                */
+                $deleteChallanJournal($challanModel->id, $category);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Delete old challan heads
+                |--------------------------------------------------------------------------
+                */
+                ChallanHead::where('challan_id', $challanModel->id)->delete();
+
+                /*
+                |--------------------------------------------------------------------------
+                | Update challan totals
+                |--------------------------------------------------------------------------
+                */
                 $challanModel->total_amount = $total;
                 $challanModel->concession_amount = $concession;
                 $challanModel->save();
 
-                // 2. Wipe old heads
-                ChallanHead::where('challan_id', $challanModel->id)->delete();
-
-                // 3. Wipe old journal items via existing voucher
-                $voucher = JournalEntry::where('category', $category)
-                    ->where('reference_id', $challanModel->id)
-                    ->first();
-                if ($voucher) {
-                    JournalItem::where('journal', $voucher->id)->delete();
-                    // We'll reuse the same JournalEntry — delete it so jrentry
-                    // creates a fresh one with the correct sequence
-                    $voucher->delete();
-                }
-
-                // 4. Re-insert challan heads and build items for jrentry
+                /*
+                |--------------------------------------------------------------------------
+                | Insert new challan heads
+                |--------------------------------------------------------------------------
+                */
                 $itemsForJr = [];
-                foreach ($feeHeads as $feeHead) {
-                    $isArray = is_array($feeHead);
 
-                    $challanHead = new ChallanHead;
+                foreach ($feeHeads as $feeHead) {
+
+                    $headId = is_array($feeHead)
+                        ? ($feeHead['head_id'] ?? null)
+                        : ($feeHead->head_id ?? null);
+
+                    $price = is_array($feeHead)
+                        ? ($feeHead['price'] ?? 0)
+                        : ($feeHead->price ?? 0);
+
+                    $feeConcession = is_array($feeHead)
+                        ? ($feeHead['concession'] ?? 0)
+                        : ($feeHead->concession ?? 0);
+
+                    if (!$headId) {
+                        continue;
+                    }
+
+                    $challanHead = new ChallanHead();
+
                     $challanHead->challan_id = $challanModel->id;
-                    $challanHead->head_id = $isArray ? $feeHead['head_id'] : $feeHead->head_id;
-                    $challanHead->price = $isArray ? $feeHead['price'] : $feeHead->price;
-                    $challanHead->concession = $isArray ? $feeHead['concession'] : $feeHead->concession;
+                    $challanHead->head_id = $headId;
+                    $challanHead->price = $price;
+                    $challanHead->concession = $feeConcession;
+
                     $challanHead->save();
 
                     $itemsForJr[] = [
-                        'prod_id' => $challanHead->id,           // fresh ChallanHead id
+                        'prod_id' => $challanHead->id,
                         'head' => $challanHead->head_id,
                         'price' => $challanHead->price,
                         'quantity' => 1,
@@ -5051,20 +5231,28 @@ public function storeChallan(Request $request)
                     ];
                 }
 
-                // 5. Call jrentry — handles income, receivable, AND concession
-                //    discount entries identically to bulkchallan
-                $voucherId = Utility::jrentry([
-                    'id' => $challanModel->id,
-                    'no' => $challanModel->challanNo,
-                    'date' => $challanModel->challan_date,
-                    'reference' => $challanModel->student_id,
-                    'category' => $category,
-                    'user_id' => $challanModel->student_id,
-                    'user_type' => 'Student',
-                    'owned_by' => $challanModel->owned_by,
-                    'created_by' => $challanModel->created_by,
-                    'items' => $itemsForJr,
-                ]);
+                /*
+                |--------------------------------------------------------------------------
+                | Recreate journal
+                |--------------------------------------------------------------------------
+                */
+                $voucherId = null;
+
+                if (count($itemsForJr) > 0) {
+
+                    $voucherId = Utility::jrentry([
+                        'id' => $challanModel->id,
+                        'no' => $challanModel->challanNo,
+                        'date' => $challanModel->challan_date,
+                        'reference' => $challanModel->student_id,
+                        'category' => $category,
+                        'user_id' => $challanModel->student_id,
+                        'user_type' => 'Student',
+                        'owned_by' => $challanModel->owned_by,
+                        'created_by' => $challanModel->created_by,
+                        'items' => $itemsForJr,
+                    ]);
+                }
 
                 $challanModel->voucher_id = $voucherId;
                 $challanModel->save();
@@ -5072,112 +5260,335 @@ public function storeChallan(Request $request)
                 return $voucherId;
             };
 
-            // ================================================================
-            // CASE A: Multiple admission challans already exist for this student
-            // ================================================================
+            /*
+            |--------------------------------------------------------------------------
+            | Helper: Calculate totals
+            |--------------------------------------------------------------------------
+            */
+            $calculateTotals = function ($feeHeads) {
+
+                $total = 0;
+                $concession = 0;
+
+                foreach ($feeHeads as $feeHead) {
+
+                    $price = is_array($feeHead)
+                        ? ($feeHead['price'] ?? 0)
+                        : ($feeHead->price ?? 0);
+
+                    $feeConcession = is_array($feeHead)
+                        ? ($feeHead['concession'] ?? 0)
+                        : ($feeHead->concession ?? 0);
+
+                    $total += (float) $price;
+                    $concession += (float) $feeConcession;
+                }
+
+                return [
+                    'total' => $total,
+                    'concession' => $concession,
+                ];
+            };
+
+            /*
+            |--------------------------------------------------------------------------
+            | Get all existing admission challans
+            |--------------------------------------------------------------------------
+            */
             $checkChallans = Challans::with('heads')
-                ->where('student_id', $challan->student_id)
+                ->where('student_id', $existingChallan->student_id)
                 ->where('challan_type', 'Admission')
+                ->orderBy('id')
                 ->get();
 
-            if (count($checkChallans) > 1) {
+            /*
+            |--------------------------------------------------------------------------
+            | CASE A
+            |--------------------------------------------------------------------------
+            |
+            | More than one admission challan already exists.
+            |
+            */
+            if ($checkChallans->count() > 1) {
 
-                $allHeads = $checkChallans->flatMap(fn($c) => $c->heads)->toArray();
+                /*
+                |--------------------------------------------------------------------------
+                | Collect ALL heads from ALL admission challans
+                |--------------------------------------------------------------------------
+                */
+                $allHeads = $checkChallans
+                    ->flatMap(function ($challanItem) {
+                        return $challanItem->heads;
+                    });
 
-                for ($i = 0; $i < count($allHeads); $i++) {
-                    if ($inst1Amounts[$i] == '100') {
-                        $totalInst1 += $allHeads[$i]['price'];
-                        $feeHeadsInst1[] = $allHeads[$i];
-                        $concessionInst1 += $allHeads[$i]['concession'];
-                    } elseif ($inst1Amounts[$i] == '0') {
-                        $totalInst2 += $allHeads[$i]['price'];
-                        $feeHeadsInst2[] = $allHeads[$i];
-                        $concessionInst2 += $allHeads[$i]['concession'];
-                    }
-                }
+                $feeHeadsInst1 = [];
+                $feeHeadsInst2 = [];
 
-                // Rebuild inst1 (existing challan)
-                $rebuildChallan($existingChallan, $feeHeadsInst1, $totalInst1, $concessionInst1);
+                /*
+                |--------------------------------------------------------------------------
+                | IMPORTANT:
+                |
+                | Match using head_id instead of array index.
+                |--------------------------------------------------------------------------
+                */
+                foreach ($allHeads as $feeHead) {
 
-                // Find the second challan
-                $secondChallan = Challans::where('id', '!=', $existingChallan->id)
-                    ->where('student_id', $challan->student_id)
-                    ->where('challan_type', 'Admission')
-                    ->first();
+                    $headId = $feeHead->head_id;
 
-                if (count($feeHeadsInst2) > 0) {
-                    // Rebuild inst2 (second challan)
-                    $rebuildChallan($secondChallan, $feeHeadsInst2, $totalInst2, $concessionInst2);
-                } else {
-                    // Nothing in inst2 — delete second challan + its journal
-                    ChallanHead::where('challan_id', $secondChallan->id)->delete();
-                    $voucher2 = JournalEntry::where('category', 'Admission')
-                        ->where('reference_id', $secondChallan->id)->first();
-                    if ($voucher2) {
-                        JournalItem::where('journal', $voucher2->id)->delete();
-                        $voucher2->delete();
-                    }
-                    $secondChallan->delete();
-                }
+                    $headAllocation = $getAllocation($headId);
 
-            } else {
-                // ================================================================
-                // CASE B: Single admission challan — split into inst1 + inst2
-                // ================================================================
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Installment 1
+                    |--------------------------------------------------------------------------
+                    */
+                    if ((string) $headAllocation['inst1'] === '100') {
 
-                for ($i = 0; $i < count($feeHeadIds); $i++) {
-                    $feeHead = ChallanHead::with('feeHead')
-                        ->where('challan_id', $existingChallan->id)
-                        ->where('head_id', $feeHeadIds[$i])
-                        ->first();
-
-                    if (!$feeHead)
-                        continue;
-
-                    if ($inst1Amounts[$i] == '100') {
-                        $totalInst1 += $feeHead->price;
                         $feeHeadsInst1[] = $feeHead;
-                        $concessionInst1 += $feeHead->concession;
-                    } elseif ($inst1Amounts[$i] == '0') {
-                        $totalInst2 += $feeHead->price;
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Installment 2
+                    |--------------------------------------------------------------------------
+                    */
+                    elseif ((string) $headAllocation['inst1'] === '0') {
+
                         $feeHeadsInst2[] = $feeHead;
-                        $concessionInst2 += $feeHead->concession;
                     }
                 }
 
-                // Rebuild existing challan with inst1 heads
-                $rebuildChallan($existingChallan, $feeHeadsInst1, $totalInst1, $concessionInst1);
+                /*
+                |--------------------------------------------------------------------------
+                | Calculate Installment 1 totals
+                |--------------------------------------------------------------------------
+                */
+                $inst1Totals = $calculateTotals($feeHeadsInst1);
 
-                // Create brand-new challan for inst2 if needed
+                /*
+                |--------------------------------------------------------------------------
+                | Calculate Installment 2 totals
+                |--------------------------------------------------------------------------
+                */
+                $inst2Totals = $calculateTotals($feeHeadsInst2);
+
+                /*
+                |--------------------------------------------------------------------------
+                | First challan = Installment 1
+                |--------------------------------------------------------------------------
+                */
+                $firstChallan = $checkChallans->first();
+
+                $rebuildChallan(
+                    $firstChallan,
+                    $feeHeadsInst1,
+                    $inst1Totals['total'],
+                    $inst1Totals['concession']
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Second challan = Installment 2
+                |--------------------------------------------------------------------------
+                */
+                $secondChallan = $checkChallans->skip(1)->first();
+
+                if ($secondChallan) {
+
+                    if (count($feeHeadsInst2) > 0) {
+
+                        $rebuildChallan(
+                            $secondChallan,
+                            $feeHeadsInst2,
+                            $inst2Totals['total'],
+                            $inst2Totals['concession']
+                        );
+
+                    } else {
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | No Installment 2 heads
+                        |--------------------------------------------------------------------------
+                        | Delete second challan and its journal.
+                        |--------------------------------------------------------------------------
+                        */
+                        $deleteChallanJournal($secondChallan->id);
+
+                        ChallanHead::where(
+                            'challan_id',
+                            $secondChallan->id
+                        )->delete();
+
+                        $secondChallan->delete();
+                    }
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | If there are more than 2 old admission challans,
+                | remove the extras because after splitting we only need 2.
+                |--------------------------------------------------------------------------
+                */
+                if ($checkChallans->count() > 2) {
+
+                    foreach ($checkChallans->skip(2) as $extraChallan) {
+
+                        $deleteChallanJournal($extraChallan->id);
+
+                        ChallanHead::where(
+                            'challan_id',
+                            $extraChallan->id
+                        )->delete();
+
+                        $extraChallan->delete();
+                    }
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | CASE B
+            |--------------------------------------------------------------------------
+            |
+            | Only one admission challan exists.
+            |
+            */
+            else {
+
+                $feeHeadsInst1 = [];
+                $feeHeadsInst2 = [];
+
+                /*
+                |--------------------------------------------------------------------------
+                | Load ALL existing heads directly.
+                |--------------------------------------------------------------------------
+                */
+                $existingHeads = ChallanHead::where(
+                    'challan_id',
+                    $existingChallan->id
+                )->get();
+
+                /*
+                |--------------------------------------------------------------------------
+                | Match by head_id
+                |--------------------------------------------------------------------------
+                */
+                foreach ($existingHeads as $feeHead) {
+
+                    $headId = $feeHead->head_id;
+
+                    $headAllocation = $getAllocation($headId);
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Installment 1
+                    |--------------------------------------------------------------------------
+                    */
+                    if ((string) $headAllocation['inst1'] === '100') {
+
+                        $feeHeadsInst1[] = $feeHead;
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Installment 2
+                    |--------------------------------------------------------------------------
+                    */
+                    elseif ((string) $headAllocation['inst1'] === '0') {
+
+                        $feeHeadsInst2[] = $feeHead;
+                    }
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Calculate Installment 1 totals
+                |--------------------------------------------------------------------------
+                */
+                $inst1Totals = $calculateTotals($feeHeadsInst1);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Calculate Installment 2 totals
+                |--------------------------------------------------------------------------
+                */
+                $inst2Totals = $calculateTotals($feeHeadsInst2);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Rebuild existing challan as Installment 1
+                |--------------------------------------------------------------------------
+                */
+                $rebuildChallan(
+                    $existingChallan,
+                    $feeHeadsInst1,
+                    $inst1Totals['total'],
+                    $inst1Totals['concession']
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Create Installment 2
+                |--------------------------------------------------------------------------
+                */
                 if (count($feeHeadsInst2) > 0) {
+
                     $nextMonth = $challanDate->copy()->addMonth();
 
-                    $newChallan = new Challans;
+                    $newChallan = new Challans();
+
                     $newChallan->student_id = $student->id;
                     $newChallan->rollno = $student->roll_no;
                     $newChallan->class_id = $student->class_id;
+
                     $newChallan->challanNo = $this->challanNo();
-                    $newChallan->challan_date = date('Y-m-d');
+
+                    $newChallan->challan_date = Carbon::now()->toDateString();
+
                     $newChallan->challan_type = 'Admission';
-                    $newChallan->fee_month = $nextMonth->startOfMonth()->toDateString();
-                    $newChallan->total_amount = $totalInst2;
+
+                    $newChallan->fee_month = $nextMonth
+                        ->copy()
+                        ->startOfMonth()
+                        ->toDateString();
+
+                    $newChallan->total_amount = $inst2Totals['total'];
+
                     $newChallan->issue_date = $issueDate;
-                    $newChallan->due_date = $nextMonth->copy()->addWeek()->toDateString();
+
+                    $newChallan->due_date = $nextMonth
+                        ->copy()
+                        ->addWeek()
+                        ->toDateString();
+
                     $newChallan->status = 'Issued';
+
                     $newChallan->owned_by = $existingChallan->owned_by;
                     $newChallan->created_by = $existingChallan->created_by;
                     $newChallan->session_id = $existingChallan->session_id;
-                    $newChallan->concession_amount = $concessionInst2;
+
+                    $newChallan->concession_amount =
+                        $inst2Totals['concession'];
+
                     $newChallan->save();
 
-                    // Insert heads + call jrentry for the new challan
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Insert Installment 2 heads
+                    |--------------------------------------------------------------------------
+                    */
                     $itemsForJr = [];
+
                     foreach ($feeHeadsInst2 as $feeHead) {
-                        $challanHead = new ChallanHead;
+
+                        $challanHead = new ChallanHead();
+
                         $challanHead->challan_id = $newChallan->id;
                         $challanHead->head_id = $feeHead->head_id;
                         $challanHead->price = $feeHead->price;
                         $challanHead->concession = $feeHead->concession;
+
                         $challanHead->save();
 
                         $itemsForJr[] = [
@@ -5186,35 +5597,54 @@ public function storeChallan(Request $request)
                             'price' => $challanHead->price,
                             'quantity' => 1,
                             'concession' => $challanHead->concession,
-                            'total' => $challanHead->price - $challanHead->concession,
+                            'total' =>
+                                $challanHead->price -
+                                $challanHead->concession,
                         ];
                     }
 
-                    $dataret = Utility::jrentry([
-                        'id' => $newChallan->id,
-                        'no' => $newChallan->challanNo,
-                        'date' => $newChallan->challan_date,
-                        'reference' => $newChallan->student_id,
-                        'category' => 'Admission',
-                        'user_id' => $newChallan->student_id,
-                        'user_type' => 'Student',
-                        'owned_by' => $newChallan->owned_by,
-                        'created_by' => $newChallan->created_by,
-                        'items' => $itemsForJr,
-                    ]);
-                    $newChallan->voucher_id = $dataret;
-                    $newChallan->save();
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Create journal for Installment 2
+                    |--------------------------------------------------------------------------
+                    */
+                    if (count($itemsForJr) > 0) {
+
+                        $voucherId = Utility::jrentry([
+                            'id' => $newChallan->id,
+                            'no' => $newChallan->challanNo,
+                            'date' => $newChallan->challan_date,
+                            'reference' => $newChallan->student_id,
+                            'category' => 'Admission',
+                            'user_id' => $newChallan->student_id,
+                            'user_type' => 'Student',
+                            'owned_by' => $newChallan->owned_by,
+                            'created_by' => $newChallan->created_by,
+                            'items' => $itemsForJr,
+                        ]);
+
+                        $newChallan->voucher_id = $voucherId;
+                        $newChallan->save();
+                    }
                 }
             }
 
             DB::commit();
-            return redirect()->route('admissionchallanlist')
-                ->with('success', 'Installment challans have been created successfully');
+
+            return redirect()
+                ->route('admissionchallanlist')
+                ->with(
+                    'success',
+                    'Installment challans have been created successfully'
+                );
 
         } catch (\Exception $e) {
-            DB::rollback();
-            dd($e);
-            return redirect()->back()->with('error', $e->getMessage());
+
+            DB::rollBack();
+
+            return redirect()
+                ->back()
+                ->with('error', $e->getMessage());
         }
     }
 

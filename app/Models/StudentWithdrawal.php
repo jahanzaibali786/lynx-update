@@ -26,6 +26,11 @@ class StudentWithdrawal extends Model
         'is_po',
         'created_by',
         'owned_by',
+        'expected_readmission_date',
+        'beneficiary_name',
+        'bank_name',
+        'cheque_no',
+        'cheque_date',
     ];
 
     protected $casts = [
