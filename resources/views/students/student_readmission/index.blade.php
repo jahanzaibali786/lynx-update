@@ -764,7 +764,7 @@
                                          Do not render any separate Installment/Installment Challan action. --}}
                                     @if($flowType === 'readmission')
                                         @if($hasChallan)
-                                            <a href="{{ route('installmentview', $item->challan_id) }}"
+                                            <a href="{{ route('challan.show', $item->challan_id) }}"
                                                class="btn btn-sm btn-action-challan challan-link"
                                                title="{{ __('View Challan') }}">
                                                 <i class="ti ti-receipt me-1"></i>{{ __('View Challan') }}

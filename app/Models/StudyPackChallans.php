@@ -43,4 +43,12 @@ class StudyPackChallans extends Model
     {
         return $this->hasMany('App\Models\StudyPackChallanItems', 'challan_id', 'id');
     }
+    public function branch()
+    {
+        return $this->belongsTo(User::class, 'owned_by', 'id');
+    }
+    public function voucher()
+    {
+        return $this->belongsTo(JournalEntry::class, 'voucher_id', 'id');
+    }
 }

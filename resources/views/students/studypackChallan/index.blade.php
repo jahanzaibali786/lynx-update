@@ -690,9 +690,9 @@
                                                 class="mx-1 btn btn-sm btn-outline-info pt-2" title="Booklist View">
                                                 <span class="btn-inner--icon"><i class="ti ti-book"></i></span>
                                             </a>
-                                            @if (Auth::user()->type == 'super admin' || Auth::user()->type == 'company')
+                                            @if (strtolower($challan->status) == 'assigned' && in_array(Auth::user()->type, ['super admin', 'company', 'branch']))
                                                 <a href="{{ route('studypackchallan.edit', $challan->id) }}"
-                                                    class="mx-1 btn btn-sm btn-outline-primary pt-2">
+                                                    class="mx-1 btn btn-sm btn-outline-primary pt-2" title="Edit">
                                                     <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                 </a>
                                             @endif

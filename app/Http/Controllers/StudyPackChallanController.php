@@ -1543,13 +1543,106 @@ class StudyPackChallanController extends Controller
      */
     public function edit($id)
     {
-        $purchase = StudyPackChallans::find($id);
-        // dd($purchase);
-        $challan = StudyPackChallans::with('student')->where('id', $id)->first();
-        $product_services = ProductService::select(\DB::raw('CONCAT(sku, " - ", name) AS name, id'))
-            ->where('created_by', \Auth::user()->creatorId())->where('type', '!=', 'service')->get()->pluck('name', 'id');
-        return view('students.studypackChallan.edit', compact('product_services', 'purchase'));
-        // return view('students.studypackChallan.edit', compact('challan', 'invoice', 'items'));
+        $challan = StudyPackChallans::with(['student', 'class', 'session'])->find($id);
+
+        if (!$challan) {
+            return redirect()->route('studypackchallan.index')
+                ->with('error', 'Studypack challan not found.');
+        }
+
+        /*
+         * Only "Assigned" studypack challans may be edited.
+         */
+        if ($challan->status !== 'Assigned') {
+            return redirect()->route('studypackchallan.index')
+                ->with('error', 'Only Assigned studypack challans can be edited.');
+        }
+
+        $user = \Auth::user();
+        $isCompany = in_array($user->type, ['company', 'super admin']);
+
+        /*
+         * The studypack ATTACHED to this challan defines the item universe.
+         * (studypack_id is fixed and never changes on edit.)
+         */
+        $studyPack = StudyPack::find($challan->studypack_id);
+
+        $studyPackItems = StudyPackItem::where('study_pack_id', $challan->studypack_id)->get();
+
+        /*
+         * Items currently ON the challan (these render CHECKED).
+         */
+        $challanItems = StudyPackChallanItems::where('challan_id', $challan->id)
+            ->get()
+            ->keyBy('product_id');
+
+        /*
+         * Build the checkbox rows from the studypack items.
+         */
+        $rows = [];
+        foreach ($studyPackItems as $spItem) {
+            $product  = ProductService::find($spItem->product_id);
+            $onChallan = $challanItems->get($spItem->product_id);
+
+            $label = $product
+                ? trim(($product->sku ? $product->sku . ' - ' : '') . $product->name)
+                : ('Product #' . $spItem->product_id);
+
+            $rows[] = [
+                'product_id'   => (int) $spItem->product_id,
+                'product_name' => $label,
+                'checked'      => (bool) $onChallan,
+                'qty'          => $onChallan ? $onChallan->qty : $spItem->quantity,
+                'price'        => $onChallan ? $onChallan->price : $spItem->price,
+            ];
+        }
+
+        /*
+         * Company-only selectors (branch + classes of the current branch).
+         */
+        $branches = collect();
+        $classes  = collect();
+
+        if ($isCompany) {
+            $branches = User::where('type', 'branch')
+                ->where('is_active', 1)
+                ->where('created_by', $user->creatorId())
+                ->get()
+                ->pluck('name', 'id');
+
+            // Make sure the challan's current branch is always selectable.
+            if (!$branches->has($challan->owned_by)) {
+                $currentBranch = User::find($challan->owned_by);
+                if ($currentBranch) {
+                    $branches->prepend($currentBranch->name, $currentBranch->id);
+                }
+            }
+
+            $classes = Classes::where('owned_by', $challan->owned_by)
+                ->where('active_status', 1)
+                ->where('created_by', $user->creatorId())
+                ->pluck('name', 'id');
+
+            // Ensure the current class is present even if inactive/other branch.
+            if (!$classes->has($challan->class_id)) {
+                $currentClass = Classes::find($challan->class_id);
+                if ($currentClass) {
+                    $classes->prepend($currentClass->name, $currentClass->id);
+                }
+            }
+        }
+
+        $student = $challan->student; // fixed / disabled
+
+        return view('students.studypackChallan.edit', compact(
+            'challan',
+            'studyPack',
+            'rows',
+            'isCompany',
+            'branches',
+            'classes',
+            'student'
+        ));
     }
 
     /**
@@ -1561,179 +1654,234 @@ class StudyPackChallanController extends Controller
      */
     public function update(Request $request, $id)
     {
-        // dd($request->all());
         \DB::beginTransaction();
         try {
             $challan = StudyPackChallans::findOrFail($id);
 
-            if (!empty($request->deleted_items)) {
-                foreach ($request->deleted_items as $item) {
-                    // Delete challan item
-                    StudyPackChallanItems::where('id', $item)->delete();
-                    // Also delete corresponding JournalItem
-                    JournalItem::where('entry_id', $item)->delete();
-                }
+            /*
+             * Only "Assigned" studypack challans may be edited.
+             */
+            if ($challan->status !== 'Assigned') {
+                \DB::rollBack();
+                return redirect()->route('studypackchallan.index')
+                    ->with('error', 'Only Assigned studypack challans can be edited.');
             }
 
-            $allChallanItems = [];
-            if (!empty($request->items)) {
-                foreach ($request->items as $item) {
-                    if (isset($item['id']) && $item['id']) {
-                        // Update existing item
-                        $challanitem = StudyPackChallanItems::find($item['id']);
-                        if ($challanitem) {
-                            $challanitem->qty = $item['quantity'];
-                            $challanitem->price = $item['price'];
-                            $challanitem->save();
-                            // Update corresponding JournalItem (credit, description, etc.)
-                            $journalItem = JournalItem::where('entry_id', $challanitem->id)->where('types', 'Studypack')->first();
-                            if ($journalItem) {
-                                $product = ProductService::find($challanitem->product_id);
-                                $itemPrice = $challanitem->qty * $challanitem->price;
-                                $journalItem->credit = $itemPrice;
-                                $journalItem->description = $product ? $product->name : $journalItem->description;
-                                $journalItem->save();
-                                // Update tax JournalItem if exists
-                                if ($product && $product->tax_id) {
-                                    $taxes = \App\Models\Tax::where('id', $product->tax_id)->first();
-                                    if ($taxes) {
-                                        $itemTax = ($itemPrice * $taxes->rate) / 100;
-                                        $taxJournalItem = JournalItem::where('journal', $journalItem->journal)
-                                            ->where('types', 'Studypack')
-                                            ->where('description', 'Tax on ' . $product->id)
-                                            ->where('head_ids', $product->id)
-                                            ->first();
-                                        if ($taxJournalItem) {
-                                            $taxJournalItem->credit = $itemTax;
-                                            $taxJournalItem->save();
-                                        }
-                                    }
-                                }
-                            }
-                            $allChallanItems[] = [
-                                'prod_id' => $challanitem->id,
-                                'product_id' => $challanitem->product_id,
-                                'quantity' => $challanitem->qty,
-                                'price' => $challanitem->price
-                            ];
-                        }
+            $user = \Auth::user();
+            $isCompany = in_array($user->type, ['company', 'super admin']);
+
+            /*
+            |------------------------------------------------------------------
+            | Target branch / class / section
+            |------------------------------------------------------------------
+            |
+            | Student is ALWAYS fixed (never changes).
+            | Branch users cannot change branch/class.
+            | Company may change branch + class, but only to a branch/class
+            | where the FIXED student actually exists.
+            */
+
+            $targetBranch  = (int) $challan->owned_by;
+            $targetClass   = (int) $challan->class_id;
+            $targetSection = $challan->section_id;
+
+            if ($isCompany) {
+                $reqBranch = $request->filled('branches') ? (int) $request->branches : $targetBranch;
+                $reqClass  = $request->filled('class') ? (int) $request->class : $targetClass;
+
+                /*
+                 * The fixed student must belong to the selected class + branch.
+                 */
+                $studentReg = StudentRegistration::where('id', $challan->student_id)
+                    ->where('class_id', $reqClass)
+                    ->where('owned_by', $reqBranch)
+                    ->where('created_by', $user->creatorId())
+                    ->first();
+
+                if (!$studentReg) {
+                    \DB::rollBack();
+                    return redirect()->back()->withInput()
+                        ->with('error', 'Student not in this selected class.');
+                }
+
+                $targetBranch = $reqBranch;
+                $targetClass  = $reqClass;
+
+                // Section follows the student's own enrollment.
+                $enrollment = StudentEnrollments::where('regId', $challan->student_id)->first();
+                $targetSection = $enrollment ? $enrollment->section_id : $challan->section_id;
+            }
+
+            /*
+            |------------------------------------------------------------------
+            | Dates (editable by both roles)
+            |------------------------------------------------------------------
+            */
+
+            $feeMonth = $request->filled('fee_month')
+                ? Carbon::parse($request->fee_month)->startOfMonth()->toDateString()
+                : $challan->fee_month;
+
+            $issueDate = $request->filled('issue_date')
+                ? Carbon::parse($request->issue_date)->toDateString()
+                : $challan->issue_date;
+
+            $dueDate = $request->filled('due_date')
+                ? Carbon::parse($request->due_date)->toDateString()
+                : $challan->due_date;
+
+            /*
+            |------------------------------------------------------------------
+            | Item universe = the challan's studypack items
+            |------------------------------------------------------------------
+            */
+
+            $studyPackItems = StudyPackItem::where('study_pack_id', $challan->studypack_id)->get();
+
+            $selected = (array) $request->input('selected', []); // [product_id => 1]
+            $qtyIn    = (array) $request->input('qty', []);
+            $priceIn  = (array) $request->input('price', []);
+
+            $ownedByChanged = ((int) $challan->owned_by !== (int) $targetBranch);
+
+            $newItems    = [];
+            $totalAmount = 0;
+
+            foreach ($studyPackItems as $spItem) {
+                $pid       = (int) $spItem->product_id;
+                $isChecked = !empty($selected[$pid]);
+
+                $existing = StudyPackChallanItems::where('challan_id', $challan->id)
+                    ->where('product_id', $pid)
+                    ->first();
+
+                if ($isChecked) {
+                    $qty = (isset($qtyIn[$pid]) && $qtyIn[$pid] !== '')
+                        ? (float) $qtyIn[$pid]
+                        : (float) $spItem->quantity;
+
+                    $price = (isset($priceIn[$pid]) && $priceIn[$pid] !== '')
+                        ? (float) $priceIn[$pid]
+                        : (float) $spItem->price;
+
+                    if ($existing) {
+                        $existing->qty      = $qty;
+                        $existing->price    = $price;
+                        $existing->owned_by = $targetBranch;
+                        $existing->save();
+                        $challanItem = $existing;
                     } else {
-                        // Add new item
-                        $challanitem = new StudyPackChallanItems();
-                        $challanitem->challan_id = $challan->id;
-                        $challanitem->studypack_id = $challan->studypack_id;
-                        $challanitem->product_id = $item['item'];
-                        $challanitem->qty = $item['quantity'];
-                        $challanitem->price = $item['price'];
-                        $challanitem->owned_by = $challan->owned_by;
-                        $challanitem->created_by = $challan->created_by;
-                        $challanitem->save();
-                        $allChallanItems[] = [
-                            'prod_id' => $challanitem->id,
-                            'product_id' => $challanitem->product_id,
-                            'quantity' => $challanitem->qty,
-                            'price' => $challanitem->price
-                        ];
+                        $challanItem = new StudyPackChallanItems();
+                        $challanItem->challan_id   = $challan->id;
+                        $challanItem->studypack_id = $challan->studypack_id;
+                        $challanItem->product_id   = $pid;
+                        $challanItem->qty          = $qty;
+                        $challanItem->tax          = $spItem->tax;
+                        $challanItem->discount     = $spItem->discount;
+                        $challanItem->price        = $price;
+                        $challanItem->owned_by     = $targetBranch;
+                        $challanItem->created_by   = $challan->created_by;
+                        $challanItem->save();
+                    }
+
+                    $totalAmount += $price * $qty;
+
+                    $newItems[] = [
+                        'prod_id'    => $challanItem->id,
+                        'product_id' => $pid,
+                        'quantity'   => $qty,
+                        'price'      => $price,
+                        'discount'   => $challanItem->discount,
+                    ];
+                } else {
+                    // Unchecked -> remove from challan if present.
+                    if ($existing) {
+                        $existing->delete();
                     }
                 }
             }
-            $challan->total_amount = $request->total_amount;
+
+            /*
+             * Do not allow an empty challan.
+             */
+            if (empty($newItems)) {
+                \DB::rollBack();
+                return redirect()->back()->withInput()
+                    ->with('error', 'At least one item must be selected.');
+            }
+
+            /*
+            |------------------------------------------------------------------
+            | Branch (owned_by) change -> migrate the existing JV first
+            |------------------------------------------------------------------
+            |
+            | studypackjv() finds the JV by reference_id + owned_by. By moving
+            | the existing JournalEntry to the new owned_by BEFORE the rebuild,
+            | studypackjv() reuses that same row and keeps its journal_id
+            | (voucher number) unchanged.
+            */
+
+            if ($ownedByChanged && $challan->voucher_id) {
+                $existingJv = JournalEntry::where('id', $challan->voucher_id)
+                    ->where('voucher_type', 'JV')
+                    ->first();
+                if ($existingJv) {
+                    $existingJv->owned_by = $targetBranch;
+                    $existingJv->save();
+                }
+            }
+
+            /*
+            |------------------------------------------------------------------
+            | Apply challan changes
+            |------------------------------------------------------------------
+            |
+            | NEVER changed: challanNo, voucher number, student_id, studypack_id.
+            */
+
+            $challan->owned_by     = $targetBranch;
+            $challan->class_id     = $targetClass;
+            $challan->section_id   = $targetSection;
+            $challan->fee_month    = $feeMonth;
+            $challan->year         = $feeMonth;
+            $challan->challan_date = $feeMonth;
+            $challan->issue_date   = $issueDate;
+            $challan->due_date     = $dueDate;
+            $challan->total_amount = $totalAmount;
             $challan->save();
 
-            // Update or create JV for all items
-            $journal = JournalEntry::where('reference_id', $challan->id)
-                ->where('voucher_type', 'JV')
-                ->first();
-            if ($journal) {
-                // Update JV header info
-                $journal->date = $challan->fee_month;
-                $journal->reference = $challan->fee_month;
-                $journal->description = 'Studypack no : ' . $challan->studypack_id;
-                $journal->save();
+            /*
+            |------------------------------------------------------------------
+            | Rebuild the JV (idempotent; preserves voucher number)
+            |------------------------------------------------------------------
+            */
 
-                // Remove all receivable and tax JournalItems (to recalculate)
-                JournalItem::where('journal', $journal->id)
-                    ->where(function ($q) {
-                        $q->Where('description', 'like', '% Studypack Receivables %');
-                    })->delete();
+            $data = [
+                'id'         => $challan->id,
+                'no'         => $challan->studypack_id,
+                'user_id'    => $challan->student_id,
+                'date'       => $challan->fee_month,
+                'reference'  => $challan->fee_month,
+                'category'   => 'Studypack',
+                'owned_by'   => $challan->owned_by,
+                'created_by' => $challan->created_by,
+                'items'      => $newItems,
+            ];
 
-                $receivable = 0;
-                $totalTax = 0;
-                foreach ($allChallanItems as $item) {
-                    $product = ProductService::where('id', $item['product_id'])->first();
-                    if (!$product)
-                        continue;
-                    $itemPrice = ($item['quantity'] * $item['price']);
-                    $receivable += $itemPrice;
-                    $journalItem = JournalItem::where('journal', $journal->id)
-                        ->where('entry_id', $item['prod_id'])
-                        ->where('types', 'Studypack')
-                        ->first();
-                    if (!$journalItem) {
-                        $journalItem = new JournalItem();
-                        $journalItem->journal = $journal->id;
-                        $journalItem->account = @$product->sale_chartaccount_id;
-                        $journalItem->entry_id = @$item['prod_id'];
-                        $journalItem->types = 'Studypack';
-                        $journalItem->description = $product->name;
-                        $journalItem->head_ids = $product->id;
-                        $journalItem->branch_id = $challan->owned_by;
-                        $journalItem->debit = 0;
-                        $journalItem->credit = $itemPrice;
-                        $journalItem->save();
-                    }
+            $voucherId = Utility::studypackjv($data);
 
-                }
-                $types = \App\Models\ChartOfAccountType::where('created_by', $challan->created_by)
-                    ->where('name', 'Assets')
-                    ->first();
-                if ($types) {
-                    $sub_type = \App\Models\ChartOfAccountSubType::where('type', $types->id)
-                        ->where('name', 'Current Asset')
-                        ->first();
-                    $account = \App\Models\ChartOfAccount::where('type', $types->id)
-                        ->where('sub_type', $sub_type->id)
-                        ->where('name', 'Studypack Receivables')
-                        ->first();
-                    if (!$account) {
-                        $account = new \App\Models\ChartOfAccount();
-                        $account->name = 'Studypack Receivables';
-                        $account->code = '0';
-                        $account->type = $types->id;
-                        $account->sub_type = $sub_type->id;
-                        $account->description = 'Studypack Receivables';
-                        $account->is_enabled = 1;
-                        $account->created_by = $challan->created_by;
-                        $account->save();
-                    }
-                    // Add receivable journal item
-                    $journalItem = new JournalItem();
-                    $journalItem->journal = $journal->id;
-                    $journalItem->account = @$account->id;
-                    $journalItem->description = 'Account Receivable: Roll no ' . $challan->roll_no . ' Challan no ' . $challan->challanNo . ' - ' . @$challan->student->stdname . ' - ' . @$challan->fee_month . ' - ' . @$challan->student->branches->name;
-                    $journalItem->debit = $receivable + $totalTax;
-                    $journalItem->branch_id = $challan->owned_by;
-                    $journalItem->save();
-                }
-            } else {
-                // If no JV exists, create as before
-                $data['id'] = $challan->id;
-                $data['no'] = $challan->studypack_id;
-                $data['date'] = $challan->fee_month;
-                $data['reference'] = $challan->fee_month;
-                $data['category'] = 'Studypack';
-                $data['owned_by'] = $challan->owned_by;
-                $data['created_by'] = $challan->created_by;
-                $data['items'] = $allChallanItems;
-                $dataret = Utility::studypackjv($data);
+            if ($voucherId && $voucherId !== 'error') {
+                $challan->voucher_id = $voucherId;
+                $challan->save();
             }
 
             \DB::commit();
-            return redirect()->route('studypackchallan.index')->with('success', 'Challan updated successfully.');
+            return redirect()->route('studypackchallan.index')
+                ->with('success', 'Studypack challan updated successfully.');
         } catch (\Exception $e) {
             \DB::rollback();
-            dd($e); // Only for debugging. Remove this in production.
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->withInput()
+                ->with('error', $e->getMessage());
         }
     }
 

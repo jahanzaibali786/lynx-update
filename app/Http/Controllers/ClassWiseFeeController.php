@@ -303,36 +303,116 @@ class ClassWiseFeeController extends Controller
         ];
         return response()->json($result);
     }
-
     public function getClassStudents(Request $request)
     {
-        if ($request->ajax()) {
-            if ($request->type == 'registration') {
-                $students = StudentRegistration::where('class_id', $request->class_id)
-                    ->where('student_status', 'Registered')
-                    ->where('active_status', 1)
-                    ->where('created_by', \Auth::user()->creatorId())
-                    ->get()
-                    ->mapWithKeys(function ($student) {
-                        return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
-                    });
-            } else {
-                $students = StudentRegistration::where('class_id', $request->class_id)
-                    ->where('student_status', 'Enrolled')
-                    ->where('active_status', 1)
-                    ->where('created_by', \Auth::user()->creatorId())
-                    ->get()
-                    ->mapWithKeys(function ($student) {
-                        return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
-                    });
-            }
-            // dd($students);
-            // $students = StudentEnrollments::where('class_id', $request->class_id)->pluck('name', 'id');
-            return response()->json(['status' => 'success', 'students' => $students]);
+        if (!$request->ajax()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid request.',
+            ]);
         }
 
-        return response()->json(['status' => 'error', 'message' => 'Invalid request.']);
+        $type = strtolower(
+            trim((string) $request->input('type', 'regular'))
+        );
+
+        $baseQuery = StudentRegistration::where(
+            'class_id',
+            $request->class_id
+        )
+            ->where(
+                'created_by',
+                \Auth::user()->creatorId()
+            );
+
+        /*
+         * Direct Concession Application student source:
+         *
+         * regular      => active Enrolled students
+         * registration => active Registered students
+         * withdrawal   => students whose LATEST withdrawal is Draft/Approved
+         *
+         * Withdrawal intentionally does NOT require active_status = 1,
+         * because a withdrawn student can already be inactive.
+         */
+        if ($type === 'registration') {
+            $students = $baseQuery
+                ->where('student_status', 'Registered')
+                ->where('active_status', 1)
+                ->get();
+        } elseif ($type === 'withdrawal') {
+            $students = $baseQuery
+                ->get()
+                ->filter(function ($student) {
+                    $withdrawal = \App\Models\StudentWithdrawal::where(
+                        'student_id',
+                        $student->id
+                    )
+                        ->orderByDesc('id')
+                        ->first();
+
+                    return $withdrawal
+                        && in_array(
+                            strtolower(
+                                trim(
+                                    (string) $withdrawal->status
+                                )
+                            ),
+                            ['draft', 'approved'],
+                            true
+                        );
+                })
+                ->values();
+        } else {
+            $students = $baseQuery
+                ->where('student_status', 'Enrolled')
+                ->where('active_status', 1)
+                ->get();
+        }
+
+        /*
+         * Optional branch guard supplied by Concession Create.
+         */
+        $branchId = $request->input('branch_id');
+
+        if (!empty($branchId)) {
+            $students = $students
+                ->filter(function ($student) use ($branchId) {
+                    return (int) $student->owned_by === (int) $branchId
+                        || (int) $student->branch === (int) $branchId;
+                })
+                ->values();
+        }
+
+        $students = $students->mapWithKeys(
+            function ($student) use ($type) {
+                $prefix = $student->roll_no
+                    ? $student->roll_no . ' - '
+                    : '';
+
+                /*
+                 * Registration normally has no roll number yet.
+                 */
+                if ($type === 'registration') {
+                    $prefix = '';
+                }
+
+                return [
+                    $student->id =>
+                        $prefix
+                        . $student->stdname
+                        . ' s/d/o '
+                        . $student->fathername,
+                ];
+            }
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'students' => $students,
+        ]);
     }
+
     public function getbranchstudent(Request $request)
     {
         $includeRegistered = $request->input('include_registered', false);
@@ -441,22 +521,117 @@ class ClassWiseFeeController extends Controller
 
         return response()->json(['status' => 'success', 'students' => $students]);
     }
-
     public function classStudents(Request $request)
     {
-        if ($request->ajax()) {
-            // if($request->type == 'registration'){
-            //     $students = StudentRegistration::select(\DB::raw('CONCAT(stdname, " s/d/o ", fathername) AS stdname'), 'id')->where('class_id', $request->class_id)->where('student_status','Registered')->where('created_by', '=', \Auth::user()->creatorId())->pluck('stdname', 'id');
-            // }else{
-            $students = StudentRegistration::where('class_id', $request->class_id)->where('student_status', 'Enrolled')->where('created_by', '=', \Auth::user()->creatorId())->get();
-            // }
-            // $students = StudentEnrollments::where('class_id', $request->class_id)->pluck('name', 'id');
-            return response()->json(['status' => 'success', 'students' => $students]);
+        if (!$request->ajax()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid request.',
+            ]);
         }
 
-        return response()->json(['status' => 'error', 'message' => 'Invalid request.']);
+        $type = strtolower(
+            trim((string) $request->input('type', 'regular'))
+        );
+
+        $baseQuery = StudentRegistration::where(
+            'class_id',
+            $request->class_id
+        )
+            ->where(
+                'created_by',
+                \Auth::user()->creatorId()
+            );
+
+        /*
+         * Direct Concession Application student source:
+         *
+         * regular      => active Enrolled students
+         * registration => active Registered students
+         * withdrawal   => students whose LATEST withdrawal is Draft/Approved
+         *
+         * Withdrawal intentionally does NOT require active_status = 1,
+         * because a withdrawn student can already be inactive.
+         */
+        if ($type === 'registration') {
+            $students = $baseQuery
+                ->where('student_status', 'Registered')
+                ->where('active_status', 1)
+                ->get();
+        } elseif ($type === 'withdrawal') {
+            $students = $baseQuery
+                ->get()
+                ->filter(function ($student) {
+                    $withdrawal = \App\Models\StudentWithdrawal::where(
+                        'student_id',
+                        $student->id
+                    )
+                        ->orderByDesc('id')
+                        ->first();
+
+                    return $withdrawal
+                        && in_array(
+                            strtolower(
+                                trim(
+                                    (string) $withdrawal->status
+                                )
+                            ),
+                            ['draft', 'approved'],
+                            true
+                        );
+                })
+                ->values();
+        } else {
+            $students = $baseQuery
+                ->where('student_status', 'Enrolled')
+                ->where('active_status', 1)
+                ->get();
+        }
+
+        /*
+         * Optional branch guard supplied by Concession Create.
+         */
+        $branchId = $request->input('branch_id');
+
+        if (!empty($branchId)) {
+            $students = $students
+                ->filter(function ($student) use ($branchId) {
+                    return (int) $student->owned_by === (int) $branchId
+                        || (int) $student->branch === (int) $branchId;
+                })
+                ->values();
+        }
+
+        $students = $students->mapWithKeys(
+            function ($student) use ($type) {
+                $prefix = $student->roll_no
+                    ? $student->roll_no . ' - '
+                    : '';
+
+                /*
+                 * Registration normally has no roll number yet.
+                 */
+                if ($type === 'registration') {
+                    $prefix = '';
+                }
+
+                return [
+                    $student->id =>
+                        $prefix
+                        . $student->stdname
+                        . ' s/d/o '
+                        . $student->fathername,
+                ];
+            }
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'students' => $students,
+        ]);
     }
-        public function updateFeeStructureSelection(Request $request)
+
+    public function updateFeeStructureSelection(Request $request)
     {
         $request->validate([
             'student_id' => 'required|exists:student_registrations,id',

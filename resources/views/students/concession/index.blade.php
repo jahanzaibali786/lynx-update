@@ -387,20 +387,32 @@
                     <th>{{ __('Roll No') }}</th>
                     <th>{{ __('Student') }}</th>
                     <th>{{ __('Concession') }}</th>
+                    <th>{{ __('Type') }}</th>
                     <th>{{ __('Applied') }}</th>
-                    <th>{{ __('Period_from') }}</th>
-                    <th>{{ __('Period_to') }}</th>
+                    <th>{{ __('Period From') }}</th>
+                    <th>{{ __('Period To') }}</th>
                     <th>{{ __('Status') }}</th>
                     <th width="200px">{{ __('Action') }}</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($concessions as $concession)
+                @php
+                    $snapshotConcession = $snapshotData['concession'] ?? [];
+                    $typeLabels = [
+                        0 => 'Registration',
+                        1 => 'Regular',
+                        2 => 'Withdrawal',
+                    ];
+                    $displayType = $snapshotConcession['type_label']
+                    ?? ($typeLabels[(int)($concession->type ?? 1)] ?? 'Regular');
+                @endphp
                     <tr data-id="{{ $concession->id }}">
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ !empty($concession->student->roll_no) ? $concession->student->roll_no : '-' }}</td>
                         <td>{{ !empty($concession->student) ? $concession->student->stdname : '-' }}</td>
                         <td>{{ !empty($concession->concession) ? $concession->concession->title : '-' }}</td>
+                        <td>{{ !empty($displayType) ? $displayType : '-' }}</td>
                         <td>{{ !empty($concession->apply_date) ? $concession->apply_date : '-' }}</td>
                         <td>{{ !empty($concession->start_date) ? $concession->start_date : '-' }}</td>
                         <td>{{ !empty($concession->end_date) ? $concession->end_date : '-' }}</td>

@@ -4,6 +4,8 @@
     $prefillClassId = $readmissionContext['class_id'] ?? null;
     $prefillStudentId = $readmissionContext['student_id'] ?? null;
     $prefillPeriodFrom = $readmissionContext['period_from'] ?? date('Y-m-d');
+    $prefillEffectiveFrom = $readmissionContext['effective_from']
+        ?? \Carbon\Carbon::parse($prefillPeriodFrom)->format('Y-m');
 @endphp
 
 {{ Form::open(['url' => 'concession', 'id' => 'concessionForm']) }}
@@ -75,12 +77,23 @@
         </div>
         <div class="col-4">
             <div class="form-group">
+                {{ Form::label('effective_from', __('Billing Month (Effective From)'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
+                <input type="month"
+                       name="effective_from"
+                       id="effective_from"
+                       class="form-control"
+                       value="{{ old('effective_from', $prefillEffectiveFrom) }}"
+                       required>
+            </div>
+        </div>
+        <div class="col-2">
+            <div class="form-group">
                 {{ Form::label('period_from', __('Period From'), ['class' => 'form-label']) }}<span style="color: red">
                     *</span>
                 {{ Form::date('period_from', $isReadmissionPopup ? $prefillPeriodFrom : null, ['class' => 'form-control ', 'placeholder' => __('Enter Period From'), 'required' => 'required']) }}
             </div>
         </div>
-        <div class="col-4">
+        <div class="col-2">
             <div class="form-group">
                 {{ Form::label('period_to', __('Period To'), ['class' => 'form-label']) }}
                 {{ Form::date('period_to', null, ['class' => 'form-control ', 'placeholder' => __('Enter Period To')]) }}
@@ -118,7 +131,20 @@
             <div class="form-group">
                 {{ Form::label('concession_type', __('Concession Type'), ['class' => 'form-label']) }}<span
                     style="color: red"> *</span>
-                {{ Form::select('concession_type', ['regular' => 'Regular Concession', 'registration' => 'Registration Concession'], $isReadmissionPopup ? 'regular' : null, ['class' => 'form-control select', 'id' => 'concession_type', 'required' => 'required']) }}
+                {{ Form::select(
+                    'concession_type',
+                    [
+                        'regular' => 'Regular Concession',
+                        'registration' => 'Registration Concession',
+                        'withdrawal' => 'Withdrawal Concession',
+                    ],
+                    $isReadmissionPopup ? 'withdrawal' : null,
+                    [
+                        'class' => 'form-control select',
+                        'id' => 'concession_type',
+                        'required' => 'required',
+                    ]
+                ) }}
             </div>
         </div>
         <div class="col-4">
@@ -126,10 +152,10 @@
                 {{ Form::label('student_id', __('Students'), ['class' => 'form-label']) }}<span style="color: red">
                     *</span>
                 @if ($isReadmissionPopup)
-                    {{ Form::select('student_id_display', $students ?? [], $prefillStudentId, ['class' => 'form-control', 'id' => 'student_select', 'disabled' => 'disabled']) }}
+                    {{ Form::select('student_id_display', $students ?? [], $prefillStudentId, ['class' => 'form-control custom-select', 'id' => 'student_select', 'disabled' => 'disabled']) }}
                     {{ Form::hidden('student_id', $prefillStudentId) }}
                 @else
-                    {{ Form::select('student_id', $students ?? [], null, ['class' => 'form-control select', 'id' => 'student_select', 'required' => 'required']) }}
+                    {{ Form::select('student_id', $students ?? [], null, ['class' => 'form-control custom-select', 'id' => 'student_select', 'required' => 'required']) }}
                 @endif
             </div>
         </div>
@@ -168,10 +194,12 @@
 {{ Form::close() }}
 
 <script>
-    const concessionFromReadmission = @json($isReadmissionPopup);
-    const concessionPrefillStudentId = @json($prefillStudentId);
+    (function($) {
+        'use strict';
 
-    document.getElementById('search').addEventListener('click', function() {
+        $(document)
+            .off('click.concessionCreateSearch', '#search')
+            .on('click.concessionCreateSearch', '#search', function() {
         console.log('search');
         
         var form = document.getElementById('concessionForm');
@@ -277,10 +305,69 @@
                     $conc.selectpicker();
                 }
             });
-    });
+        });
+
+    })(jQuery);
 </script>
 
 <script>
+    (function($) {
+        'use strict';
+
+        /*
+         * IMPORTANT:
+         * Keep these values inside this modal instance.
+         * custom.js injects modal scripts dynamically; global `const`
+         * declarations caused:
+         *
+         * Identifier 'concessionFromReadmission' has already been declared
+         */
+        const concessionFromReadmission = @json($isReadmissionPopup);
+        const concessionPrefillStudentId = @json($prefillStudentId);
+
+    /**
+     * Safely initialize/re-initialize the project's CustomSelect component.
+     *
+     * Dynamic student dropdowns are rebuilt after Class / Concession Type
+     * changes, so any old wrapper/instance must be destroyed first.
+     */
+    function initConcessionCustomSelect(selector) {
+        const $select = $(selector);
+
+        if (!$select.length || !$select.is('select')) {
+            return;
+        }
+
+        $select.each(function() {
+            const select = this;
+            const $el = $(select);
+
+            if (select.customSelectInstance) {
+                try {
+                    select.customSelectInstance.destroy();
+                } catch (e) {}
+
+                delete select.customSelectInstance;
+            }
+
+            /*
+             * Remove stale UI generated by the previous instance.
+             */
+            if ($el.next('.custom-select-wrapper').length) {
+                $el.next('.custom-select-wrapper').remove();
+            }
+
+            $el.addClass('custom-select').show();
+
+            if (
+                window.CustomSelect &&
+                typeof window.CustomSelect.create === 'function'
+            ) {
+                window.CustomSelect.create(select);
+            }
+        });
+    }
+
     function classStudents(id) {
         var type = $('#concession_type').val();
         $.ajax({
@@ -298,8 +385,8 @@
                 console.log(result);
                 if (result.status == 'success') {
                     var s = ` {{ Form::label('student_id', __('Students'), ['class' => 'form-label']) }}<span style="color: red">
-                                    *</span><select name="student_id"  class="form-control select " id="student_select" required>
-                                    <option value="all" selected >All Students</option> `;
+                                    *</span><select name="student_id" class="form-control custom-select" id="student_select" required>
+                                    <option value="all" selected>All Students</option> `;
 
 
                     for (var id in result.students) {
@@ -311,19 +398,27 @@
                     s += `</select>`;
                     $('#std_names').empty();
                     $('#std_names').html(s);
-                    if (result.length != 0) {
-                        $('#student_select').addClass('js-searchBox');
-                        JsSearchBox();
-                        updateWidths();
-                    }
                     $('#student_select').val('all');
+
+                    /*
+                     * The dropdown was just replaced in the DOM, therefore
+                     * initialize the custom-select instance again.
+                     *
+                     * Do NOT call JsSearchBox()/updateWidths() here.
+                     * updateWidths() exists only inside the commented block
+                     * at the bottom of this view, which caused:
+                     * "Uncaught ReferenceError: updateWidths is not defined".
+                     */
+                    initConcessionCustomSelect('#student_select');
                 }
 
             }
         });
     }
 
-    $(document).on('change', '#class_id', function() {
+    $(document)
+        .off('change.concessionCreate', '#class_id')
+        .on('change.concessionCreate', '#class_id', function() {
         if (concessionFromReadmission) return;
         var classId = $(this).val();
         $('.av').addClass('d-none');
@@ -334,7 +429,9 @@
             $('#student_select').empty();
         }
     });
-    $(document).on('change', '#concession_type', function() {
+    $(document)
+        .off('change.concessionCreate', '#concession_type')
+        .on('change.concessionCreate', '#concession_type', function() {
         if (concessionFromReadmission) return;
         var classId = $('#class_id').val();
         console.log(classId);
@@ -345,7 +442,9 @@
         }
     });
 
-    $(document).on('change', '#branch', function() {
+    $(document)
+        .off('change.concessionCreate', '#branch')
+        .on('change.concessionCreate', '#branch', function() {
         if (concessionFromReadmission) return;
         var branch = $(this).val();
         $.ajax({
@@ -367,7 +466,9 @@
         });
     });
 
-    $(document).on('change', '#student_select', function() {
+    $(document)
+        .off('change.concessionCreate', '#student_select')
+        .on('change.concessionCreate', '#student_select', function() {
         var studentId = this.value;
         $('.av').addClass('d-none');
         $('#student-details').empty('');
@@ -399,6 +500,11 @@
             detailsDiv.innerHTML = '<p>No details available for this student.</p>';
         }
     }
+
+    /*
+     * Initialize the original server-rendered Student dropdown.
+     */
+    initConcessionCustomSelect('#student_select');
 
     if (concessionFromReadmission && concessionPrefillStudentId) {
         fetchStudentDetails(concessionPrefillStudentId);
@@ -453,6 +559,8 @@
 
             return false;
         });
+
+    })(jQuery);
 </script>
 {{-- <script>
     JsSearchBox();
