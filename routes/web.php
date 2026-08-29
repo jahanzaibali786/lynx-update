@@ -2246,6 +2246,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('/section/bulk-update', [SectionController::class, 'bulksectionupdate'])->name('section.bulkupdate');
             Route::resource('/section', SectionController::class);
             Route::resource('/classes', ClassesController::class);
+            Route::get('/student-promotion/bulk-tuition', [StudentPromotions::class, 'bulkTuitionIncrement'])->name('student-promotion.bulk-tuition');
+            Route::post('/student-promotion/bulk-tuition', [StudentPromotions::class, 'bulkTuitionIncrementStore'])->name('student-promotion.bulk-tuition.store');
             Route::post('/student-promotion/heads', [StudentPromotions::class, 'feeheads'])->name('student-promotion.headsupdate');
             Route::resource('/student-promotion', StudentPromotions::class);
             Route::resource('/registration', StudentRegistration::class);

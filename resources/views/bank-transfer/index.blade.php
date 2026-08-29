@@ -136,6 +136,13 @@
                                     title="{{ __('View Transfer') }}">
                                     <i class="ti ti-eye text-white"></i>
                                 </a>
+                                @if (!empty($transfer->voucher_id))
+                                    <a href="{{ route('journal-entry.voucher-print', $transfer->voucher_id) }}"
+                                        class="mx-1 btn btn-sm align-items-center bg-secondary" target="_blank"
+                                        data-bs-toggle="tooltip" title="{{ __('Voucher Print') }}">
+                                        <i class="ti ti-printer text-white"></i>
+                                    </a>
+                                @endif
 
                                 @if ($isLatest && $isCompany)
                                     {{-- EDIT BUTTON --}}

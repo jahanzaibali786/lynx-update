@@ -66,8 +66,8 @@
         ?? @$concession->concession->title
         ?? '-';
 
-    $billingMonth = $snapshotConcession['effective_from']
-        ?? $concession->effective_from
+    $billingMonth = $concession->effective_from
+        ?? $snapshotConcession['effective_from']
         ?? null;
 
     $applyDate = $snapshotConcession['apply_date']
@@ -269,6 +269,16 @@ overflow: hidden;
             font-weight: 700;
             line-height: 1.2;
             word-break: break-word;
+        }
+
+        .concession-status-compact .cs-billing-month-input {
+            width: 100%;
+            max-width: 180px;
+        }
+
+        .concession-status-compact .cs-billing-month-input:disabled {
+            background-color: #f8fafc;
+            opacity: 1;
         }
 
         .concession-status-compact .cs-mini-span-3 {
@@ -605,8 +615,19 @@ overflow: hidden;
                         </div>
                     </div>
                     <div class="cs-mini">
+                        @php
+                            $isConcessionApproved = strtolower((string)($concession->status ?? '')) === 'approved';
+                            $approvalBillingMonth = old('effective_from', !empty($billingMonth) ? \Carbon\Carbon::parse($billingMonth)->format('Y-m') : date('Y-m'));
+                        @endphp
                         <span class="cs-mini-label">Billing Month</span>
-                        <div class="cs-mini-value">{{ $displayDate($billingMonth) }}</div>
+                        <div class="cs-mini-value">
+                            {!! Form::month('effective_from', $approvalBillingMonth, [
+                                'class' => 'form-control form-control-sm cs-billing-month-input',
+                                'id' => 'effective_from_approve',
+                                'form' => 'concession-approval-form',
+                                'disabled' => $isConcessionApproved,
+                            ]) !!}
+                        </div>
                     </div>
                     <div class="cs-mini">
                         <span class="cs-mini-label">Apply</span>
@@ -855,11 +876,20 @@ overflow: hidden;
                             Roll Back
                         </a>
 
-                        <a href="{{ route('concession.change_status', [$concession->id, 'Approved']) }}"
-                           id="approve-btn"
-                           class="btn btn-sm btn-primary">
-                            Approve
-                        </a>
+                        @php
+                            $isConcessionApproved = strtolower((string)($concession->status ?? '')) === 'approved';
+                        @endphp
+                        <form id="concession-approval-form"
+                              action="{{ route('concession.change_status', [$concession->id, 'Approved']) }}"
+                              method="GET"
+                              class="d-flex align-items-end gap-2 flex-wrap">
+                            <button type="submit"
+                                    id="approve-btn"
+                                    class="btn btn-sm btn-primary"
+                                    @if($isConcessionApproved) disabled @endif>
+                                Approve
+                            </button>
+                        </form>
                     </div>
                 </div>
 

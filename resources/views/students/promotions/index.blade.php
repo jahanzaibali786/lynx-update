@@ -127,6 +127,7 @@
                 promotion_type: $('#promotion_type').val(),
                 branches: activeFilterValue('branches'),
                 branch_to: activeFilterValue('branch_to'),
+                register_option: activeFilterValue('register_option'),
                 class_id: activeFilterValue('class_id'),
                 class_to: activeFilterValue('class_to'),
                 section_from: activeFilterValue('section_from'),
@@ -232,6 +233,11 @@
         <div class="col-sm-12">
             <div class="card mt-2">
                 <div class="card-body">
+                    <div class="d-flex justify-content-end mb-3">
+                        @can('manage promotion')
+                            <a href="{{ route('student-promotion.bulk-tuition') }}" class="btn btn-sm btn-primary">Bulk Tuition Increment</a>
+                        @endcan
+                    </div>
                     <ul class="nav nav-tabs mb-3">
                         <li class="nav-item">
                             <a href="#" id="promotion-tab" class="nav-link {{ $promotionType !== 'branch_promotion' ? 'active' : '' }}">Promotion</a>
@@ -247,7 +253,7 @@
                     <style>
                         .promotion-filter-row {
                             display: grid;
-                            grid-template-columns: repeat(4, minmax(0, 1fr));
+                            grid-template-columns: repeat(5, minmax(0, 1fr));
                             gap: 14px 20px;
                             align-items: end;
                             margin-bottom: 14px;
@@ -314,6 +320,13 @@
                                 <div class="btn-box">
                                     {{ Form::label('class_id', __('Class From'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
                                     {{ Form::select('class_id', $classesFrom, request('class_id'), ['class' => 'form-control select', 'required' => 'required', 'data-role' => 'class-from']) }}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="btn-box">
+                                    {{ Form::label('register_option', __('Student Category'), ['class' => 'form-label']) }}
+                                    {{ Form::select('register_option', ['all' => 'All Students', 'shifa' => 'Shifa Students', 'non_shifa' => 'Regular Students'], request('register_option', 'all'), ['class' => 'form-control select', 'id' => 'register_option_promotion']) }}
                                 </div>
                             </div>
                         </div>
@@ -390,6 +403,13 @@
                                 <div class="btn-box">
                                     {{ Form::label('class_id', __('Class From'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
                                     {{ Form::select('class_id', $classesFrom, request('class_id'), ['class' => 'form-control select', 'required' => 'required', 'data-role' => 'class-from']) }}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="btn-box">
+                                    {{ Form::label('register_option', __('Student Category'), ['class' => 'form-label']) }}
+                                    {{ Form::select('register_option', ['all' => 'All Students', 'shifa' => 'Shifa Students', 'non_shifa' => 'Regular Students'], request('register_option', 'all'), ['class' => 'form-control select', 'id' => 'register_option_branch']) }}
                                 </div>
                             </div>
 

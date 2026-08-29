@@ -30,9 +30,11 @@
             border-color: #dc3545 !important;
             box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
         }
-        .searchBoxElement{
-            z-index : 1000 !important;
+
+        .searchBoxElement {
+            z-index: 1000 !important;
         }
+
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button {
             opacity: 1;
@@ -145,16 +147,19 @@
             border-bottom: none;
             cursor: pointer;
         }
+
         .nav-tabs .nav-link.active {
             color: #100773;
             background-color: #fff;
             border-color: #100773 #100773 #fff;
             border-bottom: 2px solid #fff;
         }
+
         .nav-tabs .nav-link:hover {
             color: #100773;
             border-color: #100773 #100773 #fff;
         }
+
         .tab-content {
             padding-top: 10px;
         }
@@ -166,12 +171,19 @@
             color: #100773;
             margin-left: 10px;
         }
+
         #reference-searching i {
             animation: spin 1s linear infinite;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         /* Expandable student row styles */
@@ -180,33 +192,41 @@
             background-color: #aaaaaa;
             font-weight: 600;
         }
+
         .student-row:hover {
             background-color: #a3adb7;
         }
+
         .student-row .expand-icon {
             transition: transform 0.2s;
         }
+
         .student-row.expanded .expand-icon {
             transform: rotate(90deg);
         }
+
         .receipt-details-row {
             display: none;
             background-color: #fff;
         }
+
         .receipt-details-row.show {
             display: table-row;
         }
+
         .receipt-details-table {
             width: 100%;
             margin: 0;
             font-size: 11px;
         }
+
         .receipt-details-table th {
             background-color: #dddddd;
             padding: 6px 8px;
             font-weight: 600;
             border-bottom: 1px solid #dee2e6;
         }
+
         .receipt-details-table td {
             padding: 6px 8px;
             border-bottom: 1px solid #dee2e6;
@@ -223,10 +243,13 @@
     ══════════════════════════════════════════════════════════ --}}
     <ul class="nav nav-tabs" id="studentReceiptTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="daily-cmr-tab" data-bs-toggle="tab" data-bs-target="#daily-cmr" type="button" role="tab" aria-controls="daily-cmr" aria-selected="true">Daily CMR Statement</button>
+            <button class="nav-link active" id="daily-cmr-tab" data-bs-toggle="tab" data-bs-target="#daily-cmr"
+                type="button" role="tab" aria-controls="daily-cmr" aria-selected="true">Daily CMR Statement</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="search-reference-tab" data-bs-toggle="tab" data-bs-target="#search-reference" type="button" role="tab" aria-controls="search-reference" aria-selected="false">Search by Reference</button>
+            <button class="nav-link" id="search-reference-tab" data-bs-toggle="tab" data-bs-target="#search-reference"
+                type="button" role="tab" aria-controls="search-reference" aria-selected="false">Search by
+                Reference</button>
         </li>
     </ul>
 
@@ -235,269 +258,273 @@
              TAB 1: DAILY CMR STATEMENT
         ══════════════════════════════════════════════════════════ --}}
         <div class="tab-pane fade show active" id="daily-cmr" role="tabpanel" aria-labelledby="daily-cmr-tab">
-    {{-- ══════════════════════════════════════════════════════════
+            {{-- ══════════════════════════════════════════════════════════
          FILTER BAR
     ══════════════════════════════════════════════════════════ --}}
-    <div class="row">
-        <div class="col-sm-12">
-            <div class="mt-2">
-                <div class="card">
-                    <div class="card-body" style="padding:12px;">
-                        {{ Form::open(['route' => ['student_receipt.index'], 'method' => 'GET', 'id' => 'student_receipt_submit']) }}
-                        <div class="row d-flex justify-content-end">
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                {{ Form::label('default_date', __('Default Date'), ['class' => 'form-label']) }}
-                                {{ Form::date('date', isset($_GET['date']) ? $_GET['date'] : date('Y-m-d'), ['class' => 'form-control', 'id' => 'default_date']) }}
-                            </div>
-                            <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mr-2">
-                                {{ Form::label('default_bank', __('Default Bank'), ['class' => 'form-label']) }}
-                                                                 {{ Form::select('default_bank', $accounts, request('default_bank'), ['class' => 'form-control custom-select', 'id' => 'default_bank', 'required' => 'required']) }}
-                            </div>
-                            <div class="col-auto float-end ms-2 mt-4">
-                                <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
-                                    onclick="document.getElementById('student_receipt_submit').submit(); return false;">
-                                    <span class="btn-inner--icon">Search</span>
-                                </a>
-                                <a href="{{ route('student_receipt.index') }}" class="btn mx-1 btn-sm btn-outline-danger">
-                                    <span class="btn-inner--icon">Clear</span>
-                                </a>
-                                <div class="dropdown d-inline-block mx-1">
-                                    <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
-                                        id="actionDropdown" data-bs-toggle="dropdown" aria-expanded="false">Export</button>
-                                    <ul class="dropdown-menu" aria-labelledby="actionDropdown">
-                                        <li><button class="dropdown-item" type="submit" name="export" value="excel"><i
-                                                            class="ti ti-file me-2"></i>Excel</button></li>
-                                        <li><button class="dropdown-item" type="submit" name="export" value="pdf"><i
-                                                            class="ti ti-download me-2"></i>Pdf</button></li>
-                                    </ul>
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="mt-2">
+                        <div class="card">
+                            <div class="card-body" style="padding:12px;">
+                                {{ Form::open(['route' => ['student_receipt.index'], 'method' => 'GET', 'id' => 'student_receipt_submit']) }}
+                                <div class="row d-flex justify-content-end">
+                                    <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                        {{ Form::label('default_date', __('Default Date'), ['class' => 'form-label']) }}
+                                        {{ Form::date('date', isset($_GET['date']) ? $_GET['date'] : date('Y-m-d'), ['class' => 'form-control', 'id' => 'default_date']) }}
+                                    </div>
+                                    <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mr-2">
+                                        {{ Form::label('default_bank', __('Default Bank'), ['class' => 'form-label']) }}
+                                        {{ Form::select('default_bank', $accounts, request('default_bank'), ['class' => 'form-control custom-select', 'id' => 'default_bank', 'required' => 'required']) }}
+                                    </div>
+                                    <div class="col-auto float-end ms-2 mt-4">
+                                        <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
+                                            onclick="document.getElementById('student_receipt_submit').submit(); return false;">
+                                            <span class="btn-inner--icon">Search</span>
+                                        </a>
+                                        <a href="{{ route('student_receipt.index') }}"
+                                            class="btn mx-1 btn-sm btn-outline-danger">
+                                            <span class="btn-inner--icon">Clear</span>
+                                        </a>
+                                        <div class="dropdown d-inline-block mx-1">
+                                            <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
+                                                id="actionDropdown" data-bs-toggle="dropdown"
+                                                aria-expanded="false">Export</button>
+                                            <ul class="dropdown-menu" aria-labelledby="actionDropdown">
+                                                <li><button class="dropdown-item" type="submit" name="export"
+                                                        value="excel"><i class="ti ti-file me-2"></i>Excel</button></li>
+                                                <li><button class="dropdown-item" type="submit" name="export"
+                                                        value="pdf"><i class="ti ti-download me-2"></i>Pdf</button></li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
+                                {{ Form::close() }}
                             </div>
                         </div>
-                        {{ Form::close() }}
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-    <div class="col-12" id="entry-card">
-        <div class="entry-card-header">
-            <i class="fa fa-plus-circle"></i>
-            <span>New Receipt Entry</span>
-            <span id="challan-searching"><i class="fa fa-spinner fa-spin"></i> Searching…</span>
-        </div>
-        <div style="padding:10px 12px;">
+            <div class="col-12" id="entry-card">
+                <div class="entry-card-header">
+                    <i class="fa fa-plus-circle"></i>
+                    <span>New Receipt Entry</span>
+                    <span id="challan-searching"><i class="fa fa-spinner fa-spin"></i> Searching…</span>
+                </div>
+                <div style="padding:10px 12px;">
 
-            <div class="table-responsive">
-                <table class="entry-table">
-                    <thead>
-                        <tr>
-                            <th style="width:80px;">Rpt Date</th>
-                            <th style="width:68px;">Challan No.</th>
-                            <th style="width:62px;">Rpt Amt</th>
-                            <th style="width:68px;">Challan Amt</th>
-                            <th style="width:56px;">Late Amt</th>
-                            <th style="width:56px;">Arrears</th>
-                            <th style="width:65px;">Total Fee</th>
-                            <th style="width:68px;">Rem. Fee</th>
-                            <th style="width:108px;">Bank Account</th>
-                            <th style="width:72px;">D Status</th>
-                            <th style="width:88px;">Reference</th>
-                            <th style="width:110px;">Received By</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>
-                                <input type="date" id="recipt_date"
-                                    value="{{ isset($_GET['date']) ? $_GET['date'] : date('Y-m-d') }}">
-                            </td>
-                            <td>
-                                <input type="text" id="challan_id" value="" placeholder="Enter…"
-                                    autocomplete="off">
-                                <span id="challan-searching"><i class="fa fa-spinner fa-spin"></i> Searching…</span>
-                                <span id="challan-not-found" style="display:none; color:#dc3545;">Not found</span>
-                            </td>
-                            <td><input type="text" id="remp_amt" value="" disabled></td>
-                            <td><input type="text" id="challan_amt" value="" disabled></td>
-                            <td>
-                                <input type="text" id="late_amt" value="0" disabled>
-                                <div id="late-fee-exempt-notice">Late fee exempt</div>
-                            </td>
-                            <td><input type="text" id="arrears" value="" disabled></td>
-                            <td><input type="text" id="total_fee" value="" disabled></td>
-                            <td><input type="text" id="rem_fee" value="" disabled></td>
-                            <td>
-                                {{ Form::select('default_bank', $accounts, null, [
-                                    'id' => 'static_bank',
-                                    'disabled' => 'disabled',
-                                    'style' => 'width:100%;',
-                                ]) }}
-                            </td>
-                            <td>
-                                <select name="receive_type" disabled>
-                                    <option value="DD">DD</option>
-                                    <option value="OL">OL</option>
-                                    <option value="CHQ">CHQ</option>
-                                    <option value="CD">CD</option>
-                                </select>
-                            </td>
-                            <td><input type="text" value="" disabled></td>
-                            <td><input type="text" value="{{ Auth::user()->name }}" disabled></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+                    <div class="table-responsive">
+                        <table class="entry-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:80px;">Rpt Date</th>
+                                    <th style="width:68px;">Challan No.</th>
+                                    <th style="width:62px;">Rpt Amt</th>
+                                    <th style="width:68px;">Challan Amt</th>
+                                    <th style="width:56px;">Late Amt</th>
+                                    <th style="width:56px;">Arrears</th>
+                                    <th style="width:65px;">Total Fee</th>
+                                    <th style="width:68px;">Rem. Fee</th>
+                                    <th style="width:108px;">Bank Account</th>
+                                    <th style="width:72px;">D Status</th>
+                                    <th style="width:88px;">Reference</th>
+                                    <th style="width:110px;">Received By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <input type="date" id="recipt_date"
+                                            value="{{ isset($_GET['date']) ? $_GET['date'] : date('Y-m-d') }}">
+                                    </td>
+                                    <td>
+                                        <input type="text" id="challan_id" value="" placeholder="Enter…"
+                                            autocomplete="off">
+                                        <span id="challan-searching"><i class="fa fa-spinner fa-spin"></i>
+                                            Searching…</span>
+                                        <span id="challan-not-found" style="display:none; color:#dc3545;">Not found</span>
+                                    </td>
+                                    <td><input type="text" id="remp_amt" value="" disabled></td>
+                                    <td><input type="text" id="challan_amt" value="" disabled></td>
+                                    <td>
+                                        <input type="text" id="late_amt" value="0" disabled>
+                                        <div id="late-fee-exempt-notice">Late fee exempt</div>
+                                    </td>
+                                    <td><input type="text" id="arrears" value="" disabled></td>
+                                    <td><input type="text" id="total_fee" value="" disabled></td>
+                                    <td><input type="text" id="rem_fee" value="" disabled></td>
+                                    <td>
+                                        {{ Form::select('default_bank', $accounts, null, [
+                                            'id' => 'static_bank',
+                                            'disabled' => 'disabled',
+                                            'style' => 'width:100%;',
+                                        ]) }}
+                                    </td>
+                                    <td>
+                                        <select name="receive_type" disabled>
+                                            <option value="DD">DD</option>
+                                            <option value="OL">OL</option>
+                                            <option value="CHQ">CHQ</option>
+                                            <option value="CD">CD</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="text" value="" disabled></td>
+                                    <td><input type="text" value="{{ Auth::user()->name }}" disabled></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
-            {{-- Challan detail — hidden until search returns a result --}}
-            <div id="detailcard" style="display:none;">
-                <div id="siblingContainer" style="display:none; margin-bottom:6px;"></div>
-                <hr>
-                <div class="row" style="padding:0 8px;">
-                    <div id="headfee" class="col-md-6 pb-4"></div>
-                    <div id="arrearsdetails" class="col-md-6 pb-4"></div>
+                    {{-- Challan detail — hidden until search returns a result --}}
+                    <div id="detailcard" style="display:none;">
+                        <div id="siblingContainer" style="display:none; margin-bottom:6px;"></div>
+                        <hr>
+                        <div class="row" style="padding:0 8px;">
+                            <div id="headfee" class="col-md-6 pb-4"></div>
+                            <div id="arrearsdetails" class="col-md-6 pb-4"></div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-        </div>
-    </div>
-
-    {{-- ══════════════════════════════════════════════════════════
+            {{-- ══════════════════════════════════════════════════════════
          RECORDS TABLE
     ══════════════════════════════════════════════════════════ --}}
-    <div class="col-12">
-        <table class="datatable">
-            <thead class="table_heads">
-                <tr>
-                    <th>Rpt No.</th>
-                    <th>Rpt Date</th>
-                    <th>Challan No.</th>
-                    <th>Rpt Amt</th>
-                    <th>Challan Amt</th>
-                    <th>Late Amt</th>
-                    <th>Arrears</th>
-                    <th>Total Fee</th>
-                    <th>Rem. Fee</th>
-                    <th>Bank Account</th>
-                    <th>D Status</th>
-                    <th>Reference</th>
-                    <th>Received</th>
-                    @if (Auth::user()->type == 'company')
-                        <th>Action</th>
-                    @endif
-                </tr>
-            </thead>
-            @php $options = ['DD', 'OL', 'CHQ', 'CD']; @endphp
-            <tbody id="new_data">
-                @foreach ($recipts as $recipt)
-                    @php
-                        $totalFee = @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears;
-                        $remainingFee = $totalFee - @$recipt->recipt_amount;
-                    @endphp
+            <div class="col-12">
+                <table class="datatable">
+                    <thead class="table_heads">
+                        <tr>
+                            <th>Rpt No.</th>
+                            <th>Rpt Date</th>
+                            <th>Challan No.</th>
+                            <th>Rpt Amt</th>
+                            <th>Challan Amt</th>
+                            <th>Late Amt</th>
+                            <th>Arrears</th>
+                            <th>Total Fee</th>
+                            <th>Rem. Fee</th>
+                            <th>Bank Account</th>
+                            <th>D Status</th>
+                            <th>Reference</th>
+                            <th>Received</th>
+                            @if (Auth::user()->type == 'company')
+                                <th>Action</th>
+                            @endif
+                        </tr>
+                    </thead>
+                    @php $options = ['DD', 'OL', 'CHQ', 'CD']; @endphp
+                    <tbody id="new_data">
+                        @foreach ($recipts as $recipt)
+                            @php
+                                $totalFee = @$recipt->challan_amount + @$recipt->late_amount + @$recipt->arrears;
+                                $remainingFee = $totalFee - @$recipt->recipt_amount;
+                            @endphp
 
-                    <tr style="border-radius:10px !important;">
+                            <tr style="border-radius:10px !important;">
 
-                        <td>
-                            <span style="font-size:11px;">
-                                {{ @$recipt->id }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span class="font_less" style="font-size:11px;">
-                                {{ date('d/m/Y', strtotime($recipt->recipt_date)) }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:12px;">
-                                {{ @$recipt->challan->challanNo }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:13px;">
-                                {{ @$recipt->recipt_amount }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:13px;">
-                                {{ @$recipt->challan_amount }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:13px;">
-                                {{ @$recipt->late_amount }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:13px;">
-                                {{ @$recipt->arrears }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:12px;">
-                                {{ $totalFee }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:12px;">
-                                {{ $remainingFee }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:12px;">
-                                {{ $accounts[@$recipt->bank_id] ?? '-' }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:12px;">
-                                {{ @$recipt->receive_type }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:11px;">
-                                {{ @$recipt->referance }}
-                            </span>
-                        </td>
-
-                        <td>
-                            <span style="font-size:11px;">
-                                {{ @$recipt->received->name }}
-                            </span>
-                        </td>
-
-                        @if (Auth::user()->type == 'company')
-                            <td>
-                                <a href="#!" data-size="lg"
-                                    data-url="{{ route('student_receipt.edit', $recipt->id) }}" data-ajax-popup="true"
-                                    class="btn btn-sm btn-outline-primary" data-bs-title="{{ __('Edit') }}">
-
-                                    <span class="btn-inner--icon">
-                                        <i class="ti ti-pencil"></i>
+                                <td>
+                                    <span style="font-size:11px;">
+                                        {{ @$recipt->id }}
                                     </span>
+                                </td>
 
-                                </a>
-                            </td>
-                        @endif
+                                <td>
+                                    <span class="font_less" style="font-size:11px;">
+                                        {{ date('d/m/Y', strtotime($recipt->recipt_date)) }}
+                                    </span>
+                                </td>
 
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-        @if ($recipts->hasPages())
-            <div class="d-flex justify-content-center mt-3">
-                {{ $recipts->appends(['date' => request('date'), 'default_bank' => request('default_bank')])->links() }}
+                                <td>
+                                    <span style="font-size:12px;">
+                                        {{ @$recipt->challan->challanNo }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:13px;">
+                                        {{ @$recipt->recipt_amount }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:13px;">
+                                        {{ @$recipt->challan_amount }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:13px;">
+                                        {{ @$recipt->late_amount }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:13px;">
+                                        {{ @$recipt->arrears }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:12px;">
+                                        {{ $totalFee }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:12px;">
+                                        {{ $remainingFee }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:12px;">
+                                        {{ $accounts[@$recipt->bank_id] ?? '-' }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:12px;">
+                                        {{ @$recipt->receive_type }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:11px;">
+                                        {{ @$recipt->referance }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span style="font-size:11px;">
+                                        {{ @$recipt->received->name }}
+                                    </span>
+                                </td>
+
+                                @if (Auth::user()->type == 'company')
+                                    <td>
+                                        <a href="#!" data-size="lg"
+                                            data-url="{{ route('student_receipt.edit', $recipt->id) }}"
+                                            data-ajax-popup="true" class="btn btn-sm btn-outline-primary"
+                                            data-bs-title="{{ __('Edit') }}">
+
+                                            <span class="btn-inner--icon">
+                                                <i class="ti ti-pencil"></i>
+                                            </span>
+
+                                        </a>
+                                    </td>
+                                @endif
+
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                @if ($recipts->hasPages())
+                    <div class="d-flex justify-content-center mt-3">
+                        {{ $recipts->appends(['date' => request('date'), 'default_bank' => request('default_bank')])->links() }}
+                    </div>
+                @endif
             </div>
-        @endif
-    </div>
         </div>
 
         {{-- ══════════════════════════════════════════════════════════
@@ -514,14 +541,17 @@
                                         {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
                                         <div class="input-group">
                                             {{ Form::text('reference', old('reference', $reference ?? ''), ['class' => 'form-control', 'placeholder' => 'Enter reference number', 'id' => 'search_reference_input']) }}
-                                            <span id="reference-searching"><i class="fa fa-spinner fa-spin"></i> Searching…</span>
+                                            <span id="reference-searching"><i class="fa fa-spinner fa-spin"></i>
+                                                Searching…</span>
                                         </div>
                                     </div>
                                     <div class="col-auto float-end ms-2 mt-4">
-                                        <button type="button" id="btn_search_reference" class="btn mx-1 btn-sm btn-outline-primary">
+                                        <button type="button" id="btn_search_reference"
+                                            class="btn mx-1 btn-sm btn-outline-primary">
                                             <span class="btn-inner--icon">Search</span>
                                         </button>
-                                        <button type="button" id="btn_clear_reference" class="btn mx-1 btn-sm btn-outline-danger">
+                                        <button type="button" id="btn_clear_reference"
+                                            class="btn mx-1 btn-sm btn-outline-danger">
                                             <span class="btn-inner--icon">Clear</span>
                                         </button>
                                     </div>
@@ -609,7 +639,7 @@
             }, 300);
 
             // Switch to search by reference tab if reference is present
-            @if(isset($reference) && !empty($reference))
+            @if (isset($reference) && !empty($reference))
                 $('#search-reference-tab').tab('show');
             @endif
         });
@@ -679,8 +709,9 @@
                             response.results.forEach(function(student, index) {
                                 var studentRowId = 'student_row_' + index;
                                 var receiptRowId = 'receipt_row_' + index;
-                                
-                                tableHtml += '<tr class="student-row" id="' + studentRowId + '" data-receipt-row="' + receiptRowId + '">' +
+
+                                tableHtml += '<tr class="student-row" id="' + studentRowId +
+                                    '" data-receipt-row="' + receiptRowId + '">' +
                                     '<td style="width: 30px;"><i class="fa fa-chevron-right expand-icon"></i></td>' +
                                     '<td>' + student.branch + '</td>' +
                                     '<td>' + student.name + '</td>' +
@@ -688,9 +719,10 @@
                                     '<td>' + student.fathername + '</td>' +
                                     '<td>' + student.class + '</td>' +
                                     '</tr>';
-                                
+
                                 // Receipt details row (hidden by default)
-                                tableHtml += '<tr class="receipt-details-row" id="' + receiptRowId + '">' +
+                                tableHtml += '<tr class="receipt-details-row" id="' +
+                                    receiptRowId + '">' +
                                     '<td colspan="6">' +
                                     '<table class="receipt-details-table">' +
                                     '<thead>' +
@@ -707,7 +739,7 @@
                                     '</tr>' +
                                     '</thead>' +
                                     '<tbody>';
-                                
+
                                 student.receipts.forEach(function(receipt) {
                                     tableHtml += '<tr>' +
                                         '<td>' + receipt.date + '</td>' +
@@ -721,14 +753,15 @@
                                         '<td>' + receipt.amount + '</td>' +
                                         '</tr>';
                                 });
-                                
+
                                 tableHtml += '</tbody></table></td></tr>';
                             });
 
                             tableHtml += '</tbody></table>';
                             $('#results_table_container').html(tableHtml);
                         } else {
-                            $('#results_table_container').html('<p>No student receipts found for this reference.</p>');
+                            $('#results_table_container').html(
+                                '<p>No student receipts found for this reference.</p>');
                         }
 
                         $('#search_results_container').show();
@@ -740,7 +773,8 @@
                     $('#btn_search_reference').prop('disabled', false);
 
                     if (status !== 'abort') {
-                        show_toastr('error', 'An error occurred while searching. Please try again.', 'error');
+                        show_toastr('error', 'An error occurred while searching. Please try again.',
+                            'error');
                     }
                 }
             });
@@ -767,7 +801,7 @@
             var $row = $(this);
             var receiptRowId = $row.data('receipt-row');
             var $receiptRow = $('#' + receiptRowId);
-            
+
             $row.toggleClass('expanded');
             $receiptRow.toggleClass('show');
         });
@@ -934,7 +968,7 @@
             // (NOT whether they're already at 50% — late fee keeps growing until they cross 50%)
             const baseTotal = currentChallanMeta.totalAmount - (currentChallanMeta.lateFeeAmount || 0);
             const totalPayable = baseTotal - currentChallanMeta.concession;
-                        if (totalPayable <= 0) return 0;
+            if (totalPayable <= 0) return 0;
 
             const alreadyPaid = currentChallanMeta.paidAmount;
 
@@ -1069,7 +1103,11 @@
                             all_accountOptions += `<option value="${v}">${t}</option>`;
                         });
 
-                        populateSiblingTable(detail);
+                        populateSiblingTable(
+                            detail,
+                            response.challan_class_name,
+                            response.challan_branch_name
+                        );
                         populateHeadFee(response.headsData);
                         populateArrears(response.previousUnpaidChallans);
 
@@ -1182,7 +1220,7 @@
             };
         }
 
-                // Add user type variable
+        // Add user type variable
         const userType = "{{ Auth::user()->type }}";
 
         function validateCashAccountDate(bankId, dateStr) {
@@ -1196,12 +1234,12 @@
                 console.log('[CashDateValidation] Missing bankId or dateStr. Skipping.');
                 return true;
             }
-            
+
             var bankData = accountAllData[bankId] || accountsData[bankId] || {};
             var bankChart = (bankData.chart_account || '').toUpperCase();
             var isCashAccount = bankChart.includes('CSH') || bankChart.includes('CASH');
             console.log('[CashDateValidation] Chart Account:', bankChart, '| isCashAccount:', isCashAccount);
-            
+
             if (isCashAccount) {
                 var today = new Date();
                 var yyyy = today.getFullYear();
@@ -1222,20 +1260,119 @@
             $('#oldsaveButton').prop('disabled', false);
             return true;
         }
-            // Duplicate validateCashAccountDate removed to avoid override
+        // Duplicate validateCashAccountDate removed to avoid override
 
 
 
 
         // ── Populate helpers ──────────────────────────────────────────────
-        function populateSiblingTable(challandetail) {
+        function populateSiblingTable(
+            challandetail,
+            className,
+            branchName
+        ) {
+
             var c = $('#siblingContainer').empty();
-            var row = $('<div class="row d-flex justify-content-center" style="padding:0.5rem 1.5rem;">');
-            row.append('<div class="col-md-3"><b>Student Name:</b> ' + challandetail.student.stdname + '</div>');
-            row.append('<div class="col-md-3"><b>Father Name:</b> ' + challandetail.student.fathername + '</div>');
-            row.append('<div class="col-md-3"><b>Issue Date:</b> ' + challandetail.issue_date + '</div>');
-            row.append('<div class="col-md-3"><b>Due Date:</b> ' + challandetail.due_date + '</div>');
-            c.append(row).show();
+
+            var studentName =
+                challandetail.student ?
+                (
+                    challandetail.student.stdname ||
+                    '-'
+                ) :
+                '-';
+
+            var fatherName =
+                challandetail.student ?
+                (
+                    challandetail.student.fathername ||
+                    '-'
+                ) :
+                '-';
+
+            className =
+                className || '-';
+
+            branchName =
+                branchName || '-';
+
+            var issueDate =
+                challandetail.issue_date || '-';
+
+            var dueDate =
+                challandetail.due_date || '-';
+
+
+            var row1 = $(
+                '<div class="row" ' +
+                'style="padding:0.5rem 1.5rem;font-size:12px;">' +
+                '</div>'
+            );
+
+
+            row1.append(
+                '<div class="col-md-3">' +
+                '<b>Student Name:</b> ' +
+                studentName +
+                '</div>'
+            );
+
+
+            row1.append(
+                '<div class="col-md-3">' +
+                '<b>Father Name:</b> ' +
+                fatherName +
+                '</div>'
+            );
+
+
+            row1.append(
+                '<div class="col-md-3">' +
+                '<b>Class:</b> ' +
+                className +
+                '</div>'
+            );
+
+
+            row1.append(
+                '<div class="col-md-3">' +
+                '<b>Branch:</b> ' +
+                branchName +
+                '</div>'
+            );
+
+
+            var row2 = $(
+                '<div class="row" ' +
+                'style="' +
+                'padding:0.25rem 1.5rem 0.5rem 1.5rem;' +
+                'font-size:12px;' +
+                '">' +
+                '</div>'
+            );
+
+
+            row2.append(
+                '<div class="col-md-3">' +
+                '<b>Issue Date:</b> ' +
+                issueDate +
+                '</div>'
+            );
+
+
+            row2.append(
+                '<div class="col-md-3">' +
+                '<b>Due Date:</b> ' +
+                dueDate +
+                '</div>'
+            );
+
+
+            c.append(row1);
+
+            c.append(row2);
+
+            c.show();
         }
 
         function populateHeadFee(headsData) {
@@ -1254,18 +1391,22 @@
                     head.amount + '" disabled></div>');
                 row.append(
                     '<div class="col-md-3 mb-1"><input name="ramount[]" class="form-control ramount" style="font-size:13px;" type="number" value="" min="0" step="0.01"></div>'
-                    );
+                );
                 c.append(row);
             });
 
             var banks_id = defaultBankId || $('#default_bank').val();
 
+            // Company users can see all company banks.
+            // Branch users can only see banks returned for their authenticated branch.
+            var bankOptions = IS_COMPANY_USER ? all_accountOptions : accountOptions;
+
             c.append(`
                 <div style="display:flex;" class="gap-2 mt-2">
-                    <div style="margin-bottom:5px; width:150px;">
+                    <div style="margin-bottom:5px; width:255px; min-width:255px; max-width:255px; flex:0 0 255px;">
                         <strong>Bank Account</strong>
-                        <select id="bank" class="form-control" placeholder="Bank Account" style="font-size:12px;">
-                            ${all_accountOptions}
+                        <select id="bank" class="form-control" placeholder="Bank Account" style="width:255px !important; min-width:255px !important; max-width:255px !important; font-size:12px;">
+                            ${bankOptions}
                         </select>
                     </div>
                     <div style="margin-bottom:5px;">
@@ -1278,7 +1419,7 @@
                         </select>
                     </div>
                     <div style="margin-bottom:5px;"><strong>Reference <span style="color:red;">*</span></strong>
-                        <input type="text" value="" name="ref" id="ref" class="form-control ref-input" style="width:190px;font-size:11px;">
+                        <input type="text" value="" name="ref" id="ref" class="form-control ref-input" style="width:250px !important; min-width:250px !important; max-width:250px !important; font-size:11px;">
                     </div>
                 </div>
                 <div class="d-flex justify-content-end gap-4" style="padding-top:10px;">
@@ -1286,7 +1427,15 @@
                 </div>
             `);
 
-            $('#bank').val(banks_id);
+            // Select the requested/default bank only when it exists in the allowed list.
+            // This prevents a branch from retaining a bank that is not available to it.
+            if (banks_id && $('#bank option[value="' + banks_id + '"]').length) {
+                $('#bank').val(banks_id);
+            } else {
+                $('#bank').prop('selectedIndex', 0);
+                banks_id = $('#bank').val();
+            }
+
             updateReceiveType(banks_id, '#rec_type');
             if (window.CustomSelect && typeof window.CustomSelect.initContainer === 'function') {
                 window.CustomSelect.initContainer(c[0]);
@@ -1310,11 +1459,11 @@
             c.append('<h5><strong>Arrears :-</strong></h5><br>');
             $('head').append(
                 '<style>@keyframes blink-effect{0%{background-color:#100773;color:#fff;}50%{background-color:#fff;color:#100773;}100%{background-color:#100773;color:#fff;}}</style>'
-                );
+            );
             previousUnpaidChallans.forEach(function(arrear) {
                 var row = $(
                     '<div class="mb-3 arrear-row" style="cursor:pointer;display:flex;flex-direction:row;gap:20px;">'
-                    );
+                );
                 row.append(
                     '<div><b>Challan No:</b> <span style="background-color:#100773;color:#fff;font-weight:bold;padding:2px 5px;border-radius:3px;animation:blink-effect 1s infinite;">' +
                     arrear.challanNo + '</span></div>');
@@ -1337,7 +1486,10 @@
             row.append(
                 '<div class="col-md-4 mb-1">Reference <span style="color:red;">*</span></div><input name="old_challan_id" class="old_ch_id" type="hidden" value="' +
                 arrearData.challanNo + '">');
-            var bankOpts = (arrearData.owned_by == "{{ Auth::user()->ownedId() }}") ? all_accountOptions : accountOptions;
+            // Keep bank visibility consistent with the main receipt entry:
+            // company users may use the company-wide list; branch users may only use
+            // the branch-specific list returned for the challan.
+            var bankOpts = IS_COMPANY_USER ? all_accountOptions : accountOptions;
             row.append(`
                 <div class="col-md-8 mb-1"><input type="text" value="" id="oldref" class="old_ref form-control old-ref-input" style="font-size:13px;" /></div>
                 <div style="display:flex;" class="gap-4">
@@ -1368,7 +1520,7 @@
                         (head.price - head.concession - head.paid) + '" disabled></div>');
                     headRow.append(
                         '<div class="col-md-4"><input name="oldramount[]" class="form-control oldramount" type="number" value="" min="0" step="0.01"></div>'
-                        );
+                    );
                     mhc.append(headRow);
                 }
             });
@@ -1389,11 +1541,11 @@
                 validateCashAccountDate($(this).val(), $('#recipt_date').val());
             });
         }
-        
+
         function handleDefaultBankChange() {
             var sel = $(this).val();
             console.log('[BankSync] #default_bank changed. Selected value:', sel);
-            
+
             if ($('#static_bank').length) {
                 console.log('[BankSync] Updating #static_bank with value:', sel);
                 if ($('#static_bank')[0].customSelectInstance) {
@@ -1404,7 +1556,7 @@
             } else {
                 console.log('[BankSync] #static_bank not found.');
             }
-            
+
             if ($('#bank').length) {
                 console.log('[BankSync] Updating #bank with value:', sel);
                 if ($('#bank')[0].customSelectInstance) {
@@ -1415,7 +1567,7 @@
             } else {
                 console.log('[BankSync] #bank not found.');
             }
-            
+
             if ($('#old_bank').length) {
                 console.log('[BankSync] Updating #old_bank with value:', sel);
                 if ($('#old_bank')[0].customSelectInstance) {
@@ -1426,14 +1578,14 @@
             } else {
                 console.log('[BankSync] #old_bank not found.');
             }
-            
+
             validateCashAccountDate(sel, $('#recipt_date').val());
         }
 
         $('#default_bank').on('change', handleDefaultBankChange);
         $(document).on('change', '#default_bank', handleDefaultBankChange);
 
-                // Auto‑select default bank on page load if query parameter is present
+        // Auto‑select default bank on page load if query parameter is present
         if ($('#default_bank').val()) {
             $('#default_bank').trigger('change');
         }

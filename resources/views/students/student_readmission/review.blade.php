@@ -19,6 +19,22 @@
     .review-hero .card-body{padding:1.25rem 1.4rem}.application-code{display:inline-flex;padding:.3rem .65rem;border-radius:999px;background:rgba(255,255,255,.14);font-size:.75rem;font-weight:700}.hero-title{font-size:1.35rem;font-weight:800;margin:.6rem 0 .15rem;color:#fff}.hero-meta{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem}.hero-meta span{padding:.35rem .65rem;border-radius:9px;background:rgba(255,255,255,.1);font-size:.78rem}.status-pill{padding:.4rem .75rem;border-radius:999px;font-size:.75rem;font-weight:800}.status-pending{background:#fff7ed;color:#c2410c}.status-approved{background:#dcfce7;color:#166534}.status-rejected{background:#fee2e2;color:#991b1b}
     .section-card{border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 22px rgba(15,39,66,.05);overflow:hidden;background:#fff}.section-card .card-header{background:#fff;border-bottom:1px solid var(--border);padding:.85rem 1rem}.section-card .card-body{padding:1rem}.section-title{font-size:.95rem;font-weight:800;color:#1f2937}.section-subtitle{font-size:.76rem;color:#8290a3}.info-box{height:100%;border:1px solid #edf1f5;background:#fbfcfe;border-radius:11px;padding:.7rem}.info-label{font-size:.69rem;color:#7b8794;text-transform:uppercase;font-weight:700;margin-bottom:.2rem}.info-value{font-size:.87rem;font-weight:700;color:#1f2937}.placement-side{padding:1rem;background:#fbfcfe}.placement-side.target{background:#f5f9ff}.placement-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.placement-item{border:1px solid #e8edf3;border-radius:10px;padding:.6rem;background:#fff}.placement-arrow{display:flex;align-items:center;justify-content:center;height:100%;min-height:80px;color:#2563eb;font-size:1.3rem}
     .table-responsive{overflow-x:auto;width:100%;margin:0!important}.review-table{min-width:720px;margin-bottom:0}.review-table thead th{background:#f7f9fc!important;color:#526174!important;font-size:.72rem;text-transform:uppercase;font-weight:800;white-space:nowrap}.review-table td{vertical-align:middle;font-size:.82rem}.amount{text-align:right;white-space:nowrap}.selected-row{background:#f0fdf4!important}.coverage-missing{background:#ffedd5;color:#c2410c}.coverage-covered{background:#dcfce7;color:#166534}.coverage-pill{display:inline-flex;padding:.27rem .55rem;border-radius:999px;font-size:.7rem;font-weight:800}.edit-banner{border-left:4px solid #2563eb;background:#eff6ff;color:#1e40af;border-radius:10px;padding:.65rem .8rem;font-size:.82rem}.save-current-btn,.save-current-btn:hover{background:#0f766e!important;border-color:#0f766e!important;color:#fff!important}.save-review-btn,.save-review-btn:hover{background:#2563eb!important;border-color:#2563eb!important;color:#fff!important}.approve-btn,.approve-btn:hover{background:#16a34a!important;border-color:#16a34a!important;color:#fff!important}.reject-btn,.reject-btn:hover{background:#dc2626!important;border-color:#dc2626!important;color:#fff!important}.gap-edit-row{background:#fffaf5}.current-check,.target-check,.gap-check{width:18px;height:18px}.decision-card{border:1px solid #dbe5ef;border-radius:16px;background:#f8fafc}
+    /* Dedicated fee-table layout prevents the last column being clipped inside the 50% cards. */
+    .review-fee-row>[class*="col-"]{min-width:0}
+    .review-fee-card,.review-fee-card .card-body{min-width:0}
+    .review-fee-card .card-body{overflow:hidden}
+    .review-fee-scroll{display:block;width:100%;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable;padding:0 10px 8px 0;margin:0!important}
+    .review-fee-scroll::-webkit-scrollbar{height:10px}
+    .review-fee-table{width:max-content!important;min-width:100%!important;max-width:none!important;table-layout:auto;margin-bottom:0!important}
+    .review-fee-table th,.review-fee-table td{padding:.4rem .42rem!important;vertical-align:middle;font-size:.75rem}
+    .review-fee-table thead th{font-size:.66rem!important;white-space:nowrap}
+    .review-fee-table .fee-col-check{width:46px;min-width:46px;text-align:center}
+    .review-fee-table .fee-col-index{width:34px;min-width:34px;text-align:center}
+    .review-fee-table .fee-col-head{width:132px;min-width:112px;max-width:165px;white-space:normal!important;overflow-wrap:anywhere}
+    .review-fee-table .fee-col-money{width:82px;min-width:76px;text-align:right;white-space:nowrap}
+    .review-fee-table .fee-col-discount{width:70px;min-width:66px;text-align:right;white-space:nowrap}
+    .review-fee-table .fee-col-source{width:120px;min-width:100px;max-width:145px;white-space:normal!important}
+    .review-fee-table .fee-col-source .badge{white-space:normal;text-align:left;line-height:1.15;max-width:140px}
     @media(max-width:991px){.placement-grid{grid-template-columns:1fr}.placement-arrow{min-height:48px;transform:rotate(90deg)}}
 
     .review-gap-summary{display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.7rem}
@@ -59,6 +75,7 @@
     $generatedChallans=isset($generatedChallans)?$generatedChallans:collect();
     $approvalSnapshot=!empty($record->approval_snapshot)?json_decode($record->approval_snapshot,true):[];
     $implementation=$approvalSnapshot['implementation']??[];
+    $readmissionStructureSource=$snapshot['readmission_structure_source']??$requestSnapshot['readmission_structure_source']??'student';
 @endphp
 
 <div class="review-page">
@@ -108,7 +125,7 @@
         <div class="card-header">
             <div class="section-title">{{ __('Tuition Fee Revision on Session Change') }}</div>
             <div class="section-subtitle">
-                {{ __('The revision uses the student existing Tuition Fee as the base, not the target class Tuition amount.') }}
+                {{ __('The revision uses the selected Tuition base: student Tuition by default, or target class Tuition when Use Class Tuition Fee is checked.') }}
                 <strong>{{ __('Choose the month from which the increment should become applicable.') }}</strong>
             </div>
         </div>
@@ -180,39 +197,53 @@
         </div>
     </div>
 
-    <div class="row g-3 mb-3">
+    <div class="row g-3 mb-3 review-fee-row">
         <div class="col-12 col-lg-6">
-            <div class="card section-card h-100 mb-0"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"><div><div class="section-title">{{ __('Current Fee Structure') }}</div><div class="section-subtitle">{{ __('This selection updates the student real StudentFeeStructure.checked_status.') }}</div></div>@if($editable)<button type="button" id="save_current_structure" class="btn btn-sm save-current-btn"><i class="ti ti-device-floppy me-1"></i>{{ __('Save Current Structure') }}</button>@endif</div><div class="card-body p-0"><div class="table-responsive"><table class="table review-table"><thead><tr>@if($editable)<th><input type="checkbox" id="review_check_all_existing"></th>@endif<th>#</th><th>{{ __('Fee Head') }}</th><th class="text-end">{{ __('Amount') }}</th><th class="text-end">{{ __('Discount %') }}</th><th class="text-end">{{ __('Payable') }}</th></tr></thead><tbody id="review_existing_body">@if(count($existingFeeStructure)>0)@foreach($existingFeeStructure as $i=>$row)<tr>@if($editable)<td><input type="checkbox" name="current_selected_heads[]" class="form-check-input current-check" value="{{ (int)($row['head_id']??0) }}" {{ in_array((int)($row['head_id']??0),$existingSelectedIds,true)?'checked':'' }}></td>@endif<td>{{ $i+1 }}</td><td><strong>{{ $row['fee_head']??'-' }}</strong></td><td class="amount">{{ number_format((float)($row['class_amount']??0),2) }}</td><td class="amount">{{ number_format((float)($row['discount']??0),2) }}</td><td class="amount">{{ number_format((float)($row['payable_amount']??0),2) }}</td></tr>@endforeach @else<tr><td colspan="{{ $editable?6:5 }}" class="text-center text-muted py-4">{{ __('No current structure snapshot.') }}</td></tr>@endif</tbody></table></div></div></div>
+            <div class="card section-card review-fee-card h-100 mb-0"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"><div><div class="section-title">{{ __('Current Fee Structure') }}</div><div class="section-subtitle">{{ __('This selection updates the student real StudentFeeStructure.checked_status.') }}</div></div>@if($editable)<button type="button" id="save_current_structure" class="btn btn-sm save-current-btn"><i class="ti ti-device-floppy me-1"></i>{{ __('Save Current Structure') }}</button>@endif</div><div class="card-body p-0"><div class="review-fee-scroll"><table class="table review-table review-fee-table"><thead><tr>@if($editable)<th class="fee-col-check"><input type="checkbox" id="review_check_all_existing"></th>@endif<th class="fee-col-index">#</th><th class="fee-col-head">{{ __('Fee Head') }}</th><th class="fee-col-money">{{ __('Amount') }}</th><th class="fee-col-discount">{{ __('Discount %') }}</th><th class="fee-col-money">{{ __('Payable') }}</th></tr></thead><tbody id="review_existing_body">@if(count($existingFeeStructure)>0)@foreach($existingFeeStructure as $i=>$row)<tr>@if($editable)<td class="fee-col-check"><input type="checkbox" name="current_selected_heads[]" class="form-check-input current-check" value="{{ (int)($row['head_id']??0) }}" {{ in_array((int)($row['head_id']??0),$existingSelectedIds,true)?'checked':'' }}></td>@endif<td class="fee-col-index">{{ $i+1 }}</td><td class="fee-col-head"><strong>{{ $row['fee_head']??'-' }}</strong></td><td class="fee-col-money">{{ number_format((float)($row['class_amount']??0),2) }}</td><td class="fee-col-discount">{{ number_format((float)($row['discount']??0),2) }}</td><td class="fee-col-money">{{ number_format((float)($row['payable_amount']??0),2) }}</td></tr>@endforeach @else<tr><td colspan="{{ $editable?6:5 }}" class="text-center text-muted py-4">{{ __('No current structure snapshot.') }}</td></tr>@endif</tbody></table></div></div></div>
         </div>
 
         <div class="col-12 col-lg-6">
-            <div class="card section-card h-100 mb-0">
-                <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card section-card review-fee-card h-100 mb-0">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
                         <div class="section-title">{{ __('Applicable / Charge Selection') }}</div>
                         <div class="section-subtitle">{{ __('Will Charge shows the exact base amount saved for approval-time challan generation.') }}</div>
                     </div>
-                    @if($editable)
-                        <label class="form-check mb-0">
-                            <input type="checkbox" id="review_check_all_target" class="form-check-input">
-                            <span class="form-check-label">{{ __('Check all') }}</span>
-                        </label>
-                    @endif
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        @if($editable)
+                            <label class="form-check mb-0 {{ $flowType==='readmission'?'':'d-none' }}" id="review_structure_source_wrap">
+                                <input type="hidden" name="readmission_structure_source" id="review_readmission_structure_source" value="{{ $readmissionStructureSource }}">
+                                <input type="checkbox" id="review_use_class_tuition_structure" class="form-check-input" {{ $readmissionStructureSource==='class'?'checked':'' }}>
+                                <span class="form-check-label fw-semibold">{{ __('Use Class Tuition Fee') }}</span>
+                                <div class="small text-muted">{{ __('Unchecked = Student Structure') }}</div>
+                            </label>
+                        @elseif($flowType==='readmission')
+                            <span class="badge bg-light text-dark border">
+                                {{ $readmissionStructureSource==='class' ? __('Tuition Source: Class Structure') : __('Tuition Source: Student Structure') }}
+                            </span>
+                        @endif
+                        @if($editable)
+                            <label class="form-check mb-0">
+                                <input type="checkbox" id="review_check_all_target" class="form-check-input">
+                                <span class="form-check-label">{{ __('Check all') }}</span>
+                            </label>
+                        @endif
+                    </div>
                 </div>
                 <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table review-table" style="min-width:980px">
+                    <div class="review-fee-scroll">
+                        <table class="table review-table review-fee-table">
                             <thead>
                                 <tr>
-                                    <th>{{ __('Selected') }}</th>
-                                    <th>#</th>
-                                    <th>{{ __('Fee Head') }}</th>
-                                    <th class="text-end">{{ __('Existing') }}</th>
-                                    <th class="text-end">{{ __('Class Ref.') }}</th>
-                                    <th class="text-end">{{ __('Will Charge') }}</th>
-                                    <th>{{ __('Source') }}</th>
-                                    <th class="text-end">{{ __('Discount %') }}</th>
-                                    <th class="text-end">{{ __('Payable') }}</th>
+                                    <th class="fee-col-check">{{ __('Selected') }}</th>
+                                    <th class="fee-col-index">#</th>
+                                    <th class="fee-col-head">{{ __('Fee Head') }}</th>
+                                    <th class="fee-col-money">{{ __('Existing') }}</th>
+                                    <th class="fee-col-money">{{ __('Class Ref.') }}</th>
+                                    <th class="fee-col-money">{{ __('Will Charge') }}</th>
+                                    <th class="fee-col-source">{{ __('Source') }}</th>
+                                    <th class="fee-col-discount">{{ __('Discount %') }}</th>
+                                    <th class="fee-col-money">{{ __('Payable') }}</th>
                                 </tr>
                             </thead>
                             <tbody id="review_target_body">
@@ -230,7 +261,7 @@
                                             $lockedSelection = $isBranchReview && ($disabledReadmission || $autoCharge);
                                         @endphp
                                         <tr class="{{ $sel?'selected-row':'' }}">
-                                            <td>
+                                            <td class="fee-col-check">
                                                 @if($editable)
                                                     <input type="checkbox"
                                                            name="selected_heads[]"
@@ -242,8 +273,8 @@
                                                     <span class="badge {{ $sel?'bg-success':'bg-light text-dark border' }}">{{ $sel?__('Yes'):__('No') }}</span>
                                                 @endif
                                             </td>
-                                            <td>{{ $i+1 }}</td>
-                                            <td>
+                                            <td class="fee-col-index">{{ $i+1 }}</td>
+                                            <td class="fee-col-head">
                                                 <strong>{{ $row['fee_head']??'-' }}</strong>
                                                 @if($isBranchReview && $autoCharge)
                                                     <div class="small text-primary">{{ __('Automatically charged on Readmission Fee Month') }}</div>
@@ -251,12 +282,12 @@
                                                     <div class="small text-danger">{{ __('Not chargeable on Re-Admission') }}</div>
                                                 @endif
                                             </td>
-                                            <td class="amount">{{ isset($row['existing_amount'])&&$row['existing_amount']!==null?number_format((float)$row['existing_amount'],2):'-' }}</td>
-                                            <td class="amount">{{ isset($row['class_reference_amount'])&&$row['class_reference_amount']!==null?number_format((float)$row['class_reference_amount'],2):'-' }}</td>
-                                            <td class="amount"><strong>{{ number_format((float)($row['charge_amount']??$row['class_amount']??0),2) }}</strong></td>
-                                            <td><span class="badge bg-light text-dark border">{{ $row['charge_source_label']??($row['source']==='student_fee_structure'?__('Existing Student Fee'):__('Class Fee Structure')) }}</span></td>
-                                            <td class="amount">{{ number_format((float)($row['discount']??0),2) }}</td>
-                                            <td class="amount">{{ number_format((float)($row['payable_amount']??0),2) }}</td>
+                                            <td class="fee-col-money">{{ isset($row['existing_amount'])&&$row['existing_amount']!==null?number_format((float)$row['existing_amount'],2):'-' }}</td>
+                                            <td class="fee-col-money">{{ isset($row['class_reference_amount'])&&$row['class_reference_amount']!==null?number_format((float)$row['class_reference_amount'],2):'-' }}</td>
+                                            <td class="fee-col-money"><strong>{{ number_format((float)($row['charge_amount']??$row['class_amount']??0),2) }}</strong></td>
+                                            <td class="fee-col-source"><span class="badge bg-light text-dark border">{{ $row['charge_source_label']??($row['source']==='student_fee_structure'?__('Existing Student Fee'):__('Class Fee Structure')) }}</span></td>
+                                            <td class="fee-col-discount">{{ number_format((float)($row['discount']??0),2) }}</td>
+                                            <td class="fee-col-money">{{ number_format((float)($row['payable_amount']??0),2) }}</td>
                                         </tr>
                                     @endforeach
                                 @else
@@ -368,7 +399,7 @@
                             <div class="d-flex justify-content-between align-items-start gap-2">
                                 <div>
                                     <div class="small text-muted">{{ $generatedChallan->challan_type??__('Challan') }}</div>
-                                    <a href="{{ route('challan.show',$generatedChallan->id) }}" target="_blank"
+                                    <a href="{{ route('challan.legacy_show',$generatedChallan->id) }}" target="_blank"
                                        class="generated-challan-no text-primary"
                                        title="{{ __('Open Challan') }}">
                                         #{{ $generatedChallan->challanNo }}
@@ -572,6 +603,8 @@
 
         if(!revision.session_changed)return;
 
+        const baseLabel=revision.base_source_label||'Existing Student Fee';
+
         const effectiveMonth=formatMonthLabel(
             revision.effective_from ||
             $('#review_tuition_increment_effective_from').val() ||
@@ -581,7 +614,7 @@
         $('#review_tuition_increment_preview').html(
             `<div class="info-label">${esc(revision.fee_head||'Tuition Fee')}</div>
              <div class="info-value">
-                Existing: ${Number(revision.prev_base_amount||0).toFixed(2)}
+                ${esc(baseLabel)}: ${Number(revision.prev_base_amount||0).toFixed(2)}
                 <span class="mx-2">→</span>
                 Revised: ${Number(revision.new_base_amount||0).toFixed(2)}
              </div>
@@ -710,6 +743,7 @@
             new_class_id:$('#review_new_class').val(),
             new_session_id:$('#review_new_session').val(),
             new_section_id:$('#review_new_section').val(),
+            readmission_structure_source:$('#review_readmission_structure_source').val()||'student',
             tuition_increment_enabled:$('#review_tuition_increment_enabled').is(':checked')?1:0,
             tuition_increment_percentage:normalizeIncrement(),
             tuition_increment_effective_from:$('#review_tuition_increment_effective_from').val()||$('#review_month_date').val()
@@ -748,6 +782,15 @@
     }
 
     $(document).off(NS);
+
+    $(document).on('change'+NS,'#review_use_class_tuition_structure',function(){
+        $('#review_readmission_structure_source').val(
+            $(this).is(':checked') ? 'class' : 'student'
+        );
+
+        syncRevisionVisibility();
+        scheduleRefresh(50);
+    });
 
     $(document).on('change'+NS,'#review_check_all_existing',function(){
         $('.current-check:not(:disabled)').prop('checked',this.checked);
@@ -842,6 +885,12 @@
         'change'+NS,
         '#review_new_session,#review_flow_type,#review_new_section',
         function(){
+            const isReadmission=$('#review_flow_type').val()==='readmission';
+            $('#review_structure_source_wrap').toggleClass('d-none',!isReadmission);
+            if(!isReadmission){
+                $('#review_use_class_tuition_structure').prop('checked',false);
+                $('#review_readmission_structure_source').val('student');
+            }
             syncRevisionVisibility();
             scheduleRefresh(180);
         }

@@ -117,7 +117,7 @@ class ChallanController extends Controller
             $challan->save();
 
             $itemIndex = 0;
-            $concessiondata = Concession::where('student_id', $request->student_id)->where('end_date', '>=', date('Y-m-d'))->where('status', 'Approved')->first();
+            $concessiondata = $this->activeConcessionForStudent($request->student_id, $validatedData['challan_date']);
 
             foreach ($request->heads as $headId) {
                 $fee = ClassWiseFee::where('head_id', $headId)->first();
@@ -614,14 +614,22 @@ public function legacyShow($id, Request $request)
 
     private function activeConcessionForStudent($studentId, $asOfDate = null)
     {
-        $date = $asOfDate ? Carbon::parse($asOfDate)->toDateString() : now()->toDateString();
 
+        $date = $asOfDate
+            ? Carbon::parse($asOfDate)->startOfMonth()->toDateString()
+            : now()->startOfMonth()->toDateString();
+        // dd($date);
         return Concession::where('student_id', $studentId)
             ->where('active_status', '!=', 0)
             ->where('status', 'Approved')
             ->where(function ($query) use ($date) {
-                $query->whereDate('end_date', '>=', $date)
-                    ->orWhereNull('end_date');
+                $query->where(function ($effectiveQuery) use ($date) {
+                    $effectiveQuery->whereNull('effective_from')
+                        ->orWhereDate('effective_from', '<=', $date);
+                })->where(function ($endQuery) use ($date) {
+                    $endQuery->whereDate('end_date', '>=', $date)
+                        ->orWhereNull('end_date');
+                });
             })
             ->orderByDesc('id')
             ->first();
@@ -1393,12 +1401,23 @@ public function legacyShow($id, Request $request)
             ->where('challan_type', 'Admission')
             ->exists();
 
-        if ($existingChallanStudent && \Auth::user()->type != 'company') {
-            return response()->json([
-                'error' => true,
-                'message' => 'Admission Challan has already been generated.',
-                'code' => 422,
-            ], 422);
+        if ($existingChallanStudent) {
+            $existingChallanUnPaid = Challans::where('student_id', $request->input('student_id'))
+            ->where('challan_type', 'Admission')->where('status' , '!=' ,'Paid')
+            ->exists();
+            if($existingChallanUnPaid && \Auth::user()->type == 'company'){
+                return response()->json([
+                    'error' => true,
+                    'message' => 'Unpaid Admission Challan already exists.',
+                    'code' => 422,
+                ], 422);
+            }else{
+                return response()->json([
+                    'error' => true,
+                    'message' => 'Admission Challan has already been generated.',
+                    'code' => 422,
+                ], 422);
+            }
         }
         // $validatedData = $request->validate([
         //     'student_id' => 'required',
@@ -1434,41 +1453,61 @@ public function legacyShow($id, Request $request)
 
             $totalAmount = 0;
             $itemIndex = 0;
-            $concessiondata = Concession::where('student_id', $request->student_id)->where('end_date', '>=', date('Y-m-d'))->orderBy('id', 'Desc')->where('status', 'Approved')->first();
-            if (! $concessiondata) {
-                $concessiondata = Concession::with('concession')->where('student_id', $request->student_id)
-                    ->orderBy('id', 'desc')->whereNull('end_date')->where('status', 'Approved')->first();
-            }
+            $concessiondata = $this->activeConcessionForStudent($request->student_id, $request->input('challanDate'));
+            // dd($concessiondata,$request->input('challanDate'));
+            $studentFeeStructures = StudentFeeStructure::where('reg_id', $request->student_id)
+                ->where('owned_by', $student->owned_by)
+                ->get()
+                ->keyBy('head_id');
 
             foreach ($checkedRowsData as $row) {
                 if (strpos(strtolower($row[0]), 'registration') !== false || strpos(strtolower($row[0]), 'transfer') !== false || strpos(strtolower($row[0]), 're-admission') !== false) {
                     continue;
                 }
-                $totalAmount += $row[3];
-                if ($concessiondata) {
-                    $conession_head = ConcessionPolicyHead::where('head_id', $row[5])->where('concession_id', $concessiondata->concession_id)->first();
-                    if ($conession_head) {
-                        $concessionAmount = round(($row[1] / 100) * $conession_head->percentage);
-                    } else {
-                        $concessionAmount = round(($row[1] / 100) * $row[2]);
-                    }
-                } else {
-                    $concessionAmount = round(($row[1] / 100) * $row[2]);
+
+                $headId = $row[5] ?? null;
+                if (!$headId) {
+                    continue;
                 }
+
+                $structureRow = $studentFeeStructures->get($headId);
+                if (!$structureRow) {
+                    continue;
+                }
+
+                if (!$concessiondata && (int) ($structureRow->checked_status ?? 0) !== 1) {
+                    continue;
+                }
+
+                $baseAmount = (float) ($structureRow->amount ?? ($row[1] ?? 0));
+                $structureDiscount = (float) ($structureRow->discount ?? ($row[2] ?? 0));
+                $concessionAmount = round(($baseAmount / 100) * $structureDiscount);
+
+                if ($concessiondata) {
+                    $conession_head = ConcessionPolicyHead::where('head_id', $headId)
+                        ->where('concession_id', $concessiondata->concession_id)
+                        ->first();
+
+                    if ($conession_head) {
+                        $concessionAmount = round(($baseAmount / 100) * $conession_head->percentage);
+                    }
+                }
+                $totalAmount += $baseAmount;
+
                 $challan_head = new ChallanHead;
                 $challan_head->challan_id = $challan->id;
-                $challan_head->head_id = $row[5];
-                $challan_head->price = $row[1] ? $row[1] : 0;
-                $challan_head->concession = @$concessionAmount ? @$concessionAmount : 0;
+                $challan_head->head_id = $headId;
+                $challan_head->price = $baseAmount;
+                $challan_head->concession = $concessionAmount;
                 $challan_head->save();
 
-                $total += $row[1];
-                $concession += @$concessionAmount ? @$concessionAmount : 0;
+                $total += $baseAmount;
+                $concession += $concessionAmount;
                 $item[$itemIndex]['pord_id'] = $challan_head->id;
-                $item[$itemIndex]['head'] = $row[5];
-                $item[$itemIndex]['price'] = $row[1] ? $row[1] : 0;
+                $item[$itemIndex]['head'] = $headId;
+                $item[$itemIndex]['price'] = $baseAmount;
                 $item[$itemIndex]['quantity'] = 1;
-                $item[$itemIndex]['concession'] = @$concessionAmount ? @$concessionAmount : 0;
+                $item[$itemIndex]['concession'] = $concessionAmount;
                 $item[$itemIndex]['total'] = $total;
                 $itemIndex++;
             }
@@ -1944,128 +1983,477 @@ public function legacyShow($id, Request $request)
 
 
 
-    public function challandata_for_receipt(Request $request)
+   public function challandata_for_receipt(Request $request)
 {
     try {
-        $challandata = Challans::with(['student', 'heads.feeHead'])->where('challanNo', $request->challan_id)->first();
-        
+
+        $challandata = Challans::with([
+            'student',
+            'heads.feeHead'
+        ])
+            ->where('challanNo', $request->challan_id)
+            ->first();
+
         if (!$challandata) {
-            return response()->json(['error' => 'Challan not found.'], 404);
+            return response()->json([
+                'error' => 'Challan not found.'
+            ], 404);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Separate Class & Branch Data
+        |--------------------------------------------------------------------------
+        |
+        | Do NOT modify challandetail.
+        |
+        | Class comes from:
+        | challans.class_id
+        |
+        | Branch comes from:
+        | challans.owned_by
+        |
+        */
+
+        $className = '';
+
+        if (!empty($challandata->class_id)) {
+
+            $classData = \App\Models\Classes::find(
+                $challandata->class_id
+            );
+
+            $className = $classData
+                ? $classData->name
+                : '';
+        }
+
+
+        $branchName = '';
+
+        if (!empty($challandata->owned_by)) {
+
+            $branchData = \App\Models\User::find(
+                $challandata->owned_by
+            );
+
+            $branchName = $branchData
+                ? $branchData->name
+                : '';
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Challan Heads
+        |--------------------------------------------------------------------------
+        */
+
         if ($challandata && $challandata->heads) {
+
             $headsData = [];
+
             foreach ($challandata->heads as $head) {
-                $price = (float) ($head->price ?? 0);
-                $concession = (float) ($head->concession ?? 0);
-                $paid = (float) ($head->paid ?? 0);
-                $amount = $price - $concession - $paid;
+
+                $price = (float) (
+                    $head->price ?? 0
+                );
+
+                $concession = (float) (
+                    $head->concession ?? 0
+                );
+
+                $paid = (float) (
+                    $head->paid ?? 0
+                );
+
+                $amount =
+                    $price
+                    - $concession
+                    - $paid;
 
                 if ($amount != 0) {
+
                     $headsData[] = [
-                        'head_id' => $head->head_id ?? '',
-                        'head_name' => $head->feeHead->fee_head ?? 'No FeeHead Name',
-                        'amount' => $amount,
+
+                        'head_id' =>
+                            $head->head_id ?? '',
+
+                        'head_name' =>
+                            $head->feeHead->fee_head
+                            ?? 'No FeeHead Name',
+
+                        'amount' =>
+                            $amount,
                     ];
                 }
             }
+
         } else {
+
             $headsData = [];
         }
 
-        $previousUnpaidChallans = Challans::with('heads.feeHead')
-          
-            ->where('student_id', $challandata->student_id)
-            ->where('status', '!=', 'Paid')
-            ->where('id', '!=', $challandata->id)
-            ->wheredate('fee_month', '<', date('Y-m-01', strtotime($challandata->fee_month)))
-            ->get();
 
-        // Get bank accounts with chart_of_account information
+        /*
+        |--------------------------------------------------------------------------
+        | Previous Unpaid Challans
+        |--------------------------------------------------------------------------
+        */
+
+        $previousUnpaidChallans =
+            Challans::with(
+                'heads.feeHead'
+            )
+                ->where(
+                    'student_id',
+                    $challandata->student_id
+                )
+                ->where(
+                    'status',
+                    '!=',
+                    'Paid'
+                )
+                ->where(
+                    'id',
+                    '!=',
+                    $challandata->id
+                )
+                ->whereDate(
+                    'fee_month',
+                    '<',
+                    date(
+                        'Y-m-01',
+                        strtotime(
+                            $challandata->fee_month
+                        )
+                    )
+                )
+                ->get();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Bank Accounts
+        |--------------------------------------------------------------------------
+        */
+
         $defaultBankId = null;
-        
+
         if (Auth::user()->type == 'company') {
-            $account_all = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
-                ->with('chartAccount:id,name')
-                ->where('created_by', \Auth::user()->creatorId())
-                ->get();
-                
-            $accounts = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
-                ->with('chartAccount:id,name')
-                ->where('owned_by', Auth::user()->ownedId())
-                ->get();
+
+            $account_all =
+                BankAccount::select(
+                    'id',
+                    'bank_name',
+                    'holder_name',
+                    'chart_account_id'
+                )
+                    ->with(
+                        'chartAccount:id,name'
+                    )
+                    ->where(
+                        'created_by',
+                        \Auth::user()->creatorId()
+                    )
+                    ->get();
+
+
+            $accounts =
+                BankAccount::select(
+                    'id',
+                    'bank_name',
+                    'holder_name',
+                    'chart_account_id'
+                )
+                    ->with(
+                        'chartAccount:id,name'
+                    )
+                    ->where(
+                        'owned_by',
+                        Auth::user()->ownedId()
+                    )
+                    ->get();
+
         } else {
-            // For branch users, get their owned account as default
-            $branchAccount = BankAccount::where('owned_by', \Auth::user()->ownedId())->first();
-            $defaultBankId = $branchAccount ? $branchAccount->id : null;
-            
-            if ($challandata->owned_by != Auth::user()->ownedId()) {
-                $accounts = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
-                    ->with('chartAccount:id,name')
-                    ->where('owned_by', \Auth::user()->ownedId())
-                    ->get();
 
-                $account_all = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
-                    ->with('chartAccount:id,name')
-                    ->where('created_by', \Auth::user()->creatorId())
-                    ->get();
+            /*
+             * For branch users,
+             * get their owned account as default.
+             */
+
+            $branchAccount =
+                BankAccount::where(
+                    'owned_by',
+                    \Auth::user()->ownedId()
+                )
+                    ->first();
+
+            $defaultBankId =
+                $branchAccount
+                    ? $branchAccount->id
+                    : null;
+
+
+            if (
+                $challandata->owned_by
+                != Auth::user()->ownedId()
+            ) {
+
+                $accounts =
+                    BankAccount::select(
+                        'id',
+                        'bank_name',
+                        'holder_name',
+                        'chart_account_id'
+                    )
+                        ->with(
+                            'chartAccount:id,name'
+                        )
+                        ->where(
+                            'owned_by',
+                            \Auth::user()->ownedId()
+                        )
+                        ->get();
+
+
+                $account_all =
+                    BankAccount::select(
+                        'id',
+                        'bank_name',
+                        'holder_name',
+                        'chart_account_id'
+                    )
+                        ->with(
+                            'chartAccount:id,name'
+                        )
+                        ->where(
+                            'created_by',
+                            \Auth::user()->creatorId()
+                        )
+                        ->get();
+
             } else {
-                $accounts = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
-                    ->with('chartAccount:id,name')
-                    ->where('owned_by', \Auth::user()->ownedId())
-                    ->get();
 
-                $account_all = BankAccount::select('id', 'bank_name', 'holder_name', 'chart_account_id')
-                    ->with('chartAccount:id,name')
-                    ->where('created_by', \Auth::user()->creatorId())
-                    ->get();
+                $accounts =
+                    BankAccount::select(
+                        'id',
+                        'bank_name',
+                        'holder_name',
+                        'chart_account_id'
+                    )
+                        ->with(
+                            'chartAccount:id,name'
+                        )
+                        ->where(
+                            'owned_by',
+                            \Auth::user()->ownedId()
+                        )
+                        ->get();
+
+
+                $account_all =
+                    BankAccount::select(
+                        'id',
+                        'bank_name',
+                        'holder_name',
+                        'chart_account_id'
+                    )
+                        ->with(
+                            'chartAccount:id,name'
+                        )
+                        ->where(
+                            'created_by',
+                            \Auth::user()->creatorId()
+                        )
+                        ->get();
             }
         }
 
-        // Format accounts for select dropdown with chart account info
+
+        /*
+        |--------------------------------------------------------------------------
+        | Format Branch Banks
+        |--------------------------------------------------------------------------
+        */
+
         $accountsFormatted = [];
+
         $accountsData = [];
+
         foreach ($accounts as $account) {
-            $accountsFormatted[$account->id] = $account->bank_name . ' ' . $account->holder_name;
-            $accountsData[$account->id] = [
-                'name' => $account->bank_name . ' ' . $account->holder_name,
-                'chart_account' => $account->chartAccount ? strtolower($account->chartAccount->name) : ''
+
+            $accountsFormatted[
+                $account->id
+            ] =
+                $account->bank_name
+                . ' '
+                . $account->holder_name;
+
+
+            $accountsData[
+                $account->id
+            ] = [
+
+                'name' =>
+                    $account->bank_name
+                    . ' '
+                    . $account->holder_name,
+
+                'chart_account' =>
+                    $account->chartAccount
+                        ? strtolower(
+                            $account
+                                ->chartAccount
+                                ->name
+                        )
+                        : ''
             ];
-        }
-        
-        $accountAllFormatted = [];
-        $accountAllData = [];
-        foreach ($account_all as $account) {
-            $accountAllFormatted[$account->id] = $account->bank_name . ' ' . $account->holder_name;
-            $accountAllData[$account->id] = [
-                'name' => $account->bank_name . ' ' . $account->holder_name,
-                'chart_account' => $account->chartAccount ? strtolower($account->chartAccount->name) : ''
-            ];
-        }
-        // Calculate existing late fee total for 50% check exclusion
-        $lateFeeHead = FeeHead::where('fee_head', 'LIKE', '%LATE FEE%')->first();
-        $lateFeeAmount = 0;
-        if ($lateFeeHead) {
-            $lateFeeAmount = (float) ChallanHead::where('challan_id', $challandata->id)
-                ->where('head_id', $lateFeeHead->id)
-                ->sum('price');
         }
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Format All Company Banks
+        |--------------------------------------------------------------------------
+        */
+
+        $accountAllFormatted = [];
+
+        $accountAllData = [];
+
+        foreach ($account_all as $account) {
+
+            $accountAllFormatted[
+                $account->id
+            ] =
+                $account->bank_name
+                . ' '
+                . $account->holder_name;
+
+
+            $accountAllData[
+                $account->id
+            ] = [
+
+                'name' =>
+                    $account->bank_name
+                    . ' '
+                    . $account->holder_name,
+
+                'chart_account' =>
+                    $account->chartAccount
+                        ? strtolower(
+                            $account
+                                ->chartAccount
+                                ->name
+                        )
+                        : ''
+            ];
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Existing Late Fee
+        |--------------------------------------------------------------------------
+        */
+
+        $lateFeeHead =
+            FeeHead::where(
+                'fee_head',
+                'LIKE',
+                '%LATE FEE%'
+            )
+                ->first();
+
+
+        $lateFeeAmount = 0;
+
+
+        if ($lateFeeHead) {
+
+            $lateFeeAmount =
+                (float)
+                ChallanHead::where(
+                    'challan_id',
+                    $challandata->id
+                )
+                    ->where(
+                        'head_id',
+                        $lateFeeHead->id
+                    )
+                    ->sum('price');
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | JSON Response
+        |--------------------------------------------------------------------------
+        */
+
         return response()->json([
-            'challandetail' => $challandata,
-            'previousUnpaidChallans' => $previousUnpaidChallans,
-            'headsData' => $headsData,
-            'challan_late_fee' => $lateFeeAmount,
-            'accounts' => $accountsFormatted,
-            'account_all' => $accountAllFormatted,
-            'accounts_data' => $accountsData,
-            'account_all_data' => $accountAllData,
-            'default_bank_id' => $defaultBankId,
+
+            /*
+             * Keep original challandetail untouched.
+             */
+            'challandetail' =>
+                $challandata,
+
+
+            /*
+             * NEW separate values
+             */
+            'challan_class_id' =>
+                $challandata->class_id,
+
+            'challan_class_name' =>
+                $className,
+
+            'challan_branch_id' =>
+                $challandata->owned_by,
+
+            'challan_branch_name' =>
+                $branchName,
+
+
+            'previousUnpaidChallans' =>
+                $previousUnpaidChallans,
+
+            'headsData' =>
+                $headsData,
+
+            'challan_late_fee' =>
+                $lateFeeAmount,
+
+            'accounts' =>
+                $accountsFormatted,
+
+            'account_all' =>
+                $accountAllFormatted,
+
+            'accounts_data' =>
+                $accountsData,
+
+            'account_all_data' =>
+                $accountAllData,
+
+            'default_bank_id' =>
+                $defaultBankId,
         ]);
 
     } catch (\Exception $e) {
-        \Log::error('Error fetching challan data: '.$e->getMessage());
-        return response()->json(['error' => 'An error occurred while fetching challan data.'], 500);
+
+        \Log::error(
+            'Error fetching challan data: '
+            . $e->getMessage()
+        );
+
+        return response()->json([
+            'error' =>
+                'An error occurred while fetching challan data.'
+        ], 500);
     }
 }
 
@@ -2580,18 +2968,26 @@ private function challanHasJunJulExemptionLabel(?Challans $challan): bool
             ->groupBy('reg_id')
             ->map(fn($group) => $group->keyBy('head_id'));
 
-        // 7c. Active concessions per student
+        // 7c. Active concessions per student for the target billing month
         $concessions = Concession::with('concession')
             ->whereIn('student_id', $studentIds)
             ->where('status', 'Approved')
-            ->where(function ($q) {
-                $q->where('end_date', '>=', date('Y-m-d'))->orWhereNull('end_date');
+            ->where('active_status', 1)
+            ->where(function ($q) use ($targetDate) {
+                $q->whereNull('effective_from')
+                    ->orWhereDate('effective_from', '<=', $targetDate);
             })
-            ->where('active_status',1)
-            ->orderBy('end_date', 'desc')
+            ->where(function ($q) use ($targetDate) {
+                $q->whereNull('end_date')
+                    ->orWhereDate('end_date', '>=', $targetDate);
+            })
+            ->orderByRaw('CASE WHEN effective_from IS NULL THEN 1 ELSE 0 END')
+            ->orderByDesc('effective_from')
+            ->orderByDesc('end_date')
+            ->orderByDesc('id')
             ->get()
             ->groupBy('student_id')
-            ->map(fn($group) => $group->first(fn($c) => $c->end_date !== null) ?? $group->first());
+            ->map(fn($group) => $group->first());
 
         // 7d. Existing Regular/Advance challans for this month per student
         $existingChallans = Challans::whereIn('student_id', $studentIds)
@@ -4639,16 +5035,19 @@ public function storeChallan(Request $request)
 
                 // regular: skip if exists
                 if ($type == 'regular') {
+                    $targetFeeMonth = date('Y-m-01', strtotime($feeMonth));
+                    $targetMonthDate = date('Y-m-d', strtotime($feeMonth));
+
                     $exists = Challans::where('student_id', $student->id)
-                        ->where('challan_type', 'Regular')
-                        ->orWhere('challan_type', 'Advance')
-                        ->where('fee_month', date('Y-m-01', strtotime($feeMonth)))
-                        ->orWhere('other_months', 'LIKE', '%' . date('Y-m-d', strtotime($feeMonth)) . '%')
+                        ->whereIn('challan_type', ['Regular', 'Advance'])
+                        ->where(function ($query) use ($targetFeeMonth, $targetMonthDate) {
+                            $query->where('fee_month', $targetFeeMonth)
+                                ->orWhere('other_months', 'LIKE', '%' . $targetMonthDate . '%');
+                        })
                         ->exists();
 
                     if ($exists) {
                         $skipped[] = $student->roll_no;
-
                         continue;
                     }
                 }
@@ -4657,9 +5056,10 @@ public function storeChallan(Request $request)
                     ? $dates
                     : [date('Y-m-01', strtotime($feeMonth))];
 
-                $chargeableMonthCount = collect($billingMonths)
+                $chargeableBillingMonths = collect($billingMonths)
                     ->filter(fn($month) => !$this->appliesJunJulFeeExemption($student, Carbon::parse($month)))
-                    ->count();
+                    ->values();
+                $chargeableMonthCount = $chargeableBillingMonths->count();
 
                 // fetch fee heads + concession
                 $feeHeads = StudentFeeStructure::with('feehead')
@@ -4670,17 +5070,11 @@ public function storeChallan(Request $request)
                 if ($feeHeads->isEmpty()) {
                     // dd($feeHeads);
                     $skipped[] = $student->roll_no;
-
+                    dd('strucrue empty');
                     continue;
                 }
-                $concession = Concession::where('student_id', $student->id)
-                    ->where(function ($q) {
-                        $q->where('end_date', '>=', now())
-                            ->orWhereNull('end_date');
-                    })
-                    ->where('status', 'Approved')
-                    ->latest()
-                    ->first();
+                // dd($billingMonths);
+                $concession = $this->activeConcessionForStudent($student->id, $billingMonths[0] ?? $request->fee_month);
 
                 // create challan record
                 $challan = Challans::create([
@@ -4726,22 +5120,33 @@ public function storeChallan(Request $request)
                         continue;
                     }
 
+                    $price = 0;
+                    $con = 0;
+                    $monthsToCharge = $chargeableBillingMonths;
+
                     if ($isAnnual) {
-                        $qty = $chargeableMonthCount > 0 ? 1 : 0;
+                        $monthsToCharge = $chargeableBillingMonths->take(1);
                         $annualAdded = true;
-                    } else {
-                        $qty = $chargeableMonthCount;
                     }
 
-                    $price = $fh->amount * $qty;
+                    foreach ($monthsToCharge as $billingMonthDate) {
+                        $price += $fh->amount;
 
-                    $pct = optional(
-                        ConcessionPolicyHead::where('head_id', $fh->head_id)
-                            ->where('concession_id', optional($concession)->concession_id)
-                            ->first()
-                    )->percentage ?? $fh->discount;
+                        $monthConcession = $fh->discount;
+                        $monthConcessionPolicy = $this->activeConcessionForStudent($student->id, $billingMonthDate);
 
-                    $con = round(($fh->amount / 100) * $pct) * $qty;
+                        if ($monthConcessionPolicy) {
+                            $policyHead = ConcessionPolicyHead::where('head_id', $fh->head_id)
+                                ->where('concession_id', $monthConcessionPolicy->concession_id)
+                                ->first();
+
+                            if ($policyHead) {
+                                $monthConcession = $policyHead->percentage;
+                            }
+                        }
+
+                        $con += round(($fh->amount / 100) * $monthConcession);
+                    }
 
                     $totalAmt += $price;
                     $totalConces += $con;
@@ -4938,19 +5343,7 @@ public function storeChallan(Request $request)
         }
         $studentData = StudentRegistration::with('class', 'branches')->where('id', @$challan->student_id)->first();
         $classfee = StudentFeeStructure::with('feehead')->where('reg_id', @$challan->student_id)->where('owned_by', $studentData->owned_by)->get();
-        $concession = Concession::with('concession')
-            ->where('student_id', @$challan->student_id)
-            ->where('end_date', '>=', date('Y-m-d'))
-            ->where('status', 'Approved')
-            ->orderBy('id', 'desc')
-            ->first();
-        if (! $concession) {
-            $concession = Concession::with('concession')
-                ->where('student_id', @$challan->student_id)
-                ->where('status', 'Approved')
-                ->orderBy('id', 'desc')
-                ->first();
-        }
+        $concession = $this->activeConcessionForStudent($challan->student_id, $challan->fee_month);
 
         $installmentChallans = Challans::with('heads')->where('student_id', $challan->student_id)
             ->where('challan_type', 'Admission')
@@ -4979,19 +5372,7 @@ public function storeChallan(Request $request)
         }
         $studentData = StudentRegistration::with('class', 'branches')->where('id', @$challan->student_id)->first();
         $classfee = StudentFeeStructure::with('feehead')->where('reg_id', @$challan->student_id)->where('owned_by', $studentData->owned_by)->get();
-        $concession = Concession::with('concession')
-            ->where('student_id', @$challan->student_id)
-            ->where('end_date', '>=', date('Y-m-d'))
-            ->where('status', 'Approved')
-            ->orderBy('id', 'desc')
-            ->first();
-        if (! $concession) {
-            $concession = Concession::with('concession')
-                ->where('student_id', @$challan->student_id)
-                ->where('status', 'Approved')
-                ->orderBy('id', 'desc')
-                ->first();
-        }
+        $concession = $this->activeConcessionForStudent($challan->student_id, $challan->fee_month);
 
         $installmentChallans = Challans::with('heads')->where('student_id', $challan->student_id)
             ->where('challan_type', 'Readmission')
@@ -5163,6 +5544,15 @@ public function storeChallan(Request $request)
                 $concession,
                 $category = 'Admission'
             ) use ($deleteChallanJournal, $buildJournalItems) {
+
+                $feeHeads = collect($feeHeads)
+                    ->keyBy(function ($feeHead) {
+                        return is_array($feeHead)
+                            ? ($feeHead['head_id'] ?? null)
+                            : ($feeHead->head_id ?? null);
+                    })
+                    ->filter()
+                    ->values();
 
                 /*
                 |--------------------------------------------------------------------------
@@ -5712,23 +6102,7 @@ public function storeChallan(Request $request)
 
         $classfee = $classfee->unique('head_id')->values();
 
-        $concession = Concession::with('concession')
-            ->where('student_id', $challan->student_id)
-            ->where('active_status', '!=', 0)
-            ->where('status', 'Approved')
-            ->whereDate('end_date', '>=', now())
-            ->orderByDesc('id')
-            ->first();
-
-        if (! $concession) {
-            $concession = Concession::with('concession')
-                ->where('student_id', $challan->student_id)
-                ->where('active_status', '!=', 0)
-                ->where('status', 'Approved')
-                ->whereNull('end_date')
-                ->orderByDesc('id')
-                ->first();
-        }
+        $concession = $this->activeConcessionForStudent($challan->student_id, $challan->fee_month);
 
         return view(
             'challans.nchallanedit',
@@ -6336,18 +6710,20 @@ public function storeChallan(Request $request)
             if (count($checkChallans) > 1) {
                 $allHeads = $checkChallans->flatMap(function ($challan) {
                     return $challan->heads;
-                })->toArray();
+                })->keyBy('head_id')->values()->toArray();
                 for ($i = 0; $i < count($allHeads); $i++) {
-                    if ($inst1Amounts[$i] == '100') {
+                    if (($inst1Amounts[$i] ?? null) == '100') {
                         $totalInst1 += $allHeads[$i]['price'];
                         $feeHeadsInst1[] = $allHeads[$i];
                         $concessionInst1 += $allHeads[$i]['concession'];
-                    } elseif ($inst1Amounts[$i] == '0') {
+                    } elseif (($inst1Amounts[$i] ?? null) == '0') {
                         $totalInst2 += $allHeads[$i]['price'];
                         $feeHeadsInst2[] = $allHeads[$i];
                         $concessionInst2 += $allHeads[$i]['concession'];
                     }
                 }
+                $feeHeadsInst1 = collect($feeHeadsInst1)->keyBy('head_id')->values()->toArray();
+                $feeHeadsInst2 = collect($feeHeadsInst2)->keyBy('head_id')->values()->toArray();
                 $existingChallan->total_amount = $totalInst1;
                 $existingChallan->concession_amount = $concessionInst1;
                 $existingChallan->save();
@@ -6447,11 +6823,11 @@ public function storeChallan(Request $request)
                     $feeHead = ChallanHead::with('feeHead')->where('challan_id', $existingChallan->id)->where('head_id', $feeHeadIds[$i])->first();
 
                     if ($feeHead) {
-                        if ($inst1Amounts[$i] == '100') {
+                        if (($inst1Amounts[$i] ?? null) == '100') {
                             $totalInst1 += $feeHead->price;
                             $feeHeadsInst1[] = $feeHead;
                             $concessionInst1 += $feeHead->concession;
-                        } elseif ($inst1Amounts[$i] == '0') {
+                        } elseif (($inst1Amounts[$i] ?? null) == '0') {
                             $totalInst2 += $feeHead->price;
                             $feeHeadsInst2[] = $feeHead;
                             $concessionInst2 += $feeHead->concession;
@@ -6459,6 +6835,8 @@ public function storeChallan(Request $request)
                     }
                 }
                 // dd($totalInst1,$concessionInst1);
+                $feeHeadsInst1 = collect($feeHeadsInst1)->keyBy('head_id')->values()->toArray();
+                $feeHeadsInst2 = collect($feeHeadsInst2)->keyBy('head_id')->values()->toArray();
                 $existingChallan->total_amount = $totalInst1;
                 $existingChallan->concession_amount = $concessionInst1;
                 $existingChallan->save();
@@ -6683,3 +7061,9 @@ public function storeChallan(Request $request)
     }
 }
 }
+
+
+
+
+
+

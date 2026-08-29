@@ -28,10 +28,20 @@ class StudentReceipt extends Controller
 
     public function index(Request $request)
     {
-        $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
-            ->where('created_by', \Auth::user()->creatorId())
-            ->get()
-            ->pluck('name', 'id');
+        // Bank visibility rule:
+        // - Company user: all banks created under the company
+        // - Branch user: only banks owned by that branch
+        if (\Auth::user()->type == 'company') {
+            $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                ->where('created_by', \Auth::user()->creatorId())
+                ->get()
+                ->pluck('name', 'id');
+        } else {
+            $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                ->where('owned_by', \Auth::user()->ownedId())
+                ->get()
+                ->pluck('name', 'id');
+        }
         $accounts->prepend('Select Bank', 'allbank');
 
         $query = Receipt::with([
@@ -250,10 +260,20 @@ class StudentReceipt extends Controller
         }
 
         // Get the data needed for the index view
-        $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
-            ->where('created_by', \Auth::user()->creatorId())
-            ->get()
-            ->pluck('name', 'id');
+        // Bank visibility rule:
+        // - Company user: all banks created under the company
+        // - Branch user: only banks owned by that branch
+        if (\Auth::user()->type == 'company') {
+            $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                ->where('created_by', \Auth::user()->creatorId())
+                ->get()
+                ->pluck('name', 'id');
+        } else {
+            $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))
+                ->where('owned_by', \Auth::user()->ownedId())
+                ->get()
+                ->pluck('name', 'id');
+        }
         $accounts->prepend('Select Bank', 'allbank');
 
         $query = Receipt::with('challan');
@@ -492,6 +512,12 @@ class StudentReceipt extends Controller
             $newBank = BankAccount::find($request->bank_id);
             if (!$newBank || !$newBank->chart_account_id) {
                 throw new \Exception('Bank account does not have a Chart of Account attached.');
+            }
+
+            // Security: a branch must never be able to submit another branch/company bank
+            // by manually changing the request payload.
+            if (\Auth::user()->type != 'company' && (int) $newBank->owned_by !== (int) \Auth::user()->ownedId()) {
+                throw new \Exception('Selected bank account is not available for this branch.');
             }
 
             $oldJournal = JournalEntry::find($receipt->voucher_id);

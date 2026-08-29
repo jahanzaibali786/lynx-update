@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Session extends Model
 {
-    use HasFactory , LogsActions;
+    use HasFactory, LogsActions;
 
     protected $fillable = [
         'year',
@@ -19,4 +19,16 @@ class Session extends Model
         'owned_by',
         'created_by',
     ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Active Session ID
+    |--------------------------------------------------------------------------
+    */
+    public static function activeSessionId()
+    {
+        return static::where('created_by', auth()->user()->creatorId())
+            ->where('active_status', 1)
+            ->value('id');
+    }
 }

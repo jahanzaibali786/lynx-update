@@ -202,12 +202,14 @@
                 <div class="col-md-6">
                     {{ Form::label('session', __('Session'), ['class' => 'form-label']) }}<span style="color: red">
                         *</span>
-                    <select name="session_id" class="form-control" required>
-                        {{-- <option value="" selected disabled>Select Session</option> --}}
-                        @foreach ($session as $key => $value)
-                            <option value="{{ $key }}">{{ $value }}</option>
-                        @endforeach
-                    </select>
+                        {{ Form::select(
+                            'session_id',
+                            $session,
+                            request()->get('session_id', \App\Models\Session::activeSessionId()),
+                            [
+                                'class' => 'form-control select',
+                            ]
+                        ) }}
                 </div>
                 <div class="col-md-6">
                     {{ Form::label('religion', __('Religion'), ['class' => 'form-label']) }}<span style="color: red">

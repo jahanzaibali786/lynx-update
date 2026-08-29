@@ -3,13 +3,6 @@
 {{__('Registration Receipt')}}
 @endsection
 @push('script-page')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf2htmlEX/0.18.7/pdf2htmlEX.min.js"></script>
-<script>
-    function printPDF() {
-        let url = "{{ route('reg.receipt', $reg_recipt->id) }}?print=pdf";
-        window.open(url, '_blank');
-    }
-</script>
 @endpush
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
@@ -27,15 +20,17 @@
     flex-direction: column;
 }
 </style>
+@if(!request()->has('print') && !request()->has('download'))
 <div class="my-3">
     <div class="row " style="float: right;">
         <div class="col-md-4 d-flex gap-3">
             <a href="{{ route('registration.show', $reg_recipt->id) }}" class="btn btn-outline-primary"> Admission Process </a>
-            <button class="btn btn-outline-primary" onclick="generatePDF()">Download PDF</button>
-            <button class="btn btn-outline-success" onclick="printPDF()">Print PDF</button>
+            <a href="{{ route('reg.receipt', $reg_recipt->id) }}?download=pdf" class="btn btn-outline-primary">Download PDF</a>
+            <a href="{{ route('reg.receipt', $reg_recipt->id) }}?print=pdf" class="btn btn-outline-success" target="_blank" rel="noopener">Print PDF</a>
         </div>
     </div>
 </div>
+@endif
 <div class="card" id="card" style="padding:0px 10%;">
     <div class="cont" id="cont">
         <div class="header d-flex justify-content-center" style="gap:10%;">

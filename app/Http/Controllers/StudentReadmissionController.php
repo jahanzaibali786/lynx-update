@@ -181,6 +181,7 @@ class StudentReadmissionController extends Controller
             'tuition_increment_enabled' => 'nullable|boolean',
             'tuition_increment_percentage' => 'nullable|integer|min:0',
             'tuition_increment_effective_from' => 'nullable|date_format:Y-m',
+            'readmission_structure_source' => 'nullable|in:student,class',
         ]);
 
         if ($validator->fails()) {
@@ -542,6 +543,7 @@ class StudentReadmissionController extends Controller
             'tuition_increment_enabled' => 'nullable|boolean',
             'tuition_increment_percentage' => 'nullable|integer|min:0',
             'tuition_increment_effective_from' => 'nullable|date_format:Y-m',
+            'readmission_structure_source' => 'nullable|in:student,class',
         ]);
 
         if ($validator->fails()) {
@@ -667,6 +669,16 @@ class StudentReadmissionController extends Controller
             (int) $request->input('tuition_increment_percentage', 0)
         );
 
+        $readmissionStructureSource = $request->flow_type === 'readmission'
+            ? $request->input('readmission_structure_source', 'student')
+            : 'student';
+
+        $readmissionStructureSource = in_array(
+            $readmissionStructureSource,
+            ['student', 'class'],
+            true
+        ) ? $readmissionStructureSource : 'student';
+
         /*
          * Billing Month is the effective month for Tuition revision.
          */
@@ -681,7 +693,8 @@ class StudentReadmissionController extends Controller
             $request->flow_type,
             $policyHeads,
             $tuitionIncrementPercentage,
-            $tuitionIncrementEnabled
+            $tuitionIncrementEnabled,
+            $readmissionStructureSource
         );
 
         $feeRevision = $this->tuitionRevisionPreview(
@@ -690,7 +703,8 @@ class StudentReadmissionController extends Controller
             $targetPlacement,
             $policyHeads,
             $tuitionIncrementPercentage,
-            $tuitionIncrementEnabled
+            $tuitionIncrementEnabled,
+            $readmissionStructureSource
         );
 
         $tuitionIncrementEffectiveFrom =
@@ -762,6 +776,9 @@ class StudentReadmissionController extends Controller
             ->all();
         $snapshot['target_fee_structure'] = $targetStructure;
         $snapshot['selected_head_ids'] = array_values($selectedHeadIds);
+        $snapshot['readmission_structure_source'] = $request->flow_type === 'readmission'
+            ? $readmissionStructureSource
+            : 'student';
         $snapshot['fee_revision'] = $feeRevision;
         $snapshot['active_policy'] = $this->previewPolicyDetails($activeConcession, $policyHeads);
         $snapshot['latest_policy_application'] = $this->previewLatestPolicyDetails(
@@ -778,6 +795,7 @@ class StudentReadmissionController extends Controller
             'issue_date' => Carbon::parse($request->issue_date)->toDateString(),
             'due_date' => Carbon::parse($request->due_date)->toDateString(),
             'reason' => $request->reason,
+            'readmission_structure_source' => $readmissionStructureSource,
             'tuition_increment_enabled' => (bool) $tuitionIncrementEnabled,
             'tuition_increment_percentage' => (int) $tuitionIncrementPercentage,
             'tuition_increment_effective_from' => $tuitionIncrementEffectiveFrom,
@@ -1418,6 +1436,11 @@ class StudentReadmissionController extends Controller
                     $approvalSnapshot['selected_head_ids'] =
                         $selectedHeadIds;
 
+                    $approvalSnapshot['readmission_structure_source'] =
+                        $flowType === 'readmission'
+                            ? ($snapshot['readmission_structure_source'] ?? 'student')
+                            : 'student';
+
                     $approvalSnapshot['fee_revision'] =
                         $snapshot['fee_revision']
                         ?? [];
@@ -1581,6 +1604,7 @@ class StudentReadmissionController extends Controller
             'tuition_increment_enabled' => 'nullable|boolean',
             'tuition_increment_percentage' => 'nullable|integer|min:0',
             'tuition_increment_effective_from' => 'nullable|date_format:Y-m',
+            'readmission_structure_source' => 'nullable|in:student,class',
         ]);
 
         if ($validator->fails()) {
@@ -1655,6 +1679,16 @@ class StudentReadmissionController extends Controller
             (int) $request->input('tuition_increment_percentage', 0)
         );
 
+        $readmissionStructureSource = $flowType === 'readmission'
+            ? $request->input('readmission_structure_source', 'student')
+            : 'student';
+
+        $readmissionStructureSource = in_array(
+            $readmissionStructureSource,
+            ['student', 'class'],
+            true
+        ) ? $readmissionStructureSource : 'student';
+
         $targetStructure = $flowType === 'reactivation'
             ? []
             : $this->targetFeeStructurePreview(
@@ -1664,7 +1698,8 @@ class StudentReadmissionController extends Controller
                 $flowType,
                 $policyHeads,
                 $tuitionIncrementPercentage,
-                $tuitionIncrementEnabled
+                $tuitionIncrementEnabled,
+                $readmissionStructureSource
             );
 
         $feeRevision = $this->tuitionRevisionPreview(
@@ -1673,7 +1708,8 @@ class StudentReadmissionController extends Controller
             $targetPlacement,
             $policyHeads,
             $tuitionIncrementPercentage,
-            $tuitionIncrementEnabled
+            $tuitionIncrementEnabled,
+            $readmissionStructureSource
         );
 
         /*
@@ -1692,7 +1728,8 @@ class StudentReadmissionController extends Controller
         $latestPolicy = $this->latestConcessionApplication($context['student']->id);
         $gapBilling = $this->gapBillingContext(
             $context['student']->id,
-            $context['withdrawal']
+            $context['withdrawal'],
+            $flowType === 'reactivation' ? $billingMonth : null
         );
 
         $gapBilling = $this->applyReadmissionBillingMonthGapRule(
@@ -1730,6 +1767,9 @@ class StudentReadmissionController extends Controller
             'destination_details' => $this->placementDetails($targetPlacement),
             'existing_fee_structure' => $existingStructure,
             'target_fee_structure' => $targetStructure,
+            'readmission_structure_source' => $flowType === 'readmission'
+                ? $readmissionStructureSource
+                : 'student',
             'fee_revision' => $feeRevision,
             // Backward compatibility for the existing Blade's old "heads" key.
             'heads' => $targetStructure,
@@ -2348,7 +2388,8 @@ class StudentReadmissionController extends Controller
         array $targetPlacement,
         $policyHeads,
         $percentage = 0,
-        $enabled = true
+        $enabled = true,
+        $structureSource = 'student'
     ) {
         $sessionChanged = (int) ($sourcePlacement['session_id'] ?? 0)
             !== (int) ($targetPlacement['session_id'] ?? 0);
@@ -2356,15 +2397,27 @@ class StudentReadmissionController extends Controller
         $percentage = max(0, (int) $percentage);
         $enabled = (bool) $enabled;
 
-        $existingRows = collect(
-            $this->existingFeeStructurePreview(
-                $student,
-                $sourcePlacement,
-                $policyHeads
-            )
-        );
+        $structureSource = in_array($structureSource, ['student', 'class'], true)
+            ? $structureSource
+            : 'student';
 
-        $tuition = $existingRows->first(function ($row) {
+        $baseRows = $structureSource === 'class'
+            ? collect(
+                $this->classWiseFeeStructurePreview(
+                    $student,
+                    $targetPlacement,
+                    $policyHeads
+                )
+            )
+            : collect(
+                $this->existingFeeStructurePreview(
+                    $student,
+                    $sourcePlacement,
+                    $policyHeads
+                )
+            );
+
+        $tuition = $baseRows->first(function ($row) {
             return $this->isTuitionFeeHeadName(
                 (string) ($row['fee_head'] ?? '')
             );
@@ -2383,6 +2436,10 @@ class StudentReadmissionController extends Controller
                 'discount' => 0,
                 'prev_payable_amount' => 0,
                 'new_payable_amount' => 0,
+                'base_source' => $structureSource,
+                'base_source_label' => $structureSource === 'class'
+                    ? 'Class Fee Structure'
+                    : 'Existing Student Fee',
             ];
         }
 
@@ -2416,6 +2473,10 @@ class StudentReadmissionController extends Controller
                 $newBase - (($newBase * $discount) / 100),
                 2
             ),
+            'base_source' => $structureSource,
+            'base_source_label' => $structureSource === 'class'
+                ? 'Class Fee Structure'
+                : 'Existing Student Fee',
         ];
     }
 
@@ -2425,8 +2486,13 @@ class StudentReadmissionController extends Controller
         array $targetPlacement,
         $policyHeads,
         $tuitionIncrementPercentage = 0,
-        $tuitionIncrementEnabled = true
+        $tuitionIncrementEnabled = true,
+        $structureSource = 'student'
     ) {
+        $structureSource = in_array($structureSource, ['student', 'class'], true)
+            ? $structureSource
+            : 'student';
+
         $existingRows = collect(
             $this->existingFeeStructurePreview(
                 $student,
@@ -2457,7 +2523,8 @@ class StudentReadmissionController extends Controller
             $targetPlacement,
             $policyHeads,
             $tuitionIncrementPercentage,
-            $tuitionIncrementEnabled
+            $tuitionIncrementEnabled,
+            $structureSource
         );
 
         $headIds = $classRows->pluck('head_id')
@@ -2489,7 +2556,26 @@ class StudentReadmissionController extends Controller
                 $existingAmount = (float) ($existing['class_amount'] ?? 0);
                 $chargeAmount = $existingAmount;
 
+                /*
+                 * Readmission Tuition source is user-selectable:
+                 * - student (default): preserve StudentFeeStructure Tuition, with optional session increment.
+                 * - class: use the target ClassWiseFee Tuition amount directly.
+                 * Other fee heads keep the existing readmission behavior.
+                 */
                 if (
+                    $isTuition
+                    && $structureSource === 'class'
+                    && $classRow
+                ) {
+                    $classBase = (float) ($classRow['class_amount'] ?? 0);
+                    $chargeAmount = (
+                        !empty($revision['session_changed'])
+                        && !empty($revision['enabled'])
+                        && (int) ($revision['head_id'] ?? 0) === (int) $headId
+                    )
+                        ? (float) ($revision['new_base_amount'] ?? $classBase)
+                        : $classBase;
+                } elseif (
                     $isTuition
                     && !empty($revision['session_changed'])
                     && !empty($revision['enabled'])
@@ -2498,7 +2584,11 @@ class StudentReadmissionController extends Controller
                     $chargeAmount = (float) ($revision['new_base_amount'] ?? $existingAmount);
                 }
 
-                $discount = (float) ($existing['discount'] ?? 0);
+                $discount = (float) (
+                    $isTuition && $structureSource === 'class' && $classRow
+                        ? ($classRow['discount'] ?? 0)
+                        : ($existing['discount'] ?? 0)
+                );
 
                 $row['existing_amount'] = round($existingAmount, 2);
                 $row['class_reference_amount'] = $classRow
@@ -2510,27 +2600,61 @@ class StudentReadmissionController extends Controller
                     $chargeAmount - (($chargeAmount * $discount) / 100),
                     2
                 );
-                $row['increment_percentage'] = $isTuition
-                    ? (int) ($revision['percentage'] ?? 0)
-                    : 0;
-                $row['source'] = 'student_fee_structure';
-                $row['charge_source'] = $isTuition && (int) ($revision['percentage'] ?? 0) > 0
-                    ? 'student_fee_structure_revision'
-                    : 'student_fee_structure';
-                $row['charge_source_label'] = $isTuition && !empty($revision['session_changed'])
-                    ? 'Existing Student Fee' . ((int) ($revision['percentage'] ?? 0) > 0 ? ' + Increment' : '')
-                    : 'Existing Student Fee';
+
+                if ($isTuition && $structureSource === 'class' && $classRow) {
+                    $row['increment_percentage'] = (int) ($revision['percentage'] ?? 0);
+                    $row['source'] = 'class_wise_fee';
+                    $row['charge_source'] = (int) ($revision['percentage'] ?? 0) > 0
+                        ? 'class_wise_fee_revision'
+                        : 'class_wise_fee';
+                    $row['charge_source_label'] = 'Class Fee Structure'
+                        . ((int) ($revision['percentage'] ?? 0) > 0 ? ' + Increment' : '');
+                } else {
+                    $row['increment_percentage'] = $isTuition
+                        ? (int) ($revision['percentage'] ?? 0)
+                        : 0;
+                    $row['source'] = 'student_fee_structure';
+                    $row['charge_source'] = $isTuition && (int) ($revision['percentage'] ?? 0) > 0
+                        ? 'student_fee_structure_revision'
+                        : 'student_fee_structure';
+                    $row['charge_source_label'] = $isTuition && !empty($revision['session_changed'])
+                        ? 'Existing Student Fee' . ((int) ($revision['percentage'] ?? 0) > 0 ? ' + Increment' : '')
+                        : 'Existing Student Fee';
+                }
             } else {
                 $row = $classRow ?: [];
 
                 $classAmount = (float) ($row['class_amount'] ?? 0);
+                $chargeAmount = $classAmount;
+
+                if (
+                    $isTuition
+                    && $structureSource === 'class'
+                    && !empty($revision['session_changed'])
+                    && !empty($revision['enabled'])
+                    && (int) ($revision['head_id'] ?? 0) === (int) $headId
+                ) {
+                    $chargeAmount = (float) ($revision['new_base_amount'] ?? $classAmount);
+                }
+
+                $discount = (float) ($row['discount'] ?? 0);
 
                 $row['existing_amount'] = null;
                 $row['class_reference_amount'] = round($classAmount, 2);
-                $row['charge_amount'] = round($classAmount, 2);
-                $row['charge_source'] = 'class_wise_fee';
-                $row['charge_source_label'] = 'Class Fee Structure';
-                $row['increment_percentage'] = 0;
+                $row['class_amount'] = round($chargeAmount, 2);
+                $row['charge_amount'] = round($chargeAmount, 2);
+                $row['payable_amount'] = round(
+                    $chargeAmount - (($chargeAmount * $discount) / 100),
+                    2
+                );
+                $row['increment_percentage'] = $isTuition
+                    ? (int) ($revision['percentage'] ?? 0)
+                    : 0;
+                $row['charge_source'] = $isTuition && (int) ($revision['percentage'] ?? 0) > 0
+                    ? 'class_wise_fee_revision'
+                    : 'class_wise_fee';
+                $row['charge_source_label'] = 'Class Fee Structure'
+                    . ($isTuition && (int) ($revision['percentage'] ?? 0) > 0 ? ' + Increment' : '');
             }
 
             /*
@@ -2573,9 +2697,13 @@ class StudentReadmissionController extends Controller
         $flowType,
         $policyHeads,
         $tuitionIncrementPercentage = 0,
-        $tuitionIncrementEnabled = true
+        $tuitionIncrementEnabled = true,
+        $readmissionStructureSource = 'student'
     ) {
         $tuitionIncrementPercentage = max(0, (int) $tuitionIncrementPercentage);
+        $readmissionStructureSource = in_array($readmissionStructureSource, ['student', 'class'], true)
+            ? $readmissionStructureSource
+            : 'student';
         $sessionChanged = (int) ($sourcePlacement['session_id'] ?? 0)
             !== (int) ($targetPlacement['session_id'] ?? 0);
 
@@ -2599,7 +2727,8 @@ class StudentReadmissionController extends Controller
                 $targetPlacement,
                 $policyHeads,
                 $sessionChanged ? $tuitionIncrementPercentage : 0,
-                $sessionChanged && (bool) $tuitionIncrementEnabled
+                $sessionChanged && (bool) $tuitionIncrementEnabled,
+                $readmissionStructureSource
             );
         }
 
@@ -2865,9 +2994,33 @@ class StudentReadmissionController extends Controller
      * Only Missing months are returned in "months" and are eligible for generation.
      * Covered months remain visible in "month_statuses" for the branch/company review.
      */
-    private function gapBillingContext($studentId, $withdrawal)
+    private function gapBillingContext($studentId, $withdrawal, $throughMonth = null)
     {
         $withdrawalDate = $this->withdrawalDate($withdrawal);
+
+        /*
+         * Reactivation may intentionally bill a future month (for example,
+         * August is already covered and September is selected while the
+         * current date is still in August). Historically this method stopped
+         * at the current month, so the selected future billing month never
+         * entered gap_months and therefore no Regular challan was generated.
+         *
+         * $throughMonth is optional so the existing Readmission/Re-enrollment
+         * behaviour is unchanged unless a caller explicitly extends the range.
+         */
+        $end = Carbon::today()->startOfMonth();
+
+        if (!empty($throughMonth)) {
+            try {
+                $requestedEnd = Carbon::parse($throughMonth)->startOfMonth();
+
+                if ($requestedEnd->gt($end)) {
+                    $end = $requestedEnd;
+                }
+            } catch (\Throwable $e) {
+                // Keep the normal current-month boundary for malformed values.
+            }
+        }
 
         if (!$withdrawalDate) {
             return [
@@ -2875,7 +3028,7 @@ class StudentReadmissionController extends Controller
                 'month_statuses' => [],
                 'range' => [
                     'from' => null,
-                    'to' => Carbon::today()->startOfMonth()->toDateString(),
+                    'to' => $end->toDateString(),
                 ],
                 'anchor' => [
                     'exists' => false,
@@ -2884,7 +3037,6 @@ class StudentReadmissionController extends Controller
         }
 
         $cursor = $withdrawalDate->copy()->startOfMonth();
-        $end = Carbon::today()->startOfMonth();
 
         $missingMonths = [];
         $monthStatuses = [];
@@ -3186,6 +3338,16 @@ class StudentReadmissionController extends Controller
             (int) $request->input('tuition_increment_percentage', 0)
         );
 
+        $readmissionStructureSource = $flowType === 'readmission'
+            ? $request->input('readmission_structure_source', 'student')
+            : 'student';
+
+        $readmissionStructureSource = in_array(
+            $readmissionStructureSource,
+            ['student', 'class'],
+            true
+        ) ? $readmissionStructureSource : 'student';
+
         $existingStructure = $this->existingFeeStructurePreview(
             $context['student'],
             $sourcePlacement,
@@ -3201,7 +3363,8 @@ class StudentReadmissionController extends Controller
                 $flowType,
                 $policyHeads,
                 $tuitionIncrementPercentage,
-                $tuitionIncrementEnabled
+                $tuitionIncrementEnabled,
+                $readmissionStructureSource
             );
 
         $feeRevision = $this->tuitionRevisionPreview(
@@ -3210,7 +3373,8 @@ class StudentReadmissionController extends Controller
             $targetPlacement,
             $policyHeads,
             $tuitionIncrementPercentage,
-            $tuitionIncrementEnabled
+            $tuitionIncrementEnabled,
+            $readmissionStructureSource
         );
 
         /*
@@ -3228,7 +3392,8 @@ class StudentReadmissionController extends Controller
 
         $gapBilling = $this->gapBillingContext(
             $context['student']->id,
-            $context['withdrawal']
+            $context['withdrawal'],
+            $flowType === 'reactivation' ? $billingMonth : null
         );
 
         $gapBilling = $this->applyReadmissionBillingMonthGapRule(
@@ -3299,6 +3464,9 @@ class StudentReadmissionController extends Controller
             'existing_selected_head_ids' => $existingSelectedHeadIds,
             'target_fee_structure' => $targetStructure,
             'selected_head_ids' => array_values($selectedHeadIds),
+            'readmission_structure_source' => $flowType === 'readmission'
+                ? $readmissionStructureSource
+                : 'student',
             'fee_revision' => $feeRevision,
             'gap_months' => $gapBilling['months'],
             'gap_month_statuses' => $gapBilling['month_statuses'],
@@ -3315,6 +3483,7 @@ class StudentReadmissionController extends Controller
                 'issue_date' => Carbon::parse($request->issue_date)->toDateString(),
                 'due_date' => Carbon::parse($request->due_date)->toDateString(),
                 'reason' => $request->reason,
+                'readmission_structure_source' => $readmissionStructureSource,
                 'tuition_increment_enabled' => (bool) $tuitionIncrementEnabled,
                 'tuition_increment_percentage' => (int) $tuitionIncrementPercentage,
                 'tuition_increment_effective_from' => $tuitionIncrementEffectiveFrom,
@@ -3704,14 +3873,20 @@ class StudentReadmissionController extends Controller
     private function applyReadmissionStudentStructureRevision(
         $student,
         array $targetPlacement,
-        array $feeRevision
+        array $feeRevision,
+        array $targetRows = [],
+        $structureSource = 'student'
     ) {
         $branchId = (int) ($targetPlacement['branch_id'] ?? $student->owned_by);
         $classId = (int) ($targetPlacement['class_id'] ?? $student->class_id);
 
+        $structureSource = in_array($structureSource, ['student', 'class'], true)
+            ? $structureSource
+            : 'student';
+
         /*
-         * Readmission preserves the student's existing fee amounts.
-         * Only placement metadata changes here.
+         * Readmission always moves the student's fee structure metadata to the
+         * approved target branch/class. Amounts stay unchanged by default.
          */
         StudentFeeStructure::where('reg_id', $student->id)
             ->update([
@@ -3721,9 +3896,70 @@ class StudentReadmissionController extends Controller
             ]);
 
         /*
-         * Session change Tuition revision:
-         * base = student's current Tuition
-         * new  = base + entered integer %
+         * Optional Readmission override: when Company/Branch selected Class
+         * Structure, replace ONLY the Tuition Fee head amount with the approved
+         * approved ClassWiseFee Tuition amount, including any approved session increment. Other fee heads are preserved.
+         */
+        if ($structureSource === 'class') {
+            $tuitionRow = collect($targetRows)->first(function ($row) {
+                return $this->isTuitionFeeHeadName(
+                    (string) ($row['fee_head'] ?? '')
+                );
+            });
+
+            if (!$tuitionRow) {
+                throw new \RuntimeException(
+                    'Class Tuition was selected for Readmission, but no Tuition Fee row exists in the approved target fee structure.'
+                );
+            }
+
+            $headId = (int) ($tuitionRow['head_id'] ?? 0);
+            $classAmount = $tuitionRow['charge_amount']
+                ?? $tuitionRow['class_amount']
+                ?? $tuitionRow['class_reference_amount']
+                ?? null;
+
+            if (!$headId || $classAmount === null) {
+                throw new \RuntimeException(
+                    'Class Tuition was selected for Readmission, but the target class Tuition amount is unavailable.'
+                );
+            }
+
+            $structure = StudentFeeStructure::where('reg_id', $student->id)
+                ->where('head_id', $headId)
+                ->orderByDesc('id')
+                ->first();
+
+            if (!$structure) {
+                $structure = new StudentFeeStructure();
+                $structure->reg_id = $student->id;
+                $structure->student_id = $student->roll_no;
+                $structure->head_id = $headId;
+                $structure->created_by = $student->created_by
+                    ?: \Auth::user()->creatorId();
+            }
+
+            $structure->amount = (float) $classAmount;
+            $structure->discount = (float) (
+                $tuitionRow['base_discount']
+                ?? $tuitionRow['discount']
+                ?? $structure->discount
+                ?? 0
+            );
+            $structure->owned_by = $branchId;
+            $structure->branch_id = $branchId;
+            $structure->class_id = $classId;
+            $structure->is_custom = (int) ($tuitionRow['increment_percentage'] ?? 0) > 0
+                ? 1
+                : 0;
+            $structure->save();
+
+            return;
+        }
+
+        /*
+         * Default Student Structure behavior: session-change Tuition revision
+         * remains based on the student's current Tuition amount.
          */
         if (
             empty($feeRevision['session_changed'])

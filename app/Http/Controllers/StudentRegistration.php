@@ -1071,9 +1071,21 @@ class StudentRegistration extends Controller
         ///
     }
 
-    public function receipt($id)
+    public function receipt(Request $request, $id)
     {
-        $reg_recipt = ModelsStudentRegistration::with('session', 'class', 'branches', 'branch_name', 'branch_name.headmaster_name')->find($id);
+        $reg_recipt = ModelsStudentRegistration::with('session', 'class', 'branches', 'branch_name', 'branch_name.headmaster_name')->findOrFail($id);
+
+        if ($request->get('download') === 'pdf' || $request->get('print') === 'pdf') {
+            $pdf = Pdf::loadView('students.registration.reg_slip_pdf', compact('reg_recipt'))
+                ->setPaper('A4', 'portrait');
+
+            if ($request->get('download') === 'pdf') {
+                return $pdf->download('Registration_Receipt.pdf');
+            }
+
+            return $pdf->stream('Registration_Receipt.pdf');
+        }
+
         return view('students.registration.reg_slip', compact('reg_recipt'));
     }
    public function admission_order(Request $request, $id)

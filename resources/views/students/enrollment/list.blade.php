@@ -42,7 +42,15 @@
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('sessions', __('Session'), ['class' => 'form-label']) }}
-                                    {{ Form::select('sessions', $sessions, request()->get('sessions', ''), ['class' => 'form-control select', 'id' => 'session_select']) }}
+{{ Form::select(
+    'sessions',
+    $sessions,
+    request()->get('sessions', \App\Models\Session::activeSessionId()),
+    [
+        'class' => 'form-control select',
+        'id' => 'session_select'
+    ]
+) }}
                                 </div>
                             </div>
                             {{-- //gender  --}}

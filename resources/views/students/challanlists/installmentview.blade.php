@@ -71,6 +71,9 @@
                     <span>{{@$studentData->class->name ? $studentData->class->name : ''}}</span>
                 </div>
             </div>
+            @php
+                $installmentFeeRows = collect($classfee)->unique('head_id')->values();
+            @endphp
             <div>
                 <table class="datatable">
                     <thead>
@@ -82,7 +85,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($classfee as $fee)
+                        @foreach ($installmentFeeRows as $fee)
                             @if (in_array($fee->head_id, $headIds))
 
                                 @php
@@ -118,7 +121,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($classfee as $fee)
+                        @foreach ($installmentFeeRows as $fee)
                             @if (in_array($fee->head_id, $headIds))
 
                             @php

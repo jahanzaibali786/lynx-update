@@ -244,30 +244,71 @@
                        onclick="document.getElementById('admissionlisting').submit(); return false;">
                         Search
                     </a>
-
+                    <div class="d-flex align-items-center gap-2 report-export-actions">
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-success dropdown-toggle"
+                        <button class="btn btn-sm btn-success dropdown-toggle"
                                 type="button"
-                                id="actionDropdown"
+                                id="exportDropdown"
                                 data-bs-toggle="dropdown"
                                 aria-expanded="false">
-                            Export
+                            <i class="ti ti-file-spreadsheet me-2"></i> Export
                         </button>
 
-                        <ul class="dropdown-menu" aria-labelledby="actionDropdown">
+                        <ul class="dropdown-menu report-dropdown-menu"
+                            aria-labelledby="exportDropdown">
                             <li>
-                                <button class="dropdown-item" type="submit" name="export" value="excel">
-                                    <i class="ti ti-file me-2"></i> Excel
+                                <button class="dropdown-item report-dropdown-item"
+                                        type="submit"
+                                        name="export"
+                                        value="excel"
+                                        form="admissionlisting">
+                                    <i class="ti ti-file me-2"></i> Summary
                                 </button>
                             </li>
-
                             <li>
-                                <button class="dropdown-item" type="submit" name="print" value="pdf">
-                                    <i class="ti ti-download me-2"></i> Pdf
+                                <button class="dropdown-item report-dropdown-item"
+                                        type="submit"
+                                        name="export"
+                                        value="detail_excel"
+                                        form="admissionlisting">
+                                    <i class="ti ti-list-details me-2"></i> Detailed
                                 </button>
                             </li>
                         </ul>
                     </div>
+
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-danger dropdown-toggle"
+                                type="button"
+                                id="pdfDropdown"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">
+                            <i class="ti ti-file-type-pdf me-2"></i> PDF
+                        </button>
+
+                        <ul class="dropdown-menu report-dropdown-menu"
+                            aria-labelledby="pdfDropdown">
+                            <li>
+                                <button class="dropdown-item report-dropdown-item"
+                                        type="submit"
+                                        name="print"
+                                        value="pdf"
+                                        form="admissionlisting">
+                                    <i class="ti ti-file-text me-2"></i> Summary
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item report-dropdown-item"
+                                        type="submit"
+                                        name="export"
+                                        value="detail_pdf"
+                                        form="admissionlisting">
+                                    <i class="ti ti-list-details me-2"></i> Detailed
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -310,22 +351,30 @@
                         <table class="datatable maximumHeightNew" style="width: 100%;">
                             <thead class="sticky-headerNew">
                                 <tr class="table_heads" style="font-weight:400; font-size:0.8rem;">
-                                    <th>{{ __('Sr No.') }}</th>
-                                    <th>{{ __('B Sr No.') }}</th>
-                                    <th>{{ __('Reg No #') }}</th>
-                                    <th>{{ __('Roll No #') }}</th>
-                                    <th>{{ __('Challan No #') }}</th>
-                                    <th>{{ __('Billing Month') }}</th>
-                                    <th>{{ __('Admission Date') }}</th>
-                                    <th>{{ __('Class') }}</th>
-                                    <th>{{ __('Student Name') }}</th>
+                                    <th rowspan="2">{{ __('Sr No.') }}</th>
+                                    <th rowspan="2">{{ __('B Sr No.') }}</th>
+                                    <th rowspan="2">{{ __('Reg No #') }}</th>
+                                    <th rowspan="2">{{ __('Roll No #') }}</th>
+                                    <th rowspan="2">{{ __('Challan No #') }}</th>
+                                    <th rowspan="2">{{ __('Billing Month') }}</th>
+                                    <th rowspan="2">{{ __('Admission Date') }}</th>
+                                    <th rowspan="2">{{ __('Class') }}</th>
+                                    <th rowspan="2">{{ __('Student Name') }}</th>
 
                                     @foreach ($heads as $head)
-                                        <th>{{ $head->fee_head ?? '-' }}</th>
+                                        <th colspan="2" class="text-center">{{ $head->fee_head ?? '-' }}</th>
                                     @endforeach
 
-                                    <th>{{ __('Amount') }}</th>
-                                    <th>{{ __('Adm. Status') }}</th>
+                                    <th rowspan="2">{{ __('Amount') }}</th>
+                                    <th rowspan="2">{{ __('Challan Status') }}</th>
+                                    <th rowspan="2">{{ __('Student Status') }}</th>
+                                    <th rowspan="2">{{ __('Discount Policy') }}</th>
+                                </tr>
+                                <tr class="table_heads" style="font-weight:400; font-size:0.75rem;">
+                                    @foreach ($heads as $head)
+                                        <th>{{ __('Paid') }}</th>
+                                        <th>{{ __('Remaining') }}</th>
+                                    @endforeach
                                 </tr>
                             </thead>
 
@@ -336,7 +385,7 @@
 
                                 @forelse ($studentData as $branchId => $students)
 								<tr class="branch-name-row">
-			    <td colspan="{{ 11 + count($heads) }}">
+			    <td colspan="{{ 13 + (count($heads) * 2) }}">
 			        <strong>{{ $branches[$branchId] ?? ($students->first()->branch->name ?? 'Unknown Branch') }}</strong>
 			    </td>
 			</tr>
@@ -346,12 +395,14 @@
 
                                             $challanData = $studentChallanData[$studentKey] ?? [
                                                 'challan_no' => '',
-                                                'challan_id' => '',
+                                                'challan_ids' => [],
+                                                'challan_count' => 0,
+                                                'fee_month' => '',
+                                                'challan_status' => '',
                                                 'heads' => [],
                                                 'total' => 0,
+                                                'discount_policy' => '',
                                             ];
-
-                                            $challanId = $challanData['challan_id'] ?? '';
                                         @endphp
 
                                         <tr>
@@ -361,18 +412,13 @@
                                             <td>{{ $student->enrollId ?? '-' }}</td>
 
                                             <td>
-                                                @if (!empty($challanId))
-                                                    {{ $challanData['challan_no'] }}
-                                                @else
-                                                    -
+                                                {{ !empty($challanData['challan_no']) ? $challanData['challan_no'] : '-' }}
+                                                @if (($challanData['challan_count'] ?? 0) > 1)
+                                                    <small class="text-muted">({{ $challanData['challan_count'] }} challans)</small>
                                                 @endif
                                             </td>
                                             <td>
-                                                @if (!empty($challanId))
-                                                    {{ date('M Y', strtotime($challanData['fee_month'])) }}
-                                                @else
-                                                    -
-                                                @endif
+                                                {{ !empty($challanData['fee_month']) ? $challanData['fee_month'] : '-' }}
                                             </td>
                                             <td>
                                                 {{ !empty($student->adm_date) ? date('d M Y', strtotime($student->adm_date)) : '-' }}
@@ -382,20 +428,17 @@
                                             <td>{{ $student->StudentRegistration->stdname ?? '-' }}</td>
 
                                             @foreach ($heads as $head)
-                                                <td>
-                                                    @if (isset($challanData['heads'][$head->id]))
-                                                        {{ number_format($challanData['heads'][$head->id]['amount'], 2) }}
-                                                    @else
-                                                        -
-                                                    @endif
-                                                </td>
+                                                @php
+                                                    $headData = $challanData['heads'][$head->id] ?? null;
+                                                @endphp
+                                                <td>{{ $headData ? number_format($headData['paid_amount'] ?? 0, 2) : '-' }}</td>
+                                                <td>{{ $headData ? number_format($headData['remaining_amount'] ?? 0, 2) : '-' }}</td>
                                             @endforeach
 
                                             <td>{{ number_format($challanData['total'] ?? 0, 2) }}</td>
-
-                                            <td>
-                                                {{ $student->StudentRegistration->student_status ?? '-' }}
-                                            </td>
+                                            <td>{{ !empty($challanData['challan_status']) ? $challanData['challan_status'] : '-' }}</td>
+                                            <td>{{ $student->StudentRegistration->student_status ?? '-' }}</td>
+                                            <td>{{ !empty($challanData['discount_policy']) ? $challanData['discount_policy'] : '-' }}</td>
                                         </tr>
                                     @endforeach
 
@@ -405,9 +448,11 @@
                                         </td>
 
                                         @foreach ($heads as $head)
-                                            <td>
-                                                <strong>{{ number_format($branchHeadTotals[$branchId][$head->id] ?? 0, 2) }}</strong>
-                                            </td>
+                                            @php
+                                                $headTotal = $branchHeadTotals[$branchId][$head->id] ?? [];
+                                            @endphp
+                                            <td><strong>{{ number_format($headTotal['paid_amount'] ?? 0, 2) }}</strong></td>
+                                            <td><strong>{{ number_format($headTotal['remaining_amount'] ?? 0, 2) }}</strong></td>
                                         @endforeach
 
                                         <td>
@@ -415,10 +460,12 @@
                                         </td>
 
                                         <td></td>
+                                        <td></td>
+                                        <td></td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ 11 + count($heads) }}" class="text-center">
+                                        <td colspan="{{ 13 + (count($heads) * 2) }}" class="text-center">
                                             No admission record found.
                                         </td>
                                     </tr>
@@ -430,15 +477,19 @@
                                     </td>
 
                                     @foreach ($heads as $head)
-                                        <td>
-                                            <strong>{{ number_format($grandHeadTotals[$head->id] ?? 0, 2) }}</strong>
-                                        </td>
+                                        @php
+                                            $headTotal = $grandHeadTotals[$head->id] ?? [];
+                                        @endphp
+                                        <td><strong>{{ number_format($headTotal['paid_amount'] ?? 0, 2) }}</strong></td>
+                                        <td><strong>{{ number_format($headTotal['remaining_amount'] ?? 0, 2) }}</strong></td>
                                     @endforeach
 
                                     <td>
                                         <strong>{{ number_format($grandTotal ?? 0, 2) }}</strong>
                                     </td>
 
+                                    <td></td>
+                                    <td></td>
                                     <td></td>
                                 </tr>
                             </tbody>
@@ -448,4 +499,43 @@
             </div>
         </div>
     </div>
+
+<style>
+    .report-export-actions .report-dropdown-menu {
+        min-width: 180px;
+        background-color: #ffffff !important;
+        border: 1px solid #d9dee3 !important;
+        box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12) !important;
+        padding: 0.35rem !important;
+        z-index: 1080;
+    }
+
+    .report-export-actions .report-dropdown-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        background-color: #ffffff !important;
+        color: #212529 !important;
+        font-weight: 500;
+        border-radius: 0.35rem;
+        padding: 0.55rem 0.75rem;
+    }
+
+    .report-export-actions .report-dropdown-item i {
+        color: #495057 !important;
+    }
+
+    .report-export-actions .report-dropdown-item:hover,
+    .report-export-actions .report-dropdown-item:focus,
+    .report-export-actions .report-dropdown-item:active {
+        background-color: #f1f3f5 !important;
+        color: #111111 !important;
+    }
+
+    .report-export-actions .report-dropdown-item:hover i,
+    .report-export-actions .report-dropdown-item:focus i {
+        color: #111111 !important;
+    }
+</style>
+
 @endsection

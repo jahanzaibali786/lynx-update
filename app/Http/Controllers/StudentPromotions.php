@@ -70,6 +70,18 @@ class StudentPromotions extends Controller
 				->where('active_status', 1)
                 ->when($request->filled('section_from'), fn($q) => $q->where('section_id', $request->section_from))
                 ->when($request->filled('session_from_id'), fn($q) => $q->where('session_id', $request->session_from_id))
+                ->when($request->filled('register_option') && $request->register_option != 'all', function ($q) use ($request) {
+                    $q->whereHas('StudentRegistration', function ($studentQuery) use ($request) {
+                        if ($request->register_option == 'shifa') {
+                            $studentQuery->where('register_option', 2);
+                        } else {
+                            $studentQuery->where(function ($regularQuery) {
+                                $regularQuery->where('register_option', '!=', 2)
+                                    ->orWhereNull('register_option');
+                            });
+                        }
+                    });
+                })
                 ->get();
         }
 
@@ -410,4 +422,243 @@ class StudentPromotions extends Controller
     {
         //
     }
+
+    public function bulkTuitionIncrement(Request $request)
+    {
+        if (!\Auth::user()->can('manage promotion')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $user = \Auth::user();
+        $studentsQuery = StudentEnrollments::with(['StudentRegistration', 'class', 'section'])
+            ->where('active_status', 1)
+            ->whereHas('StudentRegistration', function ($query) {
+                $query->where('register_option', 2);
+            });
+
+        if ($user->type === 'company') {
+            $studentsQuery->where('created_by', $user->creatorId());
+        } else {
+            $studentsQuery->where('owned_by', $user->ownedId());
+        }
+
+        $studentCount = (clone $studentsQuery)->count();
+        $tuitionHead = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', ['%tuition%'])->first();
+
+        return view('students.promotions.bulk_tuition_increment', compact('studentCount', 'tuitionHead'));
+    }
+
+    public function bulkTuitionIncrementStore(Request $request)
+    {
+        if (!\Auth::user()->can('manage promotion')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'tuition_increment_percentage' => 'required|integer|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->getMessageBag()->first());
+        }
+
+        $user = \Auth::user();
+        $percentage = (int) $request->input('tuition_increment_percentage', 0);
+        $effectiveFrom = \Carbon\Carbon::today()->toDateString();
+        $tuitionHead = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', ['%tuition%'])->first();
+
+        if (!$tuitionHead) {
+            return redirect()->back()->with('error', __('Tuition Fee head was not found.'));
+        }
+
+        $studentsQuery = StudentEnrollments::with(['StudentRegistration', 'class', 'section'])
+            ->where('active_status', 1)
+            ->whereHas('StudentRegistration', function ($query) {
+                $query->where('register_option', 2);
+            });
+
+        if ($user->type === 'company') {
+            $studentsQuery->where('created_by', $user->creatorId());
+        } else {
+            $studentsQuery->where('owned_by', $user->ownedId());
+        }
+
+        $students = $studentsQuery->get();
+
+        if ($students->isEmpty()) {
+            return redirect()->back()->with('error', __('No active Shifa students were found for bulk tuition increment.'));
+        }
+
+        try {
+            \DB::beginTransaction();
+
+            $processed = 0;
+            $skipped = 0;
+
+            foreach ($students as $stud) {
+                $regId = $stud->regId;
+                $studentId = $stud->enrollId;
+                $branchId = $stud->owned_by;
+                $classId = $stud->class_id;
+                $sectionId = $stud->section_id;
+                $sessionId = $stud->session_id;
+
+                $alreadyApplied = StudentFeeRevisionBatch::where('revision_type', 'tuition_increment')
+                    ->where('student_id', $studentId)
+                    ->whereDate('effective_from', $effectiveFrom)
+                    ->exists();
+
+                if ($alreadyApplied) {
+                    $skipped++;
+                    continue;
+                }
+
+                $feeStructure = StudentFeeStructure::where('reg_id', $regId)
+                    ->where('head_id', $tuitionHead->id)
+                    ->first();
+
+                if (!$feeStructure) {
+                    $classFee = ClassWiseFee::where('class_id', $classId)
+                        ->where('head_id', $tuitionHead->id)
+                        ->where('owned_by', $branchId)
+                        ->first();
+
+                    if (!$classFee) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $feeStructure = new StudentFeeStructure();
+                    $feeStructure->reg_id = $regId;
+                    $feeStructure->student_id = $studentId;
+                    $feeStructure->head_id = $tuitionHead->id;
+                    $feeStructure->class_id = $classId;
+                    $feeStructure->branch_id = $branchId;
+                    $feeStructure->checked_status = (int) ($classFee->checked_status ?? 1);
+                    $feeStructure->amount = (float) ($classFee->amount ?? 0);
+                    $feeStructure->discount = (float) ($classFee->discount ?? 0);
+                    $feeStructure->is_custom = 0;
+                    $feeStructure->owned_by = $branchId;
+                    $feeStructure->created_by = $user->creatorId();
+                }
+
+                $oldBase = (float) ($feeStructure->amount ?? 0);
+                $oldDiscount = (float) ($feeStructure->discount ?? 0);
+                $activeConcession = Concession::where('student_id', $regId)
+                    ->where('status', 'Approved')
+                    ->where('active_status', 1)
+                    ->where(function ($q) {
+                        $q->where('end_date', '>=', date('Y-m-d'))
+                          ->orWhereNull('end_date');
+                    })
+                    ->orderByDesc('id')
+                    ->first();
+
+                $policyDiscount = $activeConcession
+                    ? ConcessionPolicyHead::where('concession_id', $activeConcession->concession_id)
+                        ->where('head_id', $tuitionHead->id)
+                        ->value('percentage')
+                    : null;
+
+                $discount = $policyDiscount !== null ? (float) $policyDiscount : $oldDiscount;
+                $newBase = round($oldBase + (($oldBase * $percentage) / 100), 2);
+                $oldPayable = round($oldBase - (($oldBase * $discount) / 100), 2);
+                $newPayable = round($newBase - (($newBase * $discount) / 100), 2);
+
+                $promotion = new \App\Models\StudentPromotions();
+                $promotion->student_id = $studentId;
+                $promotion->prev_session = $sessionId;
+                $promotion->new_session = $sessionId;
+                $promotion->class_from = $classId;
+                $promotion->class_to = $classId;
+                $promotion->prev_section = $sectionId;
+                $promotion->new_section = $sectionId;
+                $promotion->branch_from = $branchId;
+                $promotion->branch_to = $branchId;
+                $promotion->promotion_date = $effectiveFrom;
+                $promotion->owned_by = $branchId;
+                $promotion->created_by = $user->creatorId();
+                $promotion->save();
+
+                $history = new StudentHistory();
+                $history->reg_id = $regId;
+                $history->student_id = $studentId;
+                $history->event_type = 'tuition_increment';
+                $history->from_session_id = $sessionId;
+                $history->from_class_id = $classId;
+                $history->from_section_id = $sectionId;
+                $history->from_branch_id = $branchId;
+                $history->to_session_id = $sessionId;
+                $history->to_class_id = $classId;
+                $history->to_section_id = $sectionId;
+                $history->to_branch_id = $branchId;
+                $history->effective_date = $effectiveFrom;
+                $history->remarks = 'Bulk Tuition Increment';
+                $history->owned_by = $branchId;
+                $history->created_by = $user->creatorId();
+                $history->save();
+
+                $batch = StudentFeeRevisionBatch::create([
+                    'revision_type' => 'tuition_increment',
+                    'promotion_id' => $promotion->id,
+                    'student_id' => $studentId,
+                    'reg_id' => $regId,
+                    'session_from_id' => $sessionId,
+                    'session_to_id' => $sessionId,
+                    'branch_from_id' => $branchId,
+                    'branch_to_id' => $branchId,
+                    'class_from_id' => $classId,
+                    'class_to_id' => $classId,
+                    'section_from_id' => $sectionId,
+                    'section_to_id' => $sectionId,
+                    'effective_from' => $effectiveFrom,
+                    'status' => 'applied',
+                    'remarks' => 'Bulk Tuition Increment',
+                    'owned_by' => $branchId,
+                    'created_by' => $user->creatorId(),
+                ]);
+
+                $feeStructure->student_id = $studentId;
+                $feeStructure->class_id = $classId;
+                $feeStructure->branch_id = $branchId;
+                $feeStructure->amount = $newBase;
+                $feeStructure->discount = $discount;
+                $feeStructure->checked_status = (int) ($feeStructure->checked_status ?? 1);
+                $feeStructure->is_custom = 1;
+                $feeStructure->owned_by = $branchId;
+                $feeStructure->created_by = $user->creatorId();
+                $feeStructure->save();
+
+                StudentFeeRevisionItem::create([
+                    'batch_id' => $batch->id,
+                    'student_fee_structure_id' => $feeStructure->id,
+                    'student_id' => $studentId,
+                    'reg_id' => $regId,
+                    'head_id' => $tuitionHead->id,
+                    'percentage' => $percentage,
+                    'prev_base_amount' => $oldBase,
+                    'new_base_amount' => $newBase,
+                    'prev_payable_amount' => $oldPayable,
+                    'new_payable_amount' => $newPayable,
+                ]);
+
+                $processed++;
+            }
+
+            \DB::commit();
+
+            return redirect()
+                ->route('student-promotion.bulk-tuition')
+                ->with('success', __('Bulk tuition increment applied successfully. Processed: :processed, Skipped: :skipped', [
+                    'processed' => $processed,
+                    'skipped' => $skipped,
+                ]));
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            \Log::error('Bulk tuition increment failed: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
 }

@@ -1168,7 +1168,9 @@ class StudentReportController extends Controller
     //     return view('studentReports.admissiondetailreport', compact('studentData', 'student', 'branches', 'heads', 'classes', 'branchTotals', 'grandTotal', 'request'));
     // }
 
-    public function admissionlisting(Request $request)
+    
+    
+       public function admissionlisting(Request $request)
 {
     set_time_limit(0);
 
@@ -1271,11 +1273,15 @@ class StudentReportController extends Controller
         ->values()
         ->toArray();
 
+    // IMPORTANT:
+    // A student may have more than one admission/installment challan.
+    // groupBy() keeps ALL admission challans for the student; keyBy() would discard all but one.
     $challans = Challans::whereIn('student_id', $regIds)
         ->whereRaw('LOWER(challan_type) LIKE ?', ['%admission%'])
-        ->with(['heads.feehead'])
-        ->get()
-        ->keyBy('student_id');
+        ->with(['heads.feehead', 'concession'])
+        ->get();
+
+    $challansByStudent = $challans->groupBy('student_id');
 
     $heads = $challans
         ->flatMap(fn ($challan) => $challan->heads)
@@ -1289,10 +1295,8 @@ class StudentReportController extends Controller
 
     $branchTotals = [];
     $grandTotal = 0;
-
-    $branchHeadTotals = [];
+        $branchHeadTotals = [];
     $grandHeadTotals = [];
-
     $studentChallanData = [];
 
     foreach ($studentData as $branchId => $students) {
@@ -1304,41 +1308,119 @@ class StudentReportController extends Controller
             $studentTotal = 0;
             $challanHeads = [];
 
-            $challan = $challans[$studentKey] ?? null;
+            $studentChallans = $challansByStudent->get($studentKey, collect());
 
-            if ($challan) {
-                foreach ($challan->heads as $head) {
-                    $amount = (float) ($head->price ?? 0);
-                    $studentTotal += $amount;
+            $challanNos = [];
+            $challanIds = [];
+            $feeMonths = [];
+            $challanStatuses = [];
+            $discountPolicies = [];
 
-                    $challanHeads[$head->head_id] = [
-                        'name' => $head->feehead->fee_head ?? '',
-                        'amount' => $amount,
-                        'head_id' => $head->head_id,
-                    ];
-
-                    $branchHeadTotals[$branchId][$head->head_id] =
-                        ($branchHeadTotals[$branchId][$head->head_id] ?? 0) + $amount;
-
-                    $grandHeadTotals[$head->head_id] =
-                        ($grandHeadTotals[$head->head_id] ?? 0) + $amount;
+            foreach ($studentChallans as $challan) {
+                $policyTitle = optional($challan->concession?->policy)->title;
+                if (!empty($policyTitle)) {
+                    $discountPolicies[] = $policyTitle;
                 }
 
-                $studentChallanData[$studentKey] = [
-                    'challan_no' => $challan->challanNo,
-                    'challan_id' => $challan->id,
-                    'fee_month' => $challan->fee_month,
-                    'heads' => $challanHeads,
-                    'total' => $studentTotal,
-                ];
-            } else {
-                $studentChallanData[$studentKey] = [
-                    'challan_no' => '',
-                    'challan_id' => '',
-                    'heads' => [],
-                    'total' => 0,
-                ];
+                if (!empty($challan->challanNo)) {
+                    $challanNos[] = $challan->challanNo;
+                }
+
+                if (!empty($challan->id)) {
+                    $challanIds[] = $challan->id;
+                }
+
+                if (!empty($challan->fee_month)) {
+                    $feeMonths[] = date('M Y', strtotime($challan->fee_month));
+                }
+
+                // Primary field expected: status.
+                // Fallbacks keep the report usable if the Challans model uses another status attribute.
+                $status = $challan->status
+                    ?? $challan->payment_status
+                    ?? $challan->challan_status
+                    ?? null;
+
+                if ($status !== null && $status !== '') {
+                    $challanStatuses[] = $status;
+                }
+
+                foreach ($challan->heads as $head) {
+                    // challan_heads schema:
+                    // price      = Base Amount
+                    // concession = Discount Amount
+                    // payable    = price - concession
+                    $baseAmount = (float) ($head->price ?? 0);
+                    $discountAmount = (float) ($head->concession ?? 0);
+                    $payableAmount = max(0, $baseAmount - $discountAmount);
+                    $paidAmount = (float) ($head->paid ?? 0);
+                    $remainingAmount = max(0, $payableAmount - $paidAmount);
+
+                    $studentTotal += $payableAmount;
+
+                    if (!isset($challanHeads[$head->head_id])) {
+                        $challanHeads[$head->head_id] = [
+                            'name' => $head->feehead->fee_head ?? '',
+                            'head_id' => $head->head_id,
+                            'base_amount' => 0,
+                            'discount_amount' => 0,
+                            'payable_amount' => 0,
+                            'paid_amount' => 0,
+                            'remaining_amount' => 0,
+                        ];
+                    }
+
+                    // Combine the same fee head from all admission installment challans.
+                    $challanHeads[$head->head_id]['base_amount'] += $baseAmount;
+                    $challanHeads[$head->head_id]['discount_amount'] += $discountAmount;
+                    $challanHeads[$head->head_id]['payable_amount'] += $payableAmount;
+                    $challanHeads[$head->head_id]['paid_amount'] += $paidAmount;
+                    $challanHeads[$head->head_id]['remaining_amount'] += $remainingAmount;
+
+                    if (!isset($branchHeadTotals[$branchId][$head->head_id])) {
+                        $branchHeadTotals[$branchId][$head->head_id] = [
+                            'base_amount' => 0,
+                            'discount_amount' => 0,
+                            'payable_amount' => 0,
+                            'paid_amount' => 0,
+                            'remaining_amount' => 0,
+                        ];
+                    }
+
+                    $branchHeadTotals[$branchId][$head->head_id]['base_amount'] += $baseAmount;
+                    $branchHeadTotals[$branchId][$head->head_id]['discount_amount'] += $discountAmount;
+                    $branchHeadTotals[$branchId][$head->head_id]['payable_amount'] += $payableAmount;
+                    $branchHeadTotals[$branchId][$head->head_id]['paid_amount'] += $paidAmount;
+                    $branchHeadTotals[$branchId][$head->head_id]['remaining_amount'] += $remainingAmount;
+
+                    if (!isset($grandHeadTotals[$head->head_id])) {
+                        $grandHeadTotals[$head->head_id] = [
+                            'base_amount' => 0,
+                            'discount_amount' => 0,
+                            'payable_amount' => 0,
+                            'paid_amount' => 0,
+                            'remaining_amount' => 0,
+                        ];
+                    }
+
+                    $grandHeadTotals[$head->head_id]['base_amount'] += $baseAmount;
+                    $grandHeadTotals[$head->head_id]['discount_amount'] += $discountAmount;
+                    $grandHeadTotals[$head->head_id]['payable_amount'] += $payableAmount;
+                    $grandHeadTotals[$head->head_id]['paid_amount'] += $paidAmount;
+                    $grandHeadTotals[$head->head_id]['remaining_amount'] += $remainingAmount;
+                }
             }
+
+            $studentChallanData[$studentKey] = [
+                'challan_no' => implode(', ', array_values(array_unique($challanNos))),
+                'challan_ids' => array_values(array_unique($challanIds)),
+                'challan_count' => count($studentChallans),
+                'fee_month' => implode(', ', array_values(array_unique($feeMonths))),
+                'challan_status' => implode(', ', array_values(array_unique($challanStatuses))),
+                'heads' => $challanHeads,
+                'total' => $studentTotal,
+                'discount_policy' => implode(', ', array_values(array_unique($discountPolicies))),
+            ];
 
             $student->total_amount = $studentTotal;
             $branchTotal += $studentTotal;
@@ -1360,6 +1442,16 @@ class StudentReportController extends Controller
         );
     }
 
+    if ($request->has('export') && $request->export == 'detail_excel') {
+        $report_name = 'Admission Listing Detail Report';
+        $branchName = $branches[$request->branch] ?? 'All Branches';
+
+        return Excel::download(
+            new AdmissionListingExport($request, $branchName, $report_name, $branches, $request->all()),
+            'admission_listing_detail_report.xlsx'
+        );
+    }
+
     if ($request->has('export') && $request->export == 'pdf') {
         $report_name = 'Admission Listing Report';
         $branchName = $branches[$request->branch] ?? 'All Branches';
@@ -1367,6 +1459,17 @@ class StudentReportController extends Controller
         return Excel::download(
             new AdmissionListingExport($request, $branchName, $report_name, $branches, $request->all()),
             'admission_listing_report.pdf',
+            \Maatwebsite\Excel\Excel::MPDF
+        );
+    }
+
+    if ($request->has('export') && $request->export == 'detail_pdf') {
+        $report_name = 'Admission Listing Detail Report';
+        $branchName = $branches[$request->branch] ?? 'All Branches';
+
+        return Excel::download(
+            new AdmissionListingExport($request, $branchName, $report_name, $branches, $request->all()),
+            'admission_listing_detail_report.pdf',
             \Maatwebsite\Excel\Excel::MPDF
         );
     }
@@ -1501,23 +1604,25 @@ class StudentReportController extends Controller
 
         foreach ($studentData as $branchId => $students) {
             $branchTotal = 0;
-            foreach ($students as $student) {
+                foreach ($students as $student) {
                 $studentTotal = 0;
-                $challan = Challans::where('student_id', $student->StudentRegistration->id)
+                    $challan = Challans::where('student_id', $student->StudentRegistration->id)
                     ->whereRaw('LOWER(challan_type) LIKE ?', [strtolower('%admission%')])
-                    ->with('heads', 'heads.feehead')
+                    ->with('heads', 'heads.feehead', 'concession')
                     ->first();
                 if ($challan) {
+                    $student->discount_policy = optional($challan->concession)->title;
                     foreach ($challan->heads as $head) {
                         $studentTotal += $head->price ?? 0;
                     }
                 }
                 $branchTotal += $studentTotal;
-                $student->total_amount = $studentTotal;
+                    $student->total_amount = $studentTotal;
+                $student->discount_policy = $student->discount_policy ?? null;
             }
             $branchTotals[$branchId] = $branchTotal;
-            $grandTotal += $branchTotal;
-        }
+                $grandTotal += $branchTotal;
+            }
 
         $classes = Classes::pluck('name', 'id');
         $classes->prepend('Select Class', '');

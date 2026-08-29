@@ -65,24 +65,38 @@
     <script>
         var checkAllCheckbox = document.getElementById('checkAll');
         var rowCheckboxes = document.querySelectorAll('input[name="checked[]"]');
-        checkAllCheckbox.addEventListener('change', function() {
-            if (this.checked) {
-                rowCheckboxes.forEach(function(checkbox) {
-                    checkbox.checked = true;
-                });
-            } else {
-                rowCheckboxes.forEach(function(checkbox) {
-                    checkbox.checked = false;
-                });
+
+        function getToggleableCheckboxes() {
+            return Array.from(rowCheckboxes).filter(function(checkbox) {
+                return !checkbox.disabled;
+            });
+        }
+
+        function syncCheckAllState() {
+            var toggleableCheckboxes = getToggleableCheckboxes();
+            if (!toggleableCheckboxes.length) {
+                checkAllCheckbox.checked = false;
+                return;
             }
-        });
-        rowCheckboxes.forEach(function(checkbox) {
-            checkbox.addEventListener('change', function() {
-                if (!this.checked) {
-                    checkAllCheckbox.checked = false;
-                }
+
+            checkAllCheckbox.checked = toggleableCheckboxes.every(function(checkbox) {
+                return checkbox.checked;
+            });
+        }
+
+        checkAllCheckbox.addEventListener('change', function() {
+            getToggleableCheckboxes().forEach(function(checkbox) {
+                checkbox.checked = checkAllCheckbox.checked;
             });
         });
+
+        rowCheckboxes.forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                syncCheckAllState();
+            });
+        });
+
+        syncCheckAllState();
     </script>
     <script>
         function getCheckedRowData() {
@@ -562,7 +576,7 @@ $('#submitBtnSection1').click(function() {
                             <p style="color:red;">Fields with * Mandatory </p>
                             <div class="form-group">
                                 {{ Form::label('regdate', __('Registration Date '), ['class' => 'form-label']) }}
-                                {{ Form::date('regdate', date('Y-m-d'), ['class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly']) }}
+                                {{ Form::date('regdate', $student->regdate ?? date('Y-m-d'), ['class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly']) }}
                             </div>
                             <div class="form-group">
                                 {{ Form::label('regby', __('Register By '), ['class' => 'form-label']) }}
@@ -1089,11 +1103,21 @@ $('#submitBtnSection1').click(function() {
                                         &nbsp;(for the month date)
                                     </span>
                     
-                                    {!! Form::month('challan_date', date('Y-m'), [
-                                        'class' => 'form-control',
-                                        'id' => 'challan_date',
-                                        'required' => true,
-                                    ]) !!}
+                                    @php
+                                        $admissionBillingMonth = !empty($concession->effective_from)
+                                            ? \Carbon\Carbon::parse($concession->effective_from)->format('Y-m')
+                                            : date('Y-m');
+                                        $lockBillingMonth = Auth::user()->type === 'branch';
+                                    @endphp
+                                    {!! Form::month('challan_date', old('challan_date', $admissionBillingMonth), [
+                                            'class' => 'form-control',
+                                            'id' => 'challan_date',
+                                            'required' => true,
+                                            'disabled' => $lockBillingMonth,
+                                        ]) !!}
+                                    @if($lockBillingMonth)
+                                        {!! Form::hidden('challan_date', old('challan_date', $admissionBillingMonth)) !!}
+                                    @endif
                                 </div>
                     
                                 <div class="col-md-3 col-lg-3">

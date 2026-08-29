@@ -68,6 +68,23 @@
     .preview-side-card .card-body{padding:.85rem}
     .preview-side-card .policy-actions{gap:.35rem}
     .preview-side-card .policy-actions .btn{font-size:.7rem;padding:.32rem .5rem}
+
+    /* Compact fee-structure tables: keep both half-width cards usable without clipping. */
+    .fee-structure-row>[class*="col-"]{min-width:0}
+    .fee-structure-card,.fee-structure-card .card-body{min-width:0}
+    .fee-structure-card .card-body{overflow:hidden}
+    .fee-table-scroll{display:block;width:100%;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable;padding:0 10px 8px 0;margin:0!important}
+    .fee-table-scroll::-webkit-scrollbar{height:10px}
+    .compact-fee-table{width:max-content!important;min-width:100%;max-width:none;margin-bottom:0!important;table-layout:auto}
+    .compact-fee-table th,.compact-fee-table td{padding:.42rem .45rem!important;vertical-align:middle;font-size:.76rem;line-height:1.2}
+    .compact-fee-table th{font-size:.67rem!important}
+    .compact-fee-table .fee-col-check{width:46px;min-width:46px;text-align:center}
+    .compact-fee-table .fee-col-index{width:34px;min-width:34px;text-align:center}
+    .compact-fee-table .fee-col-head{width:135px;min-width:115px;max-width:165px;white-space:normal!important;overflow-wrap:anywhere}
+    .compact-fee-table .fee-col-money{width:86px;min-width:78px;text-align:right;white-space:nowrap}
+    .compact-fee-table .fee-col-discount{width:72px;min-width:68px;text-align:right;white-space:nowrap}
+    .compact-fee-table .fee-col-source{width:125px;min-width:105px;max-width:150px;white-space:normal!important}
+    .compact-fee-table .fee-col-source .badge{white-space:normal;text-align:left;line-height:1.15;max-width:145px}
     @media(max-width:1199.98px){.top-workspace .sticky-side{position:static}.gap-chip-grid{max-height:190px}}
     @media(max-width:575.98px){.compact-detail-grid{grid-template-columns:1fr}.gap-chip-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
@@ -206,7 +223,7 @@
                                     <div>
                                         <div class="fw-bold">{{ __('Tuition Fee Revision on Session Change') }}</div>
                                         <div class="small text-muted">
-                                            {{ __('The percentage is applied on the student existing Tuition Fee amount, not on the new class fee amount.') }}
+                                            {{ __('The percentage is applied on the selected Tuition base: student Tuition by default, or target class Tuition when Use Class Tuition Fee is checked.') }}
                                             <strong>{{ __('Choose the month from which the increment should become applicable.') }}</strong>
                                         </div>
                                     </div>
@@ -380,7 +397,7 @@
 </div>
 
 
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-3 fee-structure-row">
     <div class="col-xl-6">
         <div id="existing_fee_table_wrap" class="card detail-card fee-structure-card d-none h-100">
             <div class="card-header py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -388,9 +405,9 @@
                 <button type="button" id="save_fee_structure_btn" class="btn btn-sm save-current-structure-btn"><i class="ti ti-device-floppy me-1"></i>{{ __('Save Current Structure') }}</button>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered align-middle mb-0">
-                        <thead class="table_heads"><tr><th style="width:48px;text-align:center"><input type="checkbox" id="check_all_existing_heads"></th><th>#</th><th>{{ __('Fee Head') }}</th><th>{{ __('Amount') }}</th><th>{{ __('Discount/Policy %') }}</th><th>{{ __('Payable') }}</th></tr></thead>
+                <div class="fee-table-scroll">
+                    <table class="table table-bordered align-middle compact-fee-table">
+                        <thead class="table_heads"><tr><th class="fee-col-check"><input type="checkbox" id="check_all_existing_heads"></th><th class="fee-col-index">#</th><th class="fee-col-head">{{ __('Fee Head') }}</th><th class="fee-col-money">{{ __('Amount') }}</th><th class="fee-col-discount">{{ __('Discount/Policy %') }}</th><th class="fee-col-money">{{ __('Payable') }}</th></tr></thead>
                         <tbody id="existing_fee_table_body"></tbody>
                     </table>
                 </div>
@@ -400,24 +417,35 @@
     <div class="col-xl-6">
         <div id="preview_table_wrap" class="card detail-card fee-structure-card d-none h-100">
             <div class="card-header py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div><strong>{{ __('Applicable / New Fee Structure') }}</strong><div class="small text-muted">{{ __('Selected heads will be used for the approval-time admission/re-admission challan.') }}</div></div>
-                <label class="form-check mb-0"><input type="checkbox" id="check_all_target_heads" class="form-check-input"><span class="form-check-label">{{ __('Check all') }}</span></label>
+                <div>
+                    <strong>{{ __('Applicable / New Fee Structure') }}</strong>
+                    <div class="small text-muted">{{ __('Selected heads will be used for the approval-time admission/re-admission challan.') }}</div>
+                </div>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <label class="form-check mb-0 d-none" id="readmission_structure_source_wrap">
+                        <input type="hidden" name="readmission_structure_source" id="readmission_structure_source" value="{{ old('readmission_structure_source', 'student') }}">
+                        <input type="checkbox" id="use_class_tuition_structure" class="form-check-input" {{ old('readmission_structure_source', 'student') === 'class' ? 'checked' : '' }}>
+                        <span class="form-check-label fw-semibold">{{ __('Use Class Tuition Fee') }}</span>
+                        <div class="small text-muted">{{ __('Unchecked = Student Structure') }}</div>
+                    </label>
+                    <label class="form-check mb-0"><input type="checkbox" id="check_all_target_heads" class="form-check-input"><span class="form-check-label">{{ __('Check all') }}</span></label>
+                </div>
             </div>
             <div class="card-body">
                 <div class="mb-2 text-end"><a href="#" id="generate_class_fee_structure" class="btn btn-sm btn-success d-none">{{ __('Generate fee structure for target class/session') }}</a></div>
-                <div class="table-responsive">
-                    <table class="table table-bordered align-middle mb-0" style="min-width:980px">
+                <div class="fee-table-scroll">
+                    <table class="table table-bordered align-middle compact-fee-table">
                         <thead class="table_heads">
                             <tr>
-                                <th style="width:48px">{{ __('Select') }}</th>
-                                <th>#</th>
-                                <th>{{ __('Fee Head') }}</th>
-                                <th>{{ __('Existing Student') }}</th>
-                                <th>{{ __('Class Reference') }}</th>
-                                <th>{{ __('Will Charge') }}</th>
-                                <th>{{ __('Source') }}</th>
-                                <th>{{ __('Discount/Policy %') }}</th>
-                                <th>{{ __('Payable') }}</th>
+                                <th class="fee-col-check">{{ __('Select') }}</th>
+                                <th class="fee-col-index">#</th>
+                                <th class="fee-col-head">{{ __('Fee Head') }}</th>
+                                <th class="fee-col-money">{{ __('Existing Student') }}</th>
+                                <th class="fee-col-money">{{ __('Class Reference') }}</th>
+                                <th class="fee-col-money">{{ __('Will Charge') }}</th>
+                                <th class="fee-col-source">{{ __('Source') }}</th>
+                                <th class="fee-col-discount">{{ __('Discount/Policy %') }}</th>
+                                <th class="fee-col-money">{{ __('Payable') }}</th>
                             </tr>
                         </thead>
                         <tbody id="preview_table_body"></tbody>
@@ -1268,6 +1296,7 @@
         const oldBase=Number(revision.prev_base_amount||0);
         const newBase=Number(revision.new_base_amount||0);
         const pct=Number(revision.percentage||0);
+        const baseLabel=revision.base_source_label||'Existing Student Fee';
 
         const effectiveMonth=formatDisplayMonth(
             revision.effective_from ||
@@ -1277,7 +1306,7 @@
 
         $('#tuition_increment_preview').html(
             `<strong>${escapeHtml(revision.fee_head||'Tuition Fee')}</strong>
-             <span class="ms-2 text-muted">Existing:</span>
+             <span class="ms-2 text-muted">${escapeHtml(baseLabel)}:</span>
              <strong>${oldBase.toFixed(2)}</strong>
              <span class="mx-1">→</span>
              <span class="text-muted">${pct}%:</span>
@@ -1304,6 +1333,7 @@
             new_class_id:$('#new_class_id').val(),
             new_section_id:$('#new_section_id').val(),
             new_session_id:$('#new_session_id').val(),
+            readmission_structure_source:$('#readmission_structure_source').val()||'student',
             tuition_increment_enabled:$('#tuition_increment_enabled').is(':checked')?1:0,
             tuition_increment_percentage:normalizeIncrementInput(),
             tuition_increment_effective_from:$('#tuition_increment_effective_from').val()||$('#month_date').val(),
@@ -1338,6 +1368,7 @@
             new_class_id:d.new_class_id,
             new_section_id:d.new_section_id,
             new_session_id:d.new_session_id,
+            readmission_structure_source:d.readmission_structure_source,
             tuition_increment_enabled:d.tuition_increment_enabled,
             tuition_increment_percentage:d.tuition_increment_percentage,
             tuition_increment_effective_from:d.tuition_increment_effective_from
@@ -1421,17 +1452,17 @@
         (rows||[]).forEach(function(r,i){
             body.append(
                 `<tr>
-                    <td class="text-center">
+                    <td class="fee-col-check">
                         <input type="checkbox"
                                class="form-check-input existing-fee-head"
                                value="${Number(r.head_id)}"
                                ${Number(r.checked||0)===1?'checked':''}>
                     </td>
-                    <td>${i+1}</td>
-                    <td>${escapeHtml(r.fee_head||'-')}</td>
-                    <td>${Number(r.class_amount||0).toFixed(2)}</td>
-                    <td>${Number(r.discount||0).toFixed(2)}%</td>
-                    <td>${Number(r.payable_amount||0).toFixed(2)}</td>
+                    <td class="fee-col-index">${i+1}</td>
+                    <td class="fee-col-head">${escapeHtml(r.fee_head||'-')}</td>
+                    <td class="fee-col-money">${Number(r.class_amount||0).toFixed(2)}</td>
+                    <td class="fee-col-discount">${Number(r.discount||0).toFixed(2)}%</td>
+                    <td class="fee-col-money">${Number(r.payable_amount||0).toFixed(2)}</td>
                 </tr>`
             );
         });
@@ -1536,7 +1567,7 @@
 
             body.append(
                 `<tr class="${checked?'table-success':''}">
-                    <td class="text-center">
+                    <td class="fee-col-check">
                         <input type="checkbox"
                                class="form-check-input target-fee-head"
                                value="${Number(r.head_id)}"
@@ -1544,17 +1575,17 @@
                                ${locked?'disabled':''}
                                ${disabledTitle}>
                     </td>
-                    <td>${i+1}</td>
-                    <td>
+                    <td class="fee-col-index">${i+1}</td>
+                    <td class="fee-col-head">
                         <strong>${escapeHtml(r.fee_head||'-')}</strong>
                         ${chargeNote}
                     </td>
-                    <td>${existingAmount}</td>
-                    <td>${classReference}</td>
-                    <td><strong>${chargeAmount}</strong></td>
-                    <td><span class="badge bg-light text-dark border">${sourceLabel}</span></td>
-                    <td>${Number(r.discount||0).toFixed(2)}%</td>
-                    <td><strong>${Number(r.payable_amount||0).toFixed(2)}</strong></td>
+                    <td class="fee-col-money">${existingAmount}</td>
+                    <td class="fee-col-money">${classReference}</td>
+                    <td class="fee-col-money"><strong>${chargeAmount}</strong></td>
+                    <td class="fee-col-source"><span class="badge bg-light text-dark border">${sourceLabel}</span></td>
+                    <td class="fee-col-discount">${Number(r.discount||0).toFixed(2)}%</td>
+                    <td class="fee-col-money"><strong>${Number(r.payable_amount||0).toFixed(2)}</strong></td>
                 </tr>`
             );
         });
@@ -1889,6 +1920,14 @@
                 resp.existing_fee_structure||[]
             );
 
+            if(resp.flow_type==='readmission'){
+                $('#readmission_structure_source_wrap').removeClass('d-none');
+            }else{
+                $('#readmission_structure_source_wrap').addClass('d-none');
+                $('#use_class_tuition_structure').prop('checked',false);
+                $('#readmission_structure_source').val('student');
+            }
+
             if(resp.flow_type==='reactivation'){
                 $('#preview_table_wrap').addClass('d-none');
                 $('#submit_btn').val('Reactivate Now');
@@ -2036,6 +2075,13 @@
     |--------------------------------------------------------------------------
     */
     $(document).off(NS);
+
+    $(document).on('change'+NS,'#use_class_tuition_structure',function(){
+        const useClass=$(this).is(':checked');
+        $('#readmission_structure_source').val(useClass ? 'class' : 'student');
+        updateTuitionIncrementVisibility();
+        schedulePreview(50);
+    });
 
     $('#readmission_form').off(NS);
     $('#end_policy_form').off(NS);

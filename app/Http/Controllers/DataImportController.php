@@ -41,10 +41,17 @@ class DataImportController extends Controller
         return view('data_import.form');
     }
 
+    public function registrationDateSample()
+    {
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\RegistrationDateImportSampleExport(),
+            'registration_date_update_sample.xlsx'
+        );
+    }
     public function importData(Request $request)
     {
         $request->validate([
-            'excel_file' => 'required|file|mimes:csv,txt',
+            'excel_file' => 'required|file|mimes:csv,txt,xlsx,xls',
             'data_type' => 'required|string',
         ]);
 
@@ -66,6 +73,8 @@ class DataImportController extends Controller
             return $this->SectionImport($request);
         } elseif ($dataType == 'registration') {
             return $this->RegistrationImport($file, $request);
+        } elseif ($dataType == 'registration_regdate') {
+            return $this->RegistrationRegDateImport($file, $request);
         } elseif ($dataType == 'student_detail') {
             return $this->StudentDetail($file, $request);
         } elseif ($dataType == 'student_detail2') {
@@ -1900,7 +1909,7 @@ class DataImportController extends Controller
     private function EnrollmentImport($file, $request)
     {
         $request->validate([
-            'excel_file' => 'required|file|mimes:csv,txt',
+            'excel_file' => 'required|file|mimes:csv,txt,xlsx,xls',
         ]);
 
         $file = $request->file('excel_file');
@@ -8088,4 +8097,20 @@ class DataImportController extends Controller
     //     }
     // }
 
+
+    private function RegistrationRegDateImport($file, $request)
+    {
+        try {
+            $service = new \App\Services\RegistrationDateImportService();
+            $report = $service->process($request->file('excel_file'));
+
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\RegistrationDateImportSummaryExport($report),
+                'registration_date_import_report.xlsx'
+            );
+        } catch (\Exception $e) {
+            \Log::error('Registration Date Import Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return redirect()->back()->with('error', 'Import failed: ' . $e->getMessage());
+        }
+    }
 }

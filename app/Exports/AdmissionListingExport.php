@@ -16,6 +16,7 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -142,82 +143,164 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
             ->values()
             ->toArray();
 
-        $challans = Challans::whereIn('student_id', $regIds)
-            ->whereRaw('LOWER(challan_type) LIKE ?', ['%admission%'])
-            ->with(['heads.feehead'])
-            ->get()
-            ->keyBy('student_id');
+        // IMPORTANT:
+    // A student may have more than one admission/installment challan.
+    // groupBy() keeps ALL admission challans for the student; keyBy() would discard all but one.
+    $challans = Challans::whereIn('student_id', $regIds)
+        ->whereRaw('LOWER(challan_type) LIKE ?', ['%admission%'])
+        ->with(['heads.feehead', 'concession.policy'])
+        ->get();
 
-        $heads = $challans
-            ->flatMap(fn ($challan) => $challan->heads)
-            ->filter(fn ($head) => !empty($head->feehead))
-            ->map(fn ($head) => (object) [
-                'id' => $head->head_id,
-                'fee_head' => $head->feehead->fee_head,
-            ])
-            ->unique('id')
-            ->values();
+    $challansByStudent = $challans->groupBy('student_id');
 
-        $branchTotals = [];
-        $grandTotal = 0;
-        $branchHeadTotals = [];
-        $grandHeadTotals = [];
-        $studentChallanData = [];
+    $heads = $challans
+        ->flatMap(fn ($challan) => $challan->heads)
+        ->filter(fn ($head) => !empty($head->feehead))
+        ->map(fn ($head) => (object) [
+            'id' => $head->head_id,
+            'fee_head' => $head->feehead->fee_head,
+        ])
+        ->unique('id')
+        ->values();
 
-        foreach ($studentData as $branchId => $students) {
-            $branchTotal = 0;
-            $branchHeadTotals[$branchId] = [];
+    $branchTotals = [];
+    $grandTotal = 0;
+    $branchHeadTotals = [];
+    $grandHeadTotals = [];
+    $studentChallanData = [];
 
-            foreach ($students as $student) {
-                $studentKey = $student->regId;
-                $studentTotal = 0;
-                $challanHeads = [];
+    foreach ($studentData as $branchId => $students) {
+        $branchTotal = 0;
+        $branchHeadTotals[$branchId] = [];
 
-                $challan = $challans[$studentKey] ?? null;
+        foreach ($students as $student) {
+            $studentKey = $student->regId;
+            $studentTotal = 0;
+            $challanHeads = [];
 
-                if ($challan) {
-                    foreach ($challan->heads as $head) {
-                        $amount = (float) ($head->price ?? 0);
-                        $studentTotal += $amount;
+            $studentChallans = $challansByStudent->get($studentKey, collect());
 
-                        $challanHeads[$head->head_id] = [
-                            'name' => $head->feehead->fee_head ?? '',
-                            'amount' => $amount,
-                            'head_id' => $head->head_id,
-                        ];
+            $challanNos = [];
+            $challanIds = [];
+            $feeMonths = [];
+            $challanStatuses = [];
+            $discountPolicies = [];
 
-                        $branchHeadTotals[$branchId][$head->head_id] =
-                            ($branchHeadTotals[$branchId][$head->head_id] ?? 0) + $amount;
-
-                        $grandHeadTotals[$head->head_id] =
-                            ($grandHeadTotals[$head->head_id] ?? 0) + $amount;
-                    }
-
-                    $studentChallanData[$studentKey] = [
-                        'challan_no' => $challan->challanNo,
-                        'challan_id' => $challan->id,
-                        'fee_month' => $challan->fee_month,
-                        'heads' => $challanHeads,
-                        'total' => $studentTotal,
-                    ];
-                } else {
-                    $studentChallanData[$studentKey] = [
-                        'challan_no' => '',
-                        'challan_id' => '',
-                        'heads' => [],
-                        'total' => 0,
-                    ];
+            foreach ($studentChallans as $challan) {
+                $policyTitle = optional($challan->concession?->policy)->title;
+                if (!empty($policyTitle)) {
+                    $discountPolicies[] = $policyTitle;
                 }
 
-                $student->total_amount = $studentTotal;
-                $branchTotal += $studentTotal;
+                if (!empty($challan->challanNo)) {
+                    $challanNos[] = $challan->challanNo;
+                }
+
+                if (!empty($challan->id)) {
+                    $challanIds[] = $challan->id;
+                }
+
+                if (!empty($challan->fee_month)) {
+                    $feeMonths[] = date('M Y', strtotime($challan->fee_month));
+                }
+
+                // Primary field expected: status.
+                // Fallbacks keep the report usable if the Challans model uses another status attribute.
+                $status = $challan->status
+                    ?? $challan->payment_status
+                    ?? $challan->challan_status
+                    ?? null;
+
+                if ($status !== null && $status !== '') {
+                    $challanStatuses[] = $status;
+                }
+
+                foreach ($challan->heads as $head) {
+                    // challan_heads schema:
+                    // price      = Base Amount
+                    // concession = Discount Amount
+                    // payable    = price - concession
+                    $baseAmount = (float) ($head->price ?? 0);
+                    $discountAmount = (float) ($head->concession ?? 0);
+                    $payableAmount = max(0, $baseAmount - $discountAmount);
+                    $paidAmount = (float) ($head->paid ?? 0);
+                    $remainingAmount = max(0, $payableAmount - $paidAmount);
+
+                    $studentTotal += $payableAmount;
+
+                    if (!isset($challanHeads[$head->head_id])) {
+                        $challanHeads[$head->head_id] = [
+                            'name' => $head->feehead->fee_head ?? '',
+                            'head_id' => $head->head_id,
+                            'base_amount' => 0,
+                            'discount_amount' => 0,
+                            'payable_amount' => 0,
+                            'paid_amount' => 0,
+                            'remaining_amount' => 0,
+                        ];
+                    }
+
+                    // Combine the same fee head from all admission installment challans.
+                    $challanHeads[$head->head_id]['base_amount'] += $baseAmount;
+                    $challanHeads[$head->head_id]['discount_amount'] += $discountAmount;
+                    $challanHeads[$head->head_id]['payable_amount'] += $payableAmount;
+                    $challanHeads[$head->head_id]['paid_amount'] += $paidAmount;
+                    $challanHeads[$head->head_id]['remaining_amount'] += $remainingAmount;
+
+                    if (!isset($branchHeadTotals[$branchId][$head->head_id])) {
+                        $branchHeadTotals[$branchId][$head->head_id] = [
+                            'base_amount' => 0,
+                            'discount_amount' => 0,
+                            'payable_amount' => 0,
+                            'paid_amount' => 0,
+                            'remaining_amount' => 0,
+                        ];
+                    }
+
+                    $branchHeadTotals[$branchId][$head->head_id]['base_amount'] += $baseAmount;
+                    $branchHeadTotals[$branchId][$head->head_id]['discount_amount'] += $discountAmount;
+                    $branchHeadTotals[$branchId][$head->head_id]['payable_amount'] += $payableAmount;
+                    $branchHeadTotals[$branchId][$head->head_id]['paid_amount'] += $paidAmount;
+                    $branchHeadTotals[$branchId][$head->head_id]['remaining_amount'] += $remainingAmount;
+
+                    if (!isset($grandHeadTotals[$head->head_id])) {
+                        $grandHeadTotals[$head->head_id] = [
+                            'base_amount' => 0,
+                            'discount_amount' => 0,
+                            'payable_amount' => 0,
+                            'paid_amount' => 0,
+                            'remaining_amount' => 0,
+                        ];
+                    }
+
+                    $grandHeadTotals[$head->head_id]['base_amount'] += $baseAmount;
+                    $grandHeadTotals[$head->head_id]['discount_amount'] += $discountAmount;
+                    $grandHeadTotals[$head->head_id]['payable_amount'] += $payableAmount;
+                    $grandHeadTotals[$head->head_id]['paid_amount'] += $paidAmount;
+                    $grandHeadTotals[$head->head_id]['remaining_amount'] += $remainingAmount;
+                }
             }
 
-            $branchTotals[$branchId] = $branchTotal;
-            $grandTotal += $branchTotal;
+            $studentChallanData[$studentKey] = [
+                'challan_no' => implode(', ', array_values(array_unique($challanNos))),
+                'challan_ids' => array_values(array_unique($challanIds)),
+                'challan_count' => count($studentChallans),
+                'fee_month' => implode(', ', array_values(array_unique($feeMonths))),
+                'challan_status' => implode(', ', array_values(array_unique($challanStatuses))),
+                'heads' => $challanHeads,
+                'total' => $studentTotal,
+                'discount_policy' => implode(', ', array_values(array_unique($discountPolicies))),
+            ];
+
+            $student->total_amount = $studentTotal;
+            $branchTotal += $studentTotal;
         }
 
-        $student = [];
+        $branchTotals[$branchId] = $branchTotal;
+        $grandTotal += $branchTotal;
+    }
+
+    $student = [];
         $report_name = $this->report_name;
 	 	$date_from = $request->input('date_from');
         $date_to = $request->input('date_to');
@@ -260,12 +343,13 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
             $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
 
             $headerRow = 9;
-            $firstDataRow = 10;
+            $subHeaderRow = 10;
+            $firstDataRow = 11;
 
             $sheet->setShowGridlines(false);
 
             // Freeze column heading row
-            $sheet->freezePane('A10');
+            $sheet->freezePane('A11');
 
             $sheet->getPageSetup()
                 ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
@@ -273,7 +357,7 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
                 ->setFitToPage(true)
                 ->setFitToWidth(1)
                 ->setFitToHeight(0)
-                ->setRowsToRepeatAtTopByStartAndEnd($headerRow, $headerRow);
+                ->setRowsToRepeatAtTopByStartAndEnd($headerRow, $subHeaderRow);
 
             $sheet->getPageMargins()->setTop(0.5);
             $sheet->getPageMargins()->setBottom(0.5);
@@ -294,7 +378,7 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
             ]);
 
             // Column heading row
-            $sheet->getStyle("A{$headerRow}:{$highestColumn}{$headerRow}")->applyFromArray([
+            $sheet->getStyle("A{$headerRow}:{$highestColumn}{$subHeaderRow}")->applyFromArray([
                 'font' => [
                     'bold' => true,
                     'size' => 8,
@@ -333,29 +417,116 @@ class AdmissionListingExport implements FromView, WithEvents, ShouldAutoSize
                 ->getAlignment()
                 ->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
+            // Billing Month (F) should be left-aligned whether it is a native
+            // Excel date or text (for rows containing multiple billing months).
+            $sheet->getStyle("F{$firstDataRow}:F{$highestRow}")
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_LEFT);
+
             $sheet->getStyle("H{$firstDataRow}:H{$highestRow}")
                 ->getAlignment()
                 ->setHorizontal(Alignment::HORIZONTAL_LEFT)
                 ->setWrapText(true);
 
-            // Amount columns
-            if ($highestColumnIndex > 8) {
-                $amountStartColumn = Coordinate::stringFromColumnIndex(9);
-                $amountEndColumn = Coordinate::stringFromColumnIndex($highestColumnIndex - 1);
+            /*
+             * IMPORTANT: Make report date columns REAL Excel dates.
+             *
+             * F = Billing Month. For a single month such as "Aug 2026", store
+             *     01-Aug-2026 internally and display it as "Aug 2026".
+             *     If the row contains multiple months (comma-separated), it must
+             *     remain text because a single Excel cell cannot contain multiple dates.
+             *
+             * G = Admission Date. Store a native Excel serial date while keeping
+             *     the existing visible format, e.g. "29 Aug 2026".
+             *
+             * Native date values allow Excel's date filter to group by
+             * Year -> Month -> Day instead of treating dates as plain text.
+             */
+            for ($row = $firstDataRow; $row <= $highestRow; $row++) {
+                // Skip branch-heading / totals / blank rows.
+                $firstCellValue = trim((string) $sheet->getCell("A{$row}")->getValue());
+                $rowText = strtolower(trim(implode(' ', [
+                    (string) $sheet->getCell("A{$row}")->getValue(),
+                    (string) $sheet->getCell("B{$row}")->getValue(),
+                    (string) $sheet->getCell("C{$row}")->getValue(),
+                ])));
 
-                $sheet->getStyle("{$amountStartColumn}{$firstDataRow}:{$amountEndColumn}{$highestRow}")
+                $isTotalRow = str_contains($rowText, 'branch total')
+                    || str_contains($rowText, 'grand total');
+
+                // Normal student rows have the sequential Sr No. in column A.
+                $isStudentRow = !$isTotalRow && is_numeric($firstCellValue);
+
+                if (!$isStudentRow) {
+                    continue;
+                }
+
+                // Billing Month (F): convert only when there is exactly one month.
+                $billingMonthCell = $sheet->getCell("F{$row}");
+                $billingMonthText = trim((string) $billingMonthCell->getValue());
+
+                if (
+                    $billingMonthText !== ''
+                    && $billingMonthText !== '-'
+                    && strpos($billingMonthText, ',') === false
+                ) {
+                    $billingMonthDate = \DateTime::createFromFormat('!M Y', $billingMonthText);
+
+                    if ($billingMonthDate !== false) {
+                        $billingMonthCell->setValue(ExcelDate::PHPToExcel($billingMonthDate));
+                        $sheet->getStyle("F{$row}")
+                            ->getNumberFormat()
+                            ->setFormatCode('mmm yyyy');
+                    }
+                }
+
+                // Admission Date (G): always convert a valid displayed date.
+                $admissionDateCell = $sheet->getCell("G{$row}");
+                $admissionDateText = trim((string) $admissionDateCell->getValue());
+
+                if ($admissionDateText !== '' && $admissionDateText !== '-') {
+                    $admissionDate = \DateTime::createFromFormat('!d M Y', $admissionDateText);
+
+                    if ($admissionDate !== false) {
+                        $admissionDateCell->setValue(ExcelDate::PHPToExcel($admissionDate));
+                        $sheet->getStyle("G{$row}")
+                            ->getNumberFormat()
+                            ->setFormatCode('dd mmm yyyy');
+                    }
+                }
+            }
+
+            // Numeric columns:
+            // J onward contains fee-head amounts; the final four columns are:
+            // Amount, Challan Status, Student Status, Discount Policy.
+            if ($highestColumnIndex > 13) {
+                $numericStartColumn = Coordinate::stringFromColumnIndex(10);
+                $amountColumn = Coordinate::stringFromColumnIndex($highestColumnIndex - 3);
+                $policyColumn = Coordinate::stringFromColumnIndex($highestColumnIndex);
+
+                $sheet->getStyle("{$numericStartColumn}{$firstDataRow}:{$amountColumn}{$highestRow}")
                     ->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-                $sheet->getStyle("{$amountStartColumn}{$firstDataRow}:{$amountEndColumn}{$highestRow}")
+                $sheet->getStyle("{$numericStartColumn}{$firstDataRow}:{$amountColumn}{$highestRow}")
                     ->getNumberFormat()
                     ->setFormatCode('#,##0.00');
+
+                $sheet->getStyle("{$policyColumn}{$firstDataRow}:{$policyColumn}{$highestRow}")
+                    ->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+                    ->setWrapText(true);
             }
 
-            // Status column
-            $sheet->getStyle("{$highestColumn}{$firstDataRow}:{$highestColumn}{$highestRow}")
-                ->getAlignment()
-                ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            // Challan Status + Student Status columns
+            if ($highestColumnIndex >= 4) {
+                $challanStatusColumn = Coordinate::stringFromColumnIndex($highestColumnIndex - 2);
+                $studentStatusColumn = Coordinate::stringFromColumnIndex($highestColumnIndex - 1);
+
+                $sheet->getStyle("{$challanStatusColumn}{$firstDataRow}:{$studentStatusColumn}{$highestRow}")
+                    ->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            }
 
             // Column widths
             foreach (range(1, $highestColumnIndex) as $columnIndex) {

@@ -577,7 +577,7 @@ public function endconcession($id)
     }
 
 
-    public function changeStatus($id, $status)
+    public function changeStatus(Request $request, $id, $status)
     {
         DB::beginTransaction();
 
@@ -591,6 +591,12 @@ public function endconcession($id)
                 $concession->active_status = 1;
                 $concession->approved_by = Auth::user()->name;
                 $concession->approval_date = date('Y-m-d');
+
+                if ($request->filled('effective_from')) {
+                    $concession->effective_from = $this->normalizeEffectiveMonth(
+                        $request->effective_from
+                    );
+                }
 
                 /*
                  * Persist approval state first, then capture the exact applied
