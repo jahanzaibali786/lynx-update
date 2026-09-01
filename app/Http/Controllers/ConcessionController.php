@@ -321,7 +321,7 @@ class ConcessionController extends Controller
                 $this->normalizeEffectiveMonth(
                     $request->effective_from
                 );
-
+            
             $concession->start_date = $request->period_from;
             $concession->end_date = $request->period_to;
             $concession->remarks = $request->bill_remarks;
@@ -1327,11 +1327,9 @@ public function endconcession($id)
         }
 
         return Carbon::createFromFormat(
-            'Y-m',
+            '!Y-m',
             (string) $value
-        )
-            ->startOfMonth()
-            ->toDateString();
+        )->toDateString();
     }
 
     /**

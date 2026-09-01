@@ -2453,6 +2453,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/sessionMonthWise', [StudentReportController::class, 'sessionMonthWise'])->name('sessionMonthWisereport');
             Route::get('/sessionMonthBranchWise', [StudentReportController::class, 'sessionMonthBranchWise'])->name('sessionMonthBranchWise');
             Route::get('/tuition_fee', [StudentReportController::class, 'tuition_feereport'])->name('tuition_feereport');
+            Route::get('/average-monthly-report', [\App\Http\Controllers\AverageMonthlyMatrixReportController::class, 'index'])->name('average_monthly_report');
             Route::get('/monthlystatistics', [StudentReportController::class, 'monthlystatistics'])->name('monthlystatistics');
             Route::get('/monthlybranchwisereport', [StudentReportController::class, 'monthBranchWiseReport'])->name('monthlybranchwisereport');
             Route::get('/monthlychallanreport', [StudentReportController::class, 'monthlychallanreport'])->name('monthlychallanreport');
@@ -2486,7 +2487,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('/period-wise-statistic-report', [StudentReportController::class, 'period_wise_statistic_report'])->name('period_wise_statistic_report');
             Route::get('/student-wise-statistic-report', [StudentReportController::class, 'student_wise_statistic_report'])->name('student_wise_statistic_report');
             Route::get('/student-wise-statistic-report/pdf', [StudentReportController::class, 'student_wise_statistic_report_pdf'])->name('student_wise_statistic.report');
-			            Route::get('/student-sections-statistics', [StudentReportController::class, 'student_sections_statistics'])->name('student_sections_statistics');
+            Route::get('/student-sections-statistics', [StudentReportController::class, 'student_sections_statistics'])->name('student_sections_statistics');
             Route::post('/student-single-account/previous-data', [StudentReportController::class, 'uploadStudentAccountPreviousData'])->name('student_single_account.previous_data.upload');
             Route::post('/student-single-account/previous-data/{id}/finalize', [StudentReportController::class, 'finalizeStudentAccountPreviousData'])->name('student_single_account.previous_data.finalize');
             Route::post('/student-single-account/previous-data/{id}/rollback', [StudentReportController::class, 'rollbackStudentAccountPreviousData'])->name('student_single_account.previous_data.rollback');
@@ -2498,6 +2499,10 @@ Route::group(['middleware' => ['verified']], function () {
             // EmployeeScale
             Route::get('/get-dept-wise-scales', [EmployeeScaleController::class, 'getDeptWiseScales'])->name('get-dept-wise-scales');
             Route::get('/emp-scale-report/report', [EmployeeScaleController::class, 'generateReport'])->name('employee_scale.report');
+            Route::post(
+                'employee_scale/bulk-auto-create',
+                [EmployeeScaleController::class, 'autoCreateFromBulk']
+            )->name('employee_scale.bulk_auto_create');
             Route::resource('/employee_scale', EmployeeScaleController::class);
             Route::resource('/employee-scale-heads', EmployeeSalaryHeads::class);
             Route::get('/employee-assign-leave/{id}', [EmployeeController::class, 'AssignLeaveAfterProbation'])->name('AssignLeaveAfterProbation');
@@ -2556,6 +2561,23 @@ Route::group(['middleware' => ['verified']], function () {
 
             //employee salary proposal
             Route::get('/employee-scale-details/{id?}', [EmployeeSalaryProposal::class, 'emp_scale_detail'])->name('emp_scale_detail');
+            Route::post(
+                'employee-salary-proporal/bulk/send-for-approval',
+                [\App\Http\Controllers\EmployeeSalaryProposal::class, 'bulkSendForApproval']
+            )->name('employee-salary-proporal.bulk.sendForApproval');
+            Route::post(
+                'employee-salary-proporal/bulk-column-visibility',
+                [EmployeeSalaryProposal::class, 'updateBulkColumnVisibility']
+            )->name('employee-salary-proporal.bulk.column-visibility');
+            Route::post(
+                'employee-salary-proporal/bulk/approve',
+                [\App\Http\Controllers\EmployeeSalaryProposal::class, 'bulkApprove']
+            )->name('employee-salary-proporal.bulk.approve');
+            Route::get(
+                'employee-salary-proporal/single-employee-preview',
+                [EmployeeSalaryProposal::class, 'singleEmployeePreview']
+            )->name('employee-salary-proporal.single.preview');
+
             Route::post('employee-salary-proporal/{id}/sendForApproval', [EmployeeSalaryProposal::class, 'sendForApproval'])->name('employee-salary-proporal.sendForApproval');
             Route::get('/employee-salary-proporal/bulk', [EmployeeSalaryProposal::class, 'bulkCreate'])->name('employee-salary-proporal.bulk.create');
             Route::get('/employee-salary-proporal/bulk/search', [EmployeeSalaryProposal::class, 'bulkSearch'])->name('employee-salary-proporal.bulk.search');
@@ -2675,6 +2697,7 @@ Route::get('/git_pull', function () {
 });
 Route::get('/data-import', [DataImportController::class, 'showForm'])->name('data.import.form');
 Route::post('/data-import', [DataImportController::class, 'importData'])->name('data.import');
+Route::get('/data-import-registration-sample', [DataImportController::class, 'registrationDateSample'])->middleware('auth')->name('data.import.registration.sample');
 Route::get('/data-hr-import', [HrDataImportController::class, 'showHrForm'])->name('data.import.hrform');
 Route::post('/data-hr-import', [HrDataImportController::class, 'importHRData'])->name('data.hrimport');
 Route::get('/fetch-student-amount', [EmployeeController::class, 'fetchStudentAmount'])->name('fetch_student_amount');

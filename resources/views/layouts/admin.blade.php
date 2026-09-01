@@ -18,6 +18,7 @@
     $meta_image = \App\Models\Utility::get_file('uploads/meta/');
     $meta_logo = isset($getseo['meta_image']) ? $getseo['meta_image'] : '';
     $get_cookie = \App\Models\Utility::getCookieSetting();
+    $useCustomSidebar = request()->query('sidebar') === 'acrn' ? false : true;
 
 @endphp
 <!DOCTYPE html>
@@ -247,6 +248,11 @@
         <link rel="stylesheet" href="{{ asset('css/custom-dark.css') }}">
     @endif
 
+    @if ($useCustomSidebar)
+        <link rel="stylesheet" href="{{ asset('css/custom-sidebar.css') }}">
+        <script defer src="{{ asset('js/custom-sidebar.js') }}"></script>
+    @endif
+
     @stack('css-page')
 	<style>
         #commonModal .modal-dialog.modal-fullscreen,
@@ -300,9 +306,9 @@
         }
     </style>
 </head>
-{{-- <body class="{{ $color }}" class="rtl" data-bs-padding="21px"> --}}
+{{-- <body class="{{ $color }} rtl" data-bs-padding="21px" data-sidebar="{{ $useCustomSidebar ? 'custom' : 'acrn' }}"> --}}
 
-<body class="{{ $color }}" class="rtl" data-bs-padding="21px">
+<body class="{{ $color }} rtl" data-bs-padding="21px" data-sidebar="{{ $useCustomSidebar ? 'custom' : 'acrn' }}">
 
 
     <!-- [ Pre-loader ] start -->
@@ -312,7 +318,11 @@
         </div>
     </div>
 
-    @include('partials.admin.menu')
+    @if ($useCustomSidebar)
+        @include('layouts.custom-sidebar')
+    @else
+        @include('partials.admin.menu')
+    @endif
     <!-- [ navigation menu ] end -->
     <!-- [ Header ] start -->
     @include('partials.admin.header')
@@ -463,6 +473,10 @@
                 const menuAnimateValue = htmlElement.getAttribute('data-menu-animate');
                 const dataBehaviour = htmlElement.getAttribute('data-behaviour');
 
+                if (!logo) {
+                    return;
+                }
+
                 if (menuAnimateValue === 'show' || dataBehaviour === 'pinned') {
                     logo.style.display = 'block';
                 } else if (menuAnimateValue === 'hidden' || dataBehaviour === 'unpinned') {
@@ -521,3 +535,6 @@
 </body>
 
 </html>
+
+
+

@@ -2639,7 +2639,8 @@ class StudentReportController extends Controller
             'all' => 'All Challan Types',
             'Admission' => 'Admission',
             'Registration' => 'Registration',
-            'Regular' => 'Regular',
+            'Re-Admission' => 'Re-Admission',
+            'Regular' => 'Regular', 
             'Studypack' => 'Studypack',
         ];
 
