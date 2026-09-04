@@ -28,6 +28,9 @@ class SchoolDetails extends Model
     public function headmaster_name(){
         return $this->belongsTo(User::class, 'headmaster','id');
     }
+    public function headmaster_designation(){
+        return $this->belongsTo(Employee::class, 'headmaster','user_id');
+    }
 
      public function bankname()
     {

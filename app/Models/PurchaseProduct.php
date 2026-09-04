@@ -10,6 +10,7 @@ class PurchaseProduct extends Model
         'product_id',
         'purchase_id',
         'quantity',
+        'received_quantity',
         'tax',
         'discount',
         'total',
@@ -19,6 +20,7 @@ class PurchaseProduct extends Model
     {
         return $this->hasOne('App\Models\ProductService', 'id', 'product_id')->first();
     }
+
     public function products()
     {
         return $this->hasOne('App\Models\ProductService', 'id', 'product_id');

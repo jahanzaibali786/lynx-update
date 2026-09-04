@@ -12,6 +12,7 @@ class ClassWiseFee extends Model
         'session_id',
         'class_id',
         'head_id',
+        'type',
         'amount',
         'discount',
         'owned_by',

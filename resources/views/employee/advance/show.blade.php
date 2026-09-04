@@ -11,8 +11,8 @@
             {{ Form::date('apply_date', $loan->apply_date, ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
-            {!! Form::label('end_date', __('End Date'), ['class' => 'form-label']) !!}
-            {{ Form::date('end_date', $loan->loan_ended, ['class' => 'form-control', 'readonly' => 'readonly']) }}
+            {!! Form::label('end_date', __('End Month'), ['class' => 'form-label']) !!}
+            {{ Form::text('end_date', !empty($loan->loan_ended) ? \Carbon\Carbon::parse($loan->loan_ended)->format('M Y') : '-', ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('employee_name', __('Employee Name'), ['class' => 'form-label']) !!}

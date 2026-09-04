@@ -19,6 +19,7 @@ use App\Exports\EmployeeEmploymentHistoryExport;
 use App\Exports\EmployeeMonthlyReconsilationExport;
 use App\Exports\EmployeeEmploymentHistoryReportExport;
 use App\Models\Designation;
+use App\Models\Department;
 use App\Models\EmpChildrens;
 use App\Models\EmployeePayscaleDetail;
 use App\Models\EmpEducation;
@@ -43,6 +44,7 @@ use Illuminate\Support\Facades\DB;
 use App\Exports\EmployeePessiReportExport;
 use App\Exports\EmployeeTransferReportExport;
 use App\Exports\EmployeeLeaveReportExport;
+use App\Exports\EmployeeProfileReportExport;
 use App\Exports\EmployeeStaffChildReport;
 
 
@@ -1376,8 +1378,14 @@ class EmployeeReportsController extends Controller
     public function transferreport(Request $request)
     {
         $selectedBranch = $request->input('branches');
-        $datefrom = $request->input('datefrom');
-        $dateto = $request->input('dateto');
+        $today = Carbon::today();
+        $fiscalStartYear = $today->month >= 7 ? $today->year : $today->year - 1;
+        $datefrom = $request->filled('datefrom')
+            ? $request->input('datefrom')
+            : Carbon::create($fiscalStartYear, 7, 1)->toDateString();
+        $dateto = $request->filled('dateto')
+            ? $request->input('dateto')
+            : Carbon::create($fiscalStartYear + 1, 6, 30)->toDateString();
         $type = $request->input('type');
         $status = $request->input('status');
 
@@ -1392,10 +1400,10 @@ class EmployeeReportsController extends Controller
         } else {
             $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
             $branches->prepend('Select Branch', '');
+            $selectedBranch = $userOwnedId;
         }
 
-        // Start base query
-        $transfersQuery = EmployeeTransfer::query();
+        $transfersQuery = EmployeeTransfer::where('created_by', $userCreatorId);
 
         // Apply branch filters only if selected
         if (!empty($selectedBranch)) {
@@ -1412,20 +1420,18 @@ class EmployeeReportsController extends Controller
             }
         }
 
-        // Apply date filter if both dates provided
-        if (!empty($datefrom) && !empty($dateto)) {
-            $startDate = \Carbon\Carbon::parse($datefrom)->startOfMonth()->format('Y-m-d');
-            $endDate = \Carbon\Carbon::parse($dateto)->endOfMonth()->format('Y-m-d');
-            $transfersQuery->whereBetween('transfer_date', [$startDate, $endDate]);
-        }
+        $startDate = Carbon::parse($datefrom)->startOfMonth()->toDateString();
+        $endDate = Carbon::parse($dateto)->endOfMonth()->toDateString();
+        $transfersQuery->whereBetween('transfer_date', [$startDate, $endDate]);
 
         // Apply status filter
-        if (!empty($status)) {
+        if ($status !== null && $status !== '') {
             $transfersQuery->where('status', $status);
         }
 
-        // Final get
-        $transfers = $transfersQuery->orderBy('id')->get();
+        $transfers = $transfersQuery
+            ->orderByDesc('id')
+            ->get();
 
         if ($transfers->isEmpty()) {
             return redirect()->back()->with('error', 'No transfers found for the selected criteria');
@@ -1461,8 +1467,6 @@ class EmployeeReportsController extends Controller
         // $pdfContent = $pdf->output();
         // $base64Pdf = base64_encode($pdfContent);
 
-        $startDate = \Carbon\Carbon::parse($datefrom)->startOfMonth()->format('Y-m-d');
-        $endDate = \Carbon\Carbon::parse($dateto)->endOfMonth()->format('Y-m-d');
         if ($request->has('export') && $request->export == 'excel') {
             $request->merge(['date_from' => $startDate]);
             $request->merge(['date_to' => $endDate]);
@@ -2783,5 +2787,68 @@ class EmployeeReportsController extends Controller
             return Excel::download(new EmployeeRetirementReportExport($employeesdata), 'employee_retirement_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
         return view('employee.reports.emp_retirement_report', compact('employees', 'branches', 'employeesdata'));
+    }
+	public function employeeProfileReport(Request $request)
+    {
+        $userType = \Auth::user()->type;
+        $userCreatorId = \Auth::user()->creatorId();
+        $userOwnedId = \Auth::user()->ownedId();
+
+        if ($userType == 'company') {
+            $branches = User::where('type', 'branch')->where('created_by', $userCreatorId)->pluck('name', 'id');
+            $branches->prepend(\Auth::user()->name, \Auth::user()->id);
+            $branches->prepend('All Branches', 'all');
+            $query = Employee::with('userbranch', 'department', 'designation')->where('created_by', $userCreatorId);
+        } else {
+            $branches = User::where('id', $userOwnedId)->pluck('name', 'id');
+            $branches->prepend('All Branches', 'all');
+            $query = Employee::with('userbranch', 'department', 'designation')->where('owned_by', $userOwnedId);
+        }
+
+        if ($request->filled('branch') && $request->branch != 'all') {
+            $query->where('branch_id', $request->branch);
+        }
+
+        if ($request->filled('department_id') && $request->department_id != 'all') {
+            $query->where('department_id', $request->department_id);
+        }
+
+        if ($request->filled('designation_id') && $request->designation_id != 'all') {
+            $query->where('designation_id', $request->designation_id);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('is_res_ter', $request->status);
+        }
+
+        $employees = $query->orderBy('name')->get();
+        $branchName = ($request->filled('branch') && $request->branch != 'all')
+            ? ($branches[$request->branch] ?? 'All Branches')
+            : 'All Branches';
+
+        $departments = Department::where('created_by', $userCreatorId)->pluck('name', 'id');
+        $departments->prepend('All Departments', 'all');
+
+        $designations = Designation::where('created_by', $userCreatorId)->pluck('name', 'id');
+        $designations->prepend('All Designations', 'all');
+
+        $statuses = [
+            '' => 'All Statuses',
+            '0' => 'Active',
+            '1' => 'Resigned',
+            '2' => 'Terminated',
+        ];
+
+        if ($request->has('export') && $request->export == 'excel') {
+            $report_name = 'Employee Profile Report';
+            return Excel::download(new EmployeeProfileReportExport($employees, $branchName, $report_name), 'employee_profile_report.xlsx');
+        }
+
+        if ($request->has('export') && $request->export == 'pdf') {
+            $report_name = 'Employee Profile Report';
+            return Excel::download(new EmployeeProfileReportExport($employees, $branchName, $report_name), 'employee_profile_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
+        }
+
+        return view('employee.reports.employee_profile_report', compact('employees', 'branches', 'departments', 'designations', 'statuses', 'request', 'branchName'));
     }
 }

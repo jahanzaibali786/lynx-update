@@ -55,7 +55,7 @@
                     // Check year change
                     // Start month (0-11)
                     const startMonth = date.getMonth();
-                    const endMonthIndex = startMonth + duration - 1; 
+                    const endMonthIndex = startMonth + duration - 1;
                     // If endMonthIndex >= 12, means we crossed into next year (e.g. Dec is 11. 11+2-1 = 12. 12>=12 -> True)
                     if (endMonthIndex >= 12) {
                         isYearChange = true;
@@ -75,8 +75,8 @@
                         finalAmount = basePrice * 1;
                     } else if (headName.includes('annual fee')) {
                         // Annual Fee Logic: Generally 1x
-                        finalAmount = basePrice * 1; 
-                        
+                        finalAmount = basePrice * 1;
+
                         // If year changes and not checked, check it.
                         if (isYearChange) {
                             if (!checkbox.is(':checked')) {
@@ -100,7 +100,7 @@
                     if (!checkbox.is(':checked')) {
                         finalAmount = 0;
                     }
-                    
+
                     row.find('.head-amount').val(finalAmount);
                 });
 
@@ -111,7 +111,7 @@
             $(document).on('change', 'select[name="fee_subscription"]', function() {
                 updateHeadAmounts();
             });
-            
+
             $(document).on('change', 'input[name="issue_date"]', function() {
                 updateHeadAmounts();
             });
@@ -151,10 +151,10 @@
                     this.discountInputs[index].value = Math.round(discountPercentage);
                 }
                 const amount = parseFloat(this.amountInputs[index].value) || 0;
-                const discount = Math.round( amount * (discountPercentage / 100));
+                const discount = Math.round(amount * (discountPercentage / 100));
                 const finalAmount = amount - discount;
                 this.discountedAmountInputs[index].value = finalAmount < 0 ? 0 : finalAmount.toFixed(1);
-                
+
                 // Trigger change for jQuery listener
                 $(this.discountedAmountInputs[index]).trigger('change');
             }
@@ -166,6 +166,13 @@
 @endpush
 
 @section('content')
+    @php
+        $challanHeads = $challan->heads->keyBy('head_id');
+
+        $anyPaid = $challanHeads->contains(function ($item) {
+            return $item->paid > 0;
+        });
+    @endphp
     <div class="row">
         {{ Form::model($challan, ['route' => ['challan.update', $challan->id], 'method' => 'POST']) }}
         <div class="col-sm-12">
@@ -191,40 +198,62 @@
                             <div class="col-md-4">
                                 <div class="form-group">
                                     {{ Form::label('student_name', __('Student Name'), ['class' => 'form-label']) }}
-                                    {{ Form::text('student_name', @$challan->student->stdname, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                                    {{ Form::text('student_name', @$challan->student->stdname, ['class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly']) }}
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            @php
+                                $col_class = 'col-md-4';
+                                if (@$challan->challan_type == 'Admission') {
+                                    $col_class = 'col-md-3';
+                                }
+                            @endphp
+                            @if ($challan->challan_type == 'Admission')
+                                <div class="{{ $col_class }}">
+                                    <div class="form-group"> {{-- fee month- --}}
+                                        {{ Form::label('fee_month', __('Fee Month'), ['class' => 'form-label']) }}
+                                        {{ Form::month(
+                                            'fee_month',
+                                            @$challan->fee_month ? \Carbon\Carbon::parse($challan->fee_month)->format('Y-m') : null,
+                                            [
+                                                'class' => 'form-control',
+                                                'required' => 'required',
+                                                'readonly' => $anyPaid ? 'readonly' : null,
+                                            ],
+                                        ) }}
+                                    </div>
+                                </div>
+                            @endif
+                            <div class="{{ $col_class }}">
                                 <div class="form-group">
                                     {{ Form::label('issue_date', __('Issue Date'), ['class' => 'form-label']) }}
-                                    {{ Form::date('issue_date', @$challan->issue_date, ['class' => 'form-control', 'required' => 'required']) }}
+                                    {{ Form::date('issue_date', @$challan->issue_date, ['class' => 'form-control', 'required' => 'required', 'readonly' => $anyPaid ? 'readonly' : null]) }}
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="{{ $col_class }}">
                                 <div class="form-group">
-                                    {{Form::label('due_date', __('Due Date'), ['class' => 'form-label'])}}
-                                    {{ Form::date('due_date', @$challan->due_date, ['class' => 'form-control', 'required' => 'required']) }}
+                                    {{ Form::label('due_date', __('Due Date'), ['class' => 'form-label']) }}
+                                    {{ Form::date('due_date', @$challan->due_date, ['class' => 'form-control', 'required' => 'required', 'readonly' => $anyPaid ? 'readonly' : null]) }}
                                 </div>
                             </div>
                             {{-- Fee Subscription --}}
-                            <div class="col-md-4">
+                            <div class="{{ $col_class }}">
                                 <div class="form-group">
                                     {{ Form::label('fee_subscription', __('Fee Subscription'), ['class' => 'form-label']) }}
                                     {{-- //select of months from 1-12 alphabets --}}
                                     @php
                                         $subscription = [
-                                            'monthly'     => 'Monthly',
-                                            'bi-monthly'  => 'Bi-Monthly',
-                                            'quarterly'   => 'Quarterly',
-                                            '4-monthly'   => '4 Month Subscription',
-                                            '5-monthly'   => '5 Month Subscription',
-                                            '6-monthly'   => '6 Month Subscription',
-                                            '7-monthly'   => '7 Month Subscription',
-                                            '8-monthly'   => '8 Month Subscription',
-                                            '9-monthly'   => '9 Month Subscription',
-                                            '10-monthly'  => '10 Month Subscription',
-                                            '11-monthly'  => '11 Month Subscription',
-                                            'yearly'      => 'Annual Subscription',
+                                            'monthly' => 'Monthly',
+                                            'bi-monthly' => 'Bi-Monthly',
+                                            'quarterly' => 'Quarterly',
+                                            '4-monthly' => '4 Month Subscription',
+                                            '5-monthly' => '5 Month Subscription',
+                                            '6-monthly' => '6 Month Subscription',
+                                            '7-monthly' => '7 Month Subscription',
+                                            '8-monthly' => '8 Month Subscription',
+                                            '9-monthly' => '9 Month Subscription',
+                                            '10-monthly' => '10 Month Subscription',
+                                            '11-monthly' => '11 Month Subscription',
+                                            'yearly' => 'Annual Subscription',
                                         ];
 
                                         // Count months from other_months
@@ -236,59 +265,54 @@
 
                                         // Map count → subscription key
                                         $subscriptionByCount = [
-                                            1  => 'monthly',
-                                            2  => 'bi-monthly',
-                                            3  => 'quarterly',
-                                            4  => '4-monthly',
-                                            5  => '5-monthly',
-                                            6  => '6-monthly',
-                                            7  => '7-monthly',
-                                            8  => '8-monthly',
-                                            9  => '9-monthly',
+                                            1 => 'monthly',
+                                            2 => 'bi-monthly',
+                                            3 => 'quarterly',
+                                            4 => '4-monthly',
+                                            5 => '5-monthly',
+                                            6 => '6-monthly',
+                                            7 => '7-monthly',
+                                            8 => '8-monthly',
+                                            9 => '9-monthly',
                                             10 => '10-monthly',
                                             11 => '11-monthly',
                                             12 => 'yearly',
                                         ];
 
                                         // Auto-select based on month count (fallback to saved value)
-                                        $selectedSubscription = $subscriptionByCount[$monthCount]
-                                            ?? $challan->fee_subscription
-                                            ?? null;
+                                        $selectedSubscription =
+                                            $subscriptionByCount[$monthCount] ?? ($challan->fee_subscription ?? null);
                                     @endphp
 
-                                    {{ Form::select(
-                                        'fee_subscription',
-                                        $subscription,
-                                        $selectedSubscription,
-                                        ['class' => 'form-control', 'required']
-                                    ) }}
+                                    {{ Form::select('fee_subscription', $subscription, $selectedSubscription, [
+                                        'class' => 'form-control',
+                                        'required',
+                                        'readonly' => $anyPaid ? 'readonly' : null,
+                                    ]) }}
 
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="form-group">
                                     {{ Form::label('total_amount', __('Total Amount'), ['class' => 'form-label']) }}
-                                    {{ Form::text('total_amount', @$challan->total_amount , ['id' => 'total_amount', 'class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly']) }}
+                                    {{ Form::text('total_amount', @$challan->total_amount, ['id' => 'total_amount', 'class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly']) }}
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 {{ Form::label('discount_policy', __('Discount Policy'), ['class' => 'form-label']) }}
-                                {{ Form::text('discount_policy', @$concession->concession->title, ['class' => 'form-control', 'required' => 'required', 'disabled' => 'disabled']) }}
+                                {{ Form::text('discount_policy', @$concession->concession->title, ['class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly']) }}
                                 {{ Form::text('discount_policy_id', @$concession->concession_id, ['hidden' => 'hidden', 'class' => 'form-control']) }}
                             </div>
                             {{-- //remarks  --}}
                             <div class="col-md-4">
                                 <div class="form-group">
                                     {{ Form::label('remarks', __('Remarks'), ['class' => 'form-label']) }}
-                                    {{ Form::textarea('remarks', @$challan->remarks, ['class' => 'form-control', 'rows' => 2]) }}
+                                    {{ Form::textarea('remarks', @$challan->remarks, ['class' => 'form-control', 'rows' => 2, 'readonly' => $anyPaid ? 'readonly' : null]) }}
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="">
-                        @php
-                            $challanHeads = $challan->heads->keyBy('head_id');
-                        @endphp
                         <table class="">
                             <thead class="table_heads">
                                 <tr>
@@ -297,7 +321,9 @@
                                     <th>Discount (%)</th>
                                     <th>Net Amount</th>
                                     <th>Challan Amount</th>
-                                    <th><input type="checkbox" id="checkAll"></th>
+                                    <th>
+                                        <input type="checkbox" id="checkAll" {{ $anyPaid ? 'disabled' : '' }}>
+                                    </th>
                                     <th style="display: none;"></th>
                                 </tr>
                             </thead>
@@ -340,8 +366,8 @@
 
                                         {{-- Original Amount --}}
                                         <td>
-                                            <input type="number" name="amount[{{ $fee->feehead->id }}]" class="form-control amount"
-                                                value="{{ $baseAmount }}" readonly
+                                            <input type="number" name="amount[{{ $fee->feehead->id }}]"
+                                                class="form-control amount" value="{{ $baseAmount }}" readonly
                                                 @if ($isProtected) readonly @endif>
                                         </td>
 
@@ -349,33 +375,38 @@
                                         <td>
                                             <input type="text" class="form-control discount"
                                                 value="{{ $policy->percentage ?? ($fee->discount ?? 0) }}"
-                                                @if(!empty($policy) && $policy->percentage != 0) readonly @endif
-                                                >
+                                                @if ((!empty($policy) && $policy->percentage != 0) || $anyPaid) readonly @endif>
                                         </td>
 
                                         {{-- Net Amount --}}
                                         <td>
-                                            <input type="number" class="form-control discounted-amount" name="actual_amount[{{ $fee->feehead->id }}]"
+                                            <input type="number" class="form-control discounted-amount"
+                                                name="actual_amount[{{ $fee->feehead->id }}]"
                                                 value="{{ round($discountedAmount) }}" readonly
                                                 @if ($isProtected) readonly @endif>
                                         </td>
 
                                         {{-- Challan Amount --}}
                                         <td>
-                                            @if($ch) <label for="challan_amount"><span style="color: red;"> Challan Amount : {{@$ch->price}} - Concession Amount : {{@$ch->concession}}</span></label> @endif
-                                            <input type="number" class="form-control head-amount" id="challan_amount" name="challan_amount[{{ $fee->feehead->id }}]"
-                                                value="{{ $challanValue }}" readonly
-                                                data-original-value="{{ $challanValue }}">
+                                            @if ($ch)
+                                                <label for="challan_amount"><span style="color: red;"> Challan Amount :
+                                                        {{ @$ch->price }} - Concession Amount :
+                                                        {{ @$ch->concession }}</span></label>
+                                            @endif
+                                            <input type="number" class="form-control head-amount" id="challan_amount"
+                                                name="challan_amount[{{ $fee->feehead->id }}]" value="{{ $challanValue }}"
+                                                readonly data-original-value="{{ $challanValue }}">
                                         </td>
 
                                         {{-- Checkbox --}}
+                                        @php
+                                            $head = $challanHeads->firstWhere('head_id', $fee->head_id);
+                                        @endphp
                                         <td>
-                                            {{-- @dd($fee) --}}
                                             <input type="checkbox" name="checked[]" value="{{ $fee->head_id }}"
-                                                {{ $challanHeads->has($fee->head_id) ? 'checked' : '' }}
-                                                >
+                                                {{ $head ? 'checked' : '' }}
+                                                {{ $head && $head->paid > 0 ? 'disabled' : '' }}>
                                         </td>
-
                                         {{-- Hidden head ID --}}
                                         <td style="display: none;">
                                             <input type="hidden" name="headid[]" value="{{ $fee->feehead->id }}">
@@ -387,9 +418,9 @@
 
                     </div>
                     <br>
-                    <div class="modal-footer p-4">
-                        <input type="submit" value="{{ __('Update') }}" class="btn  btn-primary">
-                    </div>
+                        <div class="modal-footer p-4">
+                            <input type="submit" value="{{ __('Update') }}" class="btn  btn-primary">
+                        </div>
                 </div>
             </div>
         </div>

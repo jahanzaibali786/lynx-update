@@ -27,7 +27,7 @@
 
 @push('script-page')
     <script>
-        // Scroll-to-top
+        // ── Scroll-to-top ──────────────────────────────────────────────────
         $(document).ready(function() {
             $(window).scroll(function() {
                 if ($(this).scrollTop() > 100) {
@@ -37,19 +37,24 @@
                 }
             });
             $('.scroll-up').click(function() {
-                $('html, body').animate({ scrollTop: 0 }, 1000);
+                $('html, body').animate({
+                    scrollTop: 0
+                }, 1000);
             });
         });
     </script>
 
     <script>
-        // ---- Branch → Class ----
+        // ── Branch → Class ─────────────────────────────────────────────────
         $(document).on('change', '#branch', function() {
             let branch = $(this).val();
             $.ajax({
                 url: "{{ route('branch.class') }}",
                 type: 'POST',
-                data: { branch_id: branch, _token: "{{ csrf_token() }}" },
+                data: {
+                    branch_id: branch,
+                    _token: "{{ csrf_token() }}"
+                },
                 dataType: 'json',
                 success: function(result) {
                     var $classSelect = $('#class_select');
@@ -62,30 +67,37 @@
                     }
                     $classSelect.removeClass('custom-select');
                     $classSelect.empty();
-                    $classSelect.append($('<option>', { value: 'all', text: 'All Class' }));
+                    $classSelect.append($('<option>', {
+                        value: 'all',
+                        text: 'All Class'
+                    }));
                     for (var j = 0; j < result.length; j++) {
-                        $classSelect.append($('<option>', { value: result[j].id, text: result[j].name }));
+                        $classSelect.append($('<option>', {
+                            value: result[j].id,
+                            text: result[j].name
+                        }));
                     }
                     $classSelect.addClass('custom-select').show();
                     if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
                         window.CustomSelect.create($classSelect[0]);
                     }
-                    // Reset dependent dropdowns
                     resetSectionSelect();
                     $('#student_select').html('<option value="all">All Students</option>');
                 }
             });
         });
 
-        // ---- Class → Sections + Students ----
+        // ── Class → Sections + Students ────────────────────────────────────
         $(document).on('change', '#class_select', function() {
             var class_id = $(this).val();
 
-            // Fetch sections for the selected class
             $.ajax({
                 url: '{{ route('class.section') }}',
                 type: 'POST',
-                data: { class_id: class_id, _token: "{{ csrf_token() }}" },
+                data: {
+                    class_id: class_id,
+                    _token: "{{ csrf_token() }}"
+                },
                 success: function(data) {
                     var $sectionSelect = $('#section_select');
                     if ($sectionSelect[0] && $sectionSelect[0].customSelectInstance) {
@@ -97,9 +109,15 @@
                     }
                     $sectionSelect.removeClass('custom-select');
                     $sectionSelect.empty();
-                    $sectionSelect.append($('<option>', { value: 'all', text: 'All Section' }));
+                    $sectionSelect.append($('<option>', {
+                        value: 'all',
+                        text: 'All Section'
+                    }));
                     for (var i = 0; i < data.length; i++) {
-                        $sectionSelect.append($('<option>', { value: data[i]['id'], text: data[i]['name'] }));
+                        $sectionSelect.append($('<option>', {
+                            value: data[i]['id'],
+                            text: data[i]['name']
+                        }));
                     }
                     $sectionSelect.addClass('custom-select').show();
                     if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
@@ -108,18 +126,19 @@
                 }
             });
 
-            // Fetch students for the selected class
             if (class_id && class_id !== 'all') {
                 classStudents(class_id);
             } else {
                 $('#student_select').html('<option value="all">All Students</option>');
             }
 
-            // Fetch students via class.student_head route as well (original behaviour)
             $.ajax({
                 url: "{{ route('class.student_head') }}",
                 type: 'POST',
-                data: { class_id: class_id, _token: "{{ csrf_token() }}" },
+                data: {
+                    class_id: class_id,
+                    _token: "{{ csrf_token() }}"
+                },
                 dataType: 'json',
                 success: function(data) {
                     var $studentSelect = $('#student_select');
@@ -132,12 +151,16 @@
                     }
                     $studentSelect.removeClass('custom-select');
                     $studentSelect.empty();
-                    $studentSelect.append($('<option>', { value: 'all', text: 'All Students' }));
+                    $studentSelect.append($('<option>', {
+                        value: 'all',
+                        text: 'All Students'
+                    }));
                     for (var j = 0; j < data.student.length; j++) {
                         var std = data.student[j];
                         $studentSelect.append($('<option>', {
                             value: std.roll_no,
-                            text: std.roll_no + ' - ' + std.stdname + ' s/d/o ' + std.fathername
+                            text: std.roll_no + ' - ' + std.stdname + ' s/d/o ' + std
+                                .fathername
                         }));
                     }
                     $studentSelect.addClass('custom-select').show();
@@ -159,7 +182,10 @@
             }
             $sectionSelect.removeClass('custom-select');
             $sectionSelect.empty();
-            $sectionSelect.append($('<option>', { value: 'all', text: 'All Section' }));
+            $sectionSelect.append($('<option>', {
+                value: 'all',
+                text: 'All Section'
+            }));
             $sectionSelect.addClass('custom-select').show();
             if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
                 window.CustomSelect.create($sectionSelect[0]);
@@ -168,10 +194,14 @@
 
         function classStudents(id) {
             $.ajax({
-                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
                 url: "{{ route('class.students') }}",
                 type: 'POST',
-                data: { class_id: id },
+                data: {
+                    class_id: id
+                },
                 dataType: 'json',
                 success: function(result) {
                     if (result.status == 'success') {
@@ -185,7 +215,10 @@
                         }
                         $studentSelect.removeClass('custom-select');
                         $studentSelect.empty();
-                        $studentSelect.append($('<option>', { value: 'all', text: 'All Students' }));
+                        $studentSelect.append($('<option>', {
+                            value: 'all',
+                            text: 'All Students'
+                        }));
                         for (var studentId in result.students) {
                             if (result.students.hasOwnProperty(studentId)) {
                                 $studentSelect.append($('<option>', {
@@ -214,9 +247,9 @@
 @section('action-btn')
     @if ($challanType == 'advance')
         <div class="float-end">
-            <a href="#" data-size="lg" data-url="{{ route('createChallan') . '?type=advance' }}"
-                data-ajax-popup="true" data-bs-title="{{ __('Create') }}"
-                data-bs-toggle="{{ __('Create Advance Challan') }}" class="btn btn-sm btn-primary">
+            <a href="#" data-size="lg" data-url="{{ route('createChallan') . '?type=advance' }}" data-ajax-popup="true"
+                data-bs-title="{{ __('Create') }}" data-bs-toggle="{{ __('Create Advance Challan') }}"
+                class="btn btn-sm btn-primary">
                 Create
             </a>
         </div>
@@ -245,7 +278,62 @@
             border-radius: 5px;
             display: none;
         }
+
+        @keyframes challanSpin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #challanGeneratingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.78);
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+
+        #challanGeneratingOverlay .overlay-spinner {
+            width: 65px;
+            height: 65px;
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #4e73df;
+            border-radius: 50%;
+            animation: challanSpin 1s linear infinite;
+        }
+
+        #challanGeneratingOverlay .overlay-title {
+            margin-top: 22px;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: .5px;
+        }
+
+        #challanGeneratingOverlay .overlay-sub {
+            font-size: 13px;
+            color: #ccc;
+            margin-top: 6px;
+        }
     </style>
+
+    {{-- Generating overlay (hidden until needed) --}}
+    <div id="challanGeneratingOverlay" style="display:none;">
+        <div class="overlay-spinner"></div>
+        <p class="overlay-title">Generating Challans…</p>
+        <p class="overlay-sub">Please wait, this may take a moment for large batches.</p>
+    </div>
+
     <div class="scroll-up">
         <i class="fas fa-arrow-up"></i>
     </div>
@@ -270,13 +358,13 @@
                                 </div>
                             </div>
 
-                            {{-- Branches (company only) --}}
-                                <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                    <div class="btn-box">
-                                        {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                        {{ Form::select('branches', $branches, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select custom-select', 'onchange' => 'branchcustomer(this.value)']) }}
-                                    </div>
+                            {{-- Branches --}}
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
+                                    {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
+                                    {{ Form::select('branches', $branches, isset($_GET['branches']) ? $_GET['branches'] : '', ['class' => 'form-control select custom-select', 'onchange' => 'branchcustomer(this.value)']) }}
                                 </div>
+                            </div>
 
                             {{-- Class --}}
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -286,17 +374,16 @@
                                 </div>
                             </div>
 
-                            {{-- Section — empty on first load, populated by AJAX on class change.
-                                 When the page reloads after a search the controller pre-fills
-                                 $sections for the selected class so the value is preserved. --}}
-                            @if(!$challanType == 'admission' || !$challanType == 'readmission')
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                <div class="btn-box">
-                                    {{ Form::label('section', __('Section'), ['class' => 'form-label']) }}
-                                    {{ Form::select('section', $sections, isset($_GET['section']) ? $_GET['section'] : 'all', ['class' => 'form-control select custom-select', 'id' => 'section_select']) }}
+                            {{-- Section --}}
+                            @if (!$challanType == 'admission' || !$challanType == 'readmission')
+                                <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                    <div class="btn-box">
+                                        {{ Form::label('section', __('Section'), ['class' => 'form-label']) }}
+                                        {{ Form::select('section', $sections, isset($_GET['section']) ? $_GET['section'] : 'all', ['class' => 'form-control select custom-select', 'id' => 'section_select']) }}
+                                    </div>
                                 </div>
-                            </div>
                             @endif
+
                             {{-- Student --}}
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box std_data">
@@ -304,8 +391,14 @@
                                     {{ Form::select('student', @$students, isset($_GET['student']) ? $_GET['student'] : 'all', ['class' => 'form-control select custom-select', 'id' => 'student_select']) }}
                                 </div>
                             </div>
-
+							
                             @if ($challanType == 'regular')
+							<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
+                                    <div class="btn-box">
+                                        {{ Form::label('register_option', __('Student Category'), ['class' => 'form-label']) }}
+                                        {{ Form::select('register_option', ['all' => 'All Students', 'shifa' => 'Shifa Students', 'non_shifa' => 'Non-Shifa Students'], isset($_GET['register_option']) ? 																		$_GET['register_option'] : 'all', ['class' => 'form-control', 'id' => 'register_option']) }}
+                                    </div>
+                                </div>
                                 {{-- Challan Month --}}
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
                                     <div class="btn-box">
@@ -313,7 +406,7 @@
                                         <span style="color: red">&nbsp;(for the month)</span>
                                         {!! Form::month('challan_date', isset($_GET['challan_date']) ? $_GET['challan_date'] : date('Y-m'), [
                                             'class' => 'form-control',
-                                            'id'    => 'challan_date',
+                                            'id' => 'challan_date',
                                         ]) !!}
                                     </div>
                                 </div>
@@ -338,19 +431,19 @@
 
                                 {{-- Fee Subscription --}}
                                 @php
-                                    $subscription = [
-                                        'monthly'    => 'Monthly',
+                                     $subscription = [
+                                        'monthly' => 'Monthly',
                                         'bi-monthly' => 'Bi-Monthly',
-                                        'quarterly'  => 'Quarterly',
-                                        '4-monthly'  => '4 Month Subscription',
-                                        '5-monthly'  => '5 Month Subscription',
-                                        '6-monthly'  => '6 Month Subscription',
-                                        '7-monthly'  => '7 Month Subscription',
-                                        '8-monthly'  => '8 Month Subscription',
-                                        '9-monthly'  => '9 Month Subscription',
-                                        '10-monthly' => '10 Month Subscription',
-                                        '11-monthly' => '11 Month Subscription',
-                                        'yearly'     => 'Annual Subscription',
+                                        // 'quarterly' => 'Quarterly',
+                                        // '4-monthly' => '4 Month Subscription',
+                                        // '5-monthly' => '5 Month Subscription',
+                                        // '6-monthly' => '6 Month Subscription',
+                                        // '7-monthly' => '7 Month Subscription',
+                                        // '8-monthly' => '8 Month Subscription',
+                                        // '9-monthly' => '9 Month Subscription',
+                                        // '10-monthly' => '10 Month Subscription',
+                                        // '11-monthly' => '11 Month Subscription',
+                                        // 'yearly' => 'Annual Subscription',
                                     ];
                                 @endphp
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-2">
@@ -376,12 +469,12 @@
                             @endif
 
                             {{-- Action buttons --}}
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-5 d-flex justify-content-start gap-2">
+                            <div
+                                class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mt-5 d-flex justify-content-start gap-2">
                                 <button type="submit" class="btn mx-1 btn-sm btn-outline-primary">
                                     <span class="btn-inner--icon">Search</span>
                                 </button>
 
-                                @if (\Auth::user()->type == 'super admin' || \Auth::user()->type == 'company')
                                     @if ($challanType == 'regular')
                                         <button type="button" id="generateChallanButton"
                                             class="btn mx-1 btn-sm btn-outline-primary ml-2"
@@ -389,7 +482,7 @@
                                             <span class="btn-inner--icon">Generate Bulk Challan</span>
                                         </button>
                                     @endif
-                                @endif
+                
 
                                 <button id="printButton" class="btn mx-1 btn-sm btn-outline-success ml-2"
                                     title="Download Challan in PDF" onclick="openPrintModal(event)" disabled>
@@ -404,6 +497,7 @@
                                     </button>
                                 @endif
                             </div>
+
                         </div>
                         {{ Form::close() }}
                     </div>
@@ -459,9 +553,18 @@
                         <td><input type="checkbox" name="checked[]" value="{{ $challan->id }}"></td>
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ $challan->challanNo }}</td>
-                        <td>{{ $challan->rollno }}</td>
+                        <td>{{ @$challan->student->roll_no ?? 'N/A' }}</td>
                         <td class="student-name">{{ @$challan->student->stdname }}</td>
-                        <td>{{ $challan->challan_type }}</td>
+                        <td>
+                            {{ $challan->challan_type }}
+                            @if ($challan->challan_type == 'Admission')
+                                {{ App\Models\Challans::where('student_id', $challan->student_id)->where('challan_type', 'Admission')->orderBy('fee_month', 'asc')->get()->count() == 2
+                                    ? (App\Models\Challans::where('student_id', $challan->student_id)->where('challan_type', 'Admission')->orderBy('fee_month', 'asc')->get()->last()->id == $challan->id
+                                        ? '2nd Installment'
+                                        : '1st Installment')
+                                    : '' }}
+                            @endif
+                        </td>
                         @if (strtolower($challan->challan_type) == 'advance' && $challan->other_months != null)
                             <td>
                                 {{ collect(explode(',', $challan->other_months))->map(fn($date) => \Carbon\Carbon::parse($date)->format('F, Y'))->implode(', ') }}
@@ -483,15 +586,23 @@
                                     data-bs-toggle="tooltip" data-bs-title="{{ __('View Challan') }}">
                                     <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
                                 </a>
-                                @if (
-                                    (strtolower($challan->status) == 'issued' && \Auth::user()->type == 'super admin') ||
-                                    \Auth::user()->type == 'company')
-                                    <a href="{{ route('challan.edit', $challan->id) }}" target="_blank"
-                                        class="mx-1 btn btn-sm align-items-center btn-outline-primary"
-                                        data-bs-toggle="tooltip" data-bs-title="{{ __('Edit Challan') }}">
-                                        <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                                    </a>
-                                @endif
+								<a href="{{ route('challan.legacy_show', $challan->id) }}" target="_blank"
+                                    class="mx-1 btn btn-sm align-items-center btn-outline-secondary"
+                                    data-bs-toggle="tooltip" data-bs-title="{{ __('Legacy Challan View') }}">
+                                    <span class="btn-inner--icon"><i class="ti ti-layout-list"></i></span>
+                                </a>
+                                {{--@if (
+									strtolower($challan->status) == 'issued'
+									&& $challan->challan_type != 'admission'
+									&& in_array(\Auth::user()->type, ['super admin', 'company'])
+								)
+									<a href="{{ route('challan.edit', $challan->id) }}" target="_blank"
+										class="mx-1 btn btn-sm align-items-center btn-outline-primary"
+										data-bs-toggle="tooltip" data-bs-title="{{ __('Edit Challan') }}">
+										<span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
+									</a>
+								 
+								@endif--}}
                             </div>
                         </td>
                         <input type="text" name="challan_id" value="{{ $challan->id }}" hidden>
@@ -507,76 +618,114 @@
              ============================================================ --}}
         <script>
             const generateChallanBtn = document.getElementById('generateChallanButton');
+
+            function showChallanOverlay() {
+                document.getElementById('challanGeneratingOverlay').style.display = 'flex';
+            }
+
+            function hideChallanOverlay() {
+                document.getElementById('challanGeneratingOverlay').style.display = 'none';
+            }
+
+            function resetGenerateBtn() {
+                if (!generateChallanBtn) return;
+                generateChallanBtn.disabled = false;
+                generateChallanBtn.innerHTML = '<span class="btn-inner--icon">Generate Bulk Challan</span>';
+            }
+
             if (generateChallanBtn) {
                 generateChallanBtn.addEventListener('click', function() {
-                    const form      = document.getElementById('admission_challan_form');
-                    const formData  = new FormData(form);
+
+                    const form = document.getElementById('admission_challan_form');
+                    const formData = new FormData(form);
                     const fieldValue = formData.get('student');
 
+                    // ── Validation ─────────────────────────────────────────
                     if (!fieldValue || fieldValue.trim() === 'all') {
                         const fieldbranch = formData.get('branches');
                         if (!fieldbranch || fieldbranch.trim() === '') {
-                            show_toastr('error', 'The Branch field is required.', 'error'); return;
+                            show_toastr('error', 'The Branch field is required.', 'error');
+                            return;
                         }
                         const fieldsession = formData.get('session');
                         if (!fieldsession || fieldsession.trim() === '') {
-                            show_toastr('error', 'The Session field is required.', 'error'); return;
+                            show_toastr('error', 'The Session field is required.', 'error');
+                            return;
                         }
                         const fieldclass = formData.get('class');
                         if (!fieldclass || fieldclass.trim() === '') {
-                            show_toastr('error', 'The Class field is required.', 'error'); return;
+                            show_toastr('error', 'The Class field is required.', 'error');
+                            return;
                         }
                         const fielddate = formData.get('challan_date');
                         if (!fielddate || fielddate.trim() === '') {
-                            show_toastr('error', 'The Challan Date field is required.', 'error'); return;
+                            show_toastr('error', 'The Challan Date field is required.', 'error');
+                            return;
                         }
                     } else {
                         const fieldsession = formData.get('session');
                         if (!fieldsession || fieldsession.trim() === '') {
-                            show_toastr('error', 'The Session field is required.', 'error'); return;
+                            show_toastr('error', 'The Session field is required.', 'error');
+                            return;
                         }
                         const fielddate = formData.get('challan_date');
                         if (!fielddate || fielddate.trim() === '') {
-                            show_toastr('error', 'The Challan Date field is required.', 'error'); return;
+                            show_toastr('error', 'The Challan Date field is required.', 'error');
+                            return;
                         }
                     }
 
                     const fromDate = formData.get('from_date');
                     if (!fromDate || fromDate.trim() === '') {
-                        show_toastr('error', 'The Issue Date (From Date) field is required.', 'error'); return;
+                        show_toastr('error', 'The Issue Date (From Date) field is required.', 'error');
+                        return;
                     }
                     const toDate = formData.get('to_date');
                     if (!toDate || toDate.trim() === '') {
-                        show_toastr('error', 'The Due Date (To Date) field is required.', 'error'); return;
+                        show_toastr('error', 'The Due Date (To Date) field is required.', 'error');
+                        return;
                     }
                     const feeSubscription = formData.get('fee_subscription');
                     if (!feeSubscription || feeSubscription.trim() === '') {
-                        show_toastr('error', 'The Fee Subscription field is required.', 'error'); return;
+                        show_toastr('error', 'The Fee Subscription field is required.', 'error');
+                        return;
                     }
 
-                    // Map from_date → issue_date, to_date → due_date for the backend
+                    // ── All validations passed — lock UI ───────────────────
+                    generateChallanBtn.disabled = true;
+                    generateChallanBtn.innerHTML =
+                        '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Generating...';
+                    showChallanOverlay();
+
+                    // Map form fields to backend keys
                     formData.set('issue_date', fromDate);
                     formData.set('due_date', toDate);
 
                     fetch('{{ route('bulkchallan') }}', {
-                        method: 'POST',
-                        body: formData,
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            show_toastr('success', data.message, 'success');
-                            $('#admission_challan_form').submit();
-                        } else {
-                            show_toastr('error', data.message, 'error');
-                            location.reload();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        show_toastr('error', 'An error occurred while generating bulk challans.', 'error');
-                    });
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            hideChallanOverlay();
+                            resetGenerateBtn();
+
+                            if (data.success) {
+                                show_toastr('success', data.message, 'success');
+                                $('#admission_challan_form').submit();
+                            } else {
+                                show_toastr('error', data.message || data.error, 'error');
+                            }
+                        })
+                        .catch(error => {
+                            hideChallanOverlay();
+                            resetGenerateBtn();
+                            console.error('Error:', error);
+                            show_toastr('error', 'An error occurred while generating bulk challans.', 'error');
+                        });
                 });
             }
         </script>
@@ -585,10 +734,10 @@
              CHECKBOX / PRINT / ROLLBACK
              ============================================================ --}}
         <script>
-            var Printbtn         = document.getElementById('printButton');
+            var Printbtn = document.getElementById('printButton');
             var checkAllCheckbox = document.getElementById('checkAll');
-            var rowCheckboxes    = document.querySelectorAll('input[name="checked[]"]');
-            var rollBackBtn      = document.getElementById('rollbackButton');
+            var rowCheckboxes = document.querySelectorAll('input[name="checked[]"]');
+            var rollBackBtn = document.getElementById('rollbackButton');
 
             checkAllCheckbox.addEventListener('change', function() {
                 rowCheckboxes.forEach(cb => cb.checked = checkAllCheckbox.checked);
@@ -615,16 +764,16 @@
                 var checkedRows = [];
                 document.getElementsByName('checked[]').forEach(function(checkbox) {
                     if (checkbox.checked) {
-                        var rowData     = [];
-                        var row         = checkbox.closest('tr');
-                        var cells       = row.querySelectorAll('td');
+                        var rowData = [];
+                        var row = checkbox.closest('tr');
+                        var cells = row.querySelectorAll('td');
                         var studentName = '';
-                        var studentId   = '';
+                        var studentId = '';
 
                         cells.forEach(function(cell) {
                             var cellContent;
                             var input = cell.querySelector('input');
-                            var div   = cell.querySelector('div');
+                            var div = cell.querySelector('div');
                             var label = cell.querySelector('label');
                             if (input && input.tagName.toLowerCase() === 'input') {
                                 cellContent = input.value;
@@ -637,9 +786,12 @@
                             }
                             rowData.push(cellContent);
                             if (cell.classList.contains('student-name')) studentName = cellContent;
-                            if (cell.classList.contains('student-id'))  studentId   = cellContent;
+                            if (cell.classList.contains('student-id')) studentId = cellContent;
                         });
-                        rowData.push({ studentName, studentId });
+                        rowData.push({
+                            studentName,
+                            studentId
+                        });
                         checkedRows.push(rowData);
                     }
                 });
@@ -660,17 +812,23 @@
                 }).then((result) => {
                     if (result.isConfirmed) {
                         $.ajax({
-                            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                            headers: {
+                                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                            },
                             url: "{{ route('challan.rollback') }}",
                             type: 'POST',
-                            data: { rows: checkedRows },
+                            data: {
+                                rows: checkedRows
+                            },
                             success: function(result) {
                                 if (result.success) {
                                     Swal.fire({
                                         title: 'Rollback Result',
                                         text: result.message,
                                         icon: 'success',
-                                        customClass: { popup: 'text-start white-space-pre-wrap' }
+                                        customClass: {
+                                            popup: 'text-start white-space-pre-wrap'
+                                        }
                                     }).then(() => location.reload());
                                 } else {
                                     Swal.fire('Error!', result.message, 'error');
@@ -686,84 +844,161 @@
              DOWNLOAD / PRINT PDF
              ============================================================ --}}
         <script>
+            var regularChallanBulkLoaderStyle = document.createElement('style');
+            regularChallanBulkLoaderStyle.innerHTML = `
+                @keyframes regularChallanBulkSpin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(regularChallanBulkLoaderStyle);
+
+            function showBulkProcessingLoader(message) {
+                var overlay = document.getElementById('regular-challan-bulk-loader');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.id = 'regular-challan-bulk-loader';
+                    overlay.style.cssText = 'position:fixed; inset:0; z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(0,0,0,0.74); color:#fff;';
+                    overlay.innerHTML = '<div style="width:56px; height:56px; border:5px solid rgba(255,255,255,0.2); border-top-color:#fff; border-radius:50%; animation:regularChallanBulkSpin 1s linear infinite;"></div><div id="regular-challan-bulk-loader-text" style="margin-top:16px; font-weight:700; font-size:16px;">Preparing downloads...</div><div id="regular-challan-bulk-loader-subtext" style="margin-top:6px; font-size:13px; opacity:0.9;">Please wait while the selected challans are processed.</div>';
+                    document.body.appendChild(overlay);
+                }
+                overlay.style.display = 'flex';
+                var textEl = document.getElementById('regular-challan-bulk-loader-text');
+                var subTextEl = document.getElementById('regular-challan-bulk-loader-subtext');
+                if (textEl) {
+                    textEl.textContent = message || 'Preparing downloads...';
+                }
+                if (subTextEl) {
+                    subTextEl.textContent = 'Please wait while the selected challans are processed.';
+                }
+            }
+
+            function hideBulkProcessingLoader() {
+                var overlay = document.getElementById('regular-challan-bulk-loader');
+                if (overlay) {
+                    overlay.style.display = 'none';
+                }
+            }
+
             function openPrintModal(e) {
                 e.preventDefault();
                 $('#printModal').modal('show');
             }
-            function printSeparatePDF() { getCheckedRowData('separate'); $('#printModal').modal('hide'); }
-            function printSinglePDF()   { getCheckedRowData('single');   $('#printModal').modal('hide'); }
+
+            function printSeparatePDF() {
+                getCheckedRowData('separate');
+                $('#printModal').modal('hide');
+            }
+
+            function printSinglePDF() {
+                getCheckedRowData('single');
+                $('#printModal').modal('hide');
+            }
 
             function getCheckedRowData(printType) {
                 var Printbtn = document.getElementById('printButton');
                 Printbtn.textContent = 'Processing...';
-                Printbtn.disabled    = true;
+                Printbtn.disabled = true;
 
                 var checkedRowsData = [];
                 document.getElementsByName('checked[]').forEach(function(cb) {
-                    if (cb.checked) checkedRowsData.push(cb.value);
+                    if (cb.checked) {
+                        var row = cb.closest('tr');
+                        var rollNo = '';
+                        var studentName = '';
+                        var challanMonth = '';
+
+                        if (row) {
+                            var cells = row.querySelectorAll('td');
+                            if (cells[3]) {
+                                rollNo = cells[3].textContent.trim();
+                            }
+                            if (cells[4]) {
+                                studentName = cells[4].textContent.trim();
+                            }
+                            if (cells[6]) {
+                                challanMonth = cells[6].textContent.trim();
+                            }
+                        }
+
+                        checkedRowsData.push({
+                            id: cb.value,
+                            rollNo: rollNo,
+                            studentName: studentName,
+                            challanMonth: challanMonth
+                        });
+                    }
                 });
 
                 if (checkedRowsData.length === 0) {
                     alert('Please select at least one challan to print');
                     Printbtn.textContent = 'Download Challan';
-                    Printbtn.disabled    = false;
+                    Printbtn.disabled = false;
                     return;
                 }
 
-                showLoadingOverlay(checkedRowsData.length, 0, printType);
+                showBulkProcessingLoader('Preparing the first batch of challans...');
 
-                var allPdfs       = [];
-                var batchSize     = 50;
-                var batchIndex    = 0;
+                var allPdfs = [];
+                var requestedBatchSize = 10;
+                var batchSize = Math.max(10, requestedBatchSize);
+                var batchIndex = 0;
                 var totalChallans = checkedRowsData.length;
 
                 function processBatch() {
-                    var startIdx        = batchIndex * batchSize;
-                    var endIdx          = Math.min(startIdx + batchSize, totalChallans);
-                    var currentBatchIds = checkedRowsData.slice(startIdx, endIdx);
-
-                    $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') } });
+                    $.ajaxSetup({
+                        headers: {
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        }
+                    });
 
                     $.ajax({
                         url: '{{ route('printchallans') }}',
                         method: 'POST',
-                        data: { rowsdata: currentBatchIds, printType, batchSize, batchIndex },
+                        data: {
+                            rowsdata: checkedRowsData.map(function(row) { return row.id; }),
+                            printType: printType,
+                            batchSize: batchSize,
+                            batchIndex: batchIndex
+                        },
                         success: function(response) {
                             if (response.error) {
-                                hideLoadingOverlay();
+                                hideBulkProcessingLoader();
                                 alert(response.error);
                                 Printbtn.textContent = 'Download Challan';
-                                Printbtn.disabled    = false;
+                                Printbtn.disabled = false;
                                 return;
                             }
-                            if (response.pdfs) allPdfs = allPdfs.concat(response.pdfs);
 
-                            var processedCount = response.processedCount || endIdx;
-                            updateLoadingMessage((printType === 'single' ? 'Processing ' : 'Downloading ') +
-                                processedCount + '/' + totalChallans + ' challans...');
+                            if (response.pdfs) {
+                                allPdfs = allPdfs.concat(response.pdfs);
+                            }
+
+                            var processedCount = response.processedCount || Math.min((batchIndex + 1) * batchSize, totalChallans);
+                            showBulkProcessingLoader(
+                                (printType === 'single' ? 'Processing ' : 'Downloading ') +
+                                processedCount + '/' + totalChallans + ' challans...'
+                            );
 
                             if (response.hasMoreBatches) {
                                 batchIndex++;
                                 processBatch();
                             } else {
-                                hideLoadingOverlay();
+                                hideBulkProcessingLoader();
                                 if (printType === 'separate') {
-                                    allPdfs.forEach(function(pdfBase64, index) {
-                                        triggerDownload(pdfBase64, 'challan_' + (index + 1) + '.pdf');
-                                    });
-                                } else {
-                                    if (allPdfs.length > 0) triggerDownload(allPdfs[0], 'bulk_challan.pdf');
+                                    downloadPdfQueue(allPdfs, checkedRowsData);
+                                } else if (allPdfs.length > 0) {
+                                    triggerDownload(allPdfs[0], 'bulk_challan.pdf');
                                 }
                                 Printbtn.textContent = 'Download Challan';
-                                Printbtn.disabled    = false;
+                                Printbtn.disabled = false;
                             }
                         },
                         error: function(xhr, status, error) {
-                            hideLoadingOverlay();
-                            console.error(xhr.responseText);
+                            hideBulkProcessingLoader();
                             alert('Failed to fetch PDF content: ' + error);
                             Printbtn.textContent = 'Download Challan';
-                            Printbtn.disabled    = false;
+                            Printbtn.disabled = false;
                         }
                     });
                 }
@@ -771,75 +1006,48 @@
                 processBatch();
             }
 
+            function downloadPdfQueue(pdfList, metadataList) {
+                var index = 0;
+
+                function processNext() {
+                    if (index >= pdfList.length) {
+                        return;
+                    }
+
+                    var pdfBase64 = pdfList[index];
+                    var meta = metadataList[index] || {};
+                    var filename = [meta.rollNo, meta.studentName, meta.challanMonth, 'challan.pdf']
+                        .filter(Boolean)
+                        .join('_');
+
+                    triggerDownload(pdfBase64, filename);
+                    index++;
+
+                    if (index < pdfList.length) {
+                        setTimeout(processNext, 600);
+                    }
+                }
+
+                processNext();
+            }
+
             function triggerDownload(base64, filename) {
                 var byteCharacters = atob(base64);
-                var byteNumbers    = new Array(byteCharacters.length);
+                var byteNumbers = new Array(byteCharacters.length);
                 for (var i = 0; i < byteCharacters.length; i++) {
                     byteNumbers[i] = byteCharacters.charCodeAt(i);
                 }
-                var blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
-                var url  = window.URL.createObjectURL(blob);
-                var a    = document.createElement('a');
-                a.href = url; a.download = filename;
-                document.body.appendChild(a); a.click();
+                var blob = new Blob([new Uint8Array(byteNumbers)], {
+                    type: 'application/pdf'
+                });
+                var url = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
-            }
-
-            function showLoadingOverlay(count, startCount, printType) {
-                hideLoadingOverlay();
-                var overlay = document.createElement('div');
-                overlay.id  = 'pdfLoadingOverlay';
-                overlay.style.cssText =
-                    'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);' +
-                    'z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;color:white;';
-                var spinner = document.createElement('div');
-                spinner.style.cssText =
-                    'width:60px;height:60px;border:6px solid #f3f3f3;border-top:6px solid #3498db;' +
-                    'border-radius:50%;animation:spin 1s linear infinite;';
-                var message = document.createElement('p');
-                message.style.cssText = 'margin-top:25px;font-size:20px;font-weight:500;';
-                message.id = 'pdfLoadingMessage';
-                var progressContainer = document.createElement('div');
-                progressContainer.style.cssText =
-                    'width:300px;height:8px;background:#444;border-radius:4px;margin-top:15px;overflow:hidden;';
-                var progressBar = document.createElement('div');
-                progressBar.id = 'pdfProgressBar';
-                progressBar.style.cssText =
-                    'height:100%;background:linear-gradient(90deg,#3498db,#2ecc71);width:0%;transition:width 0.3s ease;';
-                progressContainer.appendChild(progressBar);
-                var percentText = document.createElement('p');
-                percentText.style.cssText = 'margin-top:10px;font-size:14px;color:#aaa;';
-                percentText.id = 'pdfPercentText';
-                percentText.textContent = '0%';
-                overlay.appendChild(spinner);
-                overlay.appendChild(message);
-                overlay.appendChild(progressContainer);
-                overlay.appendChild(percentText);
-                document.body.appendChild(overlay);
-                var style = document.createElement('style');
-                style.textContent = '@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}';
-                document.head.appendChild(style);
-                updateLoadingMessage((printType === 'single' ? 'Processing ' : 'Downloading ') +
-                    '0/' + count + ' challans...');
-            }
-
-            function updateLoadingMessage(message) {
-                var messageEl  = document.getElementById('pdfLoadingMessage');
-                var percentEl  = document.getElementById('pdfPercentText');
-                var progressEl = document.getElementById('pdfProgressBar');
-                if (messageEl) messageEl.textContent = message;
-                var match = message.match(/(\d+)\/(\d+)/);
-                if (match && percentEl && progressEl) {
-                    var percent = Math.round((parseInt(match[1]) / parseInt(match[2])) * 100);
-                    percentEl.textContent  = percent + '%';
-                    progressEl.style.width = percent + '%';
-                }
-            }
-
-            function hideLoadingOverlay() {
-                var overlay = document.getElementById('pdfLoadingOverlay');
-                if (overlay) overlay.remove();
             }
         </script>
 
@@ -849,10 +1057,14 @@
         <script>
             function branchcustomer(id) {
                 $.ajax({
-                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
                     url: "{{ route('branch.session_class') }}",
                     type: 'POST',
-                    data: { id: id },
+                    data: {
+                        id: id
+                    },
                     dataType: 'json',
                     success: function(result) {
                         if (result.status == 'success') {
@@ -865,22 +1077,36 @@
                                 $classSelect.next('.custom-select-wrapper').remove();
                             }
                             $classSelect.removeClass('custom-select').empty();
-                            $classSelect.append($('<option>', { value: 'all', text: 'All Class' }));
+                            $classSelect.append($('<option>', {
+                                value: 'all',
+                                text: 'All Class'
+                            }));
                             for (var j = 0; j < result.class.length; j++) {
-                                $classSelect.append($('<option>', { value: result.class[j].id, text: result.class[j].name }));
+                                $classSelect.append($('<option>', {
+                                    value: result.class[j].id,
+                                    text: result.class[j].name
+                                }));
                             }
                             $classSelect.addClass('custom-select').show();
                             if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
                                 window.CustomSelect.create($classSelect[0]);
                             }
 
-                            // Reset sections and students when branch changes
                             resetSectionSelect();
-                            $('#student_select').empty().append($('<option>', { value: 'all', text: 'All Students' }));
+                            $('#student_select').empty().append($('<option>', {
+                                value: 'all',
+                                text: 'All Students'
+                            }));
 
-                            $('#sessionselect').empty().append($('<option>', { value: 'all', text: 'All Session' }));
+                            $('#sessionselect').empty().append($('<option>', {
+                                value: 'all',
+                                text: 'All Session'
+                            }));
                             for (var i = 0; i < result.session.length; i++) {
-                                $('#sessionselect').append($('<option>', { value: result.session[i].id, text: result.session[i].title }));
+                                $('#sessionselect').append($('<option>', {
+                                    value: result.session[i].id,
+                                    text: result.session[i].title
+                                }));
                             }
                         }
                     }

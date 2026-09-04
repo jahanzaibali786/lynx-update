@@ -5,7 +5,7 @@
             <div class="form-group">
                 {{ Form::label('document_no', __('Document No'), ['class' => 'form-label']) }}<span style="color: red">
                     *</span>
-                {{ Form::text('document_no', null, ['class' => 'form-control', 'placeholder' => __('Enter Document No'), 'required' => 'required','readonly'=>'readonly']) }}
+                {{ Form::text('document_no', null, ['class' => 'form-control', 'placeholder' => __('Enter Document No'), 'required' => 'required', 'readonly' => 'readonly']) }}
             </div>
         </div>
         <div class="col-6">
@@ -22,7 +22,8 @@
         </div>
         <div class="col-6">
             <div class="form-group">
-                {{ Form::label('student_id', __('Student'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
+                {{ Form::label('student_id', __('Student'), ['class' => 'form-label']) }}<span style="color: red">
+                    *</span>
                 {{ Form::select('student_id', $std, null, ['class' => 'form-control select', 'id' => 'class_students', 'required' => 'required', 'readonly' => 'readonly']) }}
             </div>
         </div>
@@ -43,14 +44,36 @@
         <div class="col-6">
             <div class="form-group">
                 {{ Form::label('reason', __('Reason'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
-                {{ Form::select('reason', ['School Change' => 'School Change', 'Dissatisfaction Academics, Teachers, Management' => 'Dissatisfaction Academics, Teachers, Management', 'Transport Issue' => 'Transport Issue', 'Fee defaulter' => 'Fee defaulter', 'Fee Affordability Issue' => 'Fee Affordability Issue', 'Passing Out' => 'Passing Out', 'Other' => 'Other'], null, ['class' => 'form-control select', 'required' => 'required']) }}
+                {{ Form::select(
+                    'reason',
+                    [
+                        'School Change' => 'School Change',
+                        'Dissatisfaction Academics, Teachers, Management' => 'Dissatisfaction Academics, Teachers, Management',
+                        'Transport Issue' => 'Transport Issue',
+                        'Fee defaulter' => 'Fee defaulter',
+                        'Fee Affordability Issue' => 'Fee Affordability Issue',
+                        'Passing Out' => 'Passing Out',
+                        'Other' => 'Other',
+                    ],
+                    $studentWithdrawal->reason,
+                    ['class' => 'form-control select', 'required' => 'required', 'id' => 'reason_select_edit'],
+                ) }}
+            </div>
+
+            <div class="form-group" id="other_reason_box_edit"
+                style="display: {{ $studentWithdrawal->reason == 'Other' ? 'block' : 'none' }};">
+                {{ Form::label('other_reason', __('Other Reason'), ['class' => 'form-label']) }}<span
+                    style="color:red"> *</span>
+                {{ Form::text('other_reason', $studentWithdrawal->other_reason, ['class' => 'form-control', 'placeholder' => __('Enter Other Reason'), 'maxlength' => '55', 'id' => 'other_reason_field_edit']) }}
             </div>
         </div>
+
+        <input type="hidden" name="is_po" id="is_po_edit" value="{{ $studentWithdrawal->reason === 'Passing Out' ? 1 : 0 }}">
 
         <div class="col-12">
             <div class="form-group">
                 {{ Form::label('remark', __('Remarks'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
-                {{ Form::textarea('remark', null, ['class' => 'form-control', 'placeholder' => __('Enter Remarks'), 'required' => 'required', 'rows' => 2]) }}
+                {{ Form::textarea('remark', $studentWithdrawal->remark, ['class' => 'form-control', 'placeholder' => __('Enter detailed remarks'), 'required' => 'required', 'rows' => 2, 'maxlength' => '1000']) }}
             </div>
         </div>
 
@@ -146,7 +169,7 @@
 
                 for (let index = 0; index < data.student.length; index++) {
                     s +=
-                    `<option value="${ data.student[index]['roll_no']}">${ data.student[index]['roll_no']} - ${data.student[index]['stdname']} s/d/o ${data.student[index]['fathername']} </option>`;
+                        `<option value="${ data.student[index]['roll_no']}">${ data.student[index]['roll_no']} - ${data.student[index]['stdname']} s/d/o ${data.student[index]['fathername']} </option>`;
                 }
                 s += `</select>`;
                 $('.std_data').empty().html(s);
@@ -159,4 +182,18 @@
             }
         });
     });
+    $(document).on('change', '#reason_select_edit', function () {
+        const reason = $(this).val();
+        $('#is_po_edit').val(reason === 'Passing Out' ? '1' : '0');
+
+        if (reason === 'Other') {
+            $('#other_reason_box_edit').show();
+            $('#other_reason_field_edit').attr('required', 'required');
+        } else {
+            $('#other_reason_box_edit').hide();
+            $('#other_reason_field_edit').removeAttr('required').val('');
+        }
+    });
+
+    $('#reason_select_edit').trigger('change');
 </script>

@@ -41,7 +41,7 @@
                     <div class="card">
                         <div class="card-body">
                             <div class="row timeline-wrapper">
-                                <div class="col-md-4" style="height: 150px">
+                                <div class="col-md-3" style="height: 150px">
                                     <div class="timeline-step h-100">
                                         <div class="timeline-content">
                                             <div class="timeline-icons"><span class="timeline-dots"></span>
@@ -50,53 +50,117 @@
                                             <h6 class="text-primary my-3">{{__('Create Purchase')}}</h6>
                                             <p class="text-muted text-sm mb-3"><i class="ti ti-clock mr-2"></i>{{__('Created on ')}}{{\Auth::user()->dateFormat($purchase->purchase_date)}}</p>
                                             <div class="timeline-action">
-                                                @can('edit purchase')
+                                                @can('edit purchase' && $purchase->status != 7)
                                                     <a href="{{ route('purchase.edit',\Crypt::encrypt($purchase->id)) }}" class="btn mx-1 btn-sm btn-outline-primary" data-bs-title="{{__('Edit')}}"><span class="btn-inner--icon"><i class="ti ti-pencil mr-2"></i></span>{{__('Edit')}}</a>
                                                 @endcan
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-4" style="height: 150px">
+                                <div class="col-md-3" style="height: 150px">
                                     <div class="timeline-step h-100">
                                         <div class="timeline-content">
                                             <div class="timeline-icons"><span class="timeline-dots"></span>
-                                                <i class="ti ti-mail text-warning"></i>
+                                                <i class="ti ti-mail-forward text-warning"></i>
                                             </div>
-                                            <h6 class="text-warning my-3">{{__('Send Purchase')}}</h6>
+                                            <h6 class="text-warning my-3">{{__('Fw to Ho')}}</h6>
                                             <p class="text-muted text-sm mb-3">
-                                                @if($purchase->status!=0)
-                                                    <i class="ti ti-clock mr-2"></i>{{__('Sent on')}} {{\Auth::user()->dateFormat($purchase->send_date)}}
+                                                @if($purchase->status >= 5)
+                                                    <i class="ti ti-clock mr-2"></i>{{__('Forwarded on')}} {{\Auth::user()->dateFormat($purchase->updated_at)}}
+                                                @elseif($purchase->status == 0)
+                                                    <small>{{__('Status')}} : {{__('Draft')}}</small>
                                                 @else
-                                                    @can('send purchase')
-                                                        <small>{{__('Status')}} : {{__('Not Sent')}}</small>
-                                                    @endcan
+                                                    <small>{{__('Status')}} : {{__('Not Forwarded')}}</small>
                                                 @endif
                                             </p>
                                             <div class="timeline-action">
-                                                @if($purchase->status==0)
+                                                @if($purchase->status == 0)
                                                     @can('send purchase')
-                                                        <a href="{{ route('purchase.sent',$purchase->id) }}" class="btn mx-1 btn-sm btn-outline-warning" data-bs-title="{{__('Mark Sent')}}"><span class="btn-inner--icon"><i class="fas fa-paper-plane mr-2"></i></span>{{__('Send')}}</a>
+                                                    <a href="{{ route('purchase.fw_to_ho', $purchase->id) }}" class="btn mx-1 btn-sm btn-outline-warning">
+                                                        <span class="btn-inner--icon"><i class="ti ti-mail-forward mr-2"></i></span>{{__('Fw to Ho')}}
+                                                    </a>
                                                     @endcan
                                                 @endif
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-4" style="height: 150px">
+                                <div class="col-md-3" style="height: 150px">
                                     <div class="timeline-step h-100">
                                         <div class="timeline-content">
                                             <div class="timeline-icons"><span class="timeline-dots"></span>
-                                                <i class="ti ti-report-money text-info"></i>
-                                            </div>
-                                            <h6 class="text-info my-3">{{__('Get Paid')}}</h6>
-                                            <p class="text-muted text-sm mb-3">{{__('Status')}} : {{__('Awaiting payment')}} </p>
-                                            <div class="timeline-action">
-                                                @if($purchase->status!= 0)
-                                                    @can('create payment purchase')
-                                                        <a href="#" data-url="{{ route('purchase.payment',$purchase->id) }}" data-ajax-popup="true" data-bs-toggle="modal" class="btn mx-1 btn-sm btn-outline-info" data-bs-title="{{__('Add Payment')}}"><span class="btn-inner--icon"><i class="ti ti-report-money mr-2"></i></span>{{__('Add Payment')}}</a>
-                                                    @endcan
+                                                @if($purchase->status >= 6)
+                                                    <i class="ti ti-checks text-success"></i>
+                                                @elseif($purchase->status == 5 && \Auth::user()->type == 'company')
+                                                    <i class="ti ti-hourglass-empty text-info"></i>
+                                                @else
+                                                    <i class="ti ti-clock text-muted"></i>
                                                 @endif
+                                            </div>
+                                            @if(\Auth::user()->type == 'company')
+                                                <h6 class="my-3 @if($purchase->status >= 6) text-success @elseif($purchase->status == 5) text-info @else text-muted @endif">
+                                                    {{__('Approval')}}
+                                                </h6>
+                                            @else
+                                                <h6 class="my-3 @if($purchase->status >= 6) text-success @else text-muted @endif">
+                                                    @if($purchase->status == 5) {{__('Under Approval')}} @else {{__('Approval')}} @endif
+                                                </h6>
+                                            @endif
+                                            <p class="text-muted text-sm mb-3">
+                                                @if($purchase->status >= 6)
+                                                    <i class="ti ti-clock mr-2"></i>{{__('Finalized')}}
+                                                @elseif($purchase->status == 5 && \Auth::user()->type == 'company')
+                                                    <small>{{__('Pending your decision')}}</small>
+                                                @elseif($purchase->status == 5)
+                                                    <small>{{__('Under review at Head Office')}}</small>
+                                                @else
+                                                    <small>{{__('Awaiting forwarding')}}</small>
+                                                @endif
+                                            </p>
+                                            <div class="timeline-action">
+                                                @if($purchase->status == 5 && \Auth::user()->type == 'company')
+                                                    <a href="{{ route('purchase.finalize', $purchase->id) }}" class="btn mx-1 btn-sm btn-outline-success">
+                                                        <span class="btn-inner--icon"><i class="ti ti-check mr-2"></i></span>{{__('Finalize')}}
+                                                    </a>
+                                                    <a href="{{ route('purchase.reject', $purchase->id) }}" class="btn mx-1 btn-sm btn-outline-danger">
+                                                        <span class="btn-inner--icon"><i class="ti ti-x mr-2"></i></span>{{__('Reject')}}
+                                                    </a>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3" style="height: 150px">
+                                    <div class="timeline-step h-100">
+                                        <div class="timeline-content">
+                                            <div class="timeline-icons"><span class="timeline-dots"></span>
+                                                <i class="ti ti-file-import text-primary"></i>
+                                            </div>
+                                            <h6 class="text-primary my-3">{{__('Convert to GRN')}}</h6>
+                                            <p class="text-muted text-sm mb-3">
+                                                @if($purchase->status == 7 && $purchase->grn_converted)
+                                                    <small>{{__('Fully Received')}}</small>
+                                                @elseif($purchase->status == 6 && $purchase->items->sum('received_quantity') > 0)
+                                                    <small>{{__('Partially Converted')}}</small>
+                                                @elseif($purchase->status == 6)
+                                                    <small>{{__('Ready to convert')}}</small>
+                                                @else
+                                                    <small>{{__('Finalize first')}}</small>
+                                                @endif
+                                            </p>
+                                            <div class="timeline-action">
+                                                @can('convert purchase to grn')
+                                                @if($purchase->status == 6 && \Auth::user()->type == 'company' && !$purchase->grn_converted)
+                                                    <a href="#"
+                                                        data-url="{{ route('purchase.convert_to_grn', $purchase->id) }}"
+                                                        data-size="modal-fullscreen"
+                                                        data-ajax-popup="true"
+                                                        data-bs-title="{{ __('Convert to GRN') }}"
+                                                        class="btn mx-1 btn-sm btn-outline-primary">
+                                                        <span class="btn-inner--icon"><i class="ti ti-file-import mr-2"></i></span>{{__('Convert to GRN')}}
+                                                    </a>
+                                                @endif
+                                                @endcan
                                             </div>
                                         </div>
                                     </div>
@@ -109,25 +173,16 @@
         @endif
     @endcan
 
-    @if(\Auth::user()->type=='company')
-        @if($purchase->status!=0)
-            <div class="row justify-content-between align-items-center mb-3">
-                <div class="col-md-12 d-flex align-items-center justify-content-between justify-content-md-end">
-
-                    {{-- <div class="all-button-box mx-2">
-                        <a href="{{ route('purchase.resent',$purchase->id) }}" class="btn mx-1 btn-sm btn-outline-primary">
-                            {{__('Resend Purchase')}}
-                        </a>
-                    </div> --}}
-                    <div class="all-button-box">
-                        <a href="{{ route('purchase.pdf', Crypt::encrypt($purchase->id))}}" target="_blank" class="btn mx-1 btn-sm btn-outline-primary">
-                            {{__('Download')}}
-                        </a>
-                    </div>
+    @if(\Auth::user()->type=='company' && $purchase->status!=0 && $purchase->status!=5)
+        <div class="row justify-content-between align-items-center mb-3">
+            <div class="col-md-12 d-flex align-items-center justify-content-between justify-content-md-end">
+                <div class="all-button-box">
+                    <a href="{{ route('purchase.pdf', Crypt::encrypt($purchase->id))}}" target="_blank" class="btn mx-1 btn-sm btn-outline-primary">
+                        {{__('Download')}}
+                    </a>
                 </div>
             </div>
-        @endif
-
+        </div>
     @endif
 
     <div class="row">
@@ -223,6 +278,12 @@
                                         @elseif($purchase->status == 3)
                                             <span class="badge bg-info p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
                                         @elseif($purchase->status == 4)
+                                            <span class="badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                        @elseif($purchase->status == 5)
+                                            <span class="badge bg-info p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                        @elseif($purchase->status == 6)
+                                            <span class="badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                        @elseif($purchase->status == 7)
                                             <span class="badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
                                         @endif
                                     </small>
@@ -381,65 +442,7 @@
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body table-border-style">
-                    <h5 class=" d-inline-block mb-5">{{__('Payment Summary')}}</h5>
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                            <tr>
-                                <th class="text-dark">{{__('Payment Receipt')}}</th>
-                                <th class="text-dark">{{__('Date')}}</th>
-                                <th class="text-dark">{{__('Amount')}}</th>
-                                <th class="text-dark">{{__('Account')}}</th>
-                                <th class="text-dark">{{__('Reference')}}</th>
-                                <th class="text-dark">{{__('Description')}}</th>
-                                @can('delete payment purchase')
-                                    <th class="text-dark">{{__('Action')}}</th>
-                                @endcan
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @forelse($purchase->payments as $key =>$payment)
-                                <tr>
-                                    <td>
-                                        @if(!empty($payment->add_receipt))
-                                            <a href="{{asset(Storage::url('uploads/payment')).'/'.$payment->add_receipt}}" download="" class="btn btn-sm btn-secondary btn-icon rounded-pill" target="_blank"><span class="btn-inner--icon">Pdf / Print</span></a>
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
-                                    <td>{{\Auth::user()->dateFormat($payment->date)}}</td>
-                                    <td>{{\Auth::user()->priceFormat($payment->amount)}}</td>
-                                    <td>{{!empty($payment->bankAccount)?$payment->bankAccount->bank_name.' '.$payment->bankAccount->holder_name:''}}</td>
-                                    <td>{{$payment->reference}}</td>
-                                    <td>{{$payment->description}}</td>
-                                    @can('delete payment purchase')
-                                    <td class="text-dark">
-                                        <div class="action-btn bg-danger ms-2">
-                                            {!! Form::open(['method' => 'post', 'route' => ['purchase.payment.destroy',$purchase->id,$payment->id],'id'=>'delete-form-'.$payment->id]) !!}
-                                            <a href="#" class="mx-3 btn btn-sm  align-items-center bs-pass-para"   data-bs-title="{{__('Delete')}}" data-bs-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$payment->id}}').submit();">
-                                                <i class="ti ti-trash text-white text-white text-white"></i>
-                                                </a>
-                                            {!! Form::close() !!}
-                                        </div>
-                                    </td>
-                                    @endcan
-                                </tr>
-                                </tbody>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-dark"><p>{{__('No Data Found')}}</p></td>
-                                </tr>
-                            @endforelse
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+
 
 
 @endsection

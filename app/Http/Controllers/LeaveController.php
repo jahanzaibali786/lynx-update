@@ -10,6 +10,7 @@ use App\Models\LeaveType;
 use App\Models\User;
 use DB;
 use App\Models\Utility;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -20,29 +21,53 @@ class LeaveController extends Controller
     {
 
         if (\Auth::user()->can('manage leave')) {
+            $fromDate = $request->input('from_date', Carbon::now()->subMonths(2)->startOfMonth()->format('Y-m-d'));
+            $toDate = $request->input('to_date', Carbon::now()->format('Y-m-d'));
+            $selectedBranch = $request->input('branches');
+            $selectedEmployee = $request->input('employee_id');
+
             if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $query = Leave::where('created_by', '=', \Auth::user()->creatorId());
+                $query = Leave::with(['employees', 'leaveType', 'addedBy'])->where('created_by', '=', \Auth::user()->creatorId());
+                $employeeQuery = Employee::where('created_by', '=', \Auth::user()->creatorId())->where('is_res_ter', 0);
             } else if (\Auth::user()->type == 'Employee') {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
                 $user = \Auth::user();
                 $employee = Employee::where('user_id', '=', $user->id)->first();
-                $query = Leave::where('employee_id', '=', $employee->id);
+                $query = Leave::with(['employees', 'leaveType', 'addedBy'])->where('employee_id', '=', $employee->id);
+                $employeeQuery = Employee::where('id', '=', optional($employee)->id);
             } else {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = Leave::where('owned_by', '=', \Auth::user()->ownedId());
+                $query = Leave::with(['employees', 'leaveType', 'addedBy'])->where('owned_by', '=', \Auth::user()->ownedId());
+                $employeeQuery = Employee::where('owned_by', '=', \Auth::user()->ownedId())->where('is_res_ter', 0);
             }
-            if (!empty($request->branches)) {
-                $query->where('owned_by', '=', $request->branches);
+            if (!empty($selectedBranch)) {
+                $query->where('owned_by', '=', $selectedBranch);
+                $employeeQuery->where(function ($query) use ($selectedBranch) {
+                    $query->where('owned_by', $selectedBranch)
+                        ->orWhere('branch_id', $selectedBranch);
+                });
             }
-            $leaves = $query->paginate(25);
+            if (!empty($selectedEmployee)) {
+                $query->where('employee_id', '=', $selectedEmployee);
+            }
+            if (!empty($fromDate)) {
+                $query->whereDate('start_date', '>=', $fromDate);
+            }
+            if (!empty($toDate)) {
+                $query->whereDate('start_date', '<=', $toDate);
+            }
+
+            $employees = $employeeQuery->orderBy('name')->get()->pluck('name', 'id');
+            $employees->prepend('All Employees', '');
+            $leaves = $query->orderBy('start_date', 'desc')->orderBy('id', 'desc')->get();
 
 
-            return view('leave.index', compact('leaves', 'branches'));
+            return view('leave.index', compact('leaves', 'branches', 'employees', 'fromDate', 'toDate', 'selectedBranch', 'selectedEmployee'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -85,8 +110,8 @@ class LeaveController extends Controller
                 $request->all(),
                 [
                     'leave_type_id' => 'required',
-                    'start_date' => 'required',
-                    'end_date' => 'required',
+                    'start_date' => 'required|date',
+                    'end_date' => 'required|date|after_or_equal:start_date',
                     'applied_on' => 'required',
                     'leave_reason' => 'required',
                     // 'remark' => 'required',
@@ -95,6 +120,14 @@ class LeaveController extends Controller
 
             if ($validator->fails()) {
                 $messages = $validator->getMessageBag();
+                DB::rollback();
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $messages->first(),
+                        'errors' => $validator->errors(),
+                    ], 422);
+                }
                 return redirect()->back()->with('error', $messages->first());
             }
 
@@ -108,29 +141,71 @@ class LeaveController extends Controller
 
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
+                    DB::rollback();
+                    if ($request->ajax()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $messages->first(),
+                            'errors' => $validator->errors(),
+                        ], 422);
+                    }
                     return redirect()->back()->with('error', $messages->first());
                 }
             }
+            $employee = \Auth::user()->type == 'Employee'
+                ? Employee::where('user_id', \Auth::id())->first()
+                : Employee::find($request->employee_id);
 
-            $employee = Employee::where('user_id', '=', \Auth::user()->id)->first();
+            if (!$employee) {
+                DB::rollback();
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => __('Employee not found.'),
+                        'errors' => ['employee_id' => [__('Employee not found.')]],
+                    ], 422);
+                }
+                return redirect()->back()->with('error', __('Employee not found.'));
+            }
+
             $leave_type = LeaveType::find($request->leave_type_id);
+            if (!$leave_type) {
+                DB::rollback();
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => __('Leave type not found.'),
+                        'errors' => ['leave_type_id' => [__('Leave type not found.')]],
+                    ], 422);
+                }
+                return redirect()->back()->with('error', __('Leave type not found.'));
+            }
             $startDate = new \DateTime($request->start_date);
             $endDate = new \DateTime($request->end_date);
             $endDate->add(new \DateInterval('P1D'));
             $total_leave_days = !empty($startDate->diff($endDate)) ? $startDate->diff($endDate)->days : 0;
 
-            $employeeLeaves = EmployeeLeaves::where('employee_id', $request->employee_id ?? $employee->id)->first();
+            $employeeLeaves = EmployeeLeaves::where('employee_id', $employee->id)->first();
             $available_days = 0;
             if (str_contains(strtolower($leave_type->title) , 'annual' )&& $employeeLeaves) {
                 $available_days = $employeeLeaves->annual_total - $employeeLeaves->annual_consumed;
             } elseif (str_contains(strtolower($leave_type->title) , 'casual' )&& $employeeLeaves) {
                 $available_days = $employeeLeaves->casual_total - $employeeLeaves->casual_consumed;
             }
-            if ((str_contains(strtolower($leave_type->title), 'annual') || str_contains(strtolower($leave_type->title), 'casual')) && $available_days < $total_leave_days) {               dd($available_days,$total_leave_days,$available_days < $total_leave_days,str_contains(strtolower($leave_type->title) , 'annual'));
+            if ((str_contains(strtolower($leave_type->title), 'annual') || str_contains(strtolower($leave_type->title), 'casual')) && $available_days < $total_leave_days) {
+                DB::rollback();
+                $message = __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.');
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $message,
+                        'errors' => ['leave_type_id' => [$message]],
+                    ], 422);
+                }
                 return redirect()->back()->with('error', __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.'));
             } else {
                 $leave = new Leave();
-                $leave->employee_id = \Auth::user()->type == "Employee" ? $employee->id : $request->employee_id;
+                $leave->employee_id = $employee->id;
                 $leave->leave_type_id = $request->leave_type_id;
                 $leave->applied_on = $request->applied_on;
                 $leave->start_date = $request->start_date;
@@ -139,7 +214,8 @@ class LeaveController extends Controller
                 $leave->leave_reason = $request->leave_reason;
                 $leave->remark = $request->remark;
                 $leave->status = 'Pending';
-                $leave->owned_by = $leave->employee->branch_id ?? \Auth::user()->ownedId();
+                $leave->added_by = \Auth::id();
+                $leave->owned_by = $employee->owned_by;
                 $leave->created_by = \Auth::user()->creatorId();
                 $leave->save();
 
@@ -147,13 +223,29 @@ class LeaveController extends Controller
                     if ((str_contains(strtolower($leave->leaveType->title) ,'annual') || str_contains(strtolower($leave->leaveType->title) , 'casual'))){
                         if (str_contains(strtolower($leave->leaveType->title) , 'annual') && $employeeLeaves) {
                             if($employeeLeaves->annual_consumed == $employeeLeaves->annual_total){
-                                dd('annual',$employeeLeaves->annual_consumed,$employeeLeaves->annual_total);
+                                DB::rollback();
+                                $message = __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.');
+                                if ($request->ajax()) {
+                                    return response()->json([
+                                        'success' => false,
+                                        'message' => $message,
+                                        'errors' => ['leave_type_id' => [$message]],
+                                    ], 422);
+                                }
                                 return redirect()->back()->with('error', __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.'));
                             }
                             $employeeLeaves->annual_consumed += $total_leave_days;
                         } elseif (str_contains(strtolower($leave->leaveType->title) , 'casual') && $employeeLeaves) {
                             if($employeeLeaves->casual_consumed == $employeeLeaves->casual_total){
-                                dd('annual',$employeeLeaves->annual_consumed,$employeeLeaves->annual_total);
+                                DB::rollback();
+                                $message = __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.');
+                                if ($request->ajax()) {
+                                    return response()->json([
+                                        'success' => false,
+                                        'message' => $message,
+                                        'errors' => ['leave_type_id' => [$message]],
+                                    ], 422);
+                                }
                                 return redirect()->back()->with('error', __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.'));
                             }
                             $employeeLeaves->casual_consumed += $total_leave_days;
@@ -163,14 +255,37 @@ class LeaveController extends Controller
                     }
                 }
                 DB::commit();
+                if ($request->ajax()) {
+                    $leave->load(['employees', 'leaveType', 'addedBy']);
+                    return response()->json([
+                        'success' => true,
+                        'message' => __('Leave successfully created.'),
+                        'row_html' => view('leave.partials.row', [
+                            'leave' => $leave,
+                            'loopIteration' => 1,
+                        ])->render(),
+                    ]);
+                }
                 return redirect()->route('leave.index')->with('success', __('Leave successfully created.'));
             }
         } else {
+            DB::rollback();
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Permission denied.'),
+                ], 403);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         } catch (\Exception $e) {
             DB::rollback();
-            dd($e);
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 500);
+            }
             return redirect()->back()->with('error', $e->getMessage());
         }
     }
@@ -208,6 +323,15 @@ class LeaveController extends Controller
     public function update(Request $request, $leave)
     {
         $leave = Leave::find($leave);
+        if (!$leave) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Leave not found.'),
+                ], 404);
+            }
+            return redirect()->back()->with('error', __('Leave not found.'));
+        }
         if (\Auth::user()->can('edit leave')) {
             if ($leave->created_by == \Auth::user()->creatorId()) {
                 $validator = \Validator::make(
@@ -223,17 +347,65 @@ class LeaveController extends Controller
                 );
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
+                    if ($request->ajax()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $messages->first(),
+                            'errors' => $validator->errors(),
+                        ], 422);
+                    }
                     return redirect()->back()->with('error', $messages->first());
+                }
+                if (\Auth::user()->type != "Employee") {
+                    $validator = \Validator::make($request->all(), [
+                        'employee_id' => 'required',
+                    ]);
+
+                    if ($validator->fails()) {
+                        $messages = $validator->getMessageBag();
+                        if ($request->ajax()) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => $messages->first(),
+                                'errors' => $validator->errors(),
+                            ], 422);
+                        }
+                        return redirect()->back()->with('error', $messages->first());
+                    }
+                }
+
+                $employee = \Auth::user()->type == 'Employee'
+                    ? Employee::where('user_id', \Auth::id())->first()
+                    : Employee::find($request->employee_id);
+                if (!$employee) {
+                    if ($request->ajax()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => __('Employee not found.'),
+                            'errors' => ['employee_id' => [__('Employee not found.')]],
+                        ], 422);
+                    }
+                    return redirect()->back()->with('error', __('Employee not found.'));
                 }
 
                 $leave_type = LeaveType::find($request->leave_type_id);
+                if (!$leave_type) {
+                    if ($request->ajax()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => __('Leave type not found.'),
+                            'errors' => ['leave_type_id' => [__('Leave type not found.')]],
+                        ], 422);
+                    }
+                    return redirect()->back()->with('error', __('Leave type not found.'));
+                }
 
                 $startDate = new \DateTime($request->start_date);
                 $endDate = new \DateTime($request->end_date);
                 $endDate->add(new \DateInterval('P1D'));
                 $total_leave_days = !empty($startDate->diff($endDate)) ? $startDate->diff($endDate)->days : 0;
 
-                $employeeLeaves = EmployeeLeaves::where('employee_id', $request->employee_id)->first();
+                $employeeLeaves = EmployeeLeaves::where('employee_id', $employee->id)->first();
                 $available_days = 0;
                 if (str_contains(strtolower($leave->leaveType->title), 'annual') && $employeeLeaves) {
                     $available_days = $employeeLeaves->annual_total - $employeeLeaves->annual_consumed ;
@@ -242,6 +414,14 @@ class LeaveController extends Controller
                     $available_days = $employeeLeaves->casual_total - $employeeLeaves->casual_consumed ;
                 }
                 if ((str_contains(strtolower($leave->leaveType->title), 'annual')) && $available_days < $total_leave_days) {
+                    $message = __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.');
+                    if ($request->ajax()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $message,
+                            'errors' => ['leave_type_id' => [$message]],
+                        ], 422);
+                    }
                     return redirect()->back()->with('error', __('Leave type ' . $leave_type->title . ' reached a maximum days. Please make sure your selected days are within the available ' . $available_days . ' days.'));
                 } else {
                     if ($leave->leave_type_id != $request->leave_type_id) {
@@ -259,7 +439,7 @@ class LeaveController extends Controller
                         $employeeLeaves->casual_consumed = ($employeeLeaves->casual_consumed + $total_leave_days) - $leave->total_leave_days;
                     }
 
-                    $leave->employee_id = $request->employee_id;
+                    $leave->employee_id = $employee->id;
                     $leave->leave_type_id = $request->leave_type_id;
                     $leave->applied_on = $request->applied_on;
                     $leave->start_date = $request->start_date;
@@ -267,43 +447,94 @@ class LeaveController extends Controller
                     $leave->total_leave_days = $total_leave_days;
                     $leave->leave_reason = $request->leave_reason;
                     $leave->remark = $request->remark;
-                    $leave->owned_by = $leave->employees->branch_id ?? \Auth::user()->ownedId();
+                    $leave->added_by = $leave->added_by ?: \Auth::user()->id;
+                    $leave->owned_by = $employee->owned_by;
                     $leave->save();
 
-                    $employeeLeaves->save();
+                    if ($employeeLeaves) {
+                        $employeeLeaves->save();
+                    }
 
+                    if ($request->ajax()) {
+                        $leave->load(['employees', 'leaveType', 'addedBy']);
+                        return response()->json([
+                            'success' => true,
+                            'message' => __('Leave successfully updated.'),
+                            'row_html' => view('leave.partials.row', [
+                                'leave' => $leave,
+                                'loopIteration' => '',
+                            ])->render(),
+                            'leave_id' => $leave->id,
+                        ]);
+                    }
                     return redirect()->route('leave.index')->with('success', __('Leave successfully updated.'));
                 }
             } else {
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => __('Permission denied.'),
+                    ], 403);
+                }
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
         } else {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Permission denied.'),
+                ], 403);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
-    public function destroy(Leave $leave)
+    public function destroy(Request $request, Leave $leave)
     {
         if (\Auth::user()->can('delete leave')) {
             if ($leave->created_by == \Auth::user()->creatorId()) {
+                $leaveId = $leave->id;
+                $leaveTypeTitle = strtolower(optional($leave->leaveType)->title ?? '');
                 $leave->delete();
-                $leave_type = LeaveType::find($leave->leave_type_id);
-                if ((str_contains(strtolower($leave->leaveType->title), 'annual') || str_contains(strtolower($leave->leaveType->title), 'casual'))){
-                    if (str_contains(strtolower($leave->leaveType->title), 'annual') ) {
+                if ((str_contains($leaveTypeTitle, 'annual') || str_contains($leaveTypeTitle, 'casual'))){
+                    if (str_contains($leaveTypeTitle, 'annual') ) {
                         $employeeLeaves = EmployeeLeaves::where('employee_id', $leave->employee_id)->first();
-                        $employeeLeaves->annual_consumed = $employeeLeaves->annual_consumed - $leave->total_leave_days;
-                        $employeeLeaves->save();
-                    } elseif (str_contains(strtolower($leave->leaveType->title), 'casual') ) {
+                        if ($employeeLeaves) {
+                            $employeeLeaves->annual_consumed = $employeeLeaves->annual_consumed - $leave->total_leave_days;
+                            $employeeLeaves->save();
+                        }
+                    } elseif (str_contains($leaveTypeTitle, 'casual') ) {
                         $employeeLeaves = EmployeeLeaves::where('employee_id', $leave->employee_id)->first();
-                        $employeeLeaves->casual_consumed = $employeeLeaves->casual_consumed - $leave->total_leave_days;
-                        $employeeLeaves->save();
+                        if ($employeeLeaves) {
+                            $employeeLeaves->casual_consumed = $employeeLeaves->casual_consumed - $leave->total_leave_days;
+                            $employeeLeaves->save();
+                        }
                     }
+                }
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => __('Leave successfully deleted.'),
+                        'leave_id' => $leaveId,
+                    ]);
                 }
                 return redirect()->route('leave.index')->with('success', __('Leave successfully deleted.'));
             } else {
+                if ($request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => __('Permission denied.'),
+                    ], 403);
+                }
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
         } else {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('Permission denied.'),
+                ], 403);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }

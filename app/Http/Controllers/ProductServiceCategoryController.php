@@ -51,7 +51,7 @@ class ProductServiceCategoryController extends Controller
                 $request->all(), [
                     'name' => 'required|max:200',
                     'type' => 'required',
-                    'color' => 'required',
+                    // 'color' => 'required',
                 ]
             );
             if ($validator->fails()) {
@@ -69,8 +69,18 @@ class ProductServiceCategoryController extends Controller
             $category->created_by = \Auth::user()->creatorId();
             $category->save();
 
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Category successfully created.'),
+                    'category' => $category,
+                ]);
+            }
             return redirect()->route('product-category.index')->with('success', __('Category successfully created.'));
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
@@ -98,7 +108,7 @@ class ProductServiceCategoryController extends Controller
                     $request->all(), [
                         'name' => 'required|max:200',
                         'type' => 'required',
-                        'color' => 'required',
+                        // 'color' => 'required',
                     ]
                 );
                 if ($validator->fails()) {
@@ -216,6 +226,14 @@ class ProductServiceCategoryController extends Controller
                 ->where('type', $types->id)
                 ->where('created_by', \Auth::user()->creatorId())->get()
                 ->pluck('code_name', 'id');
+        } elseif ($request->type == 'head imprest') {
+            $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->where('name', 'Head Imprest')->first();
+            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
+                ->where('type', $types->id)
+                ->where('created_by', \Auth::user()->creatorId())->get()
+                ->pluck('code_name', 'id');
+        } elseif ($request->type == 'voucher') {
+            $chart_accounts = [];
         } else {
             $chart_accounts = 0;
         }

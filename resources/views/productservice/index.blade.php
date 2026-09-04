@@ -3,10 +3,47 @@
 {{ __('Manage Products') }}
 @endsection
 @push('script-page')
-<script src="{{ asset('js/jquery-searchbox.js') }}"></script>
 <script>
     $(document).ready(function() {
+        function refreshSubcategorySelect() {
+            var subcategorySelect = $('#subcategory-select');
+            var parent = subcategorySelect.closest('.btn-box');
+
+            if (subcategorySelect[0].customSelectInstance) {
+                subcategorySelect[0].customSelectInstance.destroy();
+                subcategorySelect[0].customSelectInstance = null;
+            }
+            parent.find('.custom-select-wrapper').remove();
+            subcategorySelect.removeClass('custom-select').show();
+
+            setTimeout(function() {
+                subcategorySelect.addClass('custom-select').show();
+                if (window.CustomSelect) {
+                    window.CustomSelect.initContainer(parent[0]);
+                }
+            }, 0);
+        }
+
+        function refreshCategorySelect() {
+            var categorySelect = $('#category-select');
+            if (categorySelect[0].customSelectInstance) {
+                categorySelect[0].customSelectInstance.updateOptions();
+            }
+        }
+
+        function setSubcategoryOptions(subcategories) {
+            var subcategorySelect = $('#subcategory-select');
+            subcategorySelect.empty();
+            subcategorySelect.append('<option value="">Select Subcategory</option>');
+            $.each(subcategories || [], function(index, subcategory) {
+                subcategorySelect.append('<option value="' + subcategory.id + '">' + subcategory.name + '</option>');
+            });
+            subcategorySelect.val('');
+            refreshSubcategorySelect();
+        }
+
         $('#category-select').on('change', function() {
+            refreshCategorySelect();
             var categoryId = $(this).val();
             if (categoryId) {
                 $.ajax({
@@ -14,19 +51,14 @@
                     type: 'GET',
                     dataType: 'json',
                     success: function(data) {
-                        var subcategorySelect = $('#subcategory-select');
-                        subcategorySelect.empty();
-                        subcategorySelect.append('<option value="">Select Subcategory</option>');
-                        $.each(data.subcategories, function(index, subcategory) {
-                            subcategorySelect.append('<option value="' + subcategory.id + '">' + subcategory.name + '</option>');
-                        });
+                        setSubcategoryOptions(data.subcategories);
                     },
                     error: function(xhr, status, error) {
                         console.error('Error fetching subcategories:', error);
                     }
                 });
             } else {
-                $('#subcategory-select').empty().append('<option value="">Select Subcategory</option>');
+                setSubcategoryOptions([]);
             }
         });
     });
@@ -60,17 +92,38 @@
     }
     </script>
 @endpush
+@push('css-page')
+    <style>
+        #commonModal .modal-xl {
+            max-width: calc(100vw - 24px);
+            margin: 12px auto;
+        }
+
+        #commonModal .modal-xl .modal-content {
+            min-height: calc(100vh - 24px);
+        }
+
+        #commonModal .product-service-create-modal {
+            max-height: calc(100vh - 92px);
+            overflow-y: auto;
+            padding: 16px 18px;
+        }
+    </style>
+@endpush
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
 <li class="breadcrumb-item">{{ __('Product Information ') }}</li>
 @endsection
 @section('action-btn')
+@can('create product & service')
 <div class="float-end">
-    <a href="#" data-size="lg" data-url="{{ route('productservice.create') }}" data-ajax-popup="true"
-         data-bs-title="{{ __('Create New Product') }}" class="btn mx-1 btn-sm btn-outline-primary">
+    <a href="#" data-url="{{ route('productservice.create') }}" data-size="modal-fullscreen"
+        data-ajax-popup="true" data-bs-title="{{ __('Create Product') }}"
+        class="btn mx-1 btn-sm btn-outline-primary">
         <span class="btn-inner--icon">Create</span>
     </a>
 </div>
+@endcan
 @endsection
 
 @section('content')
@@ -84,13 +137,19 @@
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                             <div class="btn-box">
                                 {{ Form::label('category', __('Category'), ['class' => 'form-label']) }}
-                                {{ Form::select('category', $category, request()->category, ['class' => 'js-searchBox form-control select', 'id' => 'category-select', 'required' => 'required']) }}
+                                {{ Form::select('category', $category, request()->category, ['class' => 'form-control select custom-select', 'id' => 'category-select']) }}
                             </div>
                         </div>
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                             <div class="btn-box">
                                 {{ Form::label('subcategory', __('Subcategory'), ['class' => 'form-label']) }}
-                                {{ Form::select('subcategory',$subcategory, request()->subcategory, ['class' => 'js-searchBox form-control select', 'id' => 'subcategory-select', 'required' => 'required']) }}
+                                {{ Form::select('subcategory',$subcategory, request()->subcategory, ['class' => 'form-control select custom-select', 'id' => 'subcategory-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
+                            <div class="btn-box">
+                                {{ Form::label('item_type', __('Type'), ['class' => 'form-label']) }}
+                                {{ Form::select('item_type', $itemTypes, request()->item_type, ['class' => 'form-control select custom-select', 'id' => 'item_type-select']) }}
                             </div>
                         </div>
                         <div class="col-auto float-end ms-2 mt-4">
@@ -120,6 +179,11 @@
                                             </button>
                                         </li>
                                         <li>
+                                            <button class="dropdown-item" type="submit" name="export" value="excel_with_account">
+                                                <i class="ti ti-file me-2"></i>{{ __('Excel With Account') }}
+                                            </button>
+                                        </li>
+                                        <li>
                                             <button class="dropdown-item" type="submit" name="export" value="pdf">
                                                 <i class="ti ti-download me-2"></i>Pdf
                                             </button>
@@ -136,136 +200,45 @@
 </div>
 <div class="row">
     <div class="col-xl-12">
-        <table style="width: 99.5% !important;">
-            <thead class="table_heads">
-                <tr>
-                    <th>{{ __('Sr.') }}</th>
-                    <th>{{ __('Product Name') }}</th>
-                    <th>{{ __('Product code') }}</th>
-                    <th>{{ __('Sale Price') }}</th>
-                    <th>{{ __('Purchase Price') }}</th>
-                    <th>{{ __('Tax') }}</th>
-                    <th>{{ __('Category') }}</th>
-                    <th>{{ __('SubCategory') }}</th>
-                    <th>{{ __('Unit') }}</th>
-                    <th>{{ __('Quantity') }}</th>
-                    <th>{{ __('Action') }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($productServices as $productService)
-                <tr class="font-style">
-                    <td>{{ $loop->iteration }}</td>
-                    <td>{{ $productService->name }}</td>
-                    <td>{{ $productService->sku }}</td>
-                    <td>{{ \Auth::user()->priceFormat($productService->sale_price) }}</td>
-                    <td>{{ \Auth::user()->priceFormat($productService->purchase_price) }}</td>
-                    <td>
-                        @if (!empty($productService->tax_id))
-                        @php
-                        $taxes = \App\Models\Utility::tax($productService->tax_id);
-                        @endphp
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="datatable" style="width: 99.5% !important;">
+                        <thead class="table_heads">
+                            <tr>
+                                <th>{{ __('Sr.') }}</th>
+                                <th>{{ __('Product Name') }}</th>
+                                <th>{{ __('Product code') }}</th>
+                                @can('show sale price product & service')
+                                    <th>{{ __('Sale Price') }}</th>
+                                @endcan
+                                @can('show purchase price product & service')
+                                    <th>{{ __('Purchase Price') }}</th>
+                                @endcan
+                                <th>{{ __('Category') }}</th>
+                                <th>{{ __('SubCategory') }}</th>
+                                <th>{{ __('Unit') }}</th>
+                                @can('show quantity product & service')
+                                    <th>{{ __('New Qty') }}</th>
+                                    <th>{{ __('Used Qty') }}</th>
+                                    <th>{{ __('Damaged Qty') }}</th>
+                                    <th>{{ __('Total Qty') }}</th>
+                                @endcan
+                                @if (Gate::check('show product & service') || Gate::check('edit product & service') || Gate::check('delete product & service'))
+                                    <th>{{ __('Action') }}</th>
+                                @endif
+                            </tr>
+                        </thead>
+                        <tbody id="product-service-table-body">
+                            @foreach ($productServices as $productService)
+                                @include('productservice.partials.row', ['productService' => $productService, 'index' => $loop->iteration])
+                            @endforeach
 
-                        @foreach ($taxes as $tax)
-                        <span class="">{{ !empty($tax) ? $tax->name : '' . ' (' . $tax->rate . '%)' }}</span><br>
-                        @endforeach
-                        @else
-                        -
-                        @endif
-                    </td>
-                    <td>{{ !empty($productService->category) ? $productService->category->name : '' }}</td>
-                    <td>{{ !empty($productService->subcategory) ? $productService->subcategory->name : '' }}</td>
-                    <td>{{ !empty($productService->unit()) ? $productService->unit()->name : '' }}</td>
-                    @if ($productService->type == 'product')
-                    <td>{{ $productService->quantity }}</td>
-                    @else
-                    <td>-</td>
-                    @endif
-
-
-                    @if (Gate::check('edit product & service') || Gate::check('delete product & service'))
-                    <td class="Action">
-                        <div class="action-btn ms-2">
-
-                            <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
-                                data-url="{{ route('productservice.detail', $productService->id) }}"
-                                data-ajax-popup="true"  data-bs-title="{{ __('Store Details') }}"
-                                data-bs-toggle="{{ __('Store Details') }}">
-                                <span class="btn-inner--icon"><i class="fas fa-eye"></i></span>
-                            </a>
-
-                            @can('edit product & service')
-                            <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-info align-items-center"
-                                data-url="{{ route('productservice.edit', $productService->id) }}"
-                                data-ajax-popup="true" data-size="lg "  data-bs-title="{{ __('Edit') }}"
-                                data-bs-toggle="{{ __('Edit Product') }}">
-                                <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                            </a>
-                            @endcan
-                            @can('delete product & service')
-                            {!! Form::open([
-                            'method' => 'DELETE',
-                            'route' => ['productservice.destroy', $productService->id],
-                            'id' => 'delete-form-' . $productService->id,
-                            ]) !!}
-                            <a href="#" class="mx-1 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"
-                                 data-bs-title="{{ __('Delete') }}">
-                                <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
-                            </a>
-                            {!! Form::close() !!}
-                            @endcan
-                        </div>
-                    </td>
-                    @endif
-                </tr>
-                @endforeach
-
-            </tbody>
-        </table>
-@if ($productServices->hasPages())
-<div class="pagination">
-    <ul>
-        @if ($productServices->onFirstPage())
-            <li class="disabled">&laquo; Previous</li>
-        @else
-            <li><a href="{{ $productServices->appends(request()->query())->previousPageUrl() }}"
-                    rel="prev">&laquo; Previous</a></li>
-        @endif
-        @if ($productServices->currentPage() > 1)
-            <li><a href="{{ $productServices->appends(request()->query())->url(1) }}">First</a></li>
-        @endif
-        @php
-            $currentPage = $productServices->currentPage();
-            $lastPage = $productServices->lastPage();
-            $startPage = max(1, $currentPage - 4);
-            $endPage = min($lastPage, $currentPage + 5);
-            if ($endPage - $startPage < 9) {
-                if ($currentPage < $lastPage - 9) {
-                    $endPage = $startPage + 9;
-                } else {
-                    $startPage = max(1, $lastPage - 9);
-                }
-            }
-        @endphp
-        @for ($page = $startPage; $page <= $endPage; $page++)
-            <li class="{{ $page == $productServices->currentPage() ? 'active' : '' }}">
-                <a href="{{ $productServices->appends(request()->query())->url($page) }}">{{ $page }}</a>
-            </li>
-        @endfor
-        @if ($productServices->hasMorePages())
-            <li><a href="{{ $productServices->appends(request()->query())->nextPageUrl() }}" rel="next">Next
-                    &raquo;</a></li>
-        @else
-            <li class="disabled">Next &raquo;</li>
-        @endif
-        @if ($productServices->currentPage() < $productServices->lastPage())
-            <li><a
-                    href="{{ $productServices->appends(request()->query())->url($productServices->lastPage()) }}">Last</a>
-            </li>
-        @endif
-    </ul>
-</div>
-@endif
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

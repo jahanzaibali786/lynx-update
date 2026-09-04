@@ -46,10 +46,11 @@
 
 
                 @php
-                    $totals['gross'] += $monthsalary->gross;
+                    $displayGross = ($monthsalary->gross ?? 0) + ($monthsalary->stop_sal ?? 0);
+                    $totals['gross'] += $displayGross;
                     $totals['it'] += $monthsalary->it;
                 @endphp
-                <td>{{ $monthsalary->gross }}</td>
+                <td>{{ $displayGross }}</td>
                 <td>{{ $monthsalary->it }}</td>
             </tr>
         @endforeach

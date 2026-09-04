@@ -122,12 +122,12 @@ class ResignationController extends Controller
     {
         if (\Auth::user()->can('create resignation')) {
             if (\Auth::user()->type == 'company') {
-                $employees = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $employees = Employee::where('created_by', \Auth::user()->creatorId())->where('is_res_ter',0)->get()->pluck('name', 'id');
                 $branches = User::where('type', '=', 'branch')->where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
             } else {
-                $employees = Employee::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+                $employees = Employee::where('owned_by', \Auth::user()->ownedId())->where('is_res_ter',0)->get()->pluck('name', 'id');
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
             }
@@ -161,24 +161,21 @@ class ResignationController extends Controller
             if ($user->type == 'Employee') {
                 $employee = Employee::where('user_id', $user->id)->first();
                 $resignation->employee_id = $employee->id;
-                $resignation->branch_id = $employee->id;
+                $resignation->branch_id = $employee-owned_by;
             } else {
                 $resignation->branch_id = $request->branches;
                 $resignation->employee_id = $request->employee_id;
+                $employee = Employee::where('id', $request->employee_id)->first();
             }
             $resignation->notice_date = $request->notice_date;
             $resignation->resignation_date = $request->resignation_date;
             $resignation->last_attendance_date = $request->last_attendance_date;
             $resignation->description = $request->description;
-            $resignation->owned_by = \Auth::user()->ownedId();
+            $resignation->owned_by =  $employee->owned_by;
             $resignation->created_by = \Auth::user()->creatorId();
 
             $resignation->save();
-            // if ($resignation) {
-            //     $employee = Employee::where('id', $request->employee_id)->first();
-            //     $employee->is_res_ter = 1;
-            //     $employee->save();
-            // }
+            Employee::where('id', $resignation->employee_id)->update(['is_res_ter' => 1]);
             $setings = Utility::settings();
             if ($setings['resignation_sent'] == 1) {
                 $employee = Employee::find($resignation->employee_id);
@@ -282,6 +279,8 @@ class ResignationController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
+                $oldEmployeeId = $resignation->employee_id;
+
                 if (\Auth::user()->type != 'employee') {
                     $resignation->branch_id = $request->branches;
                     $resignation->employee_id = $request->employee_id;
@@ -294,6 +293,10 @@ class ResignationController extends Controller
                 $resignation->description = $request->description;
 
                 $resignation->save();
+                Employee::where('id', $resignation->employee_id)->update(['is_res_ter' => 1]);
+                if ($oldEmployeeId != $resignation->employee_id && !Resignation::where('employee_id', $oldEmployeeId)->exists()) {
+                    Employee::where('id', $oldEmployeeId)->update(['is_res_ter' => 0]);
+                }
 
                 return redirect()->route('resignation.index')->with('success', __('Resignation successfully updated.'));
             } else {
@@ -308,7 +311,11 @@ class ResignationController extends Controller
     {
         if (\Auth::user()->can('delete resignation')) {
             if ($resignation->created_by == \Auth::user()->creatorId()) {
+                $employeeId = $resignation->employee_id;
                 $resignation->delete();
+                if (!Resignation::where('employee_id', $employeeId)->exists()) {
+                    Employee::where('id', $employeeId)->update(['is_res_ter' => 0]);
+                }
 
                 return redirect()->route('resignation.index')->with('success', __('Resignation successfully deleted.'));
             } else {

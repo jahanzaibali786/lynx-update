@@ -23,7 +23,8 @@ use App\Models\ExperienceCertificate;
 use App\Models\FeeHead;
 use App\Models\JoiningLetter;
 use App\Models\EmpExperience;
-use App\Models\EmployeeReportExport;
+use App\Exports\EmployeeReportExport;
+use App\Models\EmployeeEmergencyContact;
 use App\Models\Leave;
 use App\Models\LeaveType;
 use App\Models\NOC;
@@ -58,27 +59,29 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
-        // dd('');
+        // dd($request->all());
         if (\Auth::user()->can('manage employee')) {
+            $query = Employee::with(['ownedBranch', 'department', 'designation', 'employee_payscale_details', 'employee_monthly_salaries', 'latestEducation']);
+
             if (\Auth::user()->type == 'Employee') {
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
                 $branches->prepend('Select Branch', '');
-                $query = Employee::where('user_id', '=', Auth::user()->id);
+                $query->where('user_id', '=', Auth::user()->id);
             } else if (\Auth::user()->type == 'company') {
                 $branches = User::where('type', '=', 'branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $branches->prepend(\Auth::user()->name, \Auth::user()->id);
                 $branches->prepend('Select Branch', '');
-                $query = Employee::where('created_by', \Auth::user()->creatorId());
+                $query->where('created_by', \Auth::user()->creatorId());
             } else {
                 // dd(\Auth::user()->ownedId());
                 $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-                $query = Employee::where('owned_by', \Auth::user()->ownedId());
+                $query->where('owned_by', \Auth::user()->ownedId());
             }
             $departments = Department::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
             $departments->prepend('All', 'all');
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
             $designations->prepend('All', 'all');
-            if (!empty($request->branches)) {
+            if (!empty($request->branches) && $request->branches != null) {
                 $query->where('owned_by', '=', $request->branches);
             }
             if (!empty($request->ter_status)) {
@@ -92,20 +95,20 @@ class EmployeeController extends Controller
             if (!empty($request->designation_id) && $request->designation_id != 'all') {
                 $query->where('designation_id', $request->designation_id);
             }
-            if (!empty($request->sort)) {
-                if ($request->sort == 'asc') {
-                    $query->orderBy('name', 'asc');
-                } else if ($request->sort == 'desc') {
-                    $query->orderBy('name', 'desc');
-                }
+            if ($request->sort == 'desc') {
+                $query->orderBy('name', 'desc');
+            } else {
+                $query->orderBy('name', 'asc');
             }
             if ($request->has('export') && $request->export == 'excel') {
                 $employees = $query->get();
-                return Excel::download(new EmployeeReportExport($employees), 'employee_report.xlsx');
+                $branchName = $this->employeeReportBranchName($request);
+                return Excel::download(new EmployeeReportExport($employees, $branchName, $branches), 'employee_report.xlsx');
             }
             if ($request->has('export') && $request->export == 'pdf') {
                 $employees = $query->get();
-                return Excel::download(new EmployeeReportExport($employees), 'employee_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
+                $branchName = $this->employeeReportBranchName($request);
+                return Excel::download(new EmployeeReportExport($employees, $branchName, $branches), 'employee_report.pdf', \Maatwebsite\Excel\Excel::MPDF);
             }
             // dd($request->is_print);
             if ($request->filled('is_print') && $request->is_print == 1) {
@@ -169,7 +172,7 @@ class EmployeeController extends Controller
                 return $dompdf->stream('employee_directory.pdf', ['Attachment' => false]);
             }
 
-            $employees = $query->orderBy('id', 'Desc')->get();
+            $employees = $query->get();
             return view('employee.index', compact('employees', 'branches', 'departments', 'designations'));
 
         } else {
@@ -236,6 +239,10 @@ class EmployeeController extends Controller
                         // 'probation_period' => 'required',
                         // 'probation_end' => 'required',
                         //         'document.*' => 'mimes:jpeg,png,jpg,gif,svg,pdf,doc,zip|max:20480',
+                        'from_date' => 'required_if:category,Visiting,Adhoc|nullable|date',
+                        'to_date' => 'required_if:category,Visiting,Adhoc|nullable|date|after:from_date',
+                        'application_date' => 'nullable|date',
+                        'interview_date' => 'nullable|date',
                     ]
                 );
                 if ($validator->fails()) {
@@ -276,6 +283,14 @@ class EmployeeController extends Controller
                 } else {
                     $document_implode = null;
                 }
+                $dept = \App\Models\Department::find($request['department_id']);
+                $probationMonths = ($dept && strtolower($dept->name) === 'academic') ? 12 : 6;
+                $probationEnd = null;
+                if ($request['company_doj']) {
+                    $joiningDate = \Carbon\Carbon::parse($request['company_doj']);
+                    $probationEnd = $joiningDate->addMonths($probationMonths)->format('Y-m-d');
+                }
+
                 $employee = Employee::create(
                     [
                         'user_id' => $user->id,
@@ -299,8 +314,10 @@ class EmployeeController extends Controller
                         'department_id' => $request['department_id'],
                         'designation_id' => $request['designation_id'],
                         'company_doj' => $request['company_doj'],
-                        'probation_period' => $request['probation_period'],
-                        'probation_end' => $request['probation_end'],
+                        'application_date' => $request['application_date'],
+                        'interview_date' => $request['interview_date'],
+                        'probation_period' => $probationMonths,
+                        'probation_end' => $probationEnd,
                         'documents' => $document_implode,
                         'account_holder_name' => $request['account_holder_name'],
                         'account_number' => $request['account_number'],
@@ -346,24 +363,29 @@ class EmployeeController extends Controller
                 }
                 if ($employee) {
                     $employee = Employee::where('id', $employee->id)->first();
-                    $today = now();
-                    $joiningDate = \Carbon\Carbon::parse($employee->joining_date);
-                    $emp_probation_endDate = \Carbon\Carbon::parse($employee->probation_end);
-                    $annualTotal = null;
-                    $casualTotal = 0;
-                    if ($joiningDate->year < $today->year) {
-                        $annualTotal = 12 * 2.5;
-                        $casualTotal = 12 * 0.80;
-                    } elseif ($emp_probation_endDate->year < $today->year) {
-                        $annualTotal = 12 * 2.5;
-                        $casualTotal = 12 * 0.80;
-                    } else {
-                        $remainingMonths = 12 - $emp_probation_endDate->month + 1;
-                        if ($emp_probation_endDate->lessThanOrEqualTo($today)) {
-                            $annualTotal = $remainingMonths * 2.5;
+                    if($employee->category == 'Regular'){
+                        $today = now();
+                        $joiningDate = \Carbon\Carbon::parse($employee->joining_date);
+                        $emp_probation_endDate = \Carbon\Carbon::parse($employee->probation_end);
+                        $annualTotal = null;
+                        $casualTotal = 0;
+                        if ($joiningDate->year < $today->year) {
+                            $annualTotal = 12 * 2.5;
+                            $casualTotal = 12 * 0.80;
+                        } elseif ($emp_probation_endDate->year < $today->year) {
+                            $annualTotal = 12 * 2.5;
+                            $casualTotal = 12 * 0.80;
+                        } else {
+                            $remainingMonths = 12 - $emp_probation_endDate->month + 1;
+                            if ($emp_probation_endDate->lessThanOrEqualTo($today)) {
+                                $annualTotal = $remainingMonths * 2.5;
+                            }
+                            $remainingCasualMonths = 12 - $today->month + 1;
+                            $casualTotal = $remainingCasualMonths * 0.80;
                         }
-                        $remainingCasualMonths = 12 - $today->month + 1;
-                        $casualTotal = $remainingCasualMonths * 0.80;
+                    }else{
+                        $casualTotal = 0;
+                        $annualTotal = 0;
                     }
                     EmployeeLeaves::create([
                         'employee_id' => $employee->id,
@@ -372,6 +394,19 @@ class EmployeeController extends Controller
                         'owned_by' => \Auth::user()->ownedId(),
                         'created_by' => \Auth::user()->creatorId(),
                     ]);
+
+                    if ($employee->category === 'Visiting' || $employee->category === 'Adhoc') {
+                        \App\Models\EmployeeContract::create([
+                            'employee_id' => $employee->id,
+                            'created_by' => \Auth::user()->creatorId(),
+                            'owned_by' => $employee->owned_by,
+                            'from_date' => $request->from_date,
+                            'to_date' => $request->to_date,
+                            'status' => 'active',
+                            'remarks' => 'First contract created automatically on employee registration.',
+                            'added_by' => \Auth::user()->id,
+                        ]);
+                    }
                 }
                 ;
                 $setings = Utility::settings();
@@ -599,14 +634,13 @@ if ($path) {
             $resignation = Resignation::where('employee_id', $empId)->first();
             $isResigned = !is_null($resignation);
             $employeesId = \Auth::user()->employeeIdFormat(!empty($employee) ? $employee->employee_id : '');
-            $branches_school = SchoolDetails::where('branch_id', $employee->created_by)->first();
+            $branches_school = SchoolDetails::where('branch_id', $employee->owned_by)->first();
             $emp_exp = EmpExperience::where('emp_id', $empId)->get();
             $emp_edu = EmpEducation::where('emp_id', $empId)->get();
             $emp_fac = EmpFacility::where('emp_id', $empId)->get();
-            $emp_child = EmpChildrens::with('student')->where('emp_id', $empId)->get();
             // dd($emp_child);
             if($request->print){
-                $bodyHtml = view('employee.printProfile', compact('employee', 'emp_child', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'))->render();
+                $bodyHtml = view('employee.printProfile', compact('employee', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'))->render();
 
                 $finalHtml = '<html><head><style>body { font-family: sans-serif; font-size: 12px; }</style></head><body>' . $bodyHtml . '</body></html>';
 
@@ -619,7 +653,7 @@ if ($path) {
                 $dompdf->render();
                 return $dompdf->stream('employee_profile.pdf', ['Attachment' => false]);
             }
-              return view('employee.show', compact('employee', 'emp_child', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'));
+              return view('employee.show', compact('employee', 'emp_edu', 'emp_fac', 'emp_exp', 'branches_school', 'payscale', 'leaves', 'class', 'student', 'leavetypes', 'isResigned', 'resignation', 'employeesId', 'branches', 'departments', 'designations', 'documents'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -628,8 +662,16 @@ if ($path) {
     {
         $employee = Employee::findOrFail($id);
         $employee->company_doj = $request->input('company_doj');
-        $employee->probation_end = $request->input('probation_end');
-        $employee->probation_period = $request->input('probation_period');
+
+        $dept = Department::find($employee->department_id);
+        $probationMonths = ($dept && strtolower($dept->name) === 'academic') ? 12 : 6;
+        $employee->probation_period = $probationMonths;
+
+        if ($employee->company_doj) {
+            $joiningDate = \Carbon\Carbon::parse($employee->company_doj);
+            $employee->probation_end = $joiningDate->addMonths($probationMonths)->format('Y-m-d');
+        }
+
         $employee->is_res_ter = $request->input('includeIn_sal');
         $employee->security = $request->input('emp_security');
         $employee->pessi = $request->input('pessi');
@@ -702,7 +744,23 @@ if ($path) {
         //     $messages = $validator->getMessageBag();
         //     return redirect()->back()->withInput()->with('error', $messages->first());
         // }
-
+		$rules = ['degree_level' => 'required'];
+		
+		if ($request->degree_level !== 'illiterate') {
+		    $rules += [
+		        'institute_name' => 'required',
+		        'adm_date' => 'required|digits:4|integer',
+		        'passing_year' => 'required|digits:4|integer',
+		        'grade' => 'required',
+		    ];
+		}
+		
+		$validator = \Validator::make($request->all(), $rules);
+		
+		if ($validator->fails()) {
+		    return redirect()->back()
+		        ->with('error', $validator->errors()->first());
+		}
         // Check if updating or creating
         if ($request->filled('education_id')) {
             $emp_edu = \App\Models\EmpEducation::find($request->input('education_id'));
@@ -799,16 +857,16 @@ if ($path) {
     {
         // dd($request->all());
         $validatedData = $request->validate([
-            'profile_img' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'profile_img' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:1024',
             // 'salute' => 'nullable|string',
-            // 'name' => 'required|string',
+            'name' => 'required|string',
             // 'f_name' => 'nullable|string',
-            // 'cnic' => 'nullable|string',
+            'cnic' => 'nullable|string',
             // 'dob' => 'nullable|date',
-            // 'gender' => 'nullable|string',
+            'gender' => 'nullable|string',
             // 'religion' => 'nullable|string',
             // 'blood_group' => 'nullable|string',
-            // 'phone' => 'nullable|string',
+            'phone' => 'nullable|string',
             // 'email' => 'nullable|email',
             // 'eobi' => 'nullable|string',
             // 'ssc' => 'nullable|string',
@@ -820,22 +878,27 @@ if ($path) {
         ]);
         $validatedData = $request->all();
         $employee = Employee::findOrFail($id);
+
         if ($request->hasFile('profile_img')) {
-            $filenameWithExt = $request->file('profile_img')->getClientOriginalName();
-            $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
-            $extension = $request->file('profile_img')->getClientOriginalExtension();
+
+            // 🔹 Delete old image (if exists)
+            if (!empty($employee->profile_img)) {
+                $oldPath = storage_path('emp_profile_images/' . $employee->profile_img);
+
+                if (File::exists($oldPath)) {
+                    File::delete($oldPath);
+                }
+            }
+
+            // 🔹 Store new image
+            $file = $request->file('profile_img');
+            $filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+            $extension = $file->getClientOriginalExtension();
             $fileNameToStore = $filename . '_' . time() . '.' . $extension;
-            $dir = storage_path('emp_profile_images/');
-            $image_path = $dir . $filenameWithExt;
 
-            if (File::exists($image_path)) {
-                File::delete($image_path);
-            }
+            $file->storeAs('emp_profile_images', $fileNameToStore);
 
-            if (!file_exists($dir)) {
-                mkdir($dir, 0777, true);
-            }
-            $path = $request->file('profile_img')->storeAs('emp_profile_images/', $fileNameToStore);
+            // 🔹 Save in DB
             $employee->profile_img = $fileNameToStore;
         }
 
@@ -848,14 +911,30 @@ if ($path) {
         $employee->religion = $validatedData['religion'];
         $employee->blood_group = $validatedData['blood_group'];
         $employee->phone = $validatedData['phone'];
+        $employee->category = $validatedData['category'];
         $employee->email = $validatedData['email'];
-        $employee->eobi_id = $validatedData['eobi'];
-        $employee->ssc_id = $validatedData['ssc'];
+        $employee->eobi_id = $validatedData['eobi_id'];
+        $employee->ssc_id = $validatedData['ssc_id'];
         $employee->present_address = $validatedData['present_address'];
         $employee->address = $validatedData['address'];
-        $employee->branch_id = $validatedData['branch_id'];
-        $employee->department_id = $validatedData['department_id'];
-        $employee->designation_id = $validatedData['designation_id'];
+        $employee->application_date = $validatedData['application_date'] ?? null;
+        $employee->interview_date = $validatedData['interview_date'] ?? null;
+        // $employee->branch_id = $validatedData['branch_id'];
+        if (Auth::user()->type == 'company') {
+            $employee->department_id = $validatedData['department_id'];
+            $employee->designation_id = $validatedData['designation_id'];
+
+            // Automatically set probation period based on department
+            $dept = Department::find($employee->department_id);
+            $probationMonths = ($dept && strtolower($dept->name) === 'academic') ? 12 : 6;
+            $employee->probation_period = $probationMonths;
+
+            if ($employee->company_doj) {
+                $joiningDate = \Carbon\Carbon::parse($employee->company_doj);
+                $employee->probation_end = $joiningDate->addMonths($probationMonths)->format('Y-m-d');
+            }
+        }
+        
         $employee->save();
         return redirect()->back()->with('success', 'Employee Info updated successfully.');
     }
@@ -907,7 +986,26 @@ if ($path) {
         }
     }
 
+public function employeedesiganddeprtment(Request $request)
+    {
+        $employees = Employee::where('department_id', $request->department_id)
+            ->where('designation_id', $request->designation_id);
 
+        if (!empty($request->branch_id)) {
+            $employees->where('branch_id', $request->branch_id);
+        }
+
+        $employees = $employees->get()
+            ->mapWithKeys(function ($employee) {
+                $employeeNumber = !empty($employee->employee_id) ? \Auth::user()->employeeIdFormat($employee->employee_id) : '';
+                $label = trim($employeeNumber . ' - ' . $employee->name, ' -');
+
+                return [$employee->id => $label];
+            })
+            ->toArray();
+
+        return response()->json($employees);
+    }
     public function profileShow($id)
     {
         if (\Auth::user()->can('show employee profile')) {
@@ -941,19 +1039,7 @@ if ($path) {
 
     public function getdepartment(Request $request)
     {
-        if (Auth::user()->type == 'company') {
-            if ($request->branch_id == 0) {
-                $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id')->toArray();
-            } else {
-                $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->where('branch_id', $request->branch_id)->get()->pluck('name', 'id')->toArray();
-            }
-        } else {
-            if ($request->branch_id == 0) {
-                $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id')->toArray();
-            } else {
-                $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->where('branch_id', $request->branch_id)->get()->pluck('name', 'id')->toArray();
-            }
-        }
+        $departments = Department::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id')->toArray();
 
         return response()->json($departments);
     }
@@ -1184,13 +1270,32 @@ if ($path) {
     }
 
     //Export
-    public function export()
+    public function export(Request $request)
     {
         $name = 'employee_' . date('Y-m-d i:h:s');
-        $data = Excel::download(new EmployeeExport(), $name . '.xlsx');
+        $data = Excel::download(new EmployeeExport($request), $name . '.xlsx');
         ob_end_clean();
 
         return $data;
+    }
+
+    private function employeeReportBranchName(Request $request): string
+    {
+        if ($request->filled('branches')) {
+            $branch = User::where('id', $request->branches)
+                ->where(function ($query) {
+                    $query->where('created_by', \Auth::user()->creatorId())
+                        ->orWhere('id', \Auth::user()->ownedId())
+                        ->orWhere('id', \Auth::user()->creatorId());
+                })
+                ->first();
+
+            if ($branch) {
+                return $branch->name;
+            }
+        }
+
+        return 'All Branches';
     }
 
     //import
@@ -1316,21 +1421,27 @@ if ($path) {
 
         $annualTotal = 0;
         $casualTotal = 0;
-        if ($joiningDate->year < $today->year || $probationEndDate->year < $today->year) {
-            $annualTotal = 12 * 2.5;
-            $casualTotal = 12 * 0.8;
-        } elseif ($today->greaterThanOrEqualTo($probationEndDate)) {
-            $remainingAnnualMonths = 12 - $probationEndDate->month + 1;
-            $annualTotal = $remainingAnnualMonths * 2.5;
+        if($employee->category == 'Regular'){
+            if ($joiningDate->year < $today->year || $probationEndDate->year < $today->year) {
+                $annualTotal = 12 * 2.5;
+                $casualTotal = 12 * 0.8;
+            } elseif ($today->greaterThanOrEqualTo($probationEndDate)) {
+                $remainingAnnualMonths = 12 - $probationEndDate->month + 1;
+                $annualTotal = $remainingAnnualMonths * 2.5;
 
-            $remainingCasualMonths = 12 - $today->month + 1;
-            $casualTotal = $remainingCasualMonths * 0.8;
-        } else {
-            $remainingCasualMonths = 12 - $today->month + 1;
-            $casualTotal = $remainingCasualMonths * 0.8;
+                $remainingCasualMonths = 12 - $today->month + 1;
+                $casualTotal = $remainingCasualMonths * 0.8;
+            } else {
+                $remainingCasualMonths = 12 - $today->month + 1;
+                $casualTotal = $remainingCasualMonths * 0.8;
 
-            return redirect()->route('employee.index')->with('error', __('Employee probation not ended yet. Only casual leaves considered.'));
+                return redirect()->route('employee.index')->with('error', __('Employee probation not ended yet. Only casual leaves considered.'));
+            }
         }
+        else{
+                $casualTotal = 0;
+                $annualTotal = 0;
+            }
         $emp_leave = EmployeeLeaves::firstOrNew(['employee_id' => $employee->id]);
         $emp_leave->annual_total = $annualTotal;
         $emp_leave->casual_total = $casualTotal;
@@ -1418,10 +1529,15 @@ if ($path) {
 
             $annualTotal = 0;
             $casualTotal = 0;
-            $remainingCasualMonths = 12 - $today->month ;
-            $casualTotal = $remainingCasualMonths * 0.8;
-            $remainingAnnualMonths = 12 - $today->month;
-            $annualTotal = $remainingAnnualMonths * 2.5;
+            if($emp->category == 'Regular'){
+                $remainingCasualMonths = 12 - $today->month ;
+                $casualTotal = $remainingCasualMonths * 0.8;
+                $remainingAnnualMonths = 12 - $today->month;
+                $annualTotal = $remainingAnnualMonths * 2.5;
+            }else{
+                $casualTotal = 0;
+                $annualTotal = 0;
+            }
             if (!$already_assigned) {
                 $emp_leave = EmployeeLeaves::firstOrNew(['employee_id' => $emp->id]);
                 $emp_leave->annual_total = $annualTotal;
@@ -1482,5 +1598,74 @@ if ($path) {
         return redirect()->back()->with('success', 'Facility deleted successfully.');
     }
 
+    public function saveEmergencyContacts(Request $request, $id)
+    {
+        // check / validation  if empty then error return
+        $validator = \Validator::make(
+            $request->all(),
+            [
+                 'contacts' => 'required|array',
+                'contacts.*.contact_name' => 'nullable|string',
+                'contacts.*.relationship' => 'nullable|string',
+                'contacts.*.phone' => 'nullable|string',
+            ],
+            [
+                'contacts.required' => 'At least one contact is required.',
+            ]
+        );
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
 
+            return response()->json([
+                'status' => false,
+                'message' => $messages->first()
+            ]);
+        }   
+
+        foreach ($request->contacts as $contact) {
+
+            if (!empty($contact['contact_name']) || !empty($contact['phone'])) {
+
+                EmployeeEmergencyContact::create([
+                    'employee_id'   => $id,
+                    'contact_name'  => $contact['contact_name'] ?? null,
+                    'relationship'  => $contact['relationship'] ?? null,
+                    'phone'         => $contact['phone'] ?? null,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Contacts saved successfully'
+        ]);
+    }
+
+    public function getEmergencyContacts($id)
+    {
+        return EmployeeEmergencyContact::where('employee_id', $id)->get();
+    }
+
+    public function deleteEmergencyContact($id)
+    {
+        EmployeeEmergencyContact::findOrFail($id)->delete();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Deleted successfully'
+        ]);
+    }
+
+    public function EmployeeChildrenCnic(Request $request)
+    {
+        $emp=Employee::find($request->employee_id);
+    
+        $registrations = StudentRegistration::with('session', 'class', 'branches','fee_structure')->where(function ($q) use ($emp) {
+            $q->where('fathercnic', $emp->cnic)
+            ->orWhere('mothercnic', $emp->cnic);
+        })->get();
+        $pattern = '%TUITION%';
+        $head = FeeHead::whereRaw('LOWER(fee_head) LIKE ?', [strtolower($pattern)])->first();
+        return response()->json(['siblings' => $registrations,'head' => $head ]);
+    }
 }

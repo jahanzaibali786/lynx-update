@@ -18,16 +18,19 @@ class ProductServiceCategory extends Model
         'Product & Service',
         'Income',
         'Expense',
+        'Voucher',
     ];
 
     public static $catTypes = [
         'product & service' => 'Product & Service',
-        'income' => 'Income',
-        'expense' => 'Expense',
-        'asset'=> 'Asset',
-        'liability' => 'Liability',
-        'equity' => 'Equity',
+        // 'income' => 'Income',
+        // 'expense' => 'Expense',
+        // 'asset'=> 'Asset',
+        // 'liability' => 'Liability',
+        // 'equity' => 'Equity',
         'costs of good sold' => 'Costs of Goods Sold',
+        'voucher' => 'Voucher',
+        'head imprest' => 'Head Imprest',
     ];
 
 

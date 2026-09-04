@@ -37,12 +37,13 @@ class VenderController extends Controller
     {
         if (\Auth::user()->can('manage vender')) {
     
-            // dropdown list (id => name)
-            $vendorList = Vender::where('created_by', \Auth::user()->creatorId())
-                ->pluck('name', 'id');
+            // dropdown list (id => company name - vendor name)
+            $vendorList = Vender::optionsForCreator(\Auth::user()->creatorId(), null);
     
             // base query
-            $query = Vender::where('created_by', \Auth::user()->creatorId());
+            $query = Vender::with(['ChartAccount' => function ($accountQuery) {
+                $accountQuery->where('created_by', \Auth::user()->creatorId());
+            }])->where('created_by', \Auth::user()->creatorId());
     
             // filter by vendor id from dropdown
             if (!empty($_GET['vender'])) {
@@ -51,7 +52,11 @@ class VenderController extends Controller
     
             // optional: text search by name
             if (!empty($_GET['name'])) {
-                $query->where('name', 'like', '%' . $_GET['name'] . '%');
+                $search = $_GET['name'];
+                $query->where(function ($vendorQuery) use ($search) {
+                    $vendorQuery->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('company_name', 'like', '%' . $search . '%');
+                });
             }
     
             // paginate results
@@ -92,14 +97,30 @@ class VenderController extends Controller
     {
         if(\Auth::user()->can('create vender'))
         {
+            // Concatenate name fields before validation
+            $fullName = trim(
+                ($request->name_prefix ? $request->name_prefix . ' ' : '') .
+                ($request->first_name ? $request->first_name . ' ' : '') .
+                ($request->middle_initial ? $request->middle_initial . ' ' : '') .
+                ($request->last_name ? $request->last_name : '')
+            );
+
+            // Merge the concatenated name into the request
+            $request->merge([
+                'name' => $fullName,
+                'contact' => $request->main_phone // Use main_phone as contact
+            ]);
+
             $rules = [
-                'name' => 'required',
+                'first_name' => 'required',
+                'last_name' => 'required',
                 'account_id' => 'required',
-                'contact' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
+                'main_phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
                 'email' => [
                     'required',
+                    'email',
                     Rule::unique('venders')->where(function ($query) {
-                        return $query->where('created_by', \Auth::user()->id);
+                        return $query->where('created_by', \Auth::user()->creatorId());
                     })
                 ],
             ];
@@ -109,6 +130,10 @@ class VenderController extends Controller
             if($validator->fails())
             {
                 $messages = $validator->getMessageBag();
+
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $messages->first()], 422);
+                }
 
                 return redirect()->route('vender.index')->with('error', $messages->first());
             }
@@ -127,6 +152,26 @@ class VenderController extends Controller
                     $vender->tax_number       =$request->tax_number;
                     $vender->owned_by         = \Auth::user()->ownedId();
                     $vender->created_by       = \Auth::user()->creatorId();
+
+                    // New vendor fields
+                    $vender->company_name     = $request->company_name;
+                    $vender->name_prefix      = $request->name_prefix;
+                    $vender->first_name       = $request->first_name;
+                    $vender->middle_initial   = $request->middle_initial;
+                    $vender->last_name        = $request->last_name;
+                    $vender->job_title        = $request->job_title;
+                    $vender->main_phone_type  = $request->main_phone_type;
+                    $vender->main_phone       = $request->main_phone;
+                    $vender->work_phone_type  = $request->work_phone_type;
+                    $vender->work_phone       = $request->work_phone;
+                    $vender->main_email_type  = $request->main_email_type;
+                    $vender->cc_email_type    = $request->cc_email_type;
+                    $vender->cc_email         = $request->cc_email;
+                    $vender->website_type     = $request->website_type;
+                    $vender->website          = $request->website;
+                    $vender->other1_type      = $request->other1_type;
+                    $vender->other1           = $request->other1;
+
                     $vender->billing_name     = $request->billing_name;
                     $vender->billing_country  = $request->billing_country;
                     $vender->billing_state    = $request->billing_state;
@@ -148,6 +193,9 @@ class VenderController extends Controller
                 }
                 else
                 {
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => __('Your user limit is over, Please upgrade plan.')], 422);
+                    }
                     return redirect()->back()->with('error', __('Your user limit is over, Please upgrade plan.'));
                 }
                 $role_r = Role::where('name', '=', 'vender')->firstOrFail();
@@ -169,10 +217,26 @@ class VenderController extends Controller
                 Utility::send_twilio_msg($request->contact,'new_vendor', $vendorNotificationArr);
             }
 
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => __('Vendor successfully created.'),
+                    'vendor' => [
+                        'id' => $vender->id,
+                        'name' => $vender->display_name,
+                        'company_name' => $vender->company_name,
+                        'vendor_name' => $vender->name,
+                    ],
+                ]);
+            }
+
             return redirect()->route('vender.index')->with('success', __('Vendor successfully created.'));
         }
         else
         {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
@@ -180,14 +244,21 @@ class VenderController extends Controller
 
     public function show($ids)
     {
+        if (!\Auth::user()->can('show vender')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         try {
             $id       = Crypt::decrypt($ids);
         } catch (\Throwable $th) {
             return redirect()->back()->with('error', __('Vendor Not Found.'));
         }
 
-        $id     = \Crypt::decrypt($ids);
-        $vendor = Vender::find($id);
+        $vendor = Vender::with(['ChartAccount' => function ($accountQuery) {
+            $accountQuery->where('created_by', \Auth::user()->creatorId());
+        }])
+            ->where('created_by', \Auth::user()->creatorId())
+            ->findOrFail($id);
 
         return view('vender.show', compact('vendor'));
     }
@@ -221,13 +292,34 @@ class VenderController extends Controller
     {
         if(\Auth::user()->can('edit vender'))
         {
+            // Concatenate name fields before validation if they exist
+            if($request->has('first_name') || $request->has('last_name')) {
+                $fullName = trim(
+                    ($request->name_prefix ? $request->name_prefix . ' ' : '') .
+                    ($request->first_name ? $request->first_name . ' ' : '') .
+                    ($request->middle_initial ? $request->middle_initial . ' ' : '') .
+                    ($request->last_name ? $request->last_name : '')
+                );
+
+                $request->merge([
+                    'name' => $fullName,
+                    'contact' => $request->main_phone ? $request->main_phone : $request->contact
+                ]);
+            }
 
             $rules = [
-                'name' => 'required',
                 'account_id' => 'required',
-                'contact' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
             ];
 
+            // Add validation for name fields if they are present
+            if($request->has('first_name') || $request->has('last_name')) {
+                $rules['first_name'] = 'required';
+                $rules['last_name'] = 'required';
+                $rules['main_phone'] = 'required|regex:/^([0-9\s\-\+\(\)]*)$/';
+            } else {
+                $rules['name'] = 'required';
+                $rules['contact'] = 'required|regex:/^([0-9\s\-\+\(\)]*)$/';
+            }
 
             $validator = \Validator::make($request->all(), $rules);
 
@@ -242,6 +334,28 @@ class VenderController extends Controller
             $vender->contact          = $request->contact;
             $vender->tax_number      = $request->tax_number;
             $vender->created_by       = \Auth::user()->creatorId();
+
+            // Update new vendor fields if present
+            if($request->has('company_name')) {
+                $vender->company_name     = $request->company_name;
+                $vender->name_prefix      = $request->name_prefix;
+                $vender->first_name       = $request->first_name;
+                $vender->middle_initial   = $request->middle_initial;
+                $vender->last_name        = $request->last_name;
+                $vender->job_title        = $request->job_title;
+                $vender->main_phone_type  = $request->main_phone_type;
+                $vender->main_phone       = $request->main_phone;
+                $vender->work_phone_type  = $request->work_phone_type;
+                $vender->work_phone       = $request->work_phone;
+                $vender->main_email_type  = $request->main_email_type;
+                $vender->cc_email_type    = $request->cc_email_type;
+                $vender->cc_email         = $request->cc_email;
+                $vender->website_type     = $request->website_type;
+                $vender->website          = $request->website;
+                $vender->other1_type      = $request->other1_type;
+                $vender->other1           = $request->other1;
+            }
+
             $vender->billing_name     = $request->billing_name;
             $vender->billing_country  = $request->billing_country;
             $vender->billing_state    = $request->billing_state;
@@ -607,5 +721,23 @@ class VenderController extends Controller
         }
 
         return redirect()->back()->with($data['status'], $data['msg']);
+    }
+    public function getVendors(Request $request)
+    {
+        $vendors = Vender::where('created_by', \Auth::user()->creatorId())
+            ->orderBy('company_name')
+            ->orderBy('name')
+            ->get(['id', 'company_name', 'name'])
+            ->map(function ($vendor) {
+                return [
+                    'id' => $vendor->id,
+                    'name' => $vendor->display_name,
+                    'company_name' => $vendor->company_name,
+                    'vendor_name' => $vendor->name,
+                ];
+            })
+            ->values();
+
+        return response()->json($vendors);
     }
 }

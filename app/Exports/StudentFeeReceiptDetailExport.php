@@ -10,6 +10,8 @@ use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Shared\Date; // ✅ ADDED
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat; // ✅ ADDED
 
 class StudentFeeReceiptDetailExport implements FromView, WithEvents
 {
@@ -33,7 +35,7 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
     /**
      * Export the student fee receipt data to an Excel view.
      */
-    public function view(): View
+   public function view(): View
     {
         $is_signature = false;
         $is_period = true;
@@ -43,9 +45,11 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
         $branchName = $this->branches->get($this->branchId) ?? 'All Branches';
         
         // Prepare date range if available
-        $dateFrom = $this->request['date_from'] ?? null;
-        $dateTo = $this->request['date_to'] ?? null;
-
+        $dateFrom = $this->request['from_date'] ?? null;
+        $dateTo = $this->request['to_date'] ?? null;
+        $this->params['date_from'] = $dateFrom;
+        $this->params['date_to'] = $dateTo;
+        // dd($dateFrom, $dateTo,$this->params);
         return view('student.exports.student_fee_receipt_detail_report', [
             'recipts' => $this->receipts,
             'branch' => $branchName,
@@ -62,6 +66,7 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
         ]);
     }
 
+
     public function registerEvents(): array
     {
         return [
@@ -74,7 +79,7 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
                 $sheet->getPageSetup()->setFitToPage(true);
                 $sheet->getPageSetup()->setFitToWidth(1);
                 $sheet->getPageSetup()->setFitToHeight(0); // unlimited height
-
+    
                 // Repeat heading row (row 9)
                 $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(9, 9);
                 $sheet->setShowGridlines(false);
@@ -123,10 +128,10 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
                 // Total rows use colspan=13 in blade → label fills A:M (13 cols)
                 // → Rs. lands in N (col 14), Over Receipt in O (col 15)
                 // So mergeCells must be A:M (13 cols) to match
-
+    
                 for ($row = 10; $row <= $lastDataRow; $row++) {
                     $cellValue = $sheet->getCell('A' . $row)->getValue();
-                    $cellB     = $sheet->getCell('B' . $row)->getValue();
+                    $cellB = $sheet->getCell('B' . $row)->getValue();
 
                     // Detect branch name rows: A has value, B is empty
                     if (!empty($cellValue) && empty($cellB) && stripos($cellValue, 'Total') === false) {
@@ -141,10 +146,10 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
                             ],
                             'alignment' => [
                                 'horizontal' => Alignment::HORIZONTAL_LEFT,
-                                'vertical'   => Alignment::VERTICAL_CENTER,
+                                'vertical' => Alignment::VERTICAL_CENTER,
                             ],
                             'fill' => [
-                                'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
                                 'startColor' => ['argb' => 'FFF0F0F0'],
                             ],
                         ]);
@@ -166,19 +171,19 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
                                 'horizontal' => Alignment::HORIZONTAL_RIGHT,
                             ],
                             'fill' => [
-                                'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
                                 'startColor' => ['argb' => 'FFF0F0F0'],
                             ],
                         ]);
                     }
                 }
                 // ===== END BRANCH NAME & TOTAL STYLING =====
-
+    
                 $sigLineRow = $lastDataRow + 2;
                 $sigTextRow = $lastDataRow + 3;
                 $highestIndex = Coordinate::columnIndexFromString($highestColumn);
-                $insetIndex   = max(1, $highestIndex - 1);
-                $insetColumn  = Coordinate::stringFromColumnIndex($insetIndex);
+                $insetIndex = max(1, $highestIndex - 1);
+                $insetColumn = Coordinate::stringFromColumnIndex($insetIndex);
                 $pageCountRow = $lastDataRow + 4;
                 $generatedDate = date('d-M-Y');
 
@@ -196,7 +201,23 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
                 $sheet->setCellValue("A{$sigLineRow}", $signatureLine);
                 $sheet->getStyle("A{$sigLineRow}")->getFont()->setBold(true);
                 $sheet->getStyle("A{$sigLineRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_DISTRIBUTED);
+                // ===== ✅ DATE FIX START =====
+                for ($row = 10; $row <= $lastDataRow; $row++) {
+                    $cell = $sheet->getCell('C' . $row);
+                    $value = $cell->getValue();
 
+                    if (!empty($value) && !is_numeric($value)) {
+                        try {
+                            $excelDate = Date::stringToExcel($value);
+                            $cell->setValue($excelDate);
+                        } catch (\Exception $e) {
+                            // skip invalid
+                        }
+                    }
+                }
+                $sheet->getStyle("C10:C{$lastDataRow}")
+                    ->getNumberFormat()
+                    ->setFormatCode('dd mmm yyyy'); // ✅ correct
                 // Heading row style
                 $highestColumnLetter = $sheet->getHighestColumn();
                 $sheet->getStyle('A1')->applyFromArray([
@@ -215,16 +236,16 @@ class StudentFeeReceiptDetailExport implements FromView, WithEvents
                     ],
                     'alignment' => [
                         'horizontal' => Alignment::HORIZONTAL_CENTER,
-                        'vertical'   => Alignment::VERTICAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER,
                     ],
                     'borders' => [
                         'allBorders' => [
                             'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                            'color'       => ['argb' => 'FF000000'],
+                            'color' => ['argb' => 'FF000000'],
                         ],
                     ],
                     'fill' => [
-                        'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
                         'startColor' => ['argb' => 'FFBFBFBF'],
                     ],
                 ]);

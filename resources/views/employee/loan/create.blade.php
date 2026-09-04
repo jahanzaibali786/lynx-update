@@ -1,7 +1,79 @@
 <script>
     //
     $(document).ready(function() {
-        $('#employee_id').change(function() {
+        var latestGeneratedSalaryMonth = '';
+        var latestGeneratedSalaryText = '';
+        var employeeSecurityAmount = 0;
+
+        function addMonthsToMonthValue(value, months) {
+            var date = monthValueToDate(value);
+            if (!date) {
+                return '';
+            }
+            date.setMonth(date.getMonth() + months);
+            return formatMonthValue(date);
+        }
+
+        function getMinimumFromPayMonth() {
+            var todayMonth = formatMonthValue(new Date());
+            var salaryNextMonth = latestGeneratedSalaryMonth ? addMonthsToMonthValue(latestGeneratedSalaryMonth, 1) : '';
+
+            return salaryNextMonth || todayMonth;
+        }
+
+        function updateFromPayMonthMin() {
+            var minMonth = getMinimumFromPayMonth();
+            $('#from_pay_month').attr('min', minMonth);
+
+            if ($('#from_pay_month').val() && $('#from_pay_month').val() < minMonth) {
+                $('#from_pay_month').val(minMonth);
+            }
+        }
+
+        function validateFromPayMonth(showMessage) {
+            var fromPayMonth = $('#from_pay_month').val();
+            var minMonth = getMinimumFromPayMonth();
+            var message = '';
+
+            if (fromPayMonth && fromPayMonth < minMonth) {
+                message = latestGeneratedSalaryMonth
+                    ? 'From paid month salary already generated. Please select next month.'
+                    : 'Please select current month or a future month.';
+
+                if (latestGeneratedSalaryText) {
+                    message += ' Last salary: ' + latestGeneratedSalaryText + '.';
+                }
+            }
+
+            $('#from_pay_month_error').text(message);
+
+            if (message) {
+                $('#submit_btn').prop('disabled', true);
+                if (showMessage) {
+                    show_toastr('error', message, 'error');
+                }
+                return false;
+            }
+
+            if (!$('#loan_error').text()) {
+                $('#submit_btn').prop('disabled', false);
+            }
+            return true;
+        }
+
+        function updateMaxAmountByLoanType() {
+            if ($('#total_sec').val() == 'security' && employeeSecurityAmount > 0) {
+                $('#max_amount').val(employeeSecurityAmount / 2);
+                $('#actual_security_amount_text').text('(' + employeeSecurityAmount + ')');
+            } else {
+                $('#max_amount').val('');
+                $('#actual_security_amount_text').text('');
+            }
+        }
+        window.validateLoanCreateFromPayMonth = validateFromPayMonth;
+        window.getLoanCreateMinimumFromPayMonth = getMinimumFromPayMonth;
+
+        $('#loan_create_employee_id').change(function() {
             var employeeId = $(this).val();
             if (employeeId) {
                 $.ajax({
@@ -14,8 +86,15 @@
                             $('#service_tenure').val(response.service_tenure);
                             $('#department').val(response.emp_department);
                             // $('#total_sec').val(response.total_sec);
-                            $('#max_amount').val((response.total_sec) / 2);
+                            employeeSecurityAmount = parseFloat(response.total_sec) || 0;
+                            updateMaxAmountByLoanType();
+                            latestGeneratedSalaryMonth = response.latest_salary_month || '';
+                            latestGeneratedSalaryText = response.latest_salary_text || '';
+                            updateFromPayMonthMin();
+                            var isFromPayMonthValid = validateFromPayMonth(false);
                             if (isNaN(response.total_sec) || response.total_sec <= 0) {
+                                $('#submit_btn').prop('disabled', true);
+                            } else if (!isFromPayMonthValid) {
                                 $('#submit_btn').prop('disabled', true);
                             } else {
                                 $('#submit_btn').prop('disabled', false);
@@ -23,98 +102,192 @@
                         } else {
                             $('#service_tenure').val('0');
                             // $('#total_sec').val('0');
+                            employeeSecurityAmount = 0;
+                            $('#max_amount').val('');
+                            $('#actual_security_amount_text').text('');
+                            latestGeneratedSalaryMonth = '';
+                            latestGeneratedSalaryText = '';
+                            updateFromPayMonthMin();
                             $('#submit_btn').prop('disabled', true);
                         }
                     },
                     error: function() {
                         $('#service_tenure').val('');
                         // $('#total_sec').val('');
+                        employeeSecurityAmount = 0;
+                        $('#max_amount').val('');
+                        $('#actual_security_amount_text').text('');
+                        latestGeneratedSalaryMonth = '';
+                        latestGeneratedSalaryText = '';
+                        updateFromPayMonthMin();
                         $('#submit_btn').prop('disabled', true);
                     }
                 });
             } else {
                 $('#service_tenure').val('');
                 // $('#total_sec').val('');
+                employeeSecurityAmount = 0;
+                $('#max_amount').val('');
+                $('#actual_security_amount_text').text('');
+                latestGeneratedSalaryMonth = '';
+                latestGeneratedSalaryText = '';
+                updateFromPayMonthMin();
                 $('#submit_btn').prop('disabled', true);
             }
         });
 
-        $('#loan_amount').on('input', function() {
+       $('#loan_amount').on('input', function () {
+
             var loanAmount = parseFloat($(this).val());
             var totalSecurity = parseFloat($('#max_amount').val());
             var selectedType = $('#total_sec').val();
+
             if (selectedType == 'security') {
+
                 if (isNaN(totalSecurity) || totalSecurity <= 0) {
+
                     $('#loan_error').text('(Security amount must be greater than 0 to take a loan.)');
                     $('#submit_btn').prop('disabled', true);
-                } else if (max_amount) {
+
+                } else if (loanAmount > totalSecurity) {
+
                     $('#loan_error').text('(Loan amount cannot exceed ' + totalSecurity + ')');
                     $('#submit_btn').prop('disabled', true);
+
                 } else {
+
                     $('#loan_error').text('');
-                    $('#submit_btn').prop('disabled', false);
+                    $('#submit_btn').prop('disabled', !validateFromPayMonth(false));
                 }
+
             } else {
+
                 $('#loan_error').text('');
-                $('#submit_btn').prop('disabled', false);
+                $('#submit_btn').prop('disabled', !validateFromPayMonth(false));
             }
+            calculatePerMonth();
         });
 
         $('#total_sec').on('change', function() {
             var selectedType = $(this).val();
-            if (selectedType !== 'security') {
+            updateMaxAmountByLoanType();
+            if (selectedType != 'security') {
                 $('#loan_amount').val('');
                 $('#loan_error').text('');
-                $('#submit_btn').prop('disabled', false);
+                $('#submit_btn').prop('disabled', !validateFromPayMonth(false));
+            }
+            $('#loan_amount').trigger('input');
+        });
+
+        $('#from_pay_month').on('change', function() {
+            validateFromPayMonth(true);
+        });
+
+        $('#loan_create_form').on('submit', function(event) {
+            if (!validateFromPayMonth(true)) {
+                event.preventDefault();
             }
         });
 
     });
+    function calculatePerMonth() {
+
+        var loanAmount = parseFloat($('#loan_amount').val());
+        var payPeriod = parseInt($('#pay_date').val());
+
+        // Validate
+        if (
+            isNaN(loanAmount) ||
+            isNaN(payPeriod) ||
+            payPeriod <= 0
+        ) {
+
+            $('#permonth').val('');
+
+            return;
+        }
+
+        // Calculate installment per month
+        var perMonth = Math.round(loanAmount / payPeriod);
+
+        // Set value with 2 decimal
+        $('#permonth').val(perMonth.toFixed(2));
+    }
     ///
+    function formatMonthValue(date) {
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        return date.getFullYear() + '-' + month;
+    }
+
+    function monthValueToDate(value) {
+        return value ? new Date(value + '-01T00:00:00') : null;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
-        var today = new Date().toISOString().split('T')[0];
-        document.getElementById('from_pay_month').setAttribute('min', today);
+        document.getElementById('from_pay_month').setAttribute('min', formatMonthValue(new Date()));
     });
 
     document.getElementById('pay_date').addEventListener('keyup', function() {
         updateProbationEndDate();
+        calculatePerMonth();
     });
     document.getElementById('pay_date').addEventListener('change', function() {
         updateProbationEndDate();
+        calculatePerMonth();
     });
 
     document.getElementById('from_pay_month').addEventListener('change', function() {
-        var selectedDate = new Date(this.value);
-        var today = new Date();
+        var selectedDate = monthValueToDate(this.value);
+        var minimumMonth = typeof window.getLoanCreateMinimumFromPayMonth === 'function'
+            ? window.getLoanCreateMinimumFromPayMonth()
+            : formatMonthValue(new Date());
+        var minimumDate = monthValueToDate(minimumMonth);
 
-        if (selectedDate < today) {
-            alert('Please select today or a future date.');
-            this.value = today.toISOString().split('T')[0];
+        if (selectedDate < minimumDate) {
+            alert('From paid month salary already generated. Please select next month.');
+            this.value = minimumMonth;
+        }
+
+        if (typeof window.validateLoanCreateFromPayMonth === 'function') {
+            window.validateLoanCreateFromPayMonth(true);
         }
 
         updateProbationEndDate();
+        calculatePerMonth();
     });
+    //  create function to calculate probation end date based on pay period and from pay month
 
     function updateProbationEndDate() {
-        var p_id = parseInt($('#pay_date').val());
-        var currentDate = new Date($('#from_pay_month').val());
 
-        if (!isNaN(currentDate.getTime())) {
-            if (isNaN(p_id)) {
-                var formattedDate = currentDate.toISOString().slice(0, 10);
-                document.getElementById('loan_ended').value = formattedDate;
+        var p_id = parseInt($('#pay_date').val());
+        var currentDate = monthValueToDate($('#from_pay_month').val());
+
+        if (currentDate && !isNaN(currentDate.getTime())) {
+
+            if (isNaN(p_id) || p_id <= 0) {
+
+                var formattedDate = formatMonthValue(currentDate);
+                $('#loan_ended').val(formattedDate);
+
             } else {
-                var futureDate = new Date(currentDate.setMonth(currentDate.getMonth() + p_id));
-                var formattedDate = futureDate.toISOString().slice(0, 10);
-                document.getElementById('loan_ended').value = formattedDate;
+
+                var futureDate = new Date(currentDate);
+
+                // subtract 1 because current month is first installment
+                futureDate.setMonth(futureDate.getMonth() + (p_id - 1));
+
+                var formattedDate = formatMonthValue(futureDate);
+
+                $('#loan_ended').val(formattedDate);
             }
         }
     }
 </script>
 <script>
-    function branchemployees(id) {
+    function loanCreateBranchEmployees(id) {
         // remember previous selection so we can restore if still available
-        var prevVal = $('#employee_id').val();
+        var $empSelect = $('#loan_create_employee_id');
+        var prevVal = $empSelect.val();
 
         function isResigned(emp) {
             if (!emp) return false;
@@ -150,8 +323,6 @@
             dataType: 'json',
             success: function(result) {
                 if (result.status === 'success') {
-                    var $empSelect = $('#employee_id');
-
                     // destroy previous custom-select instance if present
                     if ($empSelect[0] && $empSelect[0].customSelectInstance) {
                         try {
@@ -217,18 +388,18 @@
         });
     }
 </script>
-{{ Form::open(['url' => 'loan', 'method' => 'post']) }}
+{{ Form::open(['url' => 'loan', 'method' => 'post', 'id' => 'loan_create_form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-md-6">
             {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-            {{ Form::select('branches', $branches, null, ['class' => 'form-control select', 'onchange' => 'branchemployees(this.value)']) }}
+            {{ Form::select('branches', $branches, null, ['class' => 'form-control select', 'onchange' => 'loanCreateBranchEmployees(this.value)', 'id' => 'loan_create_branch_id']) }}
         </div>
         @if (\Auth::user()->type != 'Employee')
             <div class="form-group col-md-6">
                 {{ Form::label('employee_id', __('Employee'), ['class' => 'form-label']) }}<span style="color: red">
                     *</span>
-                {{ Form::select('employee_id', $employee, null, ['class' => 'form-control select custom-select', 'required' => 'required', 'id' => 'employee_id']) }}
+                {{ Form::select('employee_id', $employee, null, ['class' => 'form-control select custom-select', 'required' => 'required', 'id' => 'loan_create_employee_id']) }}
             </div>
         @endif
         <div class="form-group col-md-4">
@@ -268,18 +439,18 @@
         <div class="form-group col-md-3">
             {{ Form::label('amount', __('Loan Amount'), ['class' => 'form-label amount_label']) }}<span
                 class="text-danger" id="loan_error"></span>
-            {{ Form::number('amount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '0.01', 'id' => 'loan_amount']) }}
+            {{ Form::number('amount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '1', 'id' => 'loan_amount']) }}
         </div>
         <div class="form-group col-md-3">
-            {{ Form::label('maxamount', __('Max Amount'), ['class' => 'form-label amount_label']) }}<span
-                class="text-danger" id="loan_error"></span>
-            {{ Form::number('maxamount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '0.01', 'id' => 'max_amount', 'readonly' => 'readonly']) }}
+            <label for="max_amount" class="form-label amount_label">{{ __('Max Amount') }} <span id="actual_security_amount_text"></span></label>
+            {{ Form::number('maxamount', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '1', 'id' => 'max_amount', 'readonly' => 'readonly']) }}
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-3">
             {{ Form::label('from_pay_month', __('From Pay Month'), ['class' => 'form-label']) }}
-            {{ Form::date('from_pay_month', null, ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::month('from_pay_month', null, ['class' => 'form-control', 'required' => 'required']) }}
+            <span class="text-danger" id="from_pay_month_error"></span>
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-3">
             {!! Form::label('pay_period', __('Pay Months'), ['class' => 'form-label']) !!}
             {!! Form::number('pay_period', 1, [
                 'class' => 'form-control',
@@ -288,9 +459,14 @@
                 'min' => '1',
             ]) !!}
         </div>
-        <div class="form-group col-md-4">
-            {{ Form::label('loan_ended', __('Till Month'), ['class' => 'form-label']) }}
-            {{ Form::date('loan_ended', null, ['class' => 'form-control', 'id' => 'loan_ended', 'readonly' => 'readonly']) }}
+        <div class="form-group col-md-3">
+            {{ Form::label('loan_ended', __('To Month'), ['class' => 'form-label']) }}
+            {{ Form::month('loan_ended', null, ['class' => 'form-control', 'id' => 'loan_ended', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-3">
+            {{ Form::label('permonth', __('Installment Per Month'), ['class' => 'form-label amount_label']) }}<span
+                class="text-danger" id="loan_error"></span>
+            {{ Form::number('permonth', null, ['class' => 'form-control ', 'required' => 'required', 'step' => '1', 'id' => 'permonth', 'readonly' => 'readonly']) }}
         </div>
         <div class="col-md-12">
             <div class="form-group">

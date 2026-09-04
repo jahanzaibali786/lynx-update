@@ -509,6 +509,7 @@ class InvoiceController extends Controller
     }
 
 
+    
     public function create($customerId)
     {
         if (\Auth::user()->can('create invoice')) {
@@ -548,6 +549,9 @@ class InvoiceController extends Controller
             // $product_services = Space::where('created_by', \Auth::user()->creatorId())->where('meeting','yes')->get()->pluck('name', 'id');
             $product_services->prepend("Select item", '');
 
+            if (request()->ajax()) {
+                return view('invoice.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'customFields'))->renderSections()['content'] ?? '';
+            }
             return view('invoice.create', compact('invoice_number', 'product_services', 'store_from', 'store_to', 'customFields'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
@@ -571,6 +575,10 @@ class InvoiceController extends Controller
         $quantity = 1;
         $taxPrice = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
+// Add stock quantities for all three types
+        $data['stock_new'] = $product->quantity ?? 0;
+        $data['stock_used'] = $product->used_quantity ?? 0;
+        $data['stock_damaged'] = $product->damaged_quantity ?? 0;
 
         return json_encode($data);
     }
@@ -597,6 +605,9 @@ class InvoiceController extends Controller
 
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
+                    if ($request->ajax()) {
+                        return response()->json(['success' => false, 'message' => $messages->first()]);
+                    }
                     return redirect()->back()->with('error', $messages->first());
                 }
 
@@ -629,47 +640,53 @@ class InvoiceController extends Controller
                     $invoiceProduct->discount = $products[$i]['discount'] ?? 0;
                     $invoiceProduct->price = $products[$i]['price'];
                     // $invoiceProduct->description = $products[$i]['description'];
-                    $invoiceProduct->type = $products[$i]['type'] ?? 0;
+                    $invoiceProduct->type = $products[$i]['type'] ?? 'new';
                     $invoiceProduct->save();
 
-                    $newitems[$i]['prod_id'] = $invoiceProduct->id;
-                    Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $products[$i]['item'], $products[$i]['quantity']);
-                    $description = $products[$i]['quantity'] . '  ' . __(' quantity sold in invoice') . ' ' . \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
-                    Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], 'invoice', $description, $invoice->id);
-                }
-                // $data['id'] =$invoice->id;
-                // $data['date'] =$invoice->issue_date;
-                // $data['reference'] =$invoice->ref_number;
-                // $data['category'] = 'Invoice';
-                // $data['owned_by'] =$invoice->owned_by;
-                // $data['created_by'] =$invoice->created_by;
-                // $data['items'] =$request->items;
-                // $dataret  = Utility::jrentry($data);
+                    // Deduct stock based on type
+                    $product = ProductService::find($products[$i]['item']);
+                    if ($product) {
+                        $type = $products[$i]['type'] ?? 'new';
+                        $qty = $products[$i]['quantity'];
 
-                $data['id'] = $invoice->id;
-                $data['no'] = $invoice->invoice_id;
-                $data['date'] = $invoice->issue_date;
-                $data['reference'] = $invoice->ref_number;
-                $data['category'] = 'Invoice';
-                $data['owned_by'] = $invoice->owned_by;
-                $data['created_by'] = $invoice->created_by;
-                $data['from_store'] = $invoice->from_store;
-                $data['to_store'] = $invoice->to_store;
-                $data['items'] = $newitems;
-                $dataret = Utility::invoicejv($data);
+                        switch($type) {
+                            case 'new':
+                                $product->quantity = max(0, ($product->quantity ?? 0) - $qty);
+                                break;
+                            case 'use':
+                                $product->used_quantity = max(0, ($product->used_quantity ?? 0) - $qty);
+                                break;
+                            case 'damage':
+                                $product->damaged_quantity = max(0, ($product->damaged_quantity ?? 0) - $qty);
+                                break;
+                        }
+                        $product->save();
+                    }
+
+                    $newitems[$i]['prod_id'] = $invoiceProduct->id;
+                }
                 DB::commit();
                 //webhook
                 $module = 'New Invoice';
                 $webhook = Utility::webhookSetting($module);
 
                 DB::commit();
+                if ($request->ajax()) {
+                    return response()->json(['success' => true, 'message' => __('Invoice successfully created.')]);
+                }
                 return redirect()->route('invoice.index', $invoice->id)->with('success', __('Invoice successfully created.'));
             } catch (\Exception $e) {
                 DB::rollback();
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage()]);
+                }
                 dd($e);
                 return redirect()->back()->with('error', 'Something went wrong !');
             }
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
@@ -718,6 +735,9 @@ class InvoiceController extends Controller
             // $cust = Customer::find($invoice->customer_id);
             // $cont = Contract::where('company_id', $cust->company_id)->get();
 
+            if (request()->ajax()) {
+                return view('invoice.edit', compact('product_services', 'invoice', 'invoice_number', 'store_from', 'store_to', 'customFields'))->renderSections()['content'] ?? '';
+            }
             return view('invoice.edit', compact('product_services', 'invoice', 'invoice_number', 'store_from', 'store_to', 'customFields'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
@@ -741,6 +761,9 @@ class InvoiceController extends Controller
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
 
+                    if ($request->ajax()) {
+                        return response()->json(['success' => false, 'message' => $messages->first()]);
+                    }
                     return redirect()->route('invoice.index')->with('error', $messages->first());
                 }
 
@@ -755,10 +778,15 @@ class InvoiceController extends Controller
                 // Utility::starting_number( $invoice->invoice_id + 1, 'invoice');
                 CustomField::saveData($invoice, $request->customField);
                 $products = $request->items;
+                // Track existing items to detect removals
+                $existingIds = InvoiceProduct::where('invoice_id', $invoice->id)->pluck('id')->toArray();
+                $submittedIds = [];
                 $data = [];
                 $newitems = $request->items;
                 for ($i = 0; $i < count($products); $i++) {
                     $invoiceProduct = InvoiceProduct::find($products[$i]['id']);
+                    $oldQuantity = 0;
+                    $oldType = 'new';
 
                     if ($invoiceProduct == null) {
                         $invoiceProduct = new InvoiceProduct();
@@ -768,6 +796,27 @@ class InvoiceController extends Controller
 
                         $updatePrice = ($products[$i]['price'] * $products[$i]['quantity']) + ($products[$i]['itemTaxPrice']);
                     } else {
+                        // Store old values to restore stock
+                        $oldQuantity = $invoiceProduct->quantity;
+                        $oldType = $invoiceProduct->type ?? 'new';
+
+                        // Restore old stock
+                        $product = ProductService::find($invoiceProduct->product_id);
+                        if ($product) {
+                            switch($oldType) {
+                                case 'new':
+                                    $product->quantity = ($product->quantity ?? 0) + $oldQuantity;
+                                    break;
+                                case 'use':
+                                    $product->used_quantity = ($product->used_quantity ?? 0) + $oldQuantity;
+                                    break;
+                                case 'damage':
+                                    $product->damaged_quantity = ($product->damaged_quantity ?? 0) + $oldQuantity;
+                                    break;
+                            }
+                            $product->save();
+                        }
+
                         Utility::total_quantity('plus', $invoiceProduct->quantity, $invoiceProduct->product_id);
                     }
 
@@ -780,7 +829,29 @@ class InvoiceController extends Controller
                     $invoiceProduct->tax = $products[$i]['tax'];
                     //                    $invoiceProduct->discount    = isset($products[$i]['discount']) ? $products[$i]['discount'] : 0;
                     $invoiceProduct->price = $products[$i]['price'];
+                    $invoiceProduct->type = $products[$i]['type'] ?? 'new';
                     $invoiceProduct->save();
+                    $submittedIds[] = $invoiceProduct->id;
+
+                    // Deduct new stock based on type
+                    $product = ProductService::find($products[$i]['item']);
+                    if ($product) {
+                        $type = $products[$i]['type'] ?? 'new';
+                        $qty = $products[$i]['quantity'];
+
+                        switch($type) {
+                            case 'new':
+                                $product->quantity = max(0, ($product->quantity ?? 0) - $qty);
+                                break;
+                            case 'use':
+                                $product->used_quantity = max(0, ($product->used_quantity ?? 0) - $qty);
+                                break;
+                            case 'damage':
+                                $product->damaged_quantity = max(0, ($product->damaged_quantity ?? 0) - $qty);
+                                break;
+                        }
+                        $product->save();
+                    }
 
                     // Utility::total_quantity('plus',$products[$i]['quantity'],$invoiceProduct->product_id);
                     if ($products[$i]['id'] > 0) {
@@ -793,7 +864,7 @@ class InvoiceController extends Controller
                     $type_id = $invoice->id;
                     StockReport::where('type', '=', 'invoice')->where('product_id', $products[$i]['item'])->where('type_id', '=', $invoice->id)->delete();
                     $description = $products[$i]['quantity'] . '  ' . __(' quantity sold in invoice') . ' ' . \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
-                    Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], $type, $description, $type_id);
+                    // Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], $type, $description, $type_id);
 
                     Utility::warehouse_transfer_qty($request->store_from, $request->store_to, $products[$i]['item'], $products[$i]['quantity']);
 
@@ -812,14 +883,25 @@ class InvoiceController extends Controller
                 $data['items'] = $newitems;
 
                 // $dataret = Utility::invoicejv($data);
+                if ($request->ajax()) {
+                    return response()->json(['success' => true, 'message' => __('Invoice successfully updated.')]);
+                }
                 return redirect()->route('invoice.index')->with('success', __('Invoice successfully updated.'));
             } else {
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+                }
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => __('Permission denied.')]);
+            }
             return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
+
+
 
     function invoiceNumber()
     {
@@ -2075,6 +2157,65 @@ class InvoiceController extends Controller
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+    public function draftDemandOrders(\Illuminate\Http\Request $request)
+    {
+        if (!\Auth::user()->can('convert stock transfer order to invoice')) {
+            abort(403, __('Permission denied.'));
+        }
+
+        $storeToId = $request->get('store_to');
+        if (!$storeToId) {
+            $demandOrders = collect();
+        } else {
+            $warehouse = \App\Models\Warehouse::where('created_by', \Auth::user()->creatorId())
+                ->find($storeToId);
+            if ($warehouse && $warehouse->owned_by) {
+                $demandOrders = \App\Models\StockTransferOrder::with('vender')
+                    ->where('created_by', \Auth::user()->creatorId())
+                    ->where('branch_id', $warehouse->owned_by)
+                    ->where('status', 6)
+                    ->where('invoice_converted', 0)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } else {
+                $demandOrders = collect();
+            }
+        }
+        return view('invoice.draft_demand_orders', compact('demandOrders'));
+    }
+
+    public function demandOrderItems($id)
+    {
+        if (!\Auth::user()->can('convert stock transfer order to invoice')) {
+            abort(403, __('Permission denied.'));
+        }
+
+        $demandOrder = \App\Models\StockTransferOrder::with('items.product')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('status', 6)
+            ->where('invoice_converted', 0)
+            ->findOrFail($id);
+        $items = $demandOrder->items->map(function ($item) {
+            $shippedQuantity = (float) ($item->shipped_quantity ?? 0);
+            $remainingQuantity = max(0, (float) $item->quantity - $shippedQuantity);
+
+            if ($remainingQuantity <= 0) {
+                return null;
+            }
+
+            return [
+                'product_id' => $item->product_id,
+                'source_item_id' => $item->id,
+                'quantity' => $remainingQuantity,
+                'ordered_quantity' => (float) $item->quantity,
+                'shipped_quantity' => $shippedQuantity,
+                'price' => $item->price,
+                'description' => $item->description,
+                'type' => 'new',
+            ];
+        })->filter()->values();
+        return response()->json($items);
     }
 
 }

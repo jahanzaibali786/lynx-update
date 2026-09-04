@@ -1,15 +1,6 @@
 <script>
     $(document).ready(function() {
-        $('form').on('submit', function(event) {
-            var branch_from = $('#branch_from').val();
-            var branch_to = $('#branch_to').val();
-           
-            if (branch_from === branch_to) {
-                event.preventDefault();
-                show_toastr('error', 'To transfer, you have to shift branch', 'error');
-                return false;
-            }
-        });
+        // User wants to allow inter-branch transfer, so we do not prevent selecting same branch
     });
     function branchemployees(id) {
     // remember previous selection so we can restore if still available
@@ -102,18 +93,60 @@
             console.error('AJAX error in branchemployees:', err);
         }
     });
-}
+    }
+
+    function getDepartments(id) {
+        $.ajax({
+            url: '{{route('employee.getdepartment')}}',
+            type: 'POST',
+            data: {
+                "branch_id": id,
+                "_token": "{{ csrf_token() }}",
+            },
+            success: function (data) {
+                $('#dec_id').empty();
+                $('#dec_id').append('<option value="">{{__('Select Department')}}</option>');
+                $.each(data, function (key, value) {
+                    $('#dec_id').append('<option value="' + key + '">' + value + '</option>');
+                });
+                $('#desig_id').empty();
+                $('#desig_id').append('<option value="">{{__('Select Designation')}}</option>');
+            }
+        });
+    }
+
+    function getDesignation(id, selectedDesignationId) {
+        $.ajax({
+            url: '{{route('employee.json')}}',
+            type: 'POST',
+            data: {
+                "department_id": id,
+                "_token": "{{ csrf_token() }}",
+            },
+            success: function (data) {
+                $('#desig_id').empty();
+                $('#desig_id').append('<option value="">{{__('Select Designation')}}</option>');
+                $.each(data, function (key, value) {
+                    $('#desig_id').append('<option value="' + key + '">' + value + '</option>');
+                });
+
+                if (selectedDesignationId) {
+                    $('#desig_id').val(String(selectedDesignationId)).trigger('change');
+                }
+            }
+        });
+    }
 </script>
-{{Form::open(array('url'=>'employee-transfer','method'=>'post'))}}
+{{ Form::open(['url' => 'employee-transfer', 'method' => 'post', 'class' => 'employee-transfer-ajax-form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-lg-6 col-md-6">
             {{ Form::label('branch_from_id', __('Branch From'),['class'=>'form-label'])}}
-            {{ Form::select('branch_from_id', $branches, isset($_GET['branch_id']) ? $_GET['branch_id'] : '', ['class' => 'form-control select' ,  'onchange' => 'branchemployees(this.value)','id'=>'branch_from']) }}
+            {{ Form::select('branch_from_id', $from_branches, isset($_GET['branch_id']) ? $_GET['branch_id'] : '', ['class' => 'form-control select' ,  'onchange' => 'branchemployees(this.value)','id'=>'branch_from']) }}
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{ Form::label('branch_to_id', __('Branch To'),['class'=>'form-label'])}}
-            {{ Form::select('branch_to_id', $branches, isset($_GET['branch_id']) ? $_GET['branch_id'] : '', ['class' => 'form-control select' , 'onchange' => 'branchtype(this.value)','id'=>'branch_to']) }}
+            {{ Form::select('branch_to_id', $to_branches, isset($_GET['branch_id']) ? $_GET['branch_id'] : '', ['class' => 'form-control select' , 'onchange' => 'getDepartments(this.value)','id'=>'branch_to']) }}
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{ Form::label('employee_id', __('Employee'),['class'=>'form-label'])}}
@@ -129,7 +162,7 @@
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{Form::label('department_to_id',__('Department To'),['class'=>'form-label'])}}
-            {{Form::select('department_to_id',$departments,null,array('class'=>'form-control select','id'=>'dec_id'))}}
+            {{Form::select('department_to_id',$departments,null,array('class'=>'form-control select','id'=>'dec_id', 'onchange' => 'getDesignation(this.value)'))}}
         </div>
         <div class="form-group col-lg-6 col-md-6">
             {{Form::label('designation_from_id',__('Designation From'),['class'=>'form-label'])}}
@@ -168,4 +201,15 @@
     <input type="submit" value="{{__('Create')}}" class="btn  btn-primary">
 </div>
 
-    {{Form::close()}}
+{{ Form::close() }}
+<script>
+    ajaxModalForm({
+        formSelector: '.employee-transfer-ajax-form',
+        submitText: '{{ __('Creating...') }}',
+        onSuccess: function() {
+            if (typeof window.refreshEmployeeTransferContent === 'function') {
+                window.refreshEmployeeTransferContent();
+            }
+        }
+    });
+</script>

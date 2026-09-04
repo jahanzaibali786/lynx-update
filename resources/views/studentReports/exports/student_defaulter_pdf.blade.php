@@ -72,6 +72,45 @@
 </head>
 
 <body>
+    @php
+        // First pass: compute grand totals per month to skip zero-month columns
+        $computedGrandMonthlyTotals = array_fill(0, count($monthsArray), 0);
+        foreach ($reportData as $data) {
+            foreach ($data['challans'] as $challanGroup) {
+                foreach ($challanGroup as $chall) {
+                    // Match by fee_month's YEAR-MONTH (Admission challans store
+                    // fee_month on the admission day, not the 1st of the month).
+                    $feeTs = @$chall->fee_month ? strtotime($chall->fee_month) : false;
+                    $chFeeYm = $feeTs ? date('Y-m', $feeTs) : null;
+                    $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
+                    foreach ($monthsArray as $l => $monthYear) {
+                        [$month, $year] = explode('-', $monthYear);
+                        if ($chFeeYm !== null && $chFeeYm === "$year-$month") {
+                            $computedGrandMonthlyTotals[$l] += $price;
+                        }
+                    }
+                }
+            }
+        }
+        $filteredMonthsArray = [];
+        foreach ($monthsArray as $l => $monthYear) {
+            if ($computedGrandMonthlyTotals[$l] != 0) {
+                $filteredMonthsArray[] = $monthYear;
+            }
+        }
+        $monthsArray = $filteredMonthsArray;
+        $yearMonthCounts = [];
+        $yearMonths = [];
+        foreach ($monthsArray as $monthYear) {
+            [$month, $year] = explode('-', $monthYear);
+            if (!isset($yearMonthCounts[$year])) { $yearMonthCounts[$year] = 0; }
+            $yearMonthCounts[$year]++;
+            $yearMonths[] = $month;
+        }
+        $i = 1;
+        $grandMonthlyTotals = array_fill(0, count($monthsArray), 0);
+        $grandTotal = 0;
+    @endphp
     <table class="table" style="margin-top: -50px;">
         <thead>
             <tr class="table_heads">
@@ -79,25 +118,11 @@
                 <th rowspan="2">{{ __('B Sr No.') }}</th>
                 <th rowspan="2">{{ __('Roll No') }}</th>
                 <th rowspan="2">{{ __('Student Name') }}</th>
+                <th rowspan="2">{{ __('Admission Date') }}</th>
                 <th rowspan="2">{{ __('Reg Type') }}</th>
                 <th rowspan="2">{{ __('Class') }}</th>
                 <th rowspan="2">{{ __('Phone No') }}</th>
                 <th rowspan="2">{{ __('Arrears') }}</th>
-                @php
-                    // Step 1: Group months by year and count the months for each year
-                    $yearMonthCounts = [];
-                    foreach ($monthsArray as $monthYear) {
-                        [$month, $year] = explode('-', $monthYear);
-                        if (!isset($yearMonthCounts[$year])) {
-                            $yearMonthCounts[$year] = 0;
-                        }
-                        $yearMonthCounts[$year]++;
-                        $yearMonths[] = $month;
-                    }
-                    $i = 1;
-                    $grandMonthlyTotals = array_fill(0, count($monthsArray), 0); // Initialize grand total for each month
-                    $grandTotal = 0; // Initialize overall grand total
-                @endphp
                 @foreach (@$yearMonthCounts as $ak => $year)
                     <th colspan="{{ $year }}" style="text-align: center;">{{ $ak }}</th>
                 @endforeach
@@ -117,74 +142,86 @@
                     @continue
                 @endif
                 <tr style="background:  #a9a9a9;">
-                    <td colspan="{{ count($monthsArray) + 9 }}">{{ $data['branch'] }}</td>
+                    <td colspan="{{ count($monthsArray) + 10 }}">{{ $data['branch'] }}</td>
                 </tr>
                 @php
-                    $branchMonthlyTotals = array_fill(0, count($monthsArray), 0); // Initialize branch total for each month
-                    $branchTotal = 0; // Initialize branch overall total
+                    $branchMonthlyTotals = array_fill(0, count($monthsArray), 0);
+                    $branchTotal = 0;
                     $brsr = 1;
                 @endphp
-                @foreach (@$data['challans'] as $index => $challan)
-                    @foreach (@$challan as $chall)
+                @foreach ($data['challans'] as $index => $challanGroup)
+                    @php
+                        $studentMonthlyTotals = array_fill(0, count($monthsArray), 0);
+                        $studentTotal = 0;
+                        $firstChall = $challanGroup->first();
+                    @endphp
+                    @foreach ($challanGroup as $chall)
                         @php
-                            $studentTotal = 0; // Initialize student total
+                            $feeTs = @$chall->fee_month ? strtotime($chall->fee_month) : false;
+                            $chFeeYm = $feeTs ? date('Y-m', $feeTs) : null;
+                            $price = $chall->total_amount - ($chall->paid_amount + $chall->concession_amount);
                         @endphp
-                        <tr>
-                            <td>{{ $i++ }}</td>
-                            <td>{{ $brsr++ }}</td>
-                            <td>{{ @$chall->student->roll_no }}</td>
-                            <td>{{ @$chall->student->stdname }}</td>
-                            <td>{{ @$chall->student->registeroption->name }}</td>
-                            <td>{{ @$chall->class->name }}</td>
-                            <td>{{ @$chall->student->fatherphone }}</td>
-                            <td>0</td>
-                            @foreach ($monthsArray as $l => $monthYear)
-                                @php
-                                    [$month, $year] = explode('-', $monthYear);
-                                    $formattedDate = date('Y-m-01', strtotime("$year-$month-01"));
-                                    $specificdata = collect($challan)->firstWhere('fee_month', $formattedDate);
-                                    $price = $specificdata
-                                        ? $specificdata->total_amount -
-                                            ($specificdata->paid_amount + $specificdata->concession_amount)
-                                        : 0;
-                                    $studentTotal += $price;
-                                    // dd($branchMonthlyTotals[$loop->parent->iteration]);
-                                    $branchMonthlyTotals[$l] += $price;
-                                    $grandMonthlyTotals[$l] += $price;
-                                @endphp
-                                <td>{{ $price }}</td>
-                            @endforeach
-                            <td>{{ $studentTotal }}</td>
-                        </tr>
-                        @php
-                            $branchTotal += $studentTotal; // Add student total to branch total
-                        @endphp
-                        {{-- @dd($branchMonthlyTotals,$grandMonthlyTotals) --}}
-                    @break
+                        @foreach ($monthsArray as $l => $monthYear)
+                            @php
+                                [$month, $year] = explode('-', $monthYear);
+                                if ($chFeeYm !== null && $chFeeYm === "$year-$month") {
+                                    $studentMonthlyTotals[$l] += $price;
+                                }
+                            @endphp
+                        @endforeach
+                    @endforeach
+                    @php
+                        $studentTotal = array_sum($studentMonthlyTotals);
+                    @endphp
+                    @if ($studentTotal == 0)
+                        @continue
+                    @endif
+                    <tr>
+                        <td>{{ $i++ }}</td>
+                        <td>{{ $brsr++ }}</td>
+                        <td>{{ @$firstChall->student->roll_no }}</td>
+                        <td>{{ @$firstChall->student->stdname }}</td>
+                        <td>{{ @$firstChall->enrollstudent->adm_date ? \Carbon\Carbon::parse($firstChall->enrollstudent->adm_date)->format('d-M-Y') : '-' }}</td>
+                        <td>{{ @$firstChall->student->registeroption->name }}</td>
+                        <td>{{ @$firstChall->class->name }}</td>
+                        <td>{!! str_replace(',', '<br>', @$firstChall->student->fatherphone) !!}</td>
+                        <td>0</td>
+                        @foreach ($studentMonthlyTotals as $price)
+                            <td>{{ $price }}</td>
+                        @endforeach
+                        <td>{{ $studentTotal }}</td>
+                    </tr>
+                    @php
+                        foreach ($studentMonthlyTotals as $l => $price) {
+                            $branchMonthlyTotals[$l] += $price;
+                            $grandMonthlyTotals[$l] += $price;
+                        }
+                        $branchTotal += $studentTotal;
+                    @endphp
                 @endforeach
-                <!-- Branch Total Row -->
+                <tr style="background: #dcdcdc; font-weight: bold;">
+                    <td colspan="9">Branch Total</td>
+                    @foreach ($branchMonthlyTotals as $monthlyTotal)
+                        <td>{{ $monthlyTotal }}</td>
+                    @endforeach
+                    <td>{{ $branchTotal }}</td>
+                </tr>
+                @php
+                    $grandTotal += $branchTotal;
+                @endphp
             @endforeach
-            <tr style="background: #dcdcdc; font-weight: bold;">
-                <td colspan="8">Branch Total</td>
-                @foreach ($branchMonthlyTotals as $monthlyTotal)
-                    <td>{{ $monthlyTotal }}</td>
+            <tr style="background: #cccccc; font-weight: bold;">
+                <td colspan="9">Grand Total</td>
+                @foreach ($grandMonthlyTotals as $grandMonthlyTotal)
+                    <td>{{ $grandMonthlyTotal }}</td>
                 @endforeach
-                <td>{{ $branchTotal }}</td>
+                <td>{{ $grandTotal }}</td>
             </tr>
-
-            @php
-                $grandTotal += $branchTotal; // Add branch total to grand total
-            @endphp
-        @endforeach
-        <tr style="background: #cccccc; font-weight: bold;">
-            <td colspan="8">Grand Total</td>
-            @foreach ($grandMonthlyTotals as $grandMonthlyTotal)
-                <td>{{ $grandMonthlyTotal }}</td>
-            @endforeach
-            <td>{{ $grandTotal }}</td>
-        </tr>
-    </tbody>
-</table>
+        </tbody>
+    </table>
+    <p style="text-align: right; font-size: 9px; font-weight: bold;">
+        Generated on: {{ date('d-M-Y h:i A') }}
+    </p>
 </body>
 
 </html>

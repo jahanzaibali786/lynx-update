@@ -1,4 +1,4 @@
-{{ Form::open(['url' => 'employee_scale', 'method' => 'post', 'id' => 'employeeScaleForm']) }}
+{{ Form::open(['url' => 'employee_scale', 'method' => 'post', 'id' => 'employeeScaleForm', 'class' => 'employee-scale-ajax-form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="col-md-6">
@@ -50,8 +50,8 @@
     <a class="btn mx-1 btn-sm btn-outline-light" href="{{route('employee_scale.index')}}">
         <span class="btn-inner--icon">Cancel</span>
     </a>
-    <a class="btn mx-1 btn-sm btn-outline-primary" onclick="submitscale()">
+    <button type="submit" class="btn mx-1 btn-sm btn-outline-primary">
         <span class="btn-inner--icon">Create</span>
-    </a>
+    </button>
 </div>
 {{ Form::close() }}

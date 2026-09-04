@@ -1,7 +1,7 @@
 /**
  * CustomSelect - A searchable select dropdown component
  * Usage: Add class 'custom-select' to any select element
- * Version: 1.1.0
+ * Version: 1.2.0
  */
 
 (function () {
@@ -123,6 +123,41 @@
         .custom-select-wrapper.disabled .custom-select-arrow {
             border-top-color: var(--primary);
         }
+
+        /* Multi-select specific styles */
+        .custom-select-wrapper.is-multiple .custom-select-display {
+            height: auto;
+            min-height: 38px;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 6px 30px 6px 8px;
+        }
+
+        .custom-select-multi-tag {
+            display: inline-flex;
+            align-items: center;
+            background: #e9ecef;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+            color: #333;
+        }
+
+        .custom-select-multi-tag .custom-select-multi-remove {
+            margin-left: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+        }
+
+        .custom-select-multi-tag .custom-select-multi-remove:hover {
+            color: #000;
+        }
+
+        .custom-select-multi-placeholder {
+            color: #999;
+            font-size: 14px;
+        }
     `;
 
     function injectCSS() {
@@ -136,7 +171,6 @@
 
     // Helper function to find the nearest label for a select element
     function findNearestLabel(selectElement) {
-        // First check if the select has an id and if there's a label with matching 'for' attribute
         if (selectElement.id) {
             const labelForSelect = document.querySelector(`label[for="${selectElement.id}"]`);
             if (labelForSelect) {
@@ -144,32 +178,26 @@
             }
         }
 
-        // Check if select is inside a label
         let parent = selectElement.parentElement;
         while (parent) {
             if (parent.tagName === 'LABEL') {
                 return parent.textContent.trim();
             }
 
-            // Look for a label in the same parent container (common pattern in forms)
             if (parent.querySelector('label')) {
                 const labels = parent.querySelectorAll('label');
-                // Get the first label in the same container
                 if (labels.length > 0) {
                     return labels[0].textContent.trim();
                 }
             }
 
-            // Move up the DOM tree
             parent = parent.parentElement;
 
-            // Limit how far we look up (e.g., stop at form level)
-            if (parent && (parent.tagName === 'FORM' || parent.tagName === 'BODY')) {
+            if (parent && (parent.tagName === 'TR' || parent.tagName === 'TABLE' || parent.tagName === 'FORM' || parent.tagName === 'BODY')) {
                 break;
             }
         }
 
-        // If no label found, return null
         return null;
     }
 
@@ -181,12 +209,16 @@
             this.filteredOptions = [];
             this.selectedValue = '';
             this.selectedText = '';
+            this.selectedValues = [];
             this.isOpen = false;
+            this.isMultiple = false;
 
             this.init();
         }
 
         init() {
+            this.isMultiple = this.originalSelect.hasAttribute('multiple');
+
             // Hide original select
             this.originalSelect.style.display = 'none';
 
@@ -208,7 +240,7 @@
             const selectOptions = this.originalSelect.querySelectorAll('option');
 
             selectOptions.forEach(option => {
-                if (option.value !== '') { // Skip empty placeholder options
+                if (option.value !== '' || option.textContent.trim() !== '') {
                     this.options.push({
                         value: option.value,
                         text: option.textContent.trim(),
@@ -224,6 +256,9 @@
             // Create wrapper
             this.wrapper = document.createElement('div');
             this.wrapper.className = 'custom-select-wrapper';
+            if (this.isMultiple) {
+                this.wrapper.classList.add('is-multiple');
+            }
 
             if (this.originalSelect.disabled) {
                 this.wrapper.classList.add('disabled');
@@ -235,15 +270,12 @@
 
             this.displayText = document.createElement('span');
 
-            // Get placeholder text - look for label first
-            let placeholderText = 'Select .....';
-            const labelText = findNearestLabel(this.originalSelect);
-
-            if (labelText) {
-                placeholderText = `Select ${labelText}`;
-            } else if (this.originalSelect.getAttribute('placeholder')) {
-                // Fallback to explicitly set placeholder
-                placeholderText = this.originalSelect.getAttribute('placeholder');
+            let placeholderText = this.originalSelect.getAttribute('placeholder') || 'Select .....';
+            if (!this.originalSelect.getAttribute('placeholder')) {
+                const labelText = findNearestLabel(this.originalSelect);
+                if (labelText) {
+                    placeholderText = `Select ${labelText}`;
+                }
             }
 
             this.displayText.textContent = placeholderText;
@@ -282,12 +314,60 @@
         }
 
         setInitialValue() {
-            const selectedOption = this.options.find(opt => opt.selected);
-            if (selectedOption) {
-                this.selectedValue = selectedOption.value;
-                this.selectedText = selectedOption.text;
-                this.displayText.textContent = selectedOption.text;
+            if (this.isMultiple) {
+                this.selectedValues = [];
+                const selectedOptions = this.originalSelect.querySelectorAll('option:checked');
+                selectedOptions.forEach(option => {
+                    this.selectedValues.push({
+                        value: option.value,
+                        text: option.textContent.trim()
+                    });
+                });
+                this.updateMultiDisplay();
+            } else {
+                const selectedOption = this.options.find(opt => opt.selected);
+                if (selectedOption) {
+                    this.selectedValue = selectedOption.value;
+                    this.selectedText = selectedOption.text;
+                    this.displayText.textContent = selectedOption.text;
+                }
             }
+        }
+
+        updateMultiDisplay() {
+            this.displayText.innerHTML = '';
+
+            if (this.selectedValues.length === 0) {
+                const placeholder = document.createElement('span');
+                placeholder.className = 'custom-select-multi-placeholder';
+                let placeholderText = this.originalSelect.getAttribute('placeholder') || 'Select .....';
+                if (!this.originalSelect.getAttribute('placeholder')) {
+                    const labelText = findNearestLabel(this.originalSelect);
+                    if (labelText) {
+                        placeholderText = `Select ${labelText}`;
+                    }
+                }
+                placeholder.textContent = placeholderText;
+                this.displayText.appendChild(placeholder);
+                return;
+            }
+
+            this.selectedValues.forEach(selected => {
+                const tag = document.createElement('span');
+                tag.className = 'custom-select-multi-tag';
+                tag.textContent = selected.text;
+
+                const removeBtn = document.createElement('span');
+                removeBtn.className = 'custom-select-multi-remove';
+                removeBtn.textContent = '×';
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.deselectValue(selected.value);
+                });
+
+                tag.appendChild(removeBtn);
+                this.displayText.appendChild(tag);
+            });
         }
 
         renderOptions() {
@@ -307,16 +387,68 @@
                 optionElement.textContent = option.text;
                 optionElement.dataset.value = option.value;
 
-                if (option.value === this.selectedValue) {
-                    optionElement.classList.add('selected');
+                if (this.isMultiple) {
+                    const isSelected = this.selectedValues.some(v => v.value === option.value);
+                    if (isSelected) {
+                        optionElement.classList.add('selected');
+                    }
+                } else {
+                    if (option.value === this.selectedValue) {
+                        optionElement.classList.add('selected');
+                    }
                 }
 
-                optionElement.addEventListener('click', () => {
-                    this.selectOption(option);
+                optionElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (this.isMultiple) {
+                        this.toggleOption(option);
+                    } else {
+                        this.selectOption(option);
+                    }
                 });
 
                 this.optionsContainer.appendChild(optionElement);
             });
+        }
+
+        toggleOption(option) {
+            const index = this.selectedValues.findIndex(v => v.value === option.value);
+            if (index > -1) {
+                this.selectedValues.splice(index, 1);
+            } else {
+                this.selectedValues.push({
+                    value: option.value,
+                    text: option.text
+                });
+            }
+
+            this.updateOriginalSelect();
+            this.updateMultiDisplay();
+            this.renderOptions();
+
+            // Trigger change event
+            const changeEvent = new Event('change', { bubbles: true });
+            this.originalSelect.dispatchEvent(changeEvent);
+        }
+
+        deselectValue(value) {
+            this.selectedValues = this.selectedValues.filter(v => v.value !== value);
+            this.updateOriginalSelect();
+            this.updateMultiDisplay();
+            this.renderOptions();
+
+            const changeEvent = new Event('change', { bubbles: true });
+            this.originalSelect.dispatchEvent(changeEvent);
+        }
+
+        updateOriginalSelect() {
+            if (this.isMultiple) {
+                const optionElements = this.originalSelect.querySelectorAll('option');
+                optionElements.forEach(option => {
+                    const isSelected = this.selectedValues.some(v => v.value === option.value);
+                    option.selected = isSelected;
+                });
+            }
         }
 
         bindEvents() {
@@ -337,6 +469,11 @@
                 e.stopPropagation();
             });
 
+            // Prevent dropdown close when clicking options
+            this.optionsContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
             // Close dropdown when clicking outside
             document.addEventListener('click', (e) => {
                 if (!this.wrapper.contains(e.target)) {
@@ -348,18 +485,6 @@
             this.searchInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     this.close();
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const firstOption = this.filteredOptions[0];
-                    if (firstOption) {
-                        this.selectOption(firstOption);
-                    }
-                } else if (e.key === 'Tab') {
-                    e.preventDefault();
-                    const firstOption = this.filteredOptions[0];
-                    if (firstOption) {
-                        this.selectOption(firstOption);
-                    }
                 }
             });
         }
@@ -433,9 +558,23 @@
 
         // Public method to set value
         setValue(value) {
-            const option = this.options.find(opt => opt.value === value);
-            if (option) {
-                this.selectOption(option);
+            if (this.isMultiple) {
+                if (Array.isArray(value)) {
+                    this.selectedValues = value.map(v => ({
+                        value: String(v.value),
+                        text: v.text
+                    }));
+                    this.updateOriginalSelect();
+                    this.updateMultiDisplay();
+                    this.renderOptions();
+                }
+            } else {
+                const option = this.options.find(opt => String(opt.value) === String(value));
+                if (option) {
+                    this.selectOption(option);
+                } else {
+                    console.warn("Value not found:", value, this.options);
+                }
             }
         }
 
@@ -461,14 +600,12 @@
         const observer = new MutationObserver(function (mutations) {
             mutations.forEach(function (mutation) {
                 mutation.addedNodes.forEach(function (node) {
-                    if (node.nodeType === 1) { // Element node
-                        // Check if the added node itself is a select with custom-select class
+                    if (node.nodeType === 1) {
                         if (node.matches && node.matches('select.custom-select')) {
                             if (!node.customSelectInstance) {
                                 node.customSelectInstance = new CustomSelect(node);
                             }
                         }
-                        // Check for select elements within the added node
                         const selectsInNode = node.querySelectorAll && node.querySelectorAll('select.custom-select');
                         if (selectsInNode && selectsInNode.length > 0) {
                             selectsInNode.forEach(select => {
@@ -482,7 +619,6 @@
             });
         });
 
-        // Start observing
         observer.observe(document.body, {
             childList: true,
             subtree: true
@@ -505,7 +641,11 @@
     // Expose global functions
     window.CustomSelect = {
         init: initCustomSelects,
-        create: (selectElement) => new CustomSelect(selectElement),
+        create: (selectElement) => {
+            const instance = new CustomSelect(selectElement);
+            selectElement.customSelectInstance = instance;
+            return instance;
+        },
         initContainer: (container) => initCustomSelects(container)
     };
 })();

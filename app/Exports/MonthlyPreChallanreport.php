@@ -8,9 +8,11 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
-use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 class MonthlyPreChallanreport implements FromView, WithEvents
 {
@@ -21,171 +23,320 @@ class MonthlyPreChallanreport implements FromView, WithEvents
     protected $heads;
     protected $month;
     protected $params;
+    protected $dateInput;
+    protected $averageTuitionFee;
 
-    public function __construct($branches, $classes, $students, $report, $heads, $month, $dateInput, $params)
+    public function __construct($branches, $classes, $students, $report, $heads, $month, $dateInput, $params, $averageTuitionFee)
     {
-        $this->branches = $branches;
-        $this->classes = $classes;
-        $this->students = $students;
-        $this->report = $report;
-        $this->heads = $heads;
-        $this->month = $month;
+        $this->branches  = $branches;
+        $this->classes   = $classes;
+        $this->students  = $students;
+        $this->report    = $report;
+        $this->heads     = $heads;
+        $this->month     = $month;
         $this->dateInput = $dateInput;
-        $this->params = $params;
+        $this->params    = $params;
+        $this->averageTuitionFee = $averageTuitionFee;
     }
 
-    /**
-     * Export the monthly challan data to an Excel view.
-     */
     public function view(): View
     {
-        // dd($this->heads);
-        $is_signature = false;
-        $is_period = false;
-        $report_name = "Student Pre-Challan Report for the month of {$this->month}";
-        // Pass only the table-related data to the export view
         return view('studentReports.exports.monthlyprechallanreport', [
-            'branches' => $this->branches,
-            'report' => $this->report,
-            'heads' => $this->heads,
-            'month' => $this->month,
-            'dateInput' => $this->dateInput,
-            'is_signature' => $is_signature,
-            'is_period' => $is_period,
-            'report_name' => $report_name,
-            'params' => $this->params,
+            'branches'     => $this->branches,
+            'report'       => $this->report,
+            'heads'        => $this->heads,
+            'month'        => $this->month,
+            'dateInput'    => $this->dateInput,
+            'is_signature' => false,
+            'is_period'    => false,
+            'report_name'  => 'PRE-CHALLAN REPORT - ' . strtoupper(\Carbon\Carbon::parse($this->month)->format('F Y')),
+            'params'       => $this->params,
+            'averageTuitionFee' => $this->averageTuitionFee,
         ]);
     }
 
-    public function registerEvents(): array
-    {
-        return [
-            AfterSheet::class => function (AfterSheet $event) {
-                $sheet = $event->sheet->getDelegate();
+   public function registerEvents(): array
+{
+    return [
+        AfterSheet::class => function (AfterSheet $event) {
+            $sheet              = $event->sheet->getDelegate();
+            $highestColumn      = $sheet->getHighestColumn();
+            $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
+            $lastDataRow        = $sheet->getHighestRow();
 
-                // Page setup: Fit to one page, Landscape, A4
-                $sheet->getPageSetup()->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
-                $sheet->getPageSetup()->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
-                $sheet->getPageSetup()->setFitToPage(true);
-                $sheet->getPageSetup()->setFitToWidth(1);
-                $sheet->getPageSetup()->setFitToHeight(0); // unlimited height
+            // Correct columns according to Blade:
+            // G = Class
+            // H = Billing Month
+            // J onward = numeric amount columns
+            $classColIndex   = Coordinate::columnIndexFromString('G');
+            $sectionColIndex = Coordinate::columnIndexFromString('H');
+            $dateColIndex    = Coordinate::columnIndexFromString('I');
+            $numericStartCol = Coordinate::columnIndexFromString('J');
 
-                // 🔁 Repeat heading row (row 5)
-                $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(7, 7);
-                $sheet = $event->sheet->getDelegate();
-                $sheet->setShowGridlines(false);
-                // Optional: Margins
-                $sheet->getPageMargins()->setTop(0.5);
-                $sheet->getPageMargins()->setBottom(0.5);
-                $sheet->getPageMargins()->setLeft(0.5);
-                $sheet->getPageMargins()->setRight(0.5);
-                // $sheet->getHeaderFooter()->setOddFooter('&LGenerated on &D &T&RPage &P of &N');
+            // Page setup
+            $pageSetup = $sheet->getPageSetup();
+            $pageSetup->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
+            $pageSetup->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
+            $pageSetup->setFitToPage(true);
+            $pageSetup->setFitToWidth(1);
+            $pageSetup->setFitToHeight(0);
+            $pageSetup->setRowsToRepeatAtTopByStartAndEnd(7, 8);
 
-                // Logo insertion
-                $highestColumn = $sheet->getHighestColumn();
-                $colIndex = Coordinate::columnIndexFromString($highestColumn); // Convert to number
-                $colIndex--; // Move one column to the left
-                $highestColumn = Coordinate::stringFromColumnIndex($colIndex); // Convert back to letter
-                $originalPath = public_path('assets/images/lynx2.jpg');
+            $sheet->setShowGridlines(false);
 
-                if (file_exists($originalPath) && function_exists('imagecreatefromjpeg')) {
-                    $img = imagecreatefromjpeg($originalPath);
+            $sheet->getPageMargins()
+                ->setTop(0.5)
+                ->setBottom(0.5)
+                ->setLeft(0.5)
+                ->setRight(0.5);
+
+            // Logo
+            $originalPath = public_path('assets/images/lynx2.jpg');
+            $tmpPath      = $originalPath;
+
+            if (file_exists($originalPath) && function_exists('imagecreatefromjpeg')) {
+                $img = imagecreatefromjpeg($originalPath);
+
+                if ($img) {
                     imagefilter($img, IMG_FILTER_GRAYSCALE);
                     $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'logo_gray.png';
                     imagepng($img, $tmpPath);
                     imagedestroy($img);
-                } else {
-                    $tmpPath = $originalPath;
                 }
+            }
 
+            if (file_exists($tmpPath)) {
                 $drawing = new Drawing();
-                $drawing->setName('Logo');
-                $drawing->setDescription('School Logo (grayscale)');
-                $drawing->setPath($tmpPath);
-                $drawing->setHeight(75);
-                $drawing->setOffsetX(10);
-                $drawing->setOffsetY(10);
-                $drawing->setCoordinates($highestColumn . '1');
-                $drawing->setWorksheet($sheet);
+                $drawing->setName('Logo')
+                    ->setDescription('School Logo')
+                    ->setPath($tmpPath)
+                    ->setHeight(75)
+                    ->setOffsetX(10)
+                    ->setOffsetY(10)
+                    ->setCoordinates(Coordinate::stringFromColumnIndex($highestColumnIndex - 1) . '1')
+                    ->setWorksheet($sheet);
+            }
 
-                $lastDataRow = $sheet->getHighestRow();
-                $sigLineRow = $lastDataRow + 2; // underscores
-                $sigTextRow = $lastDataRow + 3; // labels
-                $highestIndex = Coordinate::columnIndexFromString($highestColumn); // e.g. 8
-                $insetIndex = max(1, $highestIndex - 1);                       // at least 1
-                $insetColumn = Coordinate::stringFromColumnIndex($insetIndex);
-                $pageCountRow = $lastDataRow + 4;
-                $generatedDate = date('d-M-Y');
-                // Merge the entire row (e.g., row 25)
-                $highestColumnLetter = $sheet->getHighestColumn();
-                $mergedRange = "A{$sigLineRow}:{$highestColumnLetter}{$sigLineRow}";
-                $sheet->mergeCells($mergedRange);
+            // Signature row
+            $sigLineRow = $lastDataRow + 2;
+            $sheet->mergeCells("A{$sigLineRow}:{$highestColumn}{$sigLineRow}");
 
-                // Build signature line text with left and right alignment
-                $signatureLine = new RichText();
-                $signatureLine->createText('________________________');
+            $signatureLine = new RichText();
+            $signatureLine->createText('________________________');
+            $signatureLine->createText(str_repeat(' ', $highestColumnIndex * 3));
+            $signatureLine->createText('________________________');
 
-                // Add enough space in between to push second line to right side
-                $colCount = Coordinate::columnIndexFromString($highestColumnLetter);
-                $space = str_repeat(' ', $colCount * 3); // Adjust spacing depending on column width
-                $signatureLine->createText($space);
+            $sheet->setCellValue("A{$sigLineRow}", $signatureLine);
+            $sheet->getStyle("A{$sigLineRow}")->getFont()->setBold(true);
+            $sheet->getStyle("A{$sigLineRow}")
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_DISTRIBUTED);
 
-                $signatureLine->createText('________________________');
+            // Main heading
+            $sheet->getStyle('A1')
+                ->getFont()
+                ->setBold(true)
+                ->setSize(28)
+                ->setName('Edwardian Script ITC');
 
-                // Set into merged cell
-                $sheet->setCellValue("A{$sigLineRow}", $signatureLine);
-                $sheet->getStyle("A{$sigLineRow}")->getFont()->setBold(true);
-                $sheet->getStyle("A{$sigLineRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_DISTRIBUTED);
-
-                // for heading row
-                $highestColumnLetter = $sheet->getHighestColumn();
-                $sheet->getStyle('A1')->applyFromArray([
-                    'font' => [
-                        'bold' => true,
-                        'size' => 28,
-                        'name' => 'Edwardian Script ITC', // Will only work if the font is installed on the system
+            // Table heading rows
+            $sheet->getStyle("A7:{$highestColumn}8")->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'size' => 8,
+                    'name' => 'Calibri',
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical'   => Alignment::VERTICAL_CENTER,
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color'       => ['argb' => 'FF000000'],
                     ],
-                ]);
-                // Apply style to entire Heading Row
-                $sheet->getStyle("A7:{$highestColumnLetter}8")->applyFromArray([
-                    'font' => [
-                        'bold' => true,
-                        'size' => 8,
-                        'name' => 'calibri',
-                    ],
-                    'alignment' => [
-                        'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
-                        'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+                ],
+                'fill' => [
+                    'fillType'   => Fill::FILL_SOLID,
+                    'startColor' => ['argb' => 'FFBFBFBF'],
+                ],
+            ]);
 
-                    ],
-                    'borders' => [
-                        'allBorders' => [
-                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                            'color' => ['argb' => 'FF000000'], // Black
-                        ],
-                    ],
-                    'fill' => [
-                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                        'startColor' => [
-                            'argb' => 'FFBFBFBF', // Light gray
-                        ],
-                    ],
-                ]);
+            // Freeze heading rows
+            $sheet->freezePane('A9');
 
-                $sheet->getColumnDimension('A')->setWidth(5);
-                $sheet->getColumnDimension('B')->setWidth(5);
-                $sheet->getColumnDimension('D')->setWidth(20);
-                $sheet->getColumnDimension($highestColumnLetter)->setWidth(20);
+            // Column widths
+            $sheet->getColumnDimension('A')->setWidth(5);
+            $sheet->getColumnDimension('B')->setWidth(5);
+            $sheet->getColumnDimension('C')->setWidth(10);
+            $sheet->getColumnDimension('D')->setWidth(22);
+            $sheet->getColumnDimension('E')->setWidth(14);
+            $sheet->getColumnDimension('F')->setWidth(12);
+            $sheet->getColumnDimension('G')->setWidth(18);
+            $sheet->getColumnDimension('H')->setWidth(14);
+$sheet->getColumnDimension('H')->setWidth(15); // Section
+$sheet->getColumnDimension('I')->setWidth(14); // Billing Month
+$sheet->getColumnDimension($highestColumn)->setWidth(16);
 
-                // style col font size 8px and align center
-                $sheet->getStyle("B9:C{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("D9:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
-                $sheet->getStyle("D9:F{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("G9:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-                $sheet->getStyle("G9:{$highestColumnLetter}{$lastDataRow}")->getNumberFormat()->setFormatCode('#,##0');
-                $sheet->getStyle("{$highestColumnLetter}9:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("A9:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
-            },
-        ];
+            // General data styling
+           if ($lastDataRow >= 9) {
+
+    $sheet->getStyle("A9:{$highestColumn}{$lastDataRow}")
+        ->getFont()
+        ->setSize(8);
+
+    // Center
+    $sheet->getStyle("A9:C{$lastDataRow}")
+        ->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    // Left align Student/Father/Register/Class/Section
+    $sheet->getStyle("D9:H{$lastDataRow}")
+        ->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+        ->setWrapText(true);
+
+    // Billing Month
+    $sheet->getStyle("I9:I{$lastDataRow}")
+        ->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Text Columns
+    |--------------------------------------------------------------------------
+    */
+
+    // Class
+    $sheet->getStyle("G9:G{$lastDataRow}")
+        ->getNumberFormat()
+        ->setFormatCode('@');
+
+    // Section
+    $sheet->getStyle("H9:H{$lastDataRow}")
+        ->getNumberFormat()
+        ->setFormatCode('@');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Billing Month
+    |--------------------------------------------------------------------------
+    */
+
+    $sheet->getStyle("I9:I{$lastDataRow}")
+        ->getNumberFormat()
+        ->setFormatCode('MMM-YY');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Numeric Columns (J onwards)
+    |--------------------------------------------------------------------------
+    */
+
+    $numericColStartLetter = Coordinate::stringFromColumnIndex($numericStartCol);
+
+    $numericRange = "{$numericColStartLetter}9:{$highestColumn}{$lastDataRow}";
+
+    $sheet->getStyle($numericRange)
+        ->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+    $sheet->getStyle($numericRange)
+        ->getNumberFormat()
+        ->setFormatCode('#,##0');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Billing Month Value
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+
+        $carbonDate = \Carbon\Carbon::createFromFormat(
+            'Y-m',
+            trim($this->dateInput)
+        )
+            ->startOfMonth()
+            ->setTime(12, 0, 0);
+
+    } catch (\Exception $e) {
+
+        $carbonDate = \Carbon\Carbon::parse($this->dateInput)
+            ->startOfMonth()
+            ->setTime(12, 0, 0);
     }
+
+    $excelDateSerial = ExcelDate::PHPToExcel($carbonDate->timestamp);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Populate Billing Month & Keep Text Columns as String
+    |--------------------------------------------------------------------------
+    */
+
+    for ($row = 9; $row <= $lastDataRow; $row++) {
+
+        $rollNo = $sheet->getCell("C{$row}")->getValue();
+
+        if (!empty($rollNo) && is_numeric($rollNo)) {
+
+            // Billing Month -> Column I
+            $sheet->getCell("I{$row}")
+                ->setValue($excelDateSerial);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Force Class & Section to Text
+            |--------------------------------------------------------------------------
+            */
+
+            $classValue = $sheet->getCell("G{$row}")->getValue();
+
+            $sheet->setCellValueExplicit(
+                "G{$row}",
+                $classValue,
+                \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+            );
+
+            $sectionValue = $sheet->getCell("H{$row}")->getValue();
+
+            $sheet->setCellValueExplicit(
+                "H{$row}",
+                $sectionValue,
+                \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+            );
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Convert Amount Columns Only (J onwards)
+    |--------------------------------------------------------------------------
+    */
+
+    for ($col = $numericStartCol; $col <= $highestColumnIndex; $col++) {
+
+        for ($row = 9; $row <= $lastDataRow; $row++) {
+
+            $value = $sheet
+                ->getCellByColumnAndRow($col, $row)
+                ->getValue();
+
+            if ($value !== null && $value !== '' && is_numeric($value)) {
+
+                $sheet->getCellByColumnAndRow($col, $row)
+                    ->setValue((float) $value);
+            }
+        }
+    }
+}
+
+            // Last column right aligned
+            $sheet->getStyle("{$highestColumn}9:{$highestColumn}{$lastDataRow}")
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        },
+    ];
+}
 }

@@ -94,8 +94,13 @@ class RegisterOptionController extends Controller
      */
     public function edit($id)
     {
-        $registerOption= Registring_option::findOrFail($id);
-        return view('students.resgiteroption.edit',compact('registerOption'));
+        $registerOption = Registring_option::findOrFail($id);
+        // Only company can edit TEACHER CHILD
+        $isTeacherChild = strtoupper($registerOption->name) === 'TEACHER CHILD';
+        if ($isTeacherChild && \Auth::user()->type !== 'company') {
+            return redirect()->back()->with('error', 'Permission denied. Only company can edit Teacher Child option.');
+        }
+        return view('students.resgiteroption.edit', compact('registerOption'));
     }
 
     /**
@@ -107,19 +112,30 @@ class RegisterOptionController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string',
+        $registeroption = Registring_option::findOrFail($id);
+        $isTeacherChild = strtoupper($registeroption->name) === 'TEACHER CHILD';
+
+        $rules = [
             'discount' => 'required|integer',
-        ]);
+        ];
+        if (!$isTeacherChild) {
+            $rules['name'] = 'required|string';
+        }
+        if ($isTeacherChild && \Auth::user()->type !== 'company') {
+            return redirect()->back()->with('error', 'Permission denied. Only company can edit Teacher Child option.');
+        }
+
+        $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
         }
         DB::beginTransaction();
         try {
-            $registeroption = Registring_option::findOrFail($id);
-            $registeroption->name=strtoupper($request->name);
-            $registeroption->discount=$request->discount;
+            if (!$isTeacherChild) {
+                $registeroption->name = strtoupper($request->name);
+            }
+            $registeroption->discount = $request->discount;
             $registeroption->save();
             DB::commit();
             return redirect()->route('registerOption.index')->with('success', 'RegisterOption Updated Successfull.');

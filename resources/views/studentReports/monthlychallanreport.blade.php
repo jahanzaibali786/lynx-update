@@ -253,11 +253,11 @@
                 {{ request()->get('branches') !== null && request()->get('branches') !== 'all' ? $branches[request()->get('branches')] : 'All Branches' }}</p>
         </div>
         <div class=" table-responsive maximumHeightNew" style="width:100%;">
-            {{-- <table border="1"> --}}
             @php
                 $i = 1;
                 $grandTotal = [
                     'previousUnpaid' => 0,
+                    'gross' => 0,
                     'totalAmount' => 0,
                     'concessionAmount' => 0,
                     'monthly_fee' => 0,
@@ -272,7 +272,7 @@
                     @foreach (@$heads as $head)
                         <th colspan="3" style="text-align: center">{{ @$head->fee_head }}</th>
                     @endforeach
-                    <th colspan="2" style="text-align:center;">Current Month Bill</th>
+                    <th colspan="3" style="text-align:center;">Current Month Bill</th>
                     <th colspan="2" style="text-align:center;">Discount</th>
                 </tr>
                 <tr class="table_heads">
@@ -284,25 +284,27 @@
                     <th>Reg type</th>
                     <th>Class</th>
                     <th>Billing Month</th>
-                    <th>Monthly Fee</th>
+                    <th>Rs.</th>
                     @foreach (@$heads as $head)
-                        <th>Amount</th>
-                        <th>Disc</th>
-                        <th>Ch_Amt</th>
+                        <th>Rs.</th>
+                        <th>Disc.</th>
+                        <th>Net</th>
                     @endforeach
                     <th>Arrears</th>
+                    <th>Gross</th>
                     <th>Net Receivable</th>
-                    <th>Discount</th>
+                    <th>Discount %</th>
                     <th>Category</th>
                 </tr>
                 </thead>
                 @foreach ($report as $a => $row)
                     <tr style="background: gray">
-                        <td colspan="{{ $heads->count() * 3 + 13 }}">{{ $branches[$a] }}</td>
+                        <td colspan="{{ $heads->count() * 3 + 14 }}">{{ $branches[$a] }}</td>
                     </tr>
                     @php
                         $branchTotal = [
                             'previousUnpaid' => 0,
+                            'gross' => 0,
                             'totalAmount' => 0,
                             'concessionAmount' => 0,
                             'monthly_fee' => 0,
@@ -310,7 +312,31 @@
                         $branchHeadTotals = [];
                     @endphp
                     @foreach ($row as $index => $data)
-                    {{-- @dd($data) --}}
+                        @php
+                            // Monthly fee calculation
+                            $monthly_fee = 0;
+                            foreach ($heads as $head) {
+                                $specificHead = collect($data->heads)->firstWhere('head_id', $head->id);
+                                $monthly_fee += $specificHead && isset($specificHead->price) ? floatval($specificHead->price) : 0;
+                            }
+                            
+                            // Calculate gross and net
+                            $total_amount = floatval($data->total_amount ?? 0);
+                            $concession_amount = floatval($data->concession_amount ?? 0);
+                            $gross = $total_amount - $concession_amount;
+                            
+                            // Calculate arrears
+                            $startDate = '2026-01-01';
+                            $previousUnpaidChallans = App\Models\Challans::where('student_id', $data->student_id)
+                                ->where('status', '!=', 'Paid')
+								->where('challan_type','!=','registration')
+                                ->whereDate('fee_month', '>=', $startDate)
+                                ->whereDate('fee_month', '<', date('Y-m-d', strtotime($data->fee_month)))
+                                ->where('id', '!=', $data->id)
+                                ->sum(DB::raw('total_amount - concession_amount - paid_amount'));
+                            
+                            $net_receivable = $gross + $previousUnpaidChallans;
+                        @endphp
                         <tr>
                             <td>{{ $i }}</td>
                             <td>{{ $index + 1 }}</td>
@@ -320,29 +346,14 @@
                             <td>{{ @$data->student->registeroption->name }}</td>
                             <td>{{ @$data->class->name }}</td>
                             <td>{{ date('M-Y', strtotime($data->fee_month)) }}</td>
-                             @php
-                                $monthly_fee = 0;
-                                foreach ($heads as $head) {
-                                    $specificHead = collect($data->heads)->firstWhere('head_id', $head->id);
-                                    $monthly_fee += $specificHead && isset($specificHead->price) ? floatval($specificHead->price) : 0;
-                                }
-                                $branchTotal['monthly_fee'] += $monthly_fee;
-                                $grandTotal['monthly_fee'] = isset($grandTotal['monthly_fee']) ? $grandTotal['monthly_fee'] + $monthly_fee : $monthly_fee;
-                            @endphp
                             <td>{{ $monthly_fee }}</td>
+                            
                             @foreach (@$heads as $head)
-                                {{-- @dd($head,$data->heads,$heads); --}}
                                 @php
                                     $specificHead = collect($data->heads)->firstWhere('head_id', $head->id);
 
-                                    $price =
-                                        $specificHead && isset($specificHead->price)
-                                            ? floatval($specificHead->price)
-                                            : 0;
-                                    $concession =
-                                        $specificHead && isset($specificHead->concession)
-                                            ? floatval($specificHead->concession)
-                                            : 0;
+                                    $price = $specificHead && isset($specificHead->price) ? floatval($specificHead->price) : 0;
+                                    $concession = $specificHead && isset($specificHead->concession) ? floatval($specificHead->concession) : 0;
                                     $netAmount = $price - $concession;
 
                                     // Initialize branch totals if not set
@@ -370,33 +381,35 @@
                                     $grandHeadTotals[$head->id]['netAmount'] += $netAmount;
                                 @endphp
 
-
                                 <td style="text-align:center;">{{ $price }}</td>
                                 <td style="text-align:center;">{{ $concession }}</td>
                                 <td style="text-align:center;">{{ $netAmount }}</td>
                             @endforeach
-                            @php
-                                $i++;
-                                $previousUnpaidChallans = App\Models\Challans::where('student_id', $data->student_id)
-                                    ->where('status', '!=', 'Paid')
-                                    ->wheredate('fee_month', '<', date('Y-m-d', strtotime($data->fee_month)))
-                                    ->where('id', '!=', $data->id)
-                                    ->sum(DB::raw('total_amount - concession_amount'));
-                                $branchTotal['previousUnpaid'] += $previousUnpaidChallans ?? 0;
-                                $branchTotal['totalAmount'] += $data->total_amount - $data->concession_amount;
-                                $branchTotal['concessionAmount'] += $data->concession_amount;
-
-                                // Update grand totals
-                                $grandTotal['previousUnpaid'] += $previousUnpaidChallans ?? 0;
-                                $grandTotal['totalAmount'] += $data->total_amount - $data->concession_amount;
-                                $grandTotal['concessionAmount'] += $data->concession_amount;
-                            @endphp
+                            
                             <td style="text-align:center;">{{ $previousUnpaidChallans ?? 0 }}</td>
-                            <td style="text-align:center;">{{ $data->total_amount - $data->concession_amount }}</td>
-                            <td style="text-align:center;">{{ $data->concession_amount }}</td>
-                            <td>{{ @$data->concession->name ?? '' }}</td>
+                            <td style="text-align:center;">{{ $gross }}</td>
+                            <td style="text-align:center;">{{ $net_receivable }}</td>
+                            <td style="text-align:center;">{{ $total_amount > 0 ? round(($concession_amount / $total_amount) * 100, 2) : 0 }}%</td>
+                            <td>{{ @$data->concession?->policy?->title ?? '' }}</td>
                         </tr>
+                        
+                        @php
+                            $i++;
+                            // Accumulate totals
+                            $branchTotal['monthly_fee'] += $monthly_fee;
+                            $branchTotal['previousUnpaid'] += $previousUnpaidChallans ?? 0;
+                            $branchTotal['gross'] += $gross;
+                            $branchTotal['totalAmount'] += $net_receivable;
+                            $branchTotal['concessionAmount'] += $concession_amount;
+
+                            $grandTotal['monthly_fee'] += $monthly_fee;
+                            $grandTotal['previousUnpaid'] += $previousUnpaidChallans ?? 0;
+                            $grandTotal['gross'] += $gross;
+                            $grandTotal['totalAmount'] += $net_receivable;
+                            $grandTotal['concessionAmount'] += $concession_amount;
+                        @endphp
                     @endforeach
+                    
                     <tr style="font-weight: bold; background-color: #dcdcdc;">
                         <td colspan="8">Branch Total</td>
                         <td style="text-align:center;">{{ $branchTotal['monthly_fee'] ?? 0 }}</td>
@@ -406,11 +419,13 @@
                             <td style="text-align:center;">{{ $branchHeadTotals[$head->id]['netAmount'] ?? 0 }}</td>
                         @endforeach
                         <td style="text-align:center;">{{ $branchTotal['previousUnpaid'] }}</td>
+                        <td style="text-align:center;">{{ $branchTotal['gross'] }}</td>
                         <td style="text-align:center;">{{ $branchTotal['totalAmount'] }}</td>
                         <td style="text-align:center;">{{ $branchTotal['concessionAmount'] }}</td>
                         <td colspan="1"></td>
                     </tr>
                 @endforeach
+                
                 <tr style="font-weight: bold; background-color: #a9a9a9;">
                     <td colspan="8">Grand Total</td>
                     <td style="text-align:center;">{{ $grandTotal['monthly_fee'] ?? 0 }}</td>
@@ -420,6 +435,7 @@
                         <td style="text-align:center;">{{ $grandHeadTotals[$head->id]['netAmount'] ?? 0 }}</td>
                     @endforeach
                     <td style="text-align:center;">{{ $grandTotal['previousUnpaid'] }}</td>
+                    <td style="text-align:center;">{{ $grandTotal['gross'] }}</td>
                     <td style="text-align:center;">{{ $grandTotal['totalAmount'] }}</td>
                     <td style="text-align:center;">{{ $grandTotal['concessionAmount'] }}</td>
                     <td colspan="1"></td>

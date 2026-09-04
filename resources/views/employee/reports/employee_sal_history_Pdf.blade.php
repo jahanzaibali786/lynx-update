@@ -26,16 +26,17 @@
                     @endforeach
                 @endforeach
                 <th>{{ __('Earned Basic') }}</th>
-                <th>{{ __('Conv') }}</th>
+                <th>{{ __('Other') }}</th>
                 <th>{{ __('Sal') }}</th>
-                <th>{{ __('others.') }}</th>
+                <th>{{ __('Other Allowance') }}</th>
+                <th>{{ __('Drns & Misc') }}</th>
                 <th>{{ __('stop_sal') }}</th>
                 <th>{{ __('Gross') }}</th>
                 <th>{{ __('Emp.sec') }}</th>
                 <th>{{ __('Adv.Tax') }}</th>
                 <th>{{ __('EOBI') }}</th>
                 <th>{{ __('Loan E.s') }}</th>
-                <th>{{ __('Others') }}</th>
+                <th>{{ __('Other Allowance') }}</th>
                 <th>{{ __('Stop_sal') }}</th>
                 <th>{{ __('PESSI') }}</th>
                 <th>{{ __('Loan Adj.') }}</th>
@@ -71,6 +72,7 @@
                         <td>{{ !empty(@$salary->conv) ? @$salary->conv : '0' }}</td>
                         <td>{{ !empty(@$salary->sal_all) ? @$salary->sal_all : '0' }}</td>
                         <td>{{ !empty(@$salary->other) ? @$salary->other : '0' }}</td>
+                        <td>{{ (@$salary->drns ?? 0) + (@$salary->misc ?? 0) }}</td>
                         <td>{{ !empty(@$salary->stop_sal) ? @$salary->stop_sal : '0' }}</td>
                         <td>{{ !empty(@$salary->gross) ? @$salary->gross : '0' }}</td>
                         <td>{{ !empty(@$salary->emp_sec) ? @$salary->emp_sec : '0' }}</td>

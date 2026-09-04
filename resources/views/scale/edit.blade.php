@@ -1,4 +1,4 @@
-{{Form::model($employeeScale,array('route' => array('employee_scale.update', $employeeScale->id), 'method' => 'PUT')) }}
+{{Form::model($employeeScale,array('route' => array('employee_scale.update', $employeeScale->id), 'method' => 'PUT', 'class' => 'employee-scale-ajax-form', 'id' => 'employeeScaleForm')) }}
 <div class="modal-body">
     <div class="row">
         <div class="col-md-6">
@@ -29,7 +29,7 @@
             <div class="form-group">
                 {{ Form::label('effect_from', __('Effect From'), ['class' => 'form-label']) }}<span
                     style="color: red">*</span>
-                {{ Form::date('effect_from', \Carbon\Carbon::now()->format('Y-m-d'), ['class' => 'form-control', 'required' => 'required']) }}
+                {{ Form::date('effect_from', null, ['class' => 'form-control', 'required' => 'required']) }}
             </div>
         </div>
         <div class="col-md-6">

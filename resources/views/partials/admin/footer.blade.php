@@ -153,4 +153,15 @@
     }
 </script>
 
-
+<script>
+    // Global fix: tooltips inside page-header action buttons (.page-block .float-end)
+    // render in wrong position due to overflow-constrained parent containers.
+    // Re-initialize them with container:'body' so they attach to <body> directly.
+    $(document).ready(function() {
+        document.querySelectorAll('.page-block .float-end [data-bs-toggle="tooltip"]').forEach(function(el) {
+            var existing = bootstrap.Tooltip.getInstance(el);
+            if (existing) { existing.dispose(); }
+            new bootstrap.Tooltip(el, { container: 'body', placement: 'bottom' });
+        });
+    });
+</script>

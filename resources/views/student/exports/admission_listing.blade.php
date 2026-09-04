@@ -1,82 +1,157 @@
 @php
-    // Flatten heads for table header
     $headNames = $heads->pluck('fee_head', 'id');
+    $isDetailReport = in_array(request('export'), ['detail_excel', 'detail_pdf']);
+    $columnsPerHead = $isDetailReport ? 5 : 2;
+
+    // 9 student/info columns
+    // + dynamic fee-head columns
+    // + Amount, Challan Status, Student Status, Discount Policy
+    $totalColumns = 13 + (count($headNames) * $columnsPerHead);
 @endphp
+
 <table>
     <thead>
         @include('student.exports.header')
+
         <tr>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:center; border: 2px solid black; width: 40px; background-color:gray;">{{ __('Sr No.') }}</th>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:center; border: 2px solid black; width: 40px; background-color:gray;">{{ __('B Sr No.') }}</th>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:center; border: 2px solid black; width: 60px; background-color:gray;">{{ __('Reg No #') }}</th>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:center; border: 2px solid black; width: 60px; background-color:gray;">{{ __('Roll No #') }}</th>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:center; border: 2px solid black; width: 60px; background-color:gray;">{{ __('Challan No #') }}</th>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:center; border: 2px solid black; width: 100px; background-color:gray;">{{ __('Admission Date') }}</th>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:center; border: 2px solid black; width: 80px; background-color:gray;">{{ __('Class') }}</th>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:left; border: 2px solid black; width: 120px; background-color:gray;">{{ __('Student Name') }}</th>
-            @foreach($headNames as $head)
-                @php
-                    $width = strlen($head) <= 8
-                        ? 50
-                        : 50 + (strlen($head) - 8) * 7;
-                @endphp
-                <th style="font-size: 8px; font-weight: bold; text-align:center; border: 2px solid black; background-color:gray; width:{{ $width }}px;">{{ $head }}</th>
+            <th rowspan="2">{{ __('Sr No.') }}</th>
+            <th rowspan="2">{{ __('B Sr No.') }}</th>
+            <th rowspan="2">{{ __('Reg No #') }}</th>
+            <th rowspan="2">{{ __('Roll No #') }}</th>
+            <th rowspan="2">{{ __('Challan No #') }}</th>
+            <th rowspan="2">{{ __('Billing Month') }}</th>
+            <th rowspan="2">{{ __('Admission Date') }}</th>
+            <th rowspan="2">{{ __('Class') }}</th>
+            <th rowspan="2">{{ __('Student Name') }}</th>
+
+            @foreach ($headNames as $head)
+                <th colspan="{{ $columnsPerHead }}">{{ $head }}</th>
             @endforeach
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:right; border: 2px solid black; background-color:gray;">{{ __('Amount') }}</th>
-            <th style="font-size: 8px; font-family: calibri; font-weight: bold; text-align:center; border: 2px solid black; background-color:gray;">{{ __('Adm. Status') }}</th>
+
+            <th rowspan="2">{{ __('Amount') }}</th>
+            <th rowspan="2">{{ __('Challan Status') }}</th>
+            <th rowspan="2">{{ __('Student Status') }}</th>
+            <th rowspan="2">{{ __('Discount Policy') }}</th>
+        </tr>
+
+        <tr>
+            @foreach ($headNames as $head)
+                @if ($isDetailReport)
+                    <th>{{ __('Base Amount') }}</th>
+                    <th>{{ __('Discount') }}</th>
+                    <th>{{ __('Payable') }}</th>
+                @endif
+                <th>{{ __('Paid') }}</th>
+                <th>{{ __('Remaining') }}</th>
+            @endforeach
         </tr>
     </thead>
+
     <tbody>
         @php $mainloop = 1; @endphp
-        @foreach($studentData as $branchId => $students)
-            @foreach($students as $index => $student)
+
+        @forelse ($studentData as $branchId => $students)
+            <tr class="branch-name-row">
+                <td colspan="{{ $totalColumns }}">
+                    <strong>{{ $branches[$branchId] ?? ($students->first()->branch->name ?? 'Unknown Branch') }}</strong>
+                </td>
+            </tr>
+
+            @foreach ($students as $index => $student)
                 @php
-                    $studentRegNo = @$student->StudentRegistration->reg_no;
-                    $challanData = $studentChallanData[$studentRegNo] ?? [
+                    $studentKey = $student->regId;
+                    $challanData = $studentChallanData[$studentKey] ?? [
                         'challan_no' => '',
-                        'challan_id' => '',
+                        'challan_ids' => [],
+                        'challan_count' => 0,
+                        'fee_month' => '',
+                        'challan_status' => '',
                         'heads' => [],
                         'total' => 0,
+                        'discount_policy' => '',
                     ];
-                    $challanId = $challanData['challan_id'] ?? '';
-                    $headAmounts = collect($challanData['heads'] ?? [])->keyBy('head_id');
                 @endphp
+
                 <tr>
-                    <td style="text-align: center; font-size: 8px; font-family: calibri;">{{ $mainloop++ }}</td>
-                    <td style="text-align: center; font-size: 8px; font-family: calibri;">{{ $index + 1 }}</td>
-                    <td style="text-align: center; font-size: 8px; font-family: calibri;">{{ $student->id }}</td>
-                    <td style="text-align: center; font-size: 8px; font-family: calibri;">{{ $student->enrollId ?? '' }}</td>
-                    <td style="text-align: center; font-size: 8px; font-family: calibri;">{{ $challanData['challan_no'] }}</td>
-                    <td style="text-align: center; font-size: 8px; font-family: calibri;">{{ !empty($student->created_at) ? date('d M Y', strtotime($student->created_at)) : '' }}</td>
-                    <td style="text-align: center; font-size: 8px; font-family: calibri;">{{ @$student->class->name }}</td>
-                    <td style="text-align: left; font-size: 8px; font-family: calibri;">{{ @$student->StudentRegistration->stdname ?? '' }}</td>
-                    @foreach($headNames as $headId => $head)
-                        <td style="text-align: right; font-size: 8px; font-family: calibri;">{{ $headAmounts[$headId]['amount'] ?? '' }}</td>
+                    <td>{{ $mainloop++ }}</td>
+                    <td>{{ $index + 1 }}</td>
+                    <td>{{ $student->StudentRegistration->reg_no ?? $student->regId ?? '-' }}</td>
+                    <td>{{ $student->enrollId ?? '-' }}</td>
+                    <td>{{ $challanData['challan_no'] ?: '-' }}</td>
+                    <td>{{ $challanData['fee_month'] ?: '-' }}</td>
+                    <td>{{ !empty($student->adm_date) ? date('d M Y', strtotime($student->adm_date)) : '-' }}</td>
+                    <td>{{ $student->class->name ?? '-' }}</td>
+                    <td>{{ $student->StudentRegistration->stdname ?? '-' }}</td>
+
+                    @foreach ($headNames as $headId => $head)
+                        @php $headData = $challanData['heads'][$headId] ?? null; @endphp
+
+                        @if ($isDetailReport)
+                            <td>{{ $headData ? ($headData['base_amount'] ?? 0) : '' }}</td>
+                            <td>{{ $headData ? ($headData['discount_amount'] ?? 0) : '' }}</td>
+                            <td>{{ $headData ? ($headData['payable_amount'] ?? 0) : '' }}</td>
+                        @endif
+
+                        <td>{{ $headData ? ($headData['paid_amount'] ?? 0) : '' }}</td>
+                        <td>{{ $headData ? ($headData['remaining_amount'] ?? 0) : '' }}</td>
                     @endforeach
-                    <td style="text-align: right; font-size: 8px; font-family: calibri;">{{ $challanData['total'] }}</td>
-                    <td style="text-align: center; font-size: 8px; font-family: calibri;">{{ @$student->StudentRegistration->student_status == 'Enrolled' ? 'Yes' : 'No' }}</td>
+
+                    <td>{{ $challanData['total'] ?? 0 }}</td>
+                    <td>{{ $challanData['challan_status'] ?: '-' }}</td>
+                    <td>{{ $student->StudentRegistration->student_status ?? '-' }}</td>
+                    <td>{{ !empty($challanData['discount_policy']) ? $challanData['discount_policy'] : '-' }}</td>
                 </tr>
             @endforeach
+
             <tr>
-                <td colspan="{{ 8 + count($headNames) }}" style="text-align:center; font-size: 8px; background-color:gray; font-family: calibri; border: 1px solid #000;">Branch Total</td>
-                <td style="text-align: right; font-size: 8px; font-family: calibri; background-color:gray; border: 1px solid #000;">{{ $branchTotals[$branchId] ?? 0 }}</td>
-                <td style="text-align: right; font-size: 8px; font-family: calibri; background-color:gray; border: 1px solid #000;"></td>
+                <td colspan="9"><strong>Branch Total</strong></td>
+
+                @foreach ($headNames as $headId => $head)
+                    @php $headTotal = $branchHeadTotals[$branchId][$headId] ?? []; @endphp
+
+                    @if ($isDetailReport)
+                        <td>{{ $headTotal['base_amount'] ?? 0 }}</td>
+                        <td>{{ $headTotal['discount_amount'] ?? 0 }}</td>
+                        <td>{{ $headTotal['payable_amount'] ?? 0 }}</td>
+                    @endif
+
+                    <td>{{ $headTotal['paid_amount'] ?? 0 }}</td>
+                    <td>{{ $headTotal['remaining_amount'] ?? 0 }}</td>
+                @endforeach
+
+                <td>{{ $branchTotals[$branchId] ?? 0 }}</td>
+                <td></td>
+                <td></td>
+                <td></td>
             </tr>
-        @endforeach
+        @empty
+            <tr>
+                <td colspan="{{ $totalColumns }}">No admission record found.</td>
+            </tr>
+        @endforelse
+
         <tr>
-            <td colspan="{{ 10 + count($headNames) }}" style="height: 10px; border: none;"></td>
+            <td colspan="9"><strong>Grand Total</strong></td>
+
+            @foreach ($headNames as $headId => $head)
+                @php $headTotal = $grandHeadTotals[$headId] ?? []; @endphp
+
+                @if ($isDetailReport)
+                    <td>{{ $headTotal['base_amount'] ?? 0 }}</td>
+                    <td>{{ $headTotal['discount_amount'] ?? 0 }}</td>
+                    <td>{{ $headTotal['payable_amount'] ?? 0 }}</td>
+                @endif
+
+                <td>{{ $headTotal['paid_amount'] ?? 0 }}</td>
+                <td>{{ $headTotal['remaining_amount'] ?? 0 }}</td>
+            @endforeach
+
+            <td>{{ $grandTotal ?? 0 }}</td>
+            <td></td>
+            <td></td>
+            <td></td>
         </tr>
-        <tr>
-            <td colspan="{{ 10 + count($headNames) }}" style="height: 10px; border: none;"></td>
-        </tr>
-        <tr>
-            <td colspan="{{ 10 + count($headNames) }}" style="height: 10px; border: none;"></td>
-        </tr>
-        <tr>
-            <td colspan="{{ 8 + count($headNames) }}" style="text-align:center; background-color:gray; font-size: 8px; font-family: calibri; font-weight:bold; background: grey; border: 2px solid black; border-collapse: collapse; border-top: 6px double black; border-bottom: 6px double black;" >Grand Total</td>
-            <td style="text-align: right; background-color:gray; font-size: 8px; font-family: calibri; font-weight:bold; background: grey; border: 2px solid black; border-collapse: collapse; border-top: 6px double black; border-bottom: 6px double black;">{{ $grandTotal }}</td>
-            <td style="text-align: right; background-color:gray; font-size: 8px; font-family: calibri; font-weight:bold; background: grey; border: 2px solid black; border-collapse: collapse; border-top: 6px double black; border-bottom: 6px double black;"></td>
-        </tr>
+
         @include('student.exports.footer')
     </tbody>
-</table> 
+</table>

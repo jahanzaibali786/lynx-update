@@ -1,0 +1,1695 @@
+@extends('layouts.admin')
+@section('page-title')
+    {{ isset($journalEntry) ? __('Journal Voucher Edit') : __('Journal Voucher Create') }}
+@endsection
+
+@section('breadcrumb')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
+    <li class="breadcrumb-item">{{ __('Double Entry') }}</li>
+    <li class="breadcrumb-item">{{ __('Vouchers') }}</li>
+    <li class="breadcrumb-item">{{ __('Journal Voucher') }}</li>
+@endsection
+
+@push('script-page')
+    <script src="{{ asset('js/jquery.min.js') }}"></script>
+    <script>
+        // ─── Safe destroy helper ──────────────────────────────────────────────────────
+        // Destroys the CustomSelect instance AND removes any orphaned wrappers
+        // that may have been left behind by previous create() calls.
+        // ─── Safe destroy helper ──────────────────────────────────────────────────────
+        // Pass the select element to destroy. It removes the CustomSelect wrapper
+        // that belongs to THIS element only, without touching any other selects.
+        function destroyCustomSelect(selectEl) {
+            if (!selectEl) return;
+
+            // Destroy tracked instance if present
+            if (selectEl.customSelectInstance) {
+                selectEl.customSelectInstance.destroy(); // removes its own wrapper from DOM
+                selectEl.customSelectInstance = null;
+                return; // wrapper already removed by destroy(), we're done
+            }
+
+            // Fallback: instance ref was lost — find wrapper by data attribute
+            // The wrapper is inserted AFTER the select in the DOM (nextSibling)
+            var $next = $(selectEl).next('.custom-select-wrapper');
+            if ($next.length) {
+                $next.remove();
+            }
+        }
+        // ─── State ────────────────────────────────────────────────────────────────────
+        var journalEntries = @json($journalItems ?? []);
+        var rowCounter = 0;
+        var MAX_OPEN_ROWS = 10;
+
+        // ─── Static data from Blade ───────────────────────────────────────────────────
+        var BRANCHES = @json($branches);
+        var DEPARTMENTS = @json($departments->mapWithKeys(fn($d) => [$d->id => $d->name]));
+
+        // Build account options HTML once (reused per row)
+        var ACCOUNT_OPTS = '<option value="">— Select Account —</option>';
+        @php
+            $ACCOUNT_OPTS = '<option value="">— Select Account —</option>';
+
+            foreach ($accountOptions as $account) {
+                $indent = str_repeat('&nbsp;&nbsp;&nbsp;', $account['level']);
+
+                $ACCOUNT_OPTS .=
+                    '<option value="' . e($account['id']) . '"' .
+                    ' data-category="' . e($account['category']) . '"' .
+                    ' data-path="' . e($account['path']) . '">' .
+                    $indent .
+                    e($account['code_name']) .
+                    '</option>';
+            }
+        @endphp
+        ACCOUNT_OPTS = @json($ACCOUNT_OPTS);
+        // Build branch options HTML once
+        var BRANCH_OPTS = '<option value="">— Branch —</option>';
+        $.each(BRANCHES, function(id, name) {
+            BRANCH_OPTS += '<option value="' + id + '">' + name + '</option>';
+        });
+
+        function branchOptionsHtml(selected) {
+            var opts = '<option value="">Branch</option>';
+            $.each(BRANCHES, function(id, name) {
+                opts += '<option value="' + id + '"' + (String(selected || '') === String(id) ? ' selected' : '') + '>' + name + '</option>';
+            });
+            return opts;
+        }
+
+        // Build department options HTML once
+        var DEPT_OPTS = '<option value="">— Department —</option>';
+        $.each(DEPARTMENTS, function(id, name) {
+            DEPT_OPTS += '<option value="' + id + '">' + name + '</option>';
+        });
+
+        function cleanSelectLabel(value) {
+            value = (value || '').trim();
+            if (!value || /^[-—\s]+$/.test(value) ||
+                /^[-—\s]*(select|branch|department|designation|employee|student|vendor)[-—\s]*$/i.test(value)) {
+                return '';
+            }
+            return value;
+        }
+
+        function joinMemoParts(parts) {
+            return parts.map(cleanSelectLabel).filter(Boolean).join(' › ');
+        }
+
+        function appendHidden(wrapper, name, value) {
+            wrapper.append($('<input>', {
+                type: 'hidden',
+                name: name,
+                value: value || ''
+            }));
+        }
+
+        function refreshCustomSelect(selectEl) {
+            if (selectEl && typeof CustomSelect !== 'undefined') {
+                destroyCustomSelect(selectEl);
+                selectEl.customSelectInstance = CustomSelect.create(selectEl);
+            }
+        }
+
+        function formatAmount(value) {
+            return (parseFloat(value) || 0).toFixed(2);
+        }
+
+        function uniqueJournalEntries(entries) {
+            var seen = {};
+            return (entries || []).filter(function(entry) {
+                var key = [
+                    entry.account_id,
+                    entry.debit,
+                    entry.credit,
+                    entry.desc,
+                    entry.types,
+                    entry.userType,
+                    entry.userId,
+                    entry.ref_no,
+                    entry.tra_date,
+                    JSON.stringify(entry.meta || {})
+                ].join('|');
+
+                if (seen[key]) {
+                    return false;
+                }
+                seen[key] = true;
+                return true;
+            });
+        }
+
+        $(function() {
+            journalEntries = uniqueJournalEntries(journalEntries);
+
+            if (journalEntries.length && !$('#inline-entry-tbody').data('existing-loaded')) {
+                $('#inline-entry-tbody').data('existing-loaded', true);
+                $('#inline-entry-tbody tr.confirmed-row').remove();
+                $('#empty-row').hide();
+                $.each(journalEntries, function(_, entry) {
+                    entry.debit = parseFloat(entry.debit) || 0;
+                    entry.credit = parseFloat(entry.credit) || 0;
+                    $('#inline-entry-tbody').append(buildVoucherLineRow(entry));
+                });
+                renderHiddenInputs();
+                updateTotals();
+            }
+            toggleChequeFields();
+            toggleHeaderPartyFields();
+        });
+
+        function toggleChequeFields() {
+            var mode = ($('#payment_mode').val() || '').toLowerCase();
+            var isCheque = mode === 'chq' || mode === 'check' || mode === 'cheque';
+            $('.cheque-field-wrap').toggle(isCheque);
+            $('.cheque-field-wrap :input').prop('disabled', !isCheque);
+            if (!isCheque) {
+                $('.cheque-field-wrap :input').val('');
+            }
+        }
+
+        function toggleHeaderPartyFields() {
+            var partyType = $('#user_type').val() || '';
+            $('.party-select-wrap').each(function() {
+                var isActive = $(this).data('party') === partyType;
+                $(this).toggle(isActive);
+                $(this).find('select').prop('disabled', !isActive);
+                if (!isActive) {
+                    $(this).find('select').val('');
+                }
+            });
+            $('#user_id').val($('.party-select-wrap:visible select').val() || '');
+        }
+
+        $(document).off('change', '#payment_mode').on('change', '#payment_mode', toggleChequeFields);
+        $(document).off('change', '#user_type').on('change', '#user_type', toggleHeaderPartyFields);
+        $(document).off('change', '.party-id-select').on('change', '.party-id-select', function() {
+            $('#user_id').val($(this).val() || '');
+        });
+
+        function setHeaderPartyOptions(selector, placeholder, rows) {
+            var select = $(selector);
+            destroyCustomSelect(select[0]);
+
+            var opts = '<option value="">' + placeholder + '</option>';
+            $.each(rows || [], function(_, row) {
+                opts += '<option value="' + row.id + '">' + row.name + '</option>';
+            });
+
+            select.html(opts).val('');
+            if (typeof CustomSelect !== 'undefined') {
+                select[0].customSelectInstance = CustomSelect.create(select[0]);
+            }
+        }
+
+        function clearHeaderPartySelection() {
+            $('#user_type').val('');
+            $('#user_id').val('');
+            $('.party-id-select').val('');
+            toggleHeaderPartyFields();
+        }
+
+        function loadHeaderPartyData(branchId) {
+            setHeaderPartyOptions('select[name="customer_user_id"]', 'Select Customer', []);
+            setHeaderPartyOptions('select[name="vendor_user_id"]', 'Select Vendor', []);
+            setHeaderPartyOptions('select[name="employee_user_id"]', 'Select Employee', []);
+            setHeaderPartyOptions('select[name="student_user_id"]', 'Select Student', []);
+
+            if (!branchId) {
+                return;
+            }
+
+            $.ajax({
+                url: '{{ route('getVoucherParties') }}',
+                type: 'GET',
+                data: {
+                    branch_id: branchId
+                },
+                success: function(r) {
+                    setHeaderPartyOptions('select[name="customer_user_id"]', 'Select Customer', r.customers);
+                    setHeaderPartyOptions('select[name="vendor_user_id"]', 'Select Vendor', r.vendors);
+                    setHeaderPartyOptions('select[name="employee_user_id"]', 'Select Employee', r.employees);
+                    setHeaderPartyOptions('select[name="student_user_id"]', 'Select Student', r.students);
+                    toggleHeaderPartyFields();
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load party data', 'error');
+                }
+            });
+        }
+
+        // ─── Voucher number ───────────────────────────────────────────────────────────
+        $(document).off('change', '#voucher_type, #branches, #voucher_series').on('change', '#voucher_type, #branches, #voucher_series', function() {
+            var currentType = ($('#voucher_type').val() || 'jv').toUpperCase();
+            journalEntries.forEach(function(entry) {
+                entry.types = currentType;
+            });
+            renderHiddenInputs();
+            getVoucherNumber($('#voucher_type').val(), $('#branches').val(), $('#voucher_series').val());
+        });
+
+        function getVoucherNumber(vt, bid, vs) {
+            var labels = {
+                jv: 'Journal Number',
+                cpv: 'Cash Payment Voucher Number',
+                bpv: 'Bank Payment Voucher Number',
+                crv: 'Cash Receipt Voucher Number',
+                brv: 'Bank Receipt Voucher Number'
+            };
+            $('#journal-number').text(labels[vt] || 'Journal Number');
+            $('#journal-number-inp').val('');
+            if (!vt) return;
+            toggleHeaderPartyFields();
+            $.ajax({
+                url: '{{ route('getVoucherNumber') }}',
+                type: 'GET',
+                data: {
+                    voucher_type: vt,
+                    branch_id: bid,
+                    voucher_series: vs || 'SYSTEM'
+                },
+                success: function(r) {
+                    $('#journal-number-inp').val(r.voucher_number);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to fetch voucher number', 'error');
+                }
+            });
+        }
+
+        @if(!isset($journalEntry))
+        getVoucherNumber($('#voucher_type').val(), $('#branches').val(), 'MANUAL');
+        @endif
+
+        // ─── Add line button ──────────────────────────────────────────────────────────
+        $(document).off('click', '#addAccountBtn').on('click', '#addAccountBtn', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
+            if (openRows >= MAX_OPEN_ROWS) {
+                show_toastr('warning', 'Please confirm the existing rows before adding more (max ' + MAX_OPEN_ROWS +
+                    ' open).', 'warning');
+                return;
+            }
+            appendInlineRow();
+        });
+
+        function appendInlineRow() {
+            rowCounter++;
+            var rid = rowCounter;
+
+            var row = '<tr data-row-id="' + rid + '" data-cat="general" class="inline-edit-row">' +
+
+                // ① Account + category fields stacked inside same td
+                '<td class="col-tradate">' +
+                '<input type="date" class="form-control form-control-sm row-tradate" data-rid="' + rid +
+                '" value="' + ($('input[name="date"]').val() || '') + '">' +
+                '</td>' +
+
+                // Ref No
+                '<td class="col-ref">' +
+                '<input type="text" class="form-control form-control-sm row-ref" data-rid="' + rid +
+                '" placeholder="Ref No">' +
+                '</td>' +
+
+                // Branch
+                '<td class="col-type">' +
+                '<select class="form-control form-control-sm row-branch custom-select" data-rid="' + rid + '">' +
+                BRANCH_OPTS +
+                '</select>' +
+                '</td>' +
+
+                // Account
+                '<td class="col-account">' +
+                '<select class="form-control form-control-sm row-account custom-select" data-rid="' + rid + '">' +
+                ACCOUNT_OPTS +
+                '</select>' +
+                '<div class="path-pill" id="path-pill-' + rid + '"></div>' +
+                '<div id="catcell-' + rid + '" class="catcell-wrap"></div>' +
+                '</td>' +
+
+                // ② Debit
+                '<td class="col-desc">' +
+                '<textarea class="form-control form-control-sm row-desc" data-rid="' + rid +
+                '" placeholder="Description..." rows="2"></textarea>' +
+                '</td>' +
+
+                // ③ Credit
+                '<td class="col-debit">' +
+                '<input type="number" class="form-control form-control-sm row-debit" data-rid="' + rid +
+                '" placeholder="0.00" min="0" step="0.01">' +
+                '</td>' +
+
+                // ④ Description
+                '<td class="col-desc">' +
+                '<textarea class="form-control form-control-sm row-desc" data-rid="' + rid +
+                '" placeholder="Description..." rows="2"></textarea>' +
+                '</td>' +
+
+                // ⑤ Actions
+                '<td class="col-actions" style="white-space:nowrap;">' +
+                '<button type="button" class="btn btn-sm btn-primary confirm-row-btn" data-rid="' + rid +
+                '" title="Confirm"><i class="ti ti-check"></i></button> ' +
+                '<button type="button" class="btn btn-sm btn-outline-danger discard-row-btn" data-rid="' + rid +
+                '" title="Discard"><i class="ti ti-x" style="color: #fff !important;"></i></button>' +
+                '</td>' +
+
+                '</tr>';
+
+            $('#inline-entry-tbody').append(row);
+            var $newRow = $('#inline-entry-tbody tr[data-row-id="' + rid + '"]');
+            $newRow.find('td.col-desc').last().replaceWith(
+                '<td class="col-credit">' +
+                '<input type="number" class="form-control form-control-sm row-credit" data-rid="' + rid +
+                '" placeholder="0.00" min="0" step="0.01">' +
+                '</td>'
+            );
+            if ($('#branches').val()) {
+                $('.row-branch[data-rid="' + rid + '"]').val($('#branches').val());
+            }
+            CustomSelect.initContainer(
+                $newRow[0]
+            );
+            $('#empty-row').hide();
+        }
+
+        // ─── Account change → render category fields ──────────────────────────────────
+        $(document).off('change', '.row-account').on('change', '.row-account', function() {
+            var rid = $(this).data('rid');
+            var opt = $(this).find('option:selected');
+            var cat = opt.data('category') || 'general';
+            var path = opt.data('path') || '';
+
+            $('tr[data-row-id="' + rid + '"]').attr('data-cat', cat);
+            var pill = $('#path-pill-' + rid);
+            pill.text($(this).val() ? path : '');
+
+            renderCatFields(rid, cat);
+        });
+
+        function renderCatFields(rid, cat) {
+            var cell = $('#catcell-' + rid);
+            if (cat === 'hr') {
+                cell.html(
+                    '<div class="catcell-fields mt-1">' +
+                    '<div class="catcell-row">' +
+                    '<select class="form-control form-control-sm hr-dept custom-select" data-rid="' + rid + '">' +
+                    DEPT_OPTS +
+                    '</select>' +
+                    '</div>' +
+                    '<div class="catcell-row mt-1">' +
+                    '<select class="form-control form-control-sm hr-desig" data-rid="' + rid +
+                    '" disabled>' +
+                    '<option value="">— Designation —</option>' +
+                    '</select>' +
+                    '<select class="form-control form-control-sm hr-emp" data-rid="' + rid +
+                    '" disabled>' +
+                    '<option value="">— Employee —</option>' +
+                    '</select>' +
+                    '</div>' +
+                    '</div>'
+                );
+            } else if (cat === 'student') {
+                cell.html(
+                    '<div class="catcell-fields mt-1">' +
+                    '<div class="catcell-row">' +
+                    '<select class="form-control form-control-sm stu-student" data-rid="' + rid +
+                    '" disabled>' +
+                    '<option value="">— Student —</option>' +
+                    '</select>' +
+                    '</div>' +
+                    '</div>'
+                );
+            } else if (cat === 'inventory') {
+                cell.html(
+                    '<div class="catcell-fields mt-1">' +
+                    '<div class="catcell-row">' +
+                    '<select class="form-control form-control-sm inv-vendor" data-rid="' + rid +
+                    '" disabled>' +
+                    '<option value="">— Vendor —</option>' +
+                    '</select>' +
+                    '</div>' +
+                    '</div>'
+                );
+            } else {
+                cell.html('');
+            }
+
+            if (typeof CustomSelect !== 'undefined') {
+                CustomSelect.initContainer(cell[0]);
+            }
+
+            if ($('.row-branch[data-rid="' + rid + '"]').val()) {
+                $('.row-branch[data-rid="' + rid + '"]').trigger('change');
+            }
+        }
+
+        $(document).off('change', '#branches').on('change', '#branches', function() {
+            var selectedBranch = $(this).val();
+            clearHeaderPartySelection();
+            loadHeaderPartyData(selectedBranch);
+            $('.row-branch').each(function() {
+                $(this).val(selectedBranch);
+                refreshCustomSelect(this);
+                $(this).trigger('change');
+            });
+        });
+
+        $(document).off('change', '.row-branch').on('change', '.row-branch', function() {
+            var rid = $(this).data('rid');
+            var cat = $('tr[data-row-id="' + rid + '"]').attr('data-cat') || 'general';
+
+            if (cat === 'hr') {
+                $('.hr-desig[data-rid="' + rid + '"]').trigger('change');
+            } else if (cat === 'student') {
+                loadRowStudents(rid, $(this).val());
+            } else if (cat === 'inventory') {
+                loadRowVendors(rid, $(this).val());
+            }
+        });
+
+        $(document).off('change', '.hr-dept').on('change', '.hr-dept', function() {
+            var rid = $(this).data('rid');
+            var deptId = $(this).val();
+
+            // Only reset downstream selects — never touch the select that fired this event
+            var $desig = $('.hr-desig[data-rid="' + rid + '"]');
+            var $emp = $('.hr-emp[data-rid="' + rid + '"]');
+
+            destroyCustomSelect($desig[0]);
+            $desig.html('<option value="">— Designation —</option>').prop('disabled', true);
+            destroyCustomSelect($emp[0]);
+            $emp.html('<option value="">— Employee —</option>').prop('disabled', true);
+
+            if (!deptId) return;
+
+            $.ajax({
+                url: '{{ route('employee.json') }}',
+                type: 'POST',
+                data: {
+                    department_id: deptId,
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function(data) {
+                    var opts = '<option value="">— Designation —</option>';
+                    $.each(data, function(k, v) {
+                        opts += '<option value="' + k + '">' + v + '</option>';
+                    });
+                    destroyCustomSelect($desig[0]);
+                    $desig.html(opts).prop('disabled', false);
+                    $desig[0].customSelectInstance = CustomSelect.create($desig[0]);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load designations', 'error');
+                }
+            });
+        });
+
+        function loadRowStudents(rid, branchId) {
+            var $stu = $('.stu-student[data-rid="' + rid + '"]');
+            destroyCustomSelect($stu[0]);
+            $stu.html('<option value="">â€” Student â€”</option>').prop('disabled', true);
+            if (!branchId) return;
+
+            $.ajax({
+                url: '{{ route('get.branch-students') }}',
+                type: 'GET',
+                data: {
+                    branch_id: branchId
+                },
+                success: function(r) {
+                    var opts = '<option value="">â€” Student â€”</option>';
+                    $.each(r.students, function(id, name) {
+                        opts += '<option value="' + id + '">' + name + '</option>';
+                    });
+                    destroyCustomSelect($stu[0]);
+                    $stu.html(opts).prop('disabled', false);
+                    $stu[0].customSelectInstance = CustomSelect.create($stu[0]);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load students', 'error');
+                }
+            });
+        }
+
+        function loadRowVendors(rid, branchId) {
+            var $vendor = $('.inv-vendor[data-rid="' + rid + '"]');
+            destroyCustomSelect($vendor[0]);
+            $vendor.html('<option value="">â€” Vendor â€”</option>').prop('disabled', true);
+            if (!branchId) return;
+
+            $.ajax({
+                url: '{{ route('get.vendors') }}',
+                type: 'GET',
+                data: {
+                    branch_id: branchId
+                },
+                success: function(data) {
+                    var opts = '<option value="">â€” Vendor â€”</option>';
+                    $.each(data, function(i, v) {
+                        opts += '<option value="' + v.id + '">' + v.name + '</option>';
+                    });
+                    destroyCustomSelect($vendor[0]);
+                    $vendor.html(opts).prop('disabled', false);
+                    $vendor[0].customSelectInstance = CustomSelect.create($vendor[0]);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load vendors', 'error');
+                }
+            });
+        }
+
+        $(document).off('change', '.hr-desig').on('change', '.hr-desig', function() {
+            var rid = $(this).data('rid');
+            var deptId = $('.hr-dept[data-rid="' + rid + '"]').val();
+            var desigId = $(this).val();
+            var branchId = $('.row-branch[data-rid="' + rid + '"]').val();
+
+            // Only reset downstream — employee is the only dependent here
+            var $emp = $('.hr-emp[data-rid="' + rid + '"]');
+            destroyCustomSelect($emp[0]);
+            $emp.html('<option value="">— Employee —</option>').prop('disabled', true);
+            if (!deptId || !desigId) return;
+
+            $.ajax({
+                url: '{{ route('employeedesiganddeprtment') }}',
+                type: 'GET',
+                data: {
+                    department_id: deptId,
+                    designation_id: desigId,
+                    branch_id: branchId
+                },
+                success: function(data) {
+                    var opts = '<option value="">— Employee —</option>';
+                    $.each(data, function(id, name) {
+                        opts += '<option value="' + id + '">' + name + '</option>';
+                    });
+                    destroyCustomSelect($emp[0]);
+                    $emp.html(opts).prop('disabled', false);
+                    $emp[0].customSelectInstance = CustomSelect.create($emp[0]);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load employees', 'error');
+                }
+            });
+        });
+
+        $(document).off('change', '.stu-branch').on('change', '.stu-branch', function() {
+            var rid = $(this).data('rid'),
+                bid = $(this).val();
+
+            var $stu = $('.stu-student[data-rid="' + rid + '"]');
+            destroyCustomSelect($stu[0]);
+            $stu.html('<option value="">— Student —</option>').prop('disabled', true);
+            if (!bid) return;
+
+            $.ajax({
+                url: '{{ route('get.branch-students') }}',
+                type: 'GET',
+                data: {
+                    branch_id: bid
+                },
+                success: function(r) {
+                    var opts = '<option value="">— Student —</option>';
+                    $.each(r.students, function(id, name) {
+                        opts += '<option value="' + id + '">' + name + '</option>';
+                    });
+                    destroyCustomSelect($stu[0]);
+                    $stu.html(opts).prop('disabled', false);
+                    $stu[0].customSelectInstance = CustomSelect.create($stu[0]);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load students', 'error');
+                }
+            });
+        });
+
+        $(document).off('change', '.inv-branch').on('change', '.inv-branch', function() {
+            var rid = $(this).data('rid'),
+                bid = $(this).val();
+
+            var $vendor = $('.inv-vendor[data-rid="' + rid + '"]');
+            destroyCustomSelect($vendor[0]);
+            $vendor.html('<option value="">— Vendor —</option>').prop('disabled', true);
+            if (!bid) return;
+
+            $.ajax({
+                url: '{{ route('get.vendors') }}',
+                type: 'GET',
+                data: {
+                    branch_id: bid
+                },
+                success: function(data) {
+                    var opts = '<option value="">— Vendor —</option>';
+                    $.each(data, function(i, v) {
+                        opts += '<option value="' + v.id + '">' + v.name + '</option>';
+                    });
+                    destroyCustomSelect($vendor[0]);
+                    $vendor.html(opts).prop('disabled', false);
+                    $vendor[0].customSelectInstance = CustomSelect.create($vendor[0]);
+                },
+                error: function() {
+                    show_toastr('error', 'Failed to load vendors', 'error');
+                }
+            });
+        });
+        // ─── Debit / Credit mutual exclusion ─────────────────────────────────────────
+        $(document).off('input', '.row-debit').on('input', '.row-debit', function() {
+            var rid = $(this).data('rid');
+            if (parseFloat($(this).val()) > 0) {
+                $('.row-credit[data-rid="' + rid + '"]').val('').prop('disabled', true);
+            } else {
+                $('.row-credit[data-rid="' + rid + '"]').prop('disabled', false);
+            }
+        });
+        $(document).off('input', '.row-credit').on('input', '.row-credit', function() {
+            var rid = $(this).data('rid');
+            if (parseFloat($(this).val()) > 0) {
+                $('.row-debit[data-rid="' + rid + '"]').val('').prop('disabled', true);
+            } else {
+                $('.row-debit[data-rid="' + rid + '"]').prop('disabled', false);
+            }
+        });
+
+        // ─── Confirm row ──────────────────────────────────────────────────────────────
+        $(document).off('click', '.confirm-row-btn').on('click', '.confirm-row-btn', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            var rid = $(this).data('rid');
+            var tr = $('tr[data-row-id="' + rid + '"]');
+            if (!tr.length || tr.data('confirming')) {
+                return;
+            }
+            tr.data('confirming', true);
+            var cat = tr.attr('data-cat') || 'general';
+            var accSel = $('.row-account[data-rid="' + rid + '"]');
+            var accOpt = accSel.find('option:selected');
+            var accId = accSel.val();
+            var path = accOpt.data('path') || accOpt.text();
+            var debit = parseFloat($('.row-debit[data-rid="' + rid + '"]').val()) || 0;
+            var credit = parseFloat($('.row-credit[data-rid="' + rid + '"]').val()) || 0;
+            var refNo = ($('.row-ref[data-rid="' + rid + '"]').val() || '').trim();
+            var traDate = $('.row-tradate[data-rid="' + rid + '"]').val() || null;
+            var desc = ($('.row-desc[data-rid="' + rid + '"]').val() || '').trim();
+            var branchSel = $('.row-branch[data-rid="' + rid + '"]');
+            var branchId = branchSel.val() || $('#branches').val() || '';
+            var branchName = cleanSelectLabel(branchSel.find('option:selected').text()) || $('#branches option:selected').text() || '';
+
+            if (!accId) {
+                tr.data('confirming', false);
+                show_toastr('error', 'Please select an account.', 'error');
+                return;
+            }
+            if (debit === 0 && credit === 0) {
+                tr.data('confirming', false);
+                show_toastr('error', 'Enter a debit or credit amount.', 'error');
+                return;
+            }
+
+            var meta = {
+                    branch_id: branchId,
+                    branch_name: branchName,
+                },
+                metaLabel = '';
+            if (cat === 'hr') {
+                meta = {
+                    branch_id: branchId,
+                    branch_name: branchName,
+                    dept_id: $('.hr-dept[data-rid="' + rid + '"]').val(),
+                    dept_name: $('.hr-dept[data-rid="' + rid + '"] option:selected').text(),
+                    designation_id: $('.hr-desig[data-rid="' + rid + '"]').val(),
+                    designation_name: $('.hr-desig[data-rid="' + rid + '"] option:selected').text(),
+                    employee_id: $('.hr-emp[data-rid="' + rid + '"]').val(),
+                    employee_name: $('.hr-emp[data-rid="' + rid + '"] option:selected').text(),
+                };
+                metaLabel = joinMemoParts([meta.branch_name, meta.dept_name, meta.designation_name, meta.employee_name]);
+            } else if (cat === 'student') {
+                meta = {
+                    branch_id: branchId,
+                    branch_name: branchName,
+                    student_id: $('.stu-student[data-rid="' + rid + '"]').val(),
+                    student_name: $('.stu-student[data-rid="' + rid + '"] option:selected').text(),
+                };
+                metaLabel = joinMemoParts([meta.branch_name, meta.student_name]);
+            } else if (cat === 'inventory') {
+                meta = {
+                    branch_id: branchId,
+                    branch_name: branchName,
+                    vendor_id: $('.inv-vendor[data-rid="' + rid + '"]').val(),
+                    vendor_name: $('.inv-vendor[data-rid="' + rid + '"] option:selected').text(),
+                };
+                metaLabel = joinMemoParts([meta.branch_name, meta.vendor_name]);
+            }
+
+            var userType = '', userId = '';
+            if (cat === 'hr') {
+                userType = meta.employee_id ? 'Employee' : '';
+                userId = meta.employee_id || '';
+            } else if (cat === 'student') {
+                userType = meta.student_id ? 'Student' : '';
+                userId = meta.student_id || '';
+            } else if (cat === 'inventory') {
+                userType = meta.vendor_id ? 'Vendor' : '';
+                userId = meta.vendor_id || '';
+            }
+
+            var entry = {
+                id: Date.now() + parseInt(rid || 0),
+                account_id: accId,
+                path,
+                cat,
+                meta,
+                metaLabel,
+                lineMemo: metaLabel ? '→ ' + metaLabel : '',
+                userType,
+                userId,
+                types: ($('#voucher_type').val() || 'jv').toUpperCase(),
+                ref_no: refNo,
+                tra_date: traDate,
+                debit,
+                credit,
+                desc
+            };
+            journalEntries.push(entry);
+            tr.replaceWith(buildVoucherLineRow(entry));
+            renderHiddenInputs();
+            updateTotals();
+            checkEmptyState();
+        });
+
+        function buildLockedRow(e) {
+            var badges = {
+                hr: '<span class="cat-badge cat-hr">HR</span>',
+                student: '<span class="cat-badge cat-student">Student</span>',
+                inventory: '<span class="cat-badge cat-inventory">Inventory</span>',
+                general: '<span class="cat-badge cat-general">General</span>'
+            };
+            var meta = e.metaLabel ? '<div class="entry-meta">&#8594; ' + e.metaLabel + '</div>' : '';
+            var dr = e.debit ? '<span class="text-danger fw-semibold">' + e.debit.toFixed(2) + '</span>' : '<span class="text-muted">—</span>';
+            var cr = e.credit ? '<span class="text-primary fw-semibold">' + e.credit.toFixed(2) + '</span>' : '<span class="text-muted">—</span>';
+            return '<tr data-entry-id="' + e.id + '" class="confirmed-row">' +
+                '<td>' + (badges[e.cat] || '') + '<code class="account-path">' + e.path + '</code>' + meta + '</td>' +
+                '<td>' + (e.types || '—') + '</td>' +
+                '<td>' + (e.ref_no || '—') + '</td>' +
+                '<td>' + (e.tra_date || '—') + '</td>' +
+                '<td class="text-right">' + dr + '</td>' +
+                '<td class="text-right">' + cr + '</td>' +
+                '<td style="font-size:13px;color:#6c757d;">' + (e.desc || '—') + '</td>' +
+                '<td class="text-center">' +
+                '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id +
+                '" title="Edit"><i class="ti ti-pencil"></i></a>' +
+                '<a href="#" class="remove-entry-btn text-danger" data-id="' + e.id +
+                '" title="Remove"><i class="ti ti-trash"></i></a>' +
+                '</td>' +
+                '</tr>';
+        }
+
+        function    buildVoucherLineRow(e) {
+            var badges = {
+                hr: '<span class="cat-badge cat-hr">HR</span>',
+                student: '<span class="cat-badge cat-student">Student</span>',
+                inventory: '<span class="cat-badge cat-inventory">Inventory</span>',
+                general: '<span class="cat-badge cat-general">General</span>'
+            };
+            var meta = e.metaLabel ? '<div class="entry-meta">&#8594; ' + e.metaLabel + '</div>' : '';
+            var branchName = (e.meta && e.meta.branch_name) ? e.meta.branch_name : '&mdash;';
+            var dr = e.debit ? '<span class="text-danger fw-semibold">' + e.debit.toFixed(2) + '</span>' : '<span class="text-muted">&mdash;</span>';
+            var cr = e.credit ? '<span class="text-primary fw-semibold">' + e.credit.toFixed(2) + '</span>' : '<span class="text-muted">&mdash;</span>';
+
+            return '<tr data-entry-id="' + e.id + '" class="confirmed-row">' +
+                '<td class="col-tradate">' + (e.tra_date || '&mdash;') + '</td>' +
+                '<td class="col-ref">' + (e.ref_no || '&mdash;') + '</td>' +
+                '<td class="col-type">' + branchName + '</td>' +
+                '<td class="col-account">' + (badges[e.cat] || '') + '<code class="account-path">' + e.path + '</code>' + meta + '</td>' +
+                '<td class="col-desc" style="font-size:13px;color:#6c757d;">' + (e.desc || '&mdash;') + '</td>' +
+                '<td class="col-debit text-right">' + dr + '</td>' +
+                '<td class="col-credit text-right">' + cr + '</td>' +
+                '<td class="col-actions text-center">' +
+                '<a href="#" class="edit-entry-btn text-primary me-1" data-id="' + e.id +
+                '" title="Edit"><i class="ti ti-pencil"></i></a>' +
+                '<a href="#" class="remove-entry-btn text-danger" data-id="' + e.id +
+                '" title="Remove"><i class="ti ti-trash"></i></a>' +
+                '</td>' +
+                '</tr>';
+        }
+
+        // ─── Discard open row ─────────────────────────────────────────────────────────
+        $(document).off('click', '.discard-row-btn').on('click', '.discard-row-btn', function() {
+            $('tr[data-row-id="' + $(this).data('rid') + '"]').remove();
+            checkEmptyState();
+        });
+
+        // ─── Remove confirmed entry ───────────────────────────────────────────────────
+        $(document).off('click', '.remove-entry-btn').on('click', '.remove-entry-btn', function(e) {
+            e.preventDefault();
+            var id = parseInt($(this).data('id'));
+            if (!confirm('Remove this entry?')) return;
+            journalEntries = journalEntries.filter(function(e) {
+                return e.id !== id;
+            });
+            $('tr[data-entry-id="' + id + '"]').remove();
+            renderHiddenInputs();
+            updateTotals();
+            checkEmptyState();
+        });
+
+        // ─── Helpers ──────────────────────────────────────────────────────────────────
+        function renderHiddenInputs() {
+            var w = $('#hidden-inputs');
+            w.empty();
+            $.each(journalEntries, function(i, e) {
+                var p = 'accounts[' + i + ']';
+                appendHidden(w, p + '[account_id]', e.account_id);
+                appendHidden(w, p + '[debit]', e.debit);
+                appendHidden(w, p + '[credit]', e.credit);
+                appendHidden(w, p + '[description]', e.desc);
+                appendHidden(w, p + '[ref_no]', e.ref_no);
+                appendHidden(w, p + '[tra_date]', e.tra_date);
+                appendHidden(w, p + '[category]', e.cat);
+                appendHidden(w, p + '[memo]', e.lineMemo);
+                appendHidden(w, p + '[user_type]', e.userType);
+                appendHidden(w, p + '[user_id]', e.userId);
+                appendHidden(w, p + '[types]', e.types || ($('#voucher_type').val() || 'jv').toUpperCase());
+                appendHidden(w, p + '[branch_id]', e.meta.branch_id || $('#branches').val() || '');
+                if (e.cat === 'hr') {
+                    appendHidden(w, p + '[dept_id]', e.meta.dept_id);
+                    appendHidden(w, p + '[designation_id]', e.meta.designation_id);
+                    appendHidden(w, p + '[employee_id]', e.meta.employee_id);
+                } else if (e.cat === 'student') {
+                    appendHidden(w, p + '[student_id]', e.meta.student_id);
+                } else if (e.cat === 'inventory') {
+                    appendHidden(w, p + '[vendor_id]', e.meta.vendor_id);
+                }
+            });
+        }
+
+        function updateTotals() {
+            var d = 0,
+                c = 0;
+            $.each(journalEntries, function(i, e) {
+                d += parseFloat(e.debit) || 0;
+                c += parseFloat(e.credit) || 0;
+            });
+            var amount = Math.max(d, c);
+            $('.totalDebit').text(formatAmount(d));
+            $('.totalCredit').text(formatAmount(c));
+            $('#voucher-amount-display, #voucher-amount').val(formatAmount(amount));
+        }
+
+        function checkEmptyState() {
+            var hasAny = $('#inline-entry-tbody tr[data-row-id], #inline-entry-tbody tr[data-entry-id]').length > 0;
+            $('#empty-row').toggle(!hasAny);
+        }
+
+        // ─── Keyboard shortcuts for inline rows ──────────────────────────────────────
+        // Enter  → confirm new row  OR  save edit
+        // Escape → discard new row  OR  cancel edit
+        // Backspace/Delete (on empty input) → cancel edit only (don't discard a new row mid-fill)
+
+        $(document).off('keydown', '.row-account, .row-debit, .row-credit, .row-desc, .catcell-wrap select').on('keydown',
+            '.row-account, .row-debit, .row-credit, .row-desc, .catcell-wrap select',
+            function(e) {
+
+                var rid = $(this).data('rid') || $(this).closest('[data-rid]').data('rid');
+                if (!rid) return;
+
+                var isDescription = $(this).hasClass('row-desc');
+
+                // SHIFT + ENTER => Confirm current row + add new row
+                if (e.key === 'Enter' && e.shiftKey && !isDescription) {
+                    e.preventDefault();
+
+                    var confirmBtn = $('.confirm-row-btn[data-rid="' + rid + '"]');
+
+                    // Confirm current row first
+                    confirmBtn.trigger('click');
+
+                    // Add new row after short delay
+                    setTimeout(function() {
+                        var openRows = $('#inline-entry-tbody tr[data-row-id]').length;
+
+                        if (openRows < MAX_OPEN_ROWS) {
+                            appendInlineRow();
+
+                            // Focus first field of newly added row
+                            $('#inline-entry-tbody tr[data-row-id]:last')
+                                .find('.row-account')
+                                .focus();
+                        }
+                    }, 100);
+
+                }
+
+                // CTRL/CMD + ENTER => Confirm multiline description row
+                else if (e.key === 'Enter' && isDescription && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+                }
+
+                // ENTER => Confirm row only
+                else if (e.key === 'Enter' && !isDescription) {
+                    e.preventDefault();
+                    $('.confirm-row-btn[data-rid="' + rid + '"]').trigger('click');
+
+                }
+
+                // ESC => Discard row
+                else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    $('.discard-row-btn[data-rid="' + rid + '"]').trigger('click');
+                }
+            });
+
+        $(document).off('keydown', '.edit-debit, .edit-credit').on('keydown', '.edit-debit, .edit-credit', function(e) {
+            var id = $(this).data('id');
+            if (!id) return;
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                $('.save-edit-btn[data-id="' + id + '"]').trigger('click');
+
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                $('.cancel-edit-btn[data-id="' + id + '"]').trigger('click');
+
+            } else if ((e.key === 'Backspace' || e.key === 'Delete') && $(this).val() === '') {
+                // Only cancel if the field is already empty (user cleared it then pressed delete again)
+                e.preventDefault();
+                $('.cancel-edit-btn[data-id="' + id + '"]').trigger('click');
+            }
+        });
+
+        $(document).off('keydown', '.edit-desc').on('keydown', '.edit-desc', function(e) {
+            var id = $(this).data('id');
+            if (!id) return;
+
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                $('.save-edit-btn[data-id="' + id + '"]').trigger('click');
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                $('.cancel-edit-btn[data-id="' + id + '"]').trigger('click');
+            }
+        });
+
+        // ─── Edit confirmed entry (make debit/credit editable inline) ────────────────
+        $(document).off('click', '.edit-entry-btn').on('click', '.edit-entry-btn', function(e) {
+            e.preventDefault();
+            var id = parseInt($(this).data('id'));
+            var entry = journalEntries.find(function(e) {
+                return e.id === id;
+            });
+            if (!entry) return;
+
+            var tr = $('tr[data-entry-id="' + id + '"]');
+
+            // Replace date/ref/branch/debit/credit/description tds with editable inputs.
+            var drVal = entry.debit || '';
+            var crVal = entry.credit || '';
+            var descVal = entry.desc || '';
+            var refVal = entry.ref_no || '';
+            var dateVal = entry.tra_date || '';
+            var branchVal = (entry.meta && entry.meta.branch_id) || $('#branches').val() || '';
+
+            // td index: 0=date, 1=ref_no, 2=branch, 3=account, 4=desc, 5=debit, 6=credit, 7=actions
+            // Whichever has a value is enabled; the other is disabled.
+            // Both enable again once the filled one is cleared.
+            var drDisabled = (drVal === '' && crVal !== '') ? 'disabled' : '';
+            var crDisabled = (crVal === '' && drVal !== '') ? 'disabled' : '';
+
+            tr.find('td').eq(0).html(
+                '<input type="date" class="form-control form-control-sm edit-tradate" ' +
+                'value="' + dateVal + '" data-id="' + id + '">'
+            );
+            tr.find('td').eq(1).html(
+                '<input type="text" class="form-control form-control-sm edit-ref" ' +
+                'value="' + refVal + '" placeholder="Ref No" data-id="' + id + '">'
+            );
+            tr.find('td').eq(2).html(
+                '<select class="form-control form-control-sm edit-branch" data-id="' + id + '">' +
+                branchOptionsHtml(branchVal) +
+                '</select>'
+            );
+            tr.find('td').eq(4).html(
+                '<textarea class="form-control form-control-sm edit-desc" placeholder="Description" data-id="' +
+                id + '" rows="2">' +
+                $('<div>').text(descVal).html() +
+                '</textarea>'
+            );
+            tr.find('td').eq(5).html(
+                '<input type="number" class="form-control form-control-sm edit-debit" ' +
+                'value="' + drVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
+                drDisabled + ' style="width:90px;">'
+            );
+            tr.find('td').eq(6).html(
+                '<input type="number" class="form-control form-control-sm edit-credit" ' +
+                'value="' + crVal + '" placeholder="0.00" min="0" step="0.01" data-id="' + id + '" ' +
+                crDisabled + ' style="width:90px;">'
+            );
+            tr.find('td').eq(7).html(
+                '<a href="#" class="save-edit-btn text-success me-1" data-id="' + id +
+                '" title="Save"><i class="ti ti-check"></i></a>' +
+                '<a href="#" class="cancel-edit-btn text-muted" data-id="' + id +
+                '" title="Cancel"><i class="ti ti-x"></i></a>'
+            );
+        });
+
+        // Debit/credit mutual exclusion in edit mode
+        // — field with a value stays enabled and locks the other
+        // — clearing the value re-enables both
+        $(document).off('input', '.edit-debit').on('input', '.edit-debit', function() {
+            var val = $(this).val();
+            var other = $(this).closest('tr').find('.edit-credit');
+            if (val !== '' && parseFloat(val) >= 0) {
+                other.val('').prop('disabled', true);
+            } else {
+                other.prop('disabled', false);
+            }
+        });
+        $(document).off('input', '.edit-credit').on('input', '.edit-credit', function() {
+            var val = $(this).val();
+            var other = $(this).closest('tr').find('.edit-debit');
+            if (val !== '' && parseFloat(val) >= 0) {
+                other.val('').prop('disabled', true);
+            } else {
+                other.prop('disabled', false);
+            }
+        });
+
+        // Save edit
+        $(document).off('click', '.save-edit-btn').on('click', '.save-edit-btn', function(e) {
+            e.preventDefault();
+            var id = parseInt($(this).data('id'));
+            var tr = $('tr[data-entry-id="' + id + '"]');
+            var refVal = (tr.find('.edit-ref').val() || '').trim();
+            var dateVal = tr.find('.edit-tradate').val() || null;
+            var branchVal = tr.find('.edit-branch').val() || $('#branches').val() || '';
+            var branchName = cleanSelectLabel(tr.find('.edit-branch option:selected').text()) || $('#branches option:selected').text() || '';
+            var debit = parseFloat(tr.find('.edit-debit').val()) || 0;
+            var credit = parseFloat(tr.find('.edit-credit').val()) || 0;
+            var desc = (tr.find('.edit-desc').val() || '').trim();
+            if (debit === 0 && credit === 0) {
+                show_toastr('error', 'Enter a debit or credit amount.', 'error');
+                return;
+            }
+            var entry = journalEntries.find(function(e) {
+                return e.id === id;
+            });
+            entry.types = ($('#voucher_type').val() || 'jv').toUpperCase();
+            entry.ref_no = refVal;
+            entry.tra_date = dateVal;
+            entry.meta = entry.meta || {};
+            entry.meta.branch_id = branchVal;
+            entry.meta.branch_name = branchName;
+            entry.debit = debit;
+            entry.credit = credit;
+            entry.desc = desc;
+            tr.replaceWith(buildVoucherLineRow(entry));
+            renderHiddenInputs();
+            updateTotals();
+        });
+
+        // Cancel edit — just redraw the locked row as-is
+        $(document).off('click', '.cancel-edit-btn').on('click', '.cancel-edit-btn', function(e) {
+            e.preventDefault();
+            var id = parseInt($(this).data('id'));
+            var entry = journalEntries.find(function(e) {
+                return e.id === id;
+            });
+            $('tr[data-entry-id="' + id + '"]').replaceWith(buildVoucherLineRow(entry));
+        });
+
+        // ─── Pre-Submit Validation Check ──────────────────────────────────────────────
+        $(document).off('submit', '#journal-form').on('submit', '#journal-form', function(e) {
+            var d = parseFloat($('.totalDebit').text()) || 0;
+            var c = parseFloat($('.totalCredit').text()) || 0;
+            if (journalEntries.length === 0) {
+                show_toastr('error', 'Please confirm at least one account entry.', 'error');
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                return false;
+            }
+            if (d !== c) {
+                show_toastr('error', 'Total Debit (' + d.toFixed(2) + ') ≠ Total Credit (' + c.toFixed(2) + ').',
+                    'error');
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                return false;
+            }
+            toggleHeaderPartyFields();
+        });
+
+        // ─── Initialize Global AJAX Handler ───────────────────────────────────────────
+        $(document).ready(function() {
+            if (typeof ajaxModalForm === 'function') {
+                ajaxModalForm({
+                    formSelector: '.ajax-modal-form',
+                    onSuccess: function(response) {
+                        if (response.redirect) {
+                            setTimeout(function() {
+                                window.location.href = response.redirect;
+                            }, 1000);
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+
+    <style>
+        /* ══ Entries table ═══════════════════════════════════════════════════════════ */
+        #entries-table-wrap {
+            overflow-x: auto;
+        }
+
+        #inline-entry-table {
+            min-width: 860px;
+            table-layout: auto;
+        }
+
+        #inline-entry-table .col-debit,
+        #inline-entry-table .col-credit {
+            width: 100px;
+        }
+
+        #inline-entry-table .col-ref {
+            width: 100px;
+        }
+
+        #inline-entry-table .col-tradate {
+            width: 120px;
+        }
+
+        #inline-entry-table .col-type {
+            width: 190px;
+            max-width: 22pc !important;
+        }
+
+        #inline-entry-table .col-desc {
+            min-width: 260px;
+        }
+
+        #inline-entry-table .row-desc,
+        #inline-entry-table .edit-desc {
+            min-height: 54px;
+            resize: vertical;
+        }
+        .custom-select-display {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 12px;
+            padding: 6px 6px;
+        }
+        #inline-entry-table .col-actions {
+            width: 80px;
+        }
+
+        /* Editable row highlight */
+        .inline-edit-row {
+            background: #f5f8ff !important;
+        }
+
+        .inline-edit-row:hover {
+            background: #edf2ff !important;
+        }
+
+        .inline-edit-row td {
+            vertical-align: top;
+            padding: 8px 6px;
+        }
+
+        /* Confirmed row */
+        .confirmed-row {
+            background: #fff;
+        }
+
+        .confirmed-row:hover {
+            background: #fafafa;
+        }
+
+        .confirmed-row td {
+            vertical-align: middle;
+            padding: 8px 6px;
+        }
+
+        /* Small inputs */
+        .inline-edit-row .form-control-sm {
+            height: 31px;
+            font-size: 12px;
+            padding: 3px 7px;
+        }
+
+        /* Category fields stacked inside account td */
+        .catcell-wrap {}
+
+        .catcell-fields {}
+
+        .catcell-row {
+            display: flex;
+            gap: 5px;
+        }
+
+        .catcell-row .form-control-sm {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        /* Make account col wider to accommodate stacked selects */
+        #inline-entry-table .col-account {
+            min-width: 220px;
+            width: 220px;
+        }
+
+        /* Path pill */
+        .path-pill {
+            font-size: 10px;
+            color: #6c757d;
+            font-family: monospace;
+            margin-top: 3px;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+        }
+
+        /* Badges */
+        .cat-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+
+        .cat-hr {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .cat-student {
+            background: #d1e7dd;
+            color: #0a3622;
+        }
+
+        .cat-inventory {
+            background: #fff3cd;
+            color: #664d03;
+        }
+
+        .cat-general {
+            background: #e2e3e5;
+            color: #41464b;
+        }
+
+        /* Account code in locked rows */
+        .account-path {
+            font-size: 11px;
+            background: transparent;
+            padding: 0;
+            color: inherit;
+            vertical-align: middle;
+        }
+
+        .entry-meta {
+            font-size: 11px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        /* Add-line footer row */
+        .add-row-footer {
+            background: #f8f9fa;
+        }
+
+        .add-row-footer td {
+            padding: 8px 10px;
+            border-top: 2px dashed #dee2e6;
+        }
+    </style>
+@endpush
+
+@section('content')
+    @php
+        $isEdit = isset($journalEntry);
+        $selectedVoucherType = strtolower($journalEntry->voucher_type ?? 'jv');
+        $selectedBranch = $journalEntry->owned_by ?? null;
+        $displayVoucherNumber = $voucherNumber ?? \Auth::user()->journalNumberFormat($journalId);
+        $transactionDate = $journalEntry->date ?? now()->toDateString();
+        $voucherAmount = $isEdit ? max($journalEntry->totalDebit(), $journalEntry->totalCredit()) : 0;
+        $selectedPaymentMode = $journalEntry->payment_mode ?? ($journalEntry->mode ?? '');
+        $selectedBankId = $journalEntry->bank_id ?? '';
+        $selectedPartyType = $journalEntry->user_type ?? '';
+        $selectedPartyId = $journalEntry->user_id ?? '';
+    @endphp
+    {{ Form::open(['url' => $isEdit ? route('journal-entry.update', $journalEntry->id) : url('journal-entry'), 'class' => 'w-100 ajax-modal-form', 'id' => 'journal-form', 'files' => true]) }}
+    @if ($isEdit)
+        @method('PUT')
+    @endif
+    <input type="hidden" name="_token" id="token" value="{{ csrf_token() }}">
+    <input type="hidden" name="is_system_generated" value="{{ $journalEntry->is_system_generated ?? 0 }}">
+    <div id="hidden-inputs"></div>
+
+    {{-- ── Header card ────────────────────────────────────────────────────────── --}}
+    <div class="row mt-4">
+        <div class="col-xl-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('branches', __('Branch'), ['class' => 'form-label']) }}
+                                {{ Form::select('branches', $branches, $selectedBranch, ['class' => 'form-control', 'id' => 'branches']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('voucher_type', __('Voucher Type'), ['class' => 'form-label']) }}
+                                {{ Form::select(
+                                    'voucher_type',
+                                    [
+                                        'jv' => 'Journal Voucher',
+                                        'cpv' => 'Cash Payment Voucher',
+                                        'bpv' => 'Bank Payment Voucher',
+                                        'crv' => 'Cash Receipt Voucher',
+                                        'brv' => 'Bank Receipt Voucher',
+                                    ],
+                                    $selectedVoucherType,
+                                    ['class' => 'form-control', 'id' => 'voucher_type'],
+                                ) }}
+                            </div>
+                        </div>
+                        <input type="hidden" name="voucher_series" id="voucher_series" value="MANUAL">
+
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('journal_number', __('Journal Number'), ['class' => 'form-label', 'id' => 'journal-number']) }}
+                                <input type="text" class="form-control" id="journal-number-inp"
+                                    value="{{ $displayVoucherNumber }}" readonly>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('category_type_id', __('Voucher Category Type'), ['class' => 'form-label']) }}
+                                {{ Form::select('category_type_id', $voucherCategoryTypes, $journalEntry->category_type_id ?? null, [
+                                    'class' => 'form-control',
+                                    'id' => 'category_type_id',
+                                ]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('date', __('Transaction Date'), ['class' => 'form-label']) }}
+                                {{ Form::date('date', $transactionDate, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                        </div>
+                          <!-- Payment Date -->
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payment_date', __('Payment Date'), ['class' => 'form-label']) }}
+                                {{ Form::date('payment_date', $journalEntry->payment_date ?? null, ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payment_mode', __('Payment Mode'), ['class' => 'form-label']) }}
+                                {{ Form::select(
+                                    'payment_mode',
+                                    [
+                                        '' => 'Select Payment Mode',
+                                        'dd' => 'DD',
+                                        'cd' => 'CD',
+                                        'online' => 'Online',
+                                        'bank-transfer' => 'Bank Transfer',
+                                        'chq' => 'Cheque',
+                                        'others' => 'Others',
+                                    ],
+                                    $selectedPaymentMode,
+                                    ['class' => 'form-control', 'id' => 'payment_mode'],
+                                ) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('bank_id', __('Bank Name'), ['class' => 'form-label']) }}
+                                {{ Form::select('bank_id', $bankAccounts, $selectedBankId, ['class' => 'form-control custom-select', 'id' => 'bank_id']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('amount', __('Amount'), ['class' => 'form-label']) }}
+                                <input type="number" class="form-control" id="voucher-amount-display"
+                                    value="{{ number_format($voucherAmount, 2, '.', '') }}" step="0.01" disabled>
+                                <input type="hidden" name="amount" id="voucher-amount"
+                                    value="{{ number_format($voucherAmount, 2, '.', '') }}">
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('reference', __('Payment Reference'), ['class' => 'form-label']) }}
+                                {{ Form::text('reference', $journalEntry->reference ?? '', ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('transaction_no', __('Transaction / Invoice No'), ['class' => 'form-label']) }}
+                                {{ Form::text('transaction_no', $journalEntry->transaction_no ?? '', ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('user_type', __('Party Type'), ['class' => 'form-label']) }}
+                                {{ Form::select(
+                                    'user_type',
+                                    [
+                                        '' => 'Select Party Type',
+                                        'Customer' => 'Customer',
+                                        'Vender' => 'Vendor',
+                                        'Employee' => 'Employee',
+                                        'Student' => 'Student',
+                                    ],
+                                    $selectedPartyType,
+                                    ['class' => 'form-control', 'id' => 'user_type'],
+                                ) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Customer">
+                            <div class="form-group">
+                                {{ Form::label('customer_user_id', __('Customer'), ['class' => 'form-label']) }}
+                                {{ Form::select('customer_user_id', $customers ?? [], $selectedPartyType == 'Customer' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Vender">
+                            <div class="form-group">
+                                {{ Form::label('vendor_user_id', __('Vendor'), ['class' => 'form-label']) }}
+                                {{ Form::select('vendor_user_id', $vendors ?? [], in_array($selectedPartyType, ['Vender', 'Vendor']) ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Employee">
+                            <div class="form-group">
+                                {{ Form::label('employee_user_id', __('Employee'), ['class' => 'form-label']) }}
+                                {{ Form::select('employee_user_id', $employees ?? [], $selectedPartyType == 'Employee' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 party-select-wrap" data-party="Student">
+                            <div class="form-group">
+                                {{ Form::label('student_user_id', __('Student'), ['class' => 'form-label']) }}
+                                {{ Form::select('student_user_id', $students ?? [], $selectedPartyType == 'Student' ? $selectedPartyId : '', ['class' => 'form-control custom-select party-id-select']) }}
+                            </div>
+                        </div>
+                        <input type="hidden" name="user_id" id="user_id" value="{{ $selectedPartyId }}">
+                        <div class="col-lg-3 col-md-3 cheque-field-wrap">
+                            <div class="form-group">
+                                {{ Form::label('cheque_no', __('Cheque No'), ['class' => 'form-label']) }}
+                                {{ Form::text('cheque_no', $journalEntry->cheque_no ?? '', ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 cheque-field-wrap">
+                            <div class="form-group">
+                                {{ Form::label('cheque_date', __('Cheque Date'), ['class' => 'form-label']) }}
+                                {{ Form::date('cheque_date', $journalEntry->cheque_date ?? null, ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('attachment', __('Attachment'), ['class' => 'form-label']) }}
+                                {{ Form::file('attachment', ['class' => 'form-control']) }}
+                                @if ($isEdit && !empty($journalEntry->attachment))
+                                    <a href="{{ asset($journalEntry->attachment) }}" target="_blank"
+                                        class="d-inline-block mt-1">
+                                        {{ __('View Attachment') }}
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                        <!-- Payee & Receiver details -->
+                        <div class="col-lg-12 col-md-12"><hr></div>
+                        
+                      
+                        <div class="col-lg-8 col-md-6"></div>
+
+                        <!-- Payee Details -->
+                        <div class="col-lg-12 col-md-12">
+                            <h5 class="text-primary mt-2 mb-3">{{ __('Payee Details') }}</h5>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_account_title', __('Payee Account Title'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_account_title', $journalEntry->payee_account_title ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Account Title')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_account_no', __('Payee Account No'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_account_no', $journalEntry->payee_account_no ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Account Number')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_cnic', __('Payee CNIC'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_cnic', $journalEntry->payee_cnic ?? '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_contact', __('Payee Contact'), ['class' => 'form-label']) }}
+                                {{ Form::text('payee_contact', $journalEntry->payee_contact ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('payee_email', __('Payee Email'), ['class' => 'form-label']) }}
+                                {{ Form::email('payee_email', $journalEntry->payee_email ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                            </div>
+                        </div>
+
+                        <!-- Receiver Details -->
+                        <div class="col-lg-12 col-md-12">
+                            <h5 class="text-primary mt-3 mb-3">{{ __('Receiver Details') }}</h5>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_name', __('Receiver Name'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_name', $journalEntry->receiver_name ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Receiver Name')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_cnic', __('Receiver CNIC'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_cnic', $journalEntry->receiver_cnic ?? '', ['class' => 'form-control', 'placeholder' => __('12345-1234567-1')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_contact', __('Receiver Contact'), ['class' => 'form-label']) }}
+                                {{ Form::text('receiver_contact', $journalEntry->receiver_contact ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Contact No')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3">
+                            <div class="form-group">
+                                {{ Form::label('receiver_email', __('Receiver Email'), ['class' => 'form-label']) }}
+                                {{ Form::email('receiver_email', $journalEntry->receiver_email ?? '', ['class' => 'form-control', 'placeholder' => __('Enter Email')]) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-12 col-md-12"><hr></div>
+
+                        <div class="col-lg-12 col-md-12">
+                            <div class="form-group">
+                                {{ Form::label('narration', __('Note for Payment'), ['class' => 'form-label']) }}
+                                {{ Form::textarea('narration', $journalEntry->description ?? '', ['class' => 'form-control', 'rows' => '2']) }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- ── Inline entries ──────────────────────────────────────────────────────── --}}
+    <div class="row">
+        <div class="col-xl-12">
+            <div class="card">
+                <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{{ __('Account Entries') }}</h6>
+                </div>
+                <div id="entries-table-wrap" class="card-body table-border-style pt-0">
+                    <table class="table table-sm mb-0" id="inline-entry-table">
+                        <thead>
+                            <tr>
+                                <th class="col-tradate">{{ __('Date') }}</th>
+                                <th class="col-ref">{{ __('Ref No') }}</th>
+                                <th class="col-type">{{ __('Branch') }}</th>
+                                <th class="col-account">{{ __('Account') }}</th>
+                                <th class="col-desc">{{ __('Description') }}</th>
+                                <th class="col-debit text-right">{{ __('Debit') }}</th>
+                                <th class="col-credit text-right">{{ __('Credit') }}</th>
+                                <th class="col-actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="inline-entry-tbody">
+                            <tr id="empty-row">
+                                <td colspan="8" class="text-center text-muted py-4" style="font-size:13px;">
+                                    Click <strong>+ Add Account Line</strong> below to start adding entries.
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="add-row-footer">
+                                <td colspan="8">
+                                    <button style="color: #fff !important;" type="button" id="addAccountBtn"
+                                        class="btn btn-outline-primary btn-sm">
+                                        <i class="ti ti-plus" style="color: #fff !important;"></i>
+                                        {{ __('Add Account Line') }}
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="5"></td>
+                                <td class="text-right">
+                                    <strong>{{ __('Total Credit') }} ({{ \Auth::user()->currencySymbol() }})</strong>
+                                </td>
+                                <td class="text-right totalCredit fw-bold" style="text-align: end !important;">0.00</td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <td colspan="5"></td>
+                                <td class="text-right">
+                                    <strong>{{ __('Total Debit') }} ({{ \Auth::user()->currencySymbol() }})</strong>
+                                </td>
+                                <td class="text-right totalDebit fw-bold" style="text-align: end !important;">0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <input type="button" value="{{ __('Cancel') }}"
+            onclick="location.href = '{{ route('journal-entry.index') }}';" class="btn btn-light">
+        <input type="submit" value="{{ $isEdit ? __('Update') : __('Save') }}" class="btn btn-outline-primary">
+    </div>
+
+    <datalist id="type-options">
+        <option value="JV">
+        <option value="CPV">
+        <option value="BPV">
+        <option value="CRV">
+        <option value="BRV">
+        <option value="Expense">
+        <option value="Purchase">
+        <option value="Salary">
+        <option value="Payment">
+        <option value="Challan">
+        <option value="Challan Payment">
+    </datalist>
+
+    {{ Form::close() }}
+@endsection

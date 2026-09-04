@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <style>
         @page {
-            margin: 15mm 15mm 15mm 15mm;
+            margin: 7mm 15mm 12mm 15mm;
             size: A4;
         }
         body {
@@ -18,21 +18,42 @@
             background: #fff;
             padding: 0;
         }
-        .certificate-title {
+        .certificate-header {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 0;
+        }
+        .certificate-header td {
+            padding: 0;
+            vertical-align: middle;
+        }
+        .header-spacer,
+        .header-logo {
+            width: 15%;
+        }
+        .header-title {
+            width: 70%;
             text-align: center;
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
+        }
+        .header-title img {
+            width: 285px;
+            height: auto;
+        }
+        .header-logo {
+            text-align: right;
+        }
+        .header-logo img {
+            width: 62px;
+            height: auto;
         }
         .certificate-subtitle {
             text-align: center;
             font-size: 16px;
             font-weight: bold;
-            margin-bottom: 25px;
+            margin: 1px 0 8px 0;
         }
         .certificate-table {
             width: 100%;
-            padding-top: 50px;
             margin-bottom: 15px;
             border-collapse: collapse;
         }
@@ -42,11 +63,12 @@
             vertical-align: top;
             text-align: left;
         }
-        .certificate-table tr:nth-child(even) {
-            background-color: #f5f5f5;
+        .certificate-table th {
+            width: 29%;
+            padding-right: 2px;
         }
-        .certificate-table tr:nth-child(odd) {
-            background-color: #ffffff;
+        .certificate-table td {
+            padding-left: 2px;
         }
         .deduction-header {
             background: #888 !important;
@@ -84,12 +106,42 @@
             display: inline-block;
             margin-left: 10px;
         }
+        .remarks-content {
+            text-align: left !important;
+            font-size: 9px;
+            line-height: 1.05;
+            padding: 0 0 0 12px !important;
+        }
+        .remarks-content p,
+        .remarks-content div {
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 1.05 !important;
+        }
+        .remarks-content ol,
+        .remarks-content ul {
+            margin: 0 0 0 14px !important;
+            padding: 0 !important;
+        }
+        .remarks-label {
+            padding-bottom: 0 !important;
+        }
     </style>
 </head>
 <body>
     <div class="certificate-container">
-        <div class="certificate-title" style="font-family: Edwardian Script ITC;">The Lynx School</div>
-        <div class="certificate-subtitle">Certificate / Final Settlement</div>
+        <table class="certificate-header">
+            <tr>
+                <td class="header-spacer"></td>
+                <td class="header-title">
+                    <img src="{{ public_path('assets/images/lynxheadertext.jpg') }}" alt="The Lynx School">
+                </td>
+                <td class="header-logo">
+                    <img src="{{ public_path('assets/images/lynxlogo(2).png') }}" alt="The Lynx School Logo">
+                </td>
+            </tr>
+        </table>
+        <div class="certificate-subtitle">Final Settlement / Certificate</div>
         <table class="certificate-table">
             <tr>
                 <th>Branch:</th>
@@ -121,7 +173,14 @@
             </tr>
             <tr>
                 <th>Reason of Leaving:</th>
-                <td><b>{{ $withdrawal ? $withdrawal->reason : '-' }}</b></td>
+                <td>
+                    <b>
+                        {{ $withdrawal ? $withdrawal->reason : '-' }}
+                        @if ($withdrawal && strtolower((string) $withdrawal->reason) === 'other' && $withdrawal->other_reason)
+                            / {{ $withdrawal->other_reason }}
+                        @endif
+                    </b>
+                </td>
             </tr>
             <tr>
                 <th>Security Deposit:</th>
@@ -140,7 +199,7 @@
                 <td>{{ $lastPaidChallan ? strtoupper(\Carbon\Carbon::parse($lastPaidChallan->fee_month)->format('M-Y')) : '-' }}</td>
             </tr>
             <tr>
-                <td colspan="2" class="deduction-header">Deduction</td>
+                <td colspan="2" class="deduction-header">Adjustment</td>
             </tr>
             <tr>
                 <th>Notice Fee:</th>
@@ -157,6 +216,10 @@
             <tr>
                 <th>Refund:</th>
                 <td>0.00</td>
+            </tr>
+            <tr>
+                <th>Adjustment:</th>
+                <td>{{ number_format($adjustmentTotal ?? 0, 2) }}</td>
             </tr>
             <tr>
                 <th>Other Deduction:</th>
@@ -176,23 +239,25 @@
             </tr>
             <tr>
                 <th>Check Issued in favor of:</th>
-                <td>-</td>
+                <td>{{ $withdrawal->beneficiary_name ?: '-' }}</td>
             </tr>
             <tr>
                 <th>Cheque No:</th>
-                <td>-</td>
+                <td>{{ $withdrawal->cheque_no ?: '-' }}</td>
             </tr>
             <tr>
                 <th>Bank Name:</th>
-                <td>-</td>
+                <td>{{ $withdrawal->bank_name ?: '-' }}</td>
             </tr>
             <tr>
                 <th>Cheque Date:</th>
-                <td>-</td>
+                <td>{{ $withdrawal->cheque_date ? $withdrawal->cheque_date->format('d M Y') : '-' }}</td>
             </tr>
             <tr>
-                <th>Remarks:</th>
-                <td>{{ $withdrawal ? $withdrawal->remark : '' }}</td>
+                <th colspan="2" class="remarks-label">HO Remarks:</th>
+            </tr>
+            <tr>
+                <td colspan="2" class="remarks-content">{!! $withdrawal && $withdrawal->ho_remarks ? $withdrawal->ho_remarks : '-' !!}</td>
             </tr>
         </table>
         <table width="100%" style="margin-top: 15px;">
@@ -205,7 +270,8 @@
         <div class="acknowledgement">Acknowledgement of receipt</div>
         <div style="margin-bottom: 8px;">
             <p style="font-size:12px;">
-                I <b>___________________________________________________________</b> do hereby confirm that I have received my entire dues from <span>The Lynx School</span>, SMC Pvt Ltd and I have no claim on the school.
+                I <b style="display:inline-block; min-width:300px; border-bottom:1px solid #222; text-align:center;">{{ $withdrawal->beneficiary_name ?: '' }}</b>
+                do hereby confirm that I have received my entire dues from <span>The Lynx School</span>, SMC Pvt Ltd and I have no claim on the school.
             </p>
         </div>
         <div class="date-line">

@@ -9,23 +9,45 @@
 <style>
     .certificate-container {
         max-width: 900px;
-        margin: 40px auto;
+        margin: 10px auto;
         background: #fff;
-        padding: 40px 50px;
+        padding: 15px 50px 30px;
         border-radius: 10px;
         box-shadow: 0 0 10px #e0e0e0;
     }
-    .certificate-title {
+    .certificate-header {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 0;
+    }
+    .certificate-header td {
+        padding: 0;
+        vertical-align: middle;
+    }
+    .header-spacer,
+    .header-logo {
+        width: 15%;
+    }
+    .header-title {
+        width: 70%;
         text-align: center;
-        font-size: 2.2em;
-        font-weight: bold;
-        margin-bottom: 10px;
+    }
+    .header-title img {
+        width: 330px;
+        height: auto;
+    }
+    .header-logo {
+        text-align: right;
+    }
+    .header-logo img {
+        width: 72px;
+        height: auto;
     }
     .certificate-subtitle {
         text-align: center;
         font-size: 1.3em;
         font-weight: bold;
-        margin-bottom: 30px;
+        margin: 2px 0 12px;
     }
     .certificate-table {
         width: 100%;
@@ -92,8 +114,18 @@
 @section('content')
 <div class="certificate-container">
     <div>
-        <div class="certificate-title">The Lynx School</div>
-        <div class="certificate-subtitle">Certificate / Final Settlement</div>
+        <table class="certificate-header">
+            <tr>
+                <td class="header-spacer"></td>
+                <td class="header-title">
+                    <img src="{{ asset('assets/images/lynxheadertext.jpg') }}" alt="The Lynx School">
+                </td>
+                <td class="header-logo">
+                    <img src="{{ asset('assets/images/lynxlogo(2).png') }}" alt="The Lynx School Logo">
+                </td>
+            </tr>
+        </table>
+        <div class="certificate-subtitle">Final Settlement / Certificate</div>
         <table class="certificate-table">
             <tr>
                 <th>Branch:</th>
@@ -125,7 +157,14 @@
             </tr>
             <tr>
                 <th>Reason of Leaving:</th>
-                <td><b>{{ $withdrawal ? $withdrawal->reason : '-' }}</b></td>
+                <td>
+                    <b>
+                        {{ $withdrawal ? $withdrawal->reason : '-' }}
+                        @if ($withdrawal && strtolower((string) $withdrawal->reason) === 'other' && $withdrawal->other_reason)
+                            / {{ $withdrawal->other_reason }}
+                        @endif
+                    </b>
+                </td>
             </tr>
             <tr>
                 <th>Security Deposit:</th>
@@ -144,7 +183,7 @@
                 <td>{{ $lastPaidChallan ? strtoupper(\Carbon\Carbon::parse($lastPaidChallan->fee_month)->format('M-Y')) : '-' }}</td>
             </tr>
             <tr>
-                <td colspan="2" class="deduction-header">Deduction</td>
+                <td colspan="2" class="deduction-header">Adjustment</td>
             </tr>
             <tr>
                 <th>Notice Fee:</th>
@@ -161,6 +200,10 @@
             <tr>
                 <th>Refund:</th>
                 <td>0.00</td>
+            </tr>
+            <tr>
+                <th>Adjustment:</th>
+                <td>{{ number_format($adjustmentTotal ?? 0, 2) }}</td>
             </tr>
             <tr>
                 <th>Other Deduction:</th>
@@ -180,23 +223,23 @@
             </tr>
             <tr>
                 <th>Check Issued in favour of:</th>
-                <td>-</td>
+                <td>{{ $withdrawal->beneficiary_name ?: '-' }}</td>
             </tr>
             <tr>
                 <th>Cheque No:</th>
-                <td>-</td>
+                <td>{{ $withdrawal->cheque_no ?: '-' }}</td>
             </tr>
             <tr>
                 <th>Bank Name:</th>
-                <td>-</td>
+                <td>{{ $withdrawal->bank_name ?: '-' }}</td>
             </tr>
             <tr>
                 <th>Cheque Date:</th>
-                <td>-</td>
+                <td>{{ $withdrawal->cheque_date ? $withdrawal->cheque_date->format('d M Y') : '-' }}</td>
             </tr>
             <tr>
-                <th>Remarks:</th>
-                <td>{{ $withdrawal ? $withdrawal->remark : '' }}</td>
+                <th>HO Remarks:</th>
+                <td>{!! $withdrawal && $withdrawal->ho_remarks ? $withdrawal->ho_remarks : '-' !!}</td>
             </tr>
         </table>
 
@@ -214,7 +257,8 @@
         <div class="acknowledgement">Acknowledgement of receipt</div>
         <div>
             <p>
-                I <b>___________________________________________________________</b> do hereby confirm that I have received my entire dues from <span>The Lynx School</span>, SMC Pvt Ltd and I have no claim on the school.
+                I <b style="display:inline-block; min-width:300px; border-bottom:1px solid #222; text-align:center;">{{ $withdrawal->beneficiary_name ?: '' }}</b>
+                do hereby confirm that I have received my entire dues from <span>The Lynx School</span>, SMC Pvt Ltd and I have no claim on the school.
             </p>
         </div>
         <div class="date-line">

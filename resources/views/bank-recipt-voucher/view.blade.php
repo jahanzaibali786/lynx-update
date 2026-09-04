@@ -110,15 +110,14 @@
     }
 </style>
     <div class="float-end" style='display:flex; gap:5px;'>
+        <a href="{{ route('journal-entry.voucher-print', $journalEntry->id) }}" target="_blank" class="btn btn-sm btn-primary"
+            title="{{ __('Voucher Print') }}" data-original-title="{{ __('Voucher Print') }}">
+            <span class="btn-inner--icon"><i class="ti ti-printer"></i> {{ __('Voucher Print') }}</span>
+        </a>
         <a href="#" class="btn btn-sm btn-primary" onclick="printDiv()"
             title="{{ __('Print') }}" data-original-title="{{ __('Print') }}">
             <span class="btn-inner--icon">Pdf / Print</span>
         </a>
-        <a href="#" class="btn btn-sm btn-primary" onclick="saveAsPDF()"
-            title="{{ __('Download') }}" data-original-title="{{ __('Download') }}">
-            <span class="btn-inner--icon">Pdf / Print</span>
-        </a>
-
     </div>
 @endsection
 @section('content')
@@ -142,13 +141,13 @@
                             </div>
                             <div class="row">
                                 <div class="col-md-6">
-                                    {{-- <small class="font-style">
+                                    <small class="font-style">
                                         <strong>{{__('To')}} :</strong><br>
                                         {{!empty($settings['company_name'])?$settings['company_name']:''}}<br>
                                         {{!empty($settings['company_telephone'])?$settings['company_telephone']:''}}<br>
                                         {{!empty($settings['company_address'])?$settings['company_address']:''}}<br>
                                         {{!empty($settings['company_city'])?$settings['company_city']:'' .', '}}  {{!empty($settings['company_state'])?$settings['company_state']:'' .', '}}  {{!empty($settings['company_country'])?$settings['company_country']:'' .'.'}}
-                                    </small> --}}
+                                    </small>
                                 </div>
                                 <div class="col-md-6 text-end">
                                     <small>

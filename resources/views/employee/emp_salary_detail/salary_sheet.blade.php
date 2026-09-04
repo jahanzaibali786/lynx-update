@@ -4,274 +4,401 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Salary Sheet</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #000;
+        }
+
+        .report-header {
+            width: 100%;
+            display: table;
+            margin-bottom: 12px;
+        }
+
+        .report-header-cell {
+            display: table-cell;
+            vertical-align: middle;
+        }
+
+        .report-logo {
+            width: 20%;
+            text-align: center;
+        }
+
+        .report-title {
+            width: 60%;
+            text-align: center;
+        }
+
+        .report-title-image {
+            width: 330px;
+            max-width: 330px;
+            height: auto;
+            display: inline-block;
+        }
+        .report-branch {
+            margin: 4px 0;
+            font-size: 18px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .report-month {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .salary-table {
+            border-collapse: collapse;
+            width: 100%;
+            table-layout: auto;
+        }
+
+        .salary-table th,
+        .salary-table td {
+            border: 1px solid #000;
+            padding: 3px 4px;
+            font-size: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .salary-table thead th {
+            background: #bfbfbf;
+            font-weight: 700;
+        }
+
+        .group-row th {
+            background: #e6e6e6;
+            text-align: left;
+            font-size: 9px;
+            font-weight: 800;
+        }
+
+        .department-row th {
+            background: #f2f2f2;
+            text-align: left;
+            font-size: 8px;
+            font-weight: 800;
+        }
+
+        .text-left {
+            text-align: left !important;
+        }
+
+        .total-row td {
+            background: #bfbfbf;
+            font-weight: 800;
+        }
+
+        .branch-total-row td {
+            background: #d9d9d9;
+            font-weight: 800;
+        }
+    </style>
 </head>
 
 <body>
-    <div style="width: 100%; position: relative; bottom: 30px; display: table;">
-        {{-- <div style="display: table-cell; width: 25%; text-align: center; vertical-align: middle;">
-            <div class="logo">
-                <img src="{{ asset('assets/images/lynx2.jpg') }}" style="max-width: 90px; max-height: 90px;" alt="logo">
-            </div>
-        </div> --}}
-        <div style="display: table-cell; width: 65%; text-align: center; vertical-align: middle;">
-            <h4 style="font-size: 1.9rem; font-weight: 800; margin: 0;">The Lynx School</h4>
-            <h5 style="font-size: 1.5rem; font-weight: 800;">{!!\Auth::user()->getBranch($requestdata['branches'])
-                ?\Auth::user()->getBranch($requestdata['branches'])->name : 'Main Branch' !!}</h5>
-            <h4 style="font-size: 1.7rem; font-weight: 800; margin: 0;">Payroll Register for the month of
-                {{ \Carbon\Carbon::parse($requestdata['date'])->format('F-Y') }}</h4>
+    @php
+        $logoSrc = !empty($isPdf) ?  asset('assets/images/lynx2.jpg') : asset('assets/images/lynx2.jpg');
+        $schoolTitleSrc = !empty($isPdf) ? public_path('assets/images/lynxheadertext.jpg') : asset('assets/images/lynxheadertext.jpg');
+        $selectedBranch = !empty($requestdata['branches'] ?? null) && ($requestdata['branches'] ?? '') !== 'all'
+            ? optional(\App\Models\User::find($requestdata['branches']))->name
+            : 'All Branches';
+        $columnCount = 8 + count($salaryHeads) + 5 + 9 + 1 + 4 + 3 + 3 + 1;
+        $headTotals = [];
+        foreach ($salaryHeads as $head) {
+            $headTotals[$head->id] = 0;
+        }
+
+        $totals = [
+            'basics' => 0,
+            'other_add' => 0,
+            'other' => 0,
+            'other_misc' => 0,
+            'stop_sal' => 0,
+            'gross' => 0,
+            'emp_sec' => 0,
+            'it' => 0,
+            'sal_advance' => 0,
+            'eobi' => 0,
+            'emp_sec_loan' => 0,
+            'stop_deduction' => 0,
+            'pessi' => 0,
+            'dedu' => 0,
+            'loan' => 0,
+            'net_pay' => 0,
+            'pessi_employer' => 0,
+            'eobi_employer' => 0,
+            'total_cost' => 0,
+            'cost_to_comp' => 0,
+        ];
+        $totalKeys = array_keys($totals);
+
+        $sortedDatas = $datas
+            ->sortBy(function ($data) {
+                return strtolower(
+                    (optional(optional($data->employee)->user)->name ?? '') . '|' .
+                    (optional($data->salarydepartment)->name ?? optional(optional($data->employee)->department)->name ?? '') . '|' .
+                    (optional($data->employee)->name ?? '')
+                );
+            })
+            ->values();
+
+        $groupedByBranch = $sortedDatas->groupBy(function ($data) {
+            return optional(optional($data->employee)->user)->name ?: 'No Branch';
+        });
+
+        $globalSr = 1;
+    @endphp
+
+    <div class="report-header">
+        <div class="report-header-cell report-logo">
+            <img src="{{ asset('assets/images/lynx2.jpg') }}" style="max-width: 90px; max-height: 90px;" alt="The Lynx School Logo" title="The Lynx School Logo">
         </div>
-        <div style="display: table-cell; width: 10%; text-align: center; vertical-align: middle;">
+        <div class="report-header-cell report-title">
+            <img src="{{ asset('assets/images/lynxheadertext.jpg') }}" class="report-title-image" alt="The Lynx School" title="The Lynx School">
+            <div class="report-branch">{{ $selectedBranch }}</div>
+            <div class="report-month">Salary Sheet Report for {{ \Carbon\Carbon::parse($requestdata['date'])->format('F Y') }}</div>
         </div>
+        <div class="report-header-cell report-logo"></div>
     </div>
-    <div>
-        <table style="border: 1px solid #000; border-collapse: collapse; width: 100% !important;">
-            <thead>
-                <tr style="border: 1px solid #000; background-color:gray; font-size:0.9rem;">
-                    <th style="border: 1px solid #000; " colspan="5">Employee Detail</th>
-                    <th style="border: 1px solid #000; " colspan="6">Allowances</th>
-                    <th style="border: 1px solid #000; "></th>
-                    <th style="border: 1px solid #000; "></th>
-                    <th style="border: 1px solid #000; " colspan="8">Deduction</th>
-                    <th style="border: 1px solid #000; "></th>
-                    <th style="border: 1px solid #000; " colspan="4">Cost To School</th>
-                    <th style="border: 1px solid #000; " colspan="3">CL</th>
-                    <th style="border: 1px solid #000; " colspan="3">AL</th>
-                    <th style="border: 1px solid #000; "></th>
-                </tr>
-                <tr style="border: 1px solid #000; background-color:gray; font-size:0.9rem;">
-                    {{-- <th style="border: 1px solid #000;">Departments.</th> --}}
-                    <th style="border: 1px solid #000;">Emp no.</th>
-                    <th style="border: 1px solid #000;">Scale</th>
-                    <th style="border: 1px solid #000;">Name</th>
-                    <th style="border: 1px solid #000;">Designation</th>
-                    <th style="border: 1px solid #000;">DOJ</th>
 
-                    <th style="border: 1px solid #000;">Earned Basic</th>
-                    @php
-                        $head_totals = [];
-                    @endphp
-                    @foreach (@$salaryHeads as $head)
-                        <th style="border: 1px solid #000;">{{@$head->head}}</th>
-                        @php
-                            $head_totals[$head->id] = 0;
-                        @endphp
-                    @endforeach
-
-                    <th style="border: 1px solid #000;">Others</th>
-                    <th style="border: 1px solid #000;">Stop Salary</th>
-
-                    <th style="border: 1px solid #000;">Gross Pay</th>
-
-                    <th style="border: 1px solid #000;">E.s</th>
-                    <th style="border: 1px solid #000;">I.Tax</th>
-                    <th style="border: 1px solid #000;">Adv</th>
-                    <th style="border: 1px solid #000;">EOBI Emp.</th>
-                    <th style="border: 1px solid #000;">Loan Emp Sec</th>
-                    <th style="border: 1px solid #000;">Stop Salary</th>
-                    <th style="border: 1px solid #000;">PESSI</th>
-                    <th style="border: 1px solid #000;">Loan Adj.</th>
-
-                    <th style="border: 1px solid #000;">Net</th>
-
-                    <th style="border: 1px solid #000;">PESSI Comp.</th>
-                    <th style="border: 1px solid #000;">EOBI Comp.</th>
-                    <th style="border: 1px solid #000;">Total</th>
-                    <th style="border: 1px solid #000;">Cost to Comp.</th>
-
-                    <th style="border: 1px solid #000;">OP</th>
-                    <th style="border: 1px solid #000;">LVs</th>
-                    <th style="border: 1px solid #000;">Bal</th>
-
-                    <th style="border: 1px solid #000;">OP</th>
-                    <th style="border: 1px solid #000;">LVs</th>
-                    <th style="border: 1px solid #000;">Bal</th>
-
-                    <th style="border: 1px solid #000;">Total Working Days</th>
-                </tr>
-            </thead>
-            <tbody>
-                @php
-                $gross = 0;
-                $total_basics = 0;
-                $total_other = 0;
-                $total_stop_sal = 0;
-                $total_gross = 0;
-                $total_emp_sec = 0;
-                $total_it = 0;
-                $total_advance = 0;
-                $total_eobi = 0;
-                $total_loan_emp_sec = 0;
-                $total_stop_sal_deductions = 0;
-                $total_pessi = 0;
-                $total_loan = 0;
-                $total_net_pay = 0;
-                $total_pessi_employer = 0;
-                $total_eobi_employer = 0;
-                $total_total_cost = 0;
-                $total_cost_to_comp = 0;
-                $currentDepartmentId = null; // To track the current department
-                @endphp
-
-                    @foreach($datas as $key => $data)
-                    @php
-                        $payscale = $data->employee->employee_payscale_details->last();
-                        $total_basics += $data->basics;
-                        $total_other += $data->other;
-                        $total_stop_sal += $data->stop_sal;
-                        $total_gross += !empty($data->gross) ? @$data->gross : '0';
-                        $total_emp_sec += !empty($data->emp_sec) ? @$data->emp_sec : '0';
-                        $total_it += !empty($data->it) ? @$data->it : '0';
-                        $total_advance += !empty($payscale->advance) ? @$payscale->advance : '0';
-                        $total_pessi += '0';
-                        $total_loan_emp_sec = !empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0';
-                        $total_eobi += !empty($data->eobi) ? @$data->eobi : '0';
-                        $total_loan += !empty($data->loan) ? @$data->loan : '0';
-                        $total_net_pay += !empty($data->net_pay) ? @$data->net_pay : '0';
-                        $total_stop_sal_deductions += !empty($data->stop_sal) ? @$data->stop_sal : '0';
-                        $total_pessi_employer += !empty($data->pessi_employer) ? @$data->pessi_employer : '0';
-                        $total_eobi_employer += !empty($data->eobi_employer) ? @$data->eobi_employer : '0';
-                        $total_total_cost += !empty($total_cost) ? @$total_cost : '0';
-                    @endphp
-                    <tr>
-                        @if ($currentDepartmentId != $data->department_id)
-                            @php
-                                $currentDepartmentId = $data->department_id;
-                            @endphp
-                            <tr>
-                                <th colspan="32" style="border: 1px solid #000; text-align:left;">
-                                    {{ !empty($data->employee->department->name) ? $data->employee->department->name : 'No Department Name' }}
-                                </th>
-                            </tr>
-                        @endif
-                    </tr>
-                    <tr style="border: 1px solid #000; font-size:0.7rem;">
-                        {{-- Display the department name only when the department ID changes --}}
-
-                    <td style="border: 1px solid #000;">{{!empty($data->employee->id) ? @$data->employee->id : ''}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->scale_no) ? @$data->scale_no : ''}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->employee->name) ? @$data->employee->name : ''}}
-                    </td>
-                    <td style="border: 1px solid #000;">
-                        {{!empty($data->employee->designation->name) ? @$data->employee->designation->name : ''}}</td>
-                    <td style="border: 1px solid #000;">
-                        {{!empty($data->employee->company_doj) ? @$data->employee->company_doj : ''}}</td>
-
-                        <td style="border: 1px solid #000;">
-                        {{!empty($data->basics) ? @$data->basics : ''}}</td>
-
-
-                         @foreach ($salaryHeads as $head)
-                            @php
-                                // Search for the matching salary head within the employee salary heads
-                                $emp_sal_head = $data->salary_heads->firstWhere('head_id', $head->id);
-                                $head_value = !empty($emp_sal_head) ? $emp_sal_head->head_value : 0;
-
-                                // Accumulate the total for this head
-                                $head_totals[$head->id] += $head_value;
-                            @endphp
-                            @if($head->head == 'Initial Basic')
-                            <td style="border: 1px solid #000;">{{!empty($data->basics) ? @$data->basics : ''}}</td>
-                            @else
-                            <td style="border: 1px solid #000;">
-                                {{ !empty($emp_sal_head) ? $emp_sal_head->head_value : 0 }}
-                            </td>
-                            @endif
-                        @endforeach
-
-
-                    <td style="border: 1px solid #000;">
-                        {{!empty($data->other) ? @$data->other : '0'}}</td>
-                    <td style="border: 1px solid #000;">
-                        {{!empty($data->stop_sal) ? @$data->stop_sal : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->gross) ? @$data->gross : '0'}}</td>
-
-                    <td style="border: 1px solid #000;">{{!empty($data->emp_sec) ? @$data->emp_sec : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->it) ? @$data->it : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($payscale->advance) ? @$payscale->advance : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->eobi) ? @$data->eobi : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0'}}
-                    </td>
-                    {{-- @php
-                    $net_deduction = (!empty($data->emp_sec) ? @$data->emp_sec : '0') + (!empty($data->it) ? @$data->it : '0')+(!empty($data->pessi) ? @$data->pessi : '0') + (!empty($payscale->advance) ? @$payscale->advance : '0') + (!empty($data->eobi) ? @$data->eobi : '0') + (!empty($data->loan_emp_sec) ? @$data->loan_emp_sec : '0')+ (!empty($data->stop_sal) ? @$data->stop_sal : '0');
-                    @endphp --}}
-
-                    <td style="border: 1px solid #000;">{{!empty($data->stop_sal) ? @$data->stop_sal : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->pessi) ? @$data->pessi : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->loan) ? @$data->loan : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($data->net_pay) ? @$data->net_pay : '0'}}</td>
-
-                    <td style="border: 1px solid #000;">{{!empty($data->pessi_employer) ? @$data->pessi_employer : '0'}}
-                    </td>
-                    <td style="border: 1px solid #000;">{{!empty($data->eobi_employer) ? @$data->eobi_employer : '0'}}
-                    </td>
-                    @php
-                     $total_cost = (!empty($data->pessi_employer) ? @$data->pessi_employer : '0') + (!empty($data->eobi_employer) ? @$data->eobi_employer : '0');
-                     $cost_to_comp = (!empty($total_cost) ? @$total_cost : '0') + (!empty($data->gross) ? @$data->gross : '0');
-                     $total_cost_to_comp += $cost_to_comp;
-                    @endphp
-
-                    <td style="border: 1px solid #000;">{{!empty($total_cost) ? @$total_cost : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($cost_to_comp) ? @$cost_to_comp : '0'}}</td>
-                    @php
-                    $empleaves = $data->employee->employee_monthly_salaries_attend->first();
-                    $leav_cas = (!empty($empleaves->total_casual) ? @$empleaves->total_casual :
-                    '0')-(!empty($empleaves->bal_casual) ? @$empleaves->bal_casual : '0');
-
-                    $leav_anul = (!empty($empleaves->total_annual) ? @$empleaves->total_annual :
-                    '0')-(!empty($empleaves->bal_annual) ? @$empleaves->bal_annual : '0');
-                    @endphp
-                    <td style="border: 1px solid #000;">
-                        {{!empty($empleaves->total_casual) ? @$empleaves->total_casual : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($leav_cas) ? @$leav_cas : '0'}}</td>
-                    <td style="border: 1px solid #000;">
-                        {{!empty($empleaves->bal_casual) ? @$empleaves->bal_casual : '0'}}</td>
-
-                    <td style="border: 1px solid #000;">
-                        {{!empty($empleaves->total_annual) ? @$empleaves->total_annual : '0'}}</td>
-                    <td style="border: 1px solid #000;">{{!empty($leav_anul) ? @$leav_anul : '0'}}</td>
-                    <td style="border: 1px solid #000;">
-                        {{!empty($empleaves->bal_annual) ? @$empleaves->bal_annual : '0'}}</td>
-
-                    <td style="border: 1px solid #000;">{{!empty($data->sal_days) ? @$data->sal_days : ''}}</td>
-                </tr>
+    <table class="salary-table">
+        <thead>
+            <tr>
+                <th colspan="7">EMPLOYEES DETAIL</th>
+                <th colspan="{{ count($salaryHeads) + 6 }}">ALLOWANCES</th>
+                <th colspan="9">DEDUCTION</th>
+                <th></th>
+                <th colspan="4">Cost to School</th>
+                <th colspan="3">CL</th>
+                <th colspan="3">AL</th>
+                <th></th>
+            </tr>
+            <tr>
+                <th>Sr#</th>
+                <th>Dept Sr#</th>
+                <th>Emp No</th>
+                <th>Scale</th>
+                <th>Name</th>
+                <th>Designation</th>
+                <th>DOJ</th>
+                <th>Basic</th>
+                @foreach ($salaryHeads as $head)
+                    <th>{{ $head->head }}</th>
                 @endforeach
-            </tbody>
-            <tfoot>
-                <tr style="border: 1px solid #000; font-weight: bold;  background-color:gray; font-size:0.9rem;">
-                    <td colspan="5" style="text-align: center;">Grand Total:</td>
-                    <td style="border: 1px solid #000;">{{ $total_basics }}</td>
-                    @foreach ($salaryHeads as $head)
-                        <td style="border: 1px solid #000;">
-                            {{ $head_totals[$head->id] }}
-                        </td>
-                    @endforeach
-                    <!-- Add other totals for salary heads here if needed -->
-                    <td style="border: 1px solid #000;">{{ $total_other }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_stop_sal }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_gross }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_emp_sec }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_it }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_advance }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_eobi }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_loan_emp_sec }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_stop_sal_deductions }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_pessi }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_loan }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_net_pay }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_pessi_employer }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_eobi_employer }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_total_cost }}</td>
-                    <td style="border: 1px solid #000;">{{ $total_cost_to_comp }}</td>
-                    <td style="border: 1px solid #000;"  colspan="7" ></td>
+                <th>Other Allowance</th>
+                <th>Other</th>
+                <th>Drns & Misc</th>
+                <th>Stop Salary</th>
+                <th>Gross</th>
+                <th>ES</th>
+                <th>IT</th>
+                <th>Salary Adv.</th>
+                <th>EOBI</th>
+                <th>Loan Sec</th>
+                <th>Stop</th>
+                <th>PESSI</th>
+                <th>Other Deduction</th>
+                <th>Loan</th>
+                <th>Net</th>
+                <th>PESSI Comp</th>
+                <th>EOBI Comp</th>
+                <th>Total Cost</th>
+                <th>Cost To Comp</th>
+                <th>OP</th>
+                <th>Lvs</th>
+                <th>Bal</th>
+                <th>OP</th>
+                <th>Lvs</th>
+                <th>Bal</th>
+                <th>Days</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($groupedByBranch as $branchName => $branchRows)
+                @php
+                    $branchTotals = array_fill_keys($totalKeys, 0);
+                    $branchHeadTotals = [];
+                    foreach ($salaryHeads as $head) {
+                        $branchHeadTotals[$head->id] = 0;
+                    }
+                @endphp
+                <tr class="group-row">
+                    <th colspan="{{ $columnCount }}">{{ $branchName }}</th>
                 </tr>
-            </tfoot>
-        </table>
+                @foreach ($branchRows->groupBy('department_id') as $departmentRows)
+                    @php
+                        $departmentName = optional($departmentRows->first()->salarydepartment)->name
+                            ?: optional(optional($departmentRows->first()->employee)->department)->name
+                            ?: 'No Department Name';
+                        $deptSr = 1;
+                    @endphp
+                    <tr class="department-row">
+                        <th colspan="{{ $columnCount }}">{{ $departmentName }}</th>
+                    </tr>
+                    @foreach ($departmentRows->sortBy(fn ($data) => strtolower(optional($data->employee)->name ?? '')) as $data)
+                        @php
+                            $employee = $data->employee;
+                            $leaves = optional(optional($employee)->employee_monthly_salaries_attend)->first();
+                            $casualLeaves = ($leaves->total_casual ?? 0) - ($leaves->bal_casual ?? 0);
+                            $annualLeaves = ($leaves->total_annual ?? 0) - ($leaves->bal_annual ?? 0);
+                            $otherMisc = ($data->drns ?? 0) + ($data->misc ?? 0);
+                            $displayGross = ($data->gross ?? 0) + ($data->stop_sal ?? 0);
+                            $totalCost = ($data->pessi_employer ?? 0) + ($data->eobi_employer ?? 0);
+                            $costToComp = $totalCost + $displayGross;
 
+                            $totals['basics'] += $data->basics ?? 0;
+                            $totals['other_add'] += $data->other_add ?? 0;
+                            $totals['other'] += $data->conv ?? 0;
+                            $totals['other_misc'] += $otherMisc;
+                            $totals['stop_sal'] += $data->stop_sal ?? 0;
+                            $totals['gross'] += $displayGross;
+                            $totals['emp_sec'] += $data->emp_sec ?? 0;
+                            $totals['it'] += $data->it ?? 0;
+                            $totals['sal_advance'] += $data->sal_advance ?? 0;
+                            $totals['eobi'] += $data->eobi ?? 0;
+                            $totals['emp_sec_loan'] += $data->emp_sec_loan ?? 0;
+                            $totals['stop_deduction'] += 0;
+                            $totals['pessi'] += $data->pessi ?? 0;
+                            $totals['dedu'] += $data->dedu ?? 0;
+                            $totals['loan'] += $data->loan ?? 0;
+                            $totals['net_pay'] += $data->net_pay ?? 0;
+                            $totals['pessi_employer'] += $data->pessi_employer ?? 0;
+                            $totals['eobi_employer'] += $data->eobi_employer ?? 0;
+                            $totals['total_cost'] += $totalCost;
+                            $totals['cost_to_comp'] += $costToComp;
 
-
-    </div>
-
+                            $branchTotals['basics'] += $data->basics ?? 0;
+                            $branchTotals['other_add'] += $data->other_add ?? 0;
+                            $branchTotals['other'] += $data->conv ?? 0;
+                            $branchTotals['other_misc'] += $otherMisc;
+                            $branchTotals['stop_sal'] += $data->stop_sal ?? 0;
+                            $branchTotals['gross'] += $displayGross;
+                            $branchTotals['emp_sec'] += $data->emp_sec ?? 0;
+                            $branchTotals['it'] += $data->it ?? 0;
+                            $branchTotals['sal_advance'] += $data->sal_advance ?? 0;
+                            $branchTotals['eobi'] += $data->eobi ?? 0;
+                            $branchTotals['emp_sec_loan'] += $data->emp_sec_loan ?? 0;
+                            $branchTotals['stop_deduction'] += 0;
+                            $branchTotals['pessi'] += $data->pessi ?? 0;
+                            $branchTotals['dedu'] += $data->dedu ?? 0;
+                            $branchTotals['loan'] += $data->loan ?? 0;
+                            $branchTotals['net_pay'] += $data->net_pay ?? 0;
+                            $branchTotals['pessi_employer'] += $data->pessi_employer ?? 0;
+                            $branchTotals['eobi_employer'] += $data->eobi_employer ?? 0;
+                            $branchTotals['total_cost'] += $totalCost;
+                            $branchTotals['cost_to_comp'] += $costToComp;
+                        @endphp
+                        <tr>
+                            <td>{{ $globalSr++ }}</td>
+                            <td>{{ $deptSr++ }}</td>
+                            <td>{{ optional($employee)->employee_id }}</td>
+                            <td>{{ $data->scale_no }}</td>
+                            <td class="text-left">{{ optional($employee)->name }}</td>
+                            <td class="text-left">{{ optional(optional($employee)->designation)->name }}</td>
+                            <td>{{ optional($employee)->company_doj ? \Carbon\Carbon::parse($employee->company_doj)->format('d-M-Y') : '' }}</td>
+                            <td>{{ $data->basics ?? 0 }}</td>
+                            @foreach ($salaryHeads as $head)
+                                @php
+                                    $headValue = optional($data->salary_heads->firstWhere('head_id', $head->id))->head_value ?? 0;
+                                    $headTotals[$head->id] += $headValue;
+                                    $branchHeadTotals[$head->id] += $headValue;
+                                @endphp
+                                <td>{{ $headValue }}</td>
+                            @endforeach
+                            <td>{{ $data->other_add ?? 0 }}</td>
+                            <td>{{ $data->conv ?? 0 }}</td>
+                            <td>{{ $otherMisc }}</td>
+                            <td>{{ $data->stop_sal ?? 0 }}</td>
+                            <td>{{ $displayGross }}</td>
+                            <td>{{ $data->emp_sec ?? 0 }}</td>
+                            <td>{{ $data->it ?? 0 }}</td>
+                            <td>{{ $data->sal_advance ?? 0 }}</td>
+                            <td>{{ $data->eobi ?? 0 }}</td>
+                            <td>{{ $data->emp_sec_loan ?? 0 }}</td>
+                            <td>0</td>
+                            <td>{{ $data->pessi ?? 0 }}</td>
+                            <td>{{ $data->dedu ?? 0 }}</td>
+                            <td>{{ $data->loan ?? 0 }}</td>
+                            <td>{{ $data->net_pay ?? 0 }}</td>
+                            <td>{{ $data->pessi_employer ?? 0 }}</td>
+                            <td>{{ $data->eobi_employer ?? 0 }}</td>
+                            <td>{{ $totalCost }}</td>
+                            <td>{{ $costToComp }}</td>
+                            <td>{{ $leaves->total_casual ?? 0 }}</td>
+                            <td>{{ $casualLeaves }}</td>
+                            <td>{{ $leaves->bal_casual ?? 0 }}</td>
+                            <td>{{ $leaves->total_annual ?? 0 }}</td>
+                            <td>{{ $annualLeaves }}</td>
+                            <td>{{ $leaves->bal_annual ?? 0 }}</td>
+                            <td>{{ $data->sal_days ?? 0 }}</td>
+                        </tr>
+                    @endforeach
+                @endforeach
+                <tr class="branch-total-row">
+                    <td colspan="7">{{ $branchName }} TOTAL</td>
+                    <td>{{ $branchTotals['basics'] }}</td>
+                    @foreach ($salaryHeads as $head)
+                        <td>{{ $branchHeadTotals[$head->id] }}</td>
+                    @endforeach
+                    <td>{{ $branchTotals['other_add'] }}</td>
+                    <td>{{ $branchTotals['other'] }}</td>
+                    <td>{{ $branchTotals['other_misc'] }}</td>
+                    <td>{{ $branchTotals['stop_sal'] }}</td>
+                    <td>{{ $branchTotals['gross'] }}</td>
+                    <td>{{ $branchTotals['emp_sec'] }}</td>
+                    <td>{{ $branchTotals['it'] }}</td>
+                    <td>{{ $branchTotals['sal_advance'] }}</td>
+                    <td>{{ $branchTotals['eobi'] }}</td>
+                    <td>{{ $branchTotals['emp_sec_loan'] }}</td>
+                    <td>{{ $branchTotals['stop_deduction'] }}</td>
+                    <td>{{ $branchTotals['pessi'] }}</td>
+                    <td>{{ $branchTotals['dedu'] }}</td>
+                    <td>{{ $branchTotals['loan'] }}</td>
+                    <td>{{ $branchTotals['net_pay'] }}</td>
+                    <td>{{ $branchTotals['pessi_employer'] }}</td>
+                    <td>{{ $branchTotals['eobi_employer'] }}</td>
+                    <td>{{ $branchTotals['total_cost'] }}</td>
+                    <td>{{ $branchTotals['cost_to_comp'] }}</td>
+                    <td colspan="7"></td>
+                </tr>
+            @endforeach
+        </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td colspan="7">GRAND TOTAL</td>
+                <td>{{ $totals['basics'] }}</td>
+                @foreach ($salaryHeads as $head)
+                    <td>{{ $headTotals[$head->id] }}</td>
+                @endforeach
+                <td>{{ $totals['other_add'] }}</td>
+                <td>{{ $totals['other'] }}</td>
+                <td>{{ $totals['other_misc'] }}</td>
+                <td>{{ $totals['stop_sal'] }}</td>
+                <td>{{ $totals['gross'] }}</td>
+                <td>{{ $totals['emp_sec'] }}</td>
+                <td>{{ $totals['it'] }}</td>
+                <td>{{ $totals['sal_advance'] }}</td>
+                <td>{{ $totals['eobi'] }}</td>
+                <td>{{ $totals['emp_sec_loan'] }}</td>
+                <td>{{ $totals['stop_deduction'] }}</td>
+                <td>{{ $totals['pessi'] }}</td>
+                <td>{{ $totals['dedu'] }}</td>
+                <td>{{ $totals['loan'] }}</td>
+                <td>{{ $totals['net_pay'] }}</td>
+                <td>{{ $totals['pessi_employer'] }}</td>
+                <td>{{ $totals['eobi_employer'] }}</td>
+                <td>{{ $totals['total_cost'] }}</td>
+                <td>{{ $totals['cost_to_comp'] }}</td>
+                <td colspan="7"></td>
+            </tr>
+        </tfoot>
+    </table>
 </body>
 
 </html>

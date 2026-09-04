@@ -57,7 +57,7 @@
             <td>-</td>
             @endif
             @endforeach
-            <td class="font-style">{{!empty(@$lastPayscaleDetail->net && @$lastPayscaleDetail->emp_sec) ? $lastPayscaleDetail->net + $lastPayscaleDetail->emp_sec : '0' }}</td>
+            <td class="font-style">{{ number_format(optional($lastPayscaleDetail)->resolved_gross_salary ?? 0, 2) }}</td>
             <td class="font-style">{{!empty(@$lastPayscaleDetail->eobi_employer) ? @$lastPayscaleDetail->eobi_employer  : '-' }}</td>
             <td class="font-style">{{ !empty($employee) ? $employee->eobi . '|' . $employee->eobi_employer : '-' }}</td>
             <td class="font-style">{{ !empty($lastPayscaleDetail->emp_sec) ?$lastPayscaleDetail->emp_sec  : '-'}}</td>

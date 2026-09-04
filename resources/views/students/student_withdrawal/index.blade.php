@@ -137,7 +137,7 @@
                         <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                             <div class="btn-box">
                                 {{ Form::label('status', __('Status'),['class'=>'form-label'])}}
-                                {{ Form::select('status', $status, isset($_GET['status']) ? $_GET['status'] : '', ['class' => 'form-control select']) }}
+                                {{ Form::select('status', $status, isset($_GET['status']) ? $_GET['status'] : 'draft', ['class' => 'form-control select']) }}
                             </div>
                         </div>
                         <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
@@ -215,19 +215,31 @@
                             align-items: end;
                             /* justify-content: center; */
                             font-size: 20px;">
-                        {{-- @can('edit section') --}}
+                        @if (\Auth::user()->type == 'company' || \Auth::user()->type == 'super admin' || $transfer->status == 'draft')
                         <a href="#!" data-size="lg" data-url="{{route('withdrawlstudent.edit', $transfer->id)}}"
                             data-ajax-popup="true" class="mx-1 btn btn-sm btn-outline-primary"
                              data-bs-title="{{__('Edit')}}">
                             <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span></a>
+                        @endif
+                        @if ($transfer->status == 'draft')
+                            {!! Form::open(['method' => 'POST', 'route' => ['withdrawlstudent.reactive', $transfer->id], 'id' => 'reactive-form-'.$transfer->id, 'class' => 'd-inline']) !!}
+                            <a href="#" role="button" class="mx-1 btn btn-sm btn-outline-warning bs-pass-para"
+                                title="{{ __('Reactive') }}" data-bs-toggle="tooltip" data-bs-title="{{__('Reactive')}}"
+                                data-confirm="{{__('Are You Sure?').'|'.__('This will reactivate the withdrawal and restore the student. Do you want to continue?')}}"
+                                data-confirm-yes="document.getElementById('reactive-form-{{$transfer->id}}').submit();">
+                                <span class="btn-inner--icon"><i class="ti ti-refresh"></i></span>
+                            </a>
+                            {!! Form::close() !!}
+                        @endif
                             
                             <a href="{{ route('withdrawlapplication', ['id' => @$transfer->id]) }}" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Withdrawal Application')}}">
                                 <span class="btn-inner--icon"><i class="ti ti-eye"></i></</span></a>
-                                <a href="{{ route('clearance_certificate', ['id' => @$transfer->id]) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Clearance Certificate')}}">
+                                <a href="{{ route('student_withdrawal.settlement_certificate', ['id' => @$transfer->id]) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Clearance Certificate')}}">
                                     <span class="btn-inner--icon"><i class="ti ti-list"></i></span></a>
-                                    {{--Print button icon for certificate --}}
+                                    @if ($transfer->status == 'approved')
                                     <a href="{{ route('student_withdrawal.certificate_print', $transfer->id) }}" target="_blank" class="mx-1 btn mx-1 btn-sm btn-outline-success"  data-bs-title="{{__('Print')}}">
                                         <span class="btn-inner--icon"><i class="ti ti-printer"></i></span></a>
+                                    @endif
                                     {{-- @endcan --}}
                                     {{--
                                                     <a href="{{ route('transferstudent.change_status', [$transfer->id, 'For Approval']) }}"

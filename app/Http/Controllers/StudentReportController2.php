@@ -9,6 +9,7 @@ use App\Exports\StaffChildExport;
 use App\Exports\StudentDataAnalysisExport;
 use App\Exports\StudypackStudentExport;
 use App\Models\Classes;
+use App\Models\Registring_option;
 use App\Models\EmpChildrens;
 use App\Models\Employee;
 use App\Models\StudentEnrollments;
@@ -234,114 +235,115 @@ public function sibling_students(Request $request)
 
     return view('studentReports.report2.sibling_students', compact('branches', 'students', 'groupedStudents'));
 }
-    public function staff_child(Request $request)
+   public function staff_child(Request $request)
     {
         $user = \Auth::user();
+        $isCompany = $user->type === 'company';
+        $ownerId = $isCompany ? $user->creatorId() : $user->ownedId();
 
-        if ($user->type === 'company') {
+        // Build branch list
+        if ($isCompany) {
             $branches = User::where('type', 'branch')
-                ->where('created_by', $user->creatorId())
+                ->where('created_by', $ownerId)
                 ->get()
                 ->pluck('name', 'id');
-
             $branches->prepend($user->name, $user->id);
-            $branches->prepend('Select Branch', '');
-
-            $branchId = $user->creatorId();
-
-            $employees = Employee::where('created_by', $branchId)->get()->pluck('name', 'id');
-            $employees->prepend('Select Staff', '');
-
-            $students = StudentRegistration::with([
-                'concession.policy_head',
-                'class',
-                'branches',
-            ])->where('created_by', $branchId);
         } else {
-            $branches = User::where('id', $user->ownedId())
-                ->get()
-                ->pluck('name', 'id');
+            $branches = User::where('id', $ownerId)->get()->pluck('name', 'id');
+        }
+        $branches->prepend('Select Branch', '');
 
-            $branches->prepend('Select Branch', '');
+        // Full branch lookup (all branches across company) for employee branch name display
+        $branchLookup = User::where('type', 'branch')
+            ->where('created_by', $user->creatorId())
+            ->get()
+            ->pluck('name', 'id');
+        $branchLookup->prepend(User::find($user->creatorId())->name ?? '', $user->creatorId());
 
-            $branchId = $user->ownedId();
+        // Base query with eager loads
+        $baseQuery = StudentRegistration::with([
+            'concession.policy',
+            'concession.policy_head',
+            'branches',
+            'class',
+            'enrollment',
+            'fee_structure',
+        ])->where('active_status', 1)->where('student_status', 'Enrolled');
 
-            $employees = Employee::where('owned_by', $branchId)->get()->pluck('name', 'id');
-            $employees->prepend('Select Staff', '');
-
-            $students = StudentRegistration::with([
-                'concession.policy_head',
-                'class',
-                'branches',
-            ])->where('owned_by', $branchId);
+        if ($isCompany) {
+            $baseQuery->where('created_by', $ownerId);
+        } else {
+            $baseQuery->where('owned_by', $ownerId);
         }
 
         if ($request->filled('branches')) {
-            $students->where('owned_by', $request->branches);
+            $baseQuery->where('owned_by', $request->branches);
         }
 
-        if ($request->filled('empbranches')) {
-            $employees = Employee::where('owned_by', $request->empbranches)->get()->pluck('name', 'id');
-            $employees->prepend('Select Staff', '');
-        }
+        $baseOn = $request->base_on ?? 'cnic';
 
-        if ($request->filled('staff')) {
-            $students->where(function ($query) use ($request) {
-                $employee = Employee::find($request->staff);
-                if ($employee) {
-                    $query->where('fathercnic', $employee->cnic)
-                        ->orWhere('mothercnic', $employee->cnic);
-                }
+        // Employee status filter
+        $employeeStatus = $request->employee_status ?? 'active';
+        $employeeQuery = Employee::with('designation');
+        if ($employeeStatus === 'active') {
+            $employeeQuery->where(function ($q) {
+                $q->where('is_res_ter', 0)->orWhereNull('is_res_ter');
             });
+        } elseif ($employeeStatus === 'resigned') {
+            $employeeQuery->where('is_res_ter', 1);
         }
 
-        $students = $students
-            ->where(function ($query) {
-                $query->whereNotNull('fathercnic')
-                    ->orWhereNotNull('mothercnic');
-            })
-            ->orderByRaw("COALESCE(fathercnic, mothercnic)")
-            ->get();
+        // Pre-load employees keyed by CNIC
+        $employeesByCnic = $employeeQuery->get()->keyBy('cnic');
 
-        // Inject related employee data by matching CNIC
-        $students->each(function ($student) {
-            // Match employee using CNIC
-            $employee = Employee::with('designation')->where('cnic', $student->fathercnic)
-                ->orWhere('cnic', $student->mothercnic)
+        if ($baseOn === 'staff_child') {
+            $teacherChild = Registring_option::where('created_by', $user->creatorId())
+                ->where('name', 'TEACHER CHILD')
                 ->first();
+            $students = $baseQuery
+                ->where('register_option', $teacherChild->id ?? 0)
+                ->orderBy('stdname')
+                ->get();
+        } else {
+            // CNIC base: find students whose fathercnic or mothercnic matches any employee CNIC
+            $employeeCnicList = $employeesByCnic->keys()->filter()->toArray();
 
-            $student->setRelation('employee', $employee ?? new \App\Models\Employee(['owned_by' => null]));
-
-            // Inject student object structure expected by blade (e.g. student->concession->policy_head)
-            $studentObj = new \stdClass();
-            $studentObj->concession = $student->concession ?? new \stdClass();
-            if (!isset($studentObj->concession->policy_head)) {
-                $studentObj->concession->policy_head = collect();
+            if (empty($employeeCnicList)) {
+                $students = collect();
+            } else {
+                $students = $baseQuery
+                    ->where(function ($q) use ($employeeCnicList) {
+                        $q->whereIn('fathercnic', $employeeCnicList)
+                          ->orWhereIn('mothercnic', $employeeCnicList);
+                    })
+                    ->orderByRaw("COALESCE(fathercnic, mothercnic)")
+                    ->get();
             }
+        }
 
-            $studentObj->class = $student->class ?? new \stdClass();
-            $studentObj->branches = $student->branches ?? new \stdClass();
-            $studentObj->roll_no = $student->roll_no ?? null;
-            $studentObj->stdname = $student->stdname ?? null;
-
-            $student->student = $studentObj;
-
-            // Provide empty enrollment object to avoid errors
-            $student->enrollment = $student->enrollment ?? new \stdClass();
+        // Map employee data onto each student
+        $students->each(function ($student) use ($employeesByCnic) {
+            $employee = $employeesByCnic->get($student->fathercnic)
+                ?? $employeesByCnic->get($student->mothercnic)
+                ?? new \App\Models\Employee(['owned_by' => null, 'employee_id' => '']);
+            $student->setRelation('employee', $employee);
         });
+
+        // Keep only students whose employee was found in the filtered set
+        $students = $students->filter(fn ($s) => $s->employee->exists)->values();
 
         $groupedStudents = $students->groupBy('owned_by');
 
         if ($request->has('export') && $request->export === 'excel') {
-            return Excel::download(new StaffChildExport($branches, $students, $employees, $groupedStudents), 'StaffChildReport.xlsx');
+            return Excel::download(new StaffChildExport($branches, $students, $groupedStudents, $branchLookup), 'StaffChildReport.xlsx');
         }
 
         if ($request->has('print') && $request->print == 'pdf') {
             $report_name = 'Staff Child Report';
-            return Excel::download(new StaffChildExport($branches, $groupedStudents,$report_name, $request->all()), 'StaffChildReport.pdf', \Maatwebsite\Excel\Excel::MPDF);
+            return Excel::download(new StaffChildExport($branches, $groupedStudents, $report_name, $request->all(), $branchLookup), 'StaffChildReport.pdf', \Maatwebsite\Excel\Excel::MPDF);
         }
 
-        return view('studentReports.report2.staff_child', compact('branches', 'students', 'groupedStudents', 'employees'));
+        return view('studentReports.report2.staff_child', compact('branches', 'students', 'groupedStudents', 'branchLookup'));
     }
     public function student_data_analysis(Request $request)
     {

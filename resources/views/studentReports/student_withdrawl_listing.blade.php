@@ -203,6 +203,7 @@
                     <th>Student Name</th>
                     <th>Class</th>
                     <th>Father Name</th>
+                    <th>Adm Date</th>
                     <th>Address</th>
                     <th>Phone</th>
                     <th>Withdrawal Date</th>
@@ -235,14 +236,14 @@
                     
                     @foreach ($all_data as $data)
                         @php
-                            $dataBranch = $data->StudentRegistration->branches->name ?? 'Unknown Branch';
+                            $dataBranch = $data->student->branches->name ?? $data->branch->name ?? 'Unknown Branch';
                         @endphp
                         
                         @if($currentBranch !== $dataBranch)
                             @if($currentBranch !== null)
                                 {{-- Branch total row --}}
                                 <tr class="trNew" style="background:#e9e7e7; font-weight:bold;">
-                                    <td colspan="11" style="text-align:left; padding-right:10px;">Branch Total</td>
+                                    <td colspan="12" style="text-align:left; padding-right:10px;">Branch Total</td>
                                     <td style="text-align:left;">{{ number_format($branchTotals['security_deposit'], 2) }}</td>
                                     <td style="text-align:left;">{{ number_format($branchTotals['receivable'], 2) }}</td>
                                     <td style="text-align:left;">{{ number_format($branchTotals['paid'], 2) }}</td>
@@ -256,7 +257,7 @@
                             
                             {{-- Branch header row --}}
                             <tr class="trNew" style="background:#dcd3d3; font-weight:bold;">
-                                <td colspan="16" style="text-align:left; padding-left:10px;">{{ $dataBranch }}</td>
+                                <td colspan="17" style="text-align:left; padding-left:10px;">{{ $dataBranch }}</td>
                             </tr>
                             
                             @php 
@@ -268,24 +269,26 @@
                         <tr class="trNew">
                             <td>{{ $loop->iteration }}</td>
                             <td>{{ $branchSr++ }}</td>
-                            <td>{{ !empty($data) ? $data->enrollId : '-' }}</td>
-                            <td>{{ !empty($data->StudentRegistration) ? $data->StudentRegistration->stdname : '-' }}</td>
-                            <td>{{ !empty($data->StudentRegistration->class) ? $data->StudentRegistration->class->name : '-' }}
+                            <td>{{ !empty($data->student) ? $data->student->roll_no : '-' }}</td>
+                            <td>{{ !empty($data->student) ? $data->student->stdname : '-' }}</td>
+                            <td>{{ !empty($data->student->class) ? $data->student->class->name : '-' }}
                             </td>
-                            <td>{{ !empty($data->StudentRegistration) ? $data->StudentRegistration->fathername : '-' }}
+                            <td>{{ !empty($data->student) ? $data->student->fathername : '-' }}
                             </td>
-                            <td>{{ !empty($data->StudentRegistration) ? $data->StudentRegistration->address : '-' }}</td>
-                            <td>{{ !empty($data->StudentRegistration) ? $data->StudentRegistration->fatherphone : '-' }}
+                            <td>{{ !empty($data->student->enrollment) ? \Carbon\Carbon::parse($data->student->enrollment->adm_date)->format('d-M-Y') : '-' }}
+                            </td>
+                            <td>{{ !empty($data->student) ? $data->student->address : '-' }}</td>
+                            <td>{!! !empty($data->student) ? str_replace(',', '<br>', $data->student->fatherphone) : '-' !!}
                             </td>
                             <td style="width:50px;">
-                                {{ !empty($data->withdrawal) ? $data->withdrawal->withdraw_date : '-' }}
+                                {{ !empty($data) ? $data->withdraw_date : '-' }}
                                 </td>
-                                <td>{{ !empty($data->withdrawal) ? $data->withdrawal->reason : '-' }}</td>
-                                <td>{{ !empty($data->withdrawal) ? $data->withdrawal->wo_no : '-' }}</td>
-                                <td>{{ !empty($data->withdrawal) ? number_format($data->withdrawal->security_deposit, 2) : '-' }}</td>
-                                <td>{{ !empty($data->withdrawal) ? number_format($data->withdrawal->receivable, 2) : '-' }}</td>
-                                <td>{{ !empty($data->withdrawal) ? number_format($data->withdrawal->paid, 2) : '-' }}</td>
-                                <td>{{ !empty($data->withdrawal) ? number_format($data->withdrawal->payable, 2) : '-' }}</td>
+                                <td>{{ !empty($data) ? $data->reason : '-' }}</td>
+                                <td>{{ !empty($data) ? $data->wo_no : '-' }}</td>
+                                <td>{{ !empty($data) ? number_format($data->security_deposit, 2) : '-' }}</td>
+                                <td>{{ !empty($data) ? number_format($data->receivable, 2) : '-' }}</td>
+                                <td>{{ !empty($data) ? number_format($data->paid, 2) : '-' }}</td>
+                                <td>{{ !empty($data) ? number_format($data->payable, 2) : '-' }}</td>
 
 
                             
@@ -293,22 +296,22 @@
                         </tr>
                         
                         @php
-                            $branchTotals['security_deposit'] += $data->withdrawal->security_deposit ?? 0;
-                            $branchTotals['receivable'] += $data->withdrawal->receivable ?? 0;
-                            $branchTotals['paid'] += $data->withdrawal->paid ?? 0;
-                            $branchTotals['payable'] += $data->withdrawal->payable ?? 0;
+                            $branchTotals['security_deposit'] += $data->security_deposit ?? 0;
+                            $branchTotals['receivable'] += $data->receivable ?? 0;
+                            $branchTotals['paid'] += $data->paid ?? 0;
+                            $branchTotals['payable'] += $data->payable ?? 0;
                             
-                            $grandTotals['security_deposit'] += $data->withdrawal->security_deposit ?? 0;
-                            $grandTotals['receivable'] += $data->withdrawal->receivable ?? 0;
-                            $grandTotals['paid'] += $data->withdrawal->paid ?? 0;
-                            $grandTotals['payable'] += $data->withdrawal->payable ?? 0;
+                            $grandTotals['security_deposit'] += $data->security_deposit ?? 0;
+                            $grandTotals['receivable'] += $data->receivable ?? 0;
+                            $grandTotals['paid'] += $data->paid ?? 0;
+                            $grandTotals['payable'] += $data->payable ?? 0;
                         @endphp
                     @endforeach
                     
                     {{-- Last branch total --}}
                     @if($currentBranch !== null)
                         <tr class="trNew" style="background:#e9e7e7; font-weight:bold;">
-                            <td colspan="11" style="text-align:left; padding-right:10px;">Branch Total</td>
+                            <td colspan="12" style="text-align:left; padding-right:10px;">Branch Total</td>
                             <td style="text-align:left;">{{ number_format($branchTotals['security_deposit'], 2) }}</td>
                             <td style="text-align:left;">{{ number_format($branchTotals['receivable'], 2) }}</td>
                             <td style="text-align:left;">{{ number_format($branchTotals['paid'], 2) }}</td>
@@ -319,7 +322,7 @@
                     
                     {{-- Grand total row --}}
                     <tr class="trNew" style="background:#d4d4d4; font-weight:bold;">
-                        <td colspan="11" style="text-align:left; padding-right:10px;">Grand Total</td>
+                        <td colspan="12" style="text-align:left; padding-right:10px;">Grand Total</td>
                         <td style="text-align:left;">{{ number_format($grandTotals['security_deposit'], 2) }}</td>
                         <td style="text-align:left;">{{ number_format($grandTotals['receivable'], 2) }}</td>
                         <td style="text-align:left;">{{ number_format($grandTotals['paid'], 2) }}</td>

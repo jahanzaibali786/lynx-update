@@ -383,7 +383,7 @@
                                         <td>{{ @$student->stdname }}</td>
                                         <td>{{ @$student->fathername }}</td>
                                         <td>{{ @$student->session->year }}</td>
-                                        <td>{{ @$student->class->name }}</td>
+                                        <td>{{ @$student->regclass->name ?? @$student->class->name }}</td>
                                         <td>{{ @$student->dob }}</td>
                                         <td>{{ strtoupper(@$student->gender) }}</td>
                                         <td>{{ @$student->fatherphone }}</td>

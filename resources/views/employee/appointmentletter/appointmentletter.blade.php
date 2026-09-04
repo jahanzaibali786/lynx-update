@@ -5,40 +5,6 @@
 @push('script-page')
     <script src="https://cdn.ckeditor.com/4.21.0/full/ckeditor.js"></script>
 
-    <script>
-    function previewAppointmentLetter(employeeId) {
-        // alert('hhh');
-        $.ajax({
-            url: "{{ route('generate_appointment_letter', ['id' => '__employeeId__']) }}".replace('__employeeId__', employeeId),
-            method: 'GET',
-            data: {
-                title: 'Appointment Letter',
-                content: 'This is a sample content for the PDF.'
-            },
-            headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            },
-            success: function (response) {
-                const base64Pdf = response.base64Pdf;
-                const byteCharacters = atob(base64Pdf);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'application/pdf' });
-                const blobUrl = URL.createObjectURL(blob);
-                window.open(blobUrl, '_blank');
-            },
-            error: function (xhr) {
-                //json 
-                alert(xhr.responseJSON.error);
-                console.log(xhr.responseText);
-            }
-        });
-    }
-    </script>
-
     <!-- <script src="https://cdn.ckeditor.com/ckeditor5/35.3.0/decoupled-document/ckeditor.js"></script> -->
 @endpush
 @section('breadcrumb')
@@ -52,10 +18,6 @@
             data-bs-title="{{ __('Create Appointment Letter') }}" class="btn mx-1 btn-sm btn-outline-primary">
             <span class="btn-inner--icon">Create</span>
         </a>
-         {{-- preview --}}
-        <a target="_blank" onclick="previewAppointmentLetter(1)" class="btn mx-1 btn-sm btn-outline-primary">
-            <span class="btn-inner--icon">Preview</span>
-        </a>
     </div>
 @endsection
 @section('content')
@@ -65,6 +27,7 @@
             <tr class="table_heads report_table">
                 <th>Sr no.</th>
                 <th>Date</th>
+                <th>Type</th>
                 <th>Template</th>
                 <th>action</th>
             </tr>
@@ -75,9 +38,15 @@
                         {{-- <td>{{ @$letter->no }}</td> --}}
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ \Carbon\Carbon::parse(@$letter->date)->format('d-M-Y') }}</td>
-                        <td>{{ \Illuminate\Support\Str::limit(@$letter->datacontent, 200, '...') }}</td>
+						<td>{{ ucfirst($letter->type )}}</td>
+                        <td>{{ \Illuminate\Support\Str::limit(@$letter->datacontent, 180, '...') }}</td>
                         <td>
                             <div class="action-btn ms-2">
+                                <a href="{{ route('appointment-letter-preview', $letter->id) }}" target="_blank"
+                                    class="mx-1 btn btn-sm btn-outline-info" data-bs-toggle="tooltip"
+                                    data-bs-title="{{ __('Preview Appointment Letter') }}">
+                                    <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
+                                </a>
                                 <a href="#" data-size="xl"
                                     data-url="{{ route('appointment-letter-edit', @$letter->id) }}" data-ajax-popup="true"
                                     class="mx-1 btn mx-1 btn-sm btn-outline-primary" data-bs-toggle="tooltip"

@@ -26,6 +26,7 @@
                                 <th style="width:5%; border: 1px solid black;">{{ __('Reg No #') }}</th>
                                 <th style="width:5%; border: 1px solid black;">{{ __('Roll No #') }}</th>
                                 <th style="width:5%; border: 1px solid black;">{{ __('Challan No #') }}</th>
+                                <th style="width:5%; border: 1px solid black;">{{ __('Billing Month') }}</th>
                                 <th style="width:15%; border: 1px solid black;">{{ __('Admission Date') }}</th>
                                 <th style="width:15%; border: 1px solid black;">{{ __('Class') }}</th>
                                 <th style="width:15%; border: 1px solid black;">{{ __('Student Name') }}</th>
@@ -53,7 +54,8 @@
                                     <td>{{ $student->id }}</td>
                                     <td>{{ $student->enrollId ?? '' }}</td>
                                     <td>{{ $challanData['challan_no'] }}</td>
-                                    <td>{{ date('d M Y', strtotime($student->created_at ?? '')) }}</td>
+                                    <td>{{ !empty($challanData['fee_month']) ? date('M Y', strtotime($challanData['fee_month'])) : '-' }}</td>
+                                    <td>{{ date('d M Y', strtotime($student->adm_date ?? '')) }}</td>
                                     <td>{{ @$student->class->name }}</td>
                                     <td>{{ @$student->StudentRegistration->stdname ?? '' }}</td>
                                     @foreach ($heads as $head)

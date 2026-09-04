@@ -71,7 +71,7 @@ class LedgerService
     {
         //
     }
-  public function buildLedgerRows(Collection $chartAccounts, string $type, $start, $end): Collection
+  public function buildLedgerRows(Collection $chartAccounts, string $type, $start, $end, $branch = null): Collection
 {
     $start = Carbon::parse($start);
     $end = Carbon::parse($end);
@@ -80,7 +80,7 @@ class LedgerService
     $totals = ['balance' => 0];
 
     foreach ($chartAccounts as $account) {
-        $data = Utility::getAccountData($account->id, $start, $end);
+        $data = Utility::getAccountData($account->id, $start, $end, null, $branch = null);
 
         // Skip if no journal data
         if (empty($data['journalItem'])) {
@@ -104,7 +104,7 @@ class LedgerService
                             'memo'   => null,
                             'journal'   => null,
                             'voucher'   => 'Previous Balance',
-                            'date'      => $start->format('d-m-Y'),
+                            'date'      => $start->format('d-M-Y'),
                             'debit'     => 0,
                             'credit'    => 0,
                             'balance'   => $openingBalance,
@@ -127,7 +127,7 @@ class LedgerService
                 'route' => $this->VoucherRoute($journalItemData->voucher_type), 
                 'journal' => $journalItemData->journal,
                 'voucher' => $this->formatVoucherNumber($journalItemData->journal_id, $journalItemData->voucher_type),
-                'date'    => $journalItemData->created_at->format('d-m-Y'),
+                'date'    => $journalItemData->created_at->format('d-M-Y'),
                 'debit'   => $journalItemData->debit,
                 'credit'  => $journalItemData->credit,
                 'balance' => $totals['balance'],

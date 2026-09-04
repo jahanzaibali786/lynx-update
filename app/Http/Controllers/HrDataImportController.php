@@ -6,6 +6,7 @@ use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
 use App\Models\Department;
 use App\Models\Designation;
+use App\Models\AppointmentLetter;
 use App\Models\Employee;
 use App\Models\EmployeeMonthlySalary;
 use App\Models\EmployeeMonthlySalaryAttendance;
@@ -18,6 +19,7 @@ use App\Models\EmployeeLeaves;
 use App\Models\User;
 use App\Models\Utility;
 use Hash;
+use Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -366,46 +368,62 @@ class HrDataImportController extends Controller
                     // 15 => other deduction
                     // 16 => advance
                     // 17 => net
-                    $branch = User::where('name', 'like', '%' . $all_data[0] . '%')->first();
-                    if (!$branch) {
-                        dd($all_data, 'branch');
-                        $reason = 'Branch Not found';
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-                    $department = Department::where('name', 'like', '%' . $all_data[2] . '%')->first();
-                    if (!$department) {
-                        dd($all_data, 'department');
-                        $reason = 'Department Not found';
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-                    $designation = Designation::where('name', 'like', $all_data[3] . '%')->first();
-                    if (!$designation) {
-                        dd($all_data, 'designation');
-                        $reason = 'Designation Not found';
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
-                    $employee = Employee::where('name', 'like', '%' . $all_data[1] . '%')->where('owned_by', $branch->id)->first();
-                    $employee_scale = EmployeeScale::where('scale_no', $all_data[4])->where('department_id', $department->id)->first();
-                    if (!$employee_scale) {
-                        dd($all_data, 'scale');
-                        $reason = 'Scale Not Found';
-                        $error_counter++;
-                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
-                        $count++;
-                        continue;
-                    }
+                    // $branch = User::where('name', 'like', '%' . $all_data[0] . '%')->first();
+                    // if (!$branch) {
+                    //     dd($all_data, 'branch');
+                    //     $reason = 'Branch Not found';
+                    //     $error_counter++;
+                    //     $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+                    //     $count++;
+                    //     continue;
+                    // }
+                    // $department = Department::where('name', 'like', '%' . $all_data[5] . '%')->first();
+                    // if (!$department) {
+                    //     dd($all_data, $all_data[5]  ,'department');
+                    //     $reason = 'Department Not found';
+                    //     $error_counter++;
+                    //     $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+                    //     $count++;
+                    //     continue;
+                    // }
+                    // $designation = Designation::where('name', 'like', $all_data[3] . '%')->first();
+                    // if (!$designation) {
+                    //     dd($all_data, 'designation');
+                    //     $reason = 'Designation Not found';
+                    //     $error_counter++;
+                    //     $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+                    //     $count++;
+                    //     continue;
+                    // }
+                    // $employee = Employee::where('name', 'like', '%' . $all_data[1] . '%')->where('owned_by', $branch->id)->first();
+                    $employee = Employee::where('employee_id', $all_data[0])->first();
+                    // $employee_scale = EmployeeScale::where('scale_no', $all_data[2])->where('department_id', $department->id)->first();
+                    // if (!$employee_scale) {
+                    //     dd($all_data, 'scale',$department,$all_data[2]);
+                    //     $reason = 'Scale Not Found';
+                    //     $error_counter++;
+                    //     $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+                    //     $count++;
+                    //     continue;
+                    // }
+                    // dd($employee_scale->id);
                     $scale =EmployeePayscaleDetail::where('employee_id', $employee->id)->orderBy('id', 'desc')->first();
-                    $scale->pay_scale_id = $employee_scale->id;
-                    $scale->save();
+                    if (!$scale) {
+                        // handle missing record
+                        $reason = 'Payscale detail not found';
+                        $error_counter++;
+                        $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
+                        $count++;
+                        // continue;
+                    }else{
+                        $scale->account_number = $all_data[2];
+                        // $scale->pay_scale_id = $employee_scale->id;
+                        $scale->save();
+                        $emp_leave = EmployeeLeaves::where('employee_id', $employee->id)->first();
+                        $emp_leave->casual_consumed = $emp_leave->casual_total - $all_data['4'];
+                        $emp_leave->annual_consumed = $emp_leave->annual_total - $all_data['5'];
+                        $emp_leave->save();
+                    }
                     // if (!$employee) {
                     //     // dd($all_data, 'employee');
                     //     $user = new User();
@@ -457,7 +475,7 @@ class HrDataImportController extends Controller
                     // dd($employee, $branch, $employee_scale,$department,$designation);
 
                     // account Entry
-                    // $emp_account = EmployeePayscaleDetail::where('id', 5)->first();
+                    $emp_account = EmployeePayscaleDetail::where('id', 5)->first();
                     // $duplicate_scale_attach = EmployeePayscaleDetail::where('employee_id', $employee->id)
                     // ->where('pay_scale_id', $employee_scale->id)
                     // ->first();
@@ -479,36 +497,43 @@ class HrDataImportController extends Controller
                     //     continue;
                     // }
                     // // dd($bank,$all_data[8]);
+                    // $appLetter = AppointmentLetter::where('type', Str::lower($employee->category))->latest()->first();
                     // $emps =  EmployeePayscaleDetail::create([
                     //     'employee_id' => $employee->id,
-                    //     'appletter' => 5,
+                    //     'appletter' => $appLetter ? $appLetter->id : 5,
                     //     'paymode' => $all_data[6],
                     //     'account_number' => $all_data[7],
-                    //     'account_id' => $bank->id,
+                    //     'account_id' => '10',
                     //     'department_id' => $department->id,
                     //     'pay_scale_id' => $employee_scale->id,
-                    //     'effect_from' => $all_data[5],
+                    //     'effect_from' => date('Y-m-d', strtotime($all_data[1])),
+                    //     'working_days' => '30',
                     //     'drns' => 0,
                     //     'conv' => 0,
                     //     'misc' => 0,
                     //     'chaild_concession' => 0,
-                    //     'emp_sec' => $all_data[9],
+                    //     'emp_sec' => $all_data[11],
                     //     'security_receive_account' => $emp_account->security_receive_account,
-                    //     'itax' => $all_data[10],
+                    //     'itax' => $all_data[12],
                     //     'tax_payable_account' => $emp_account->tax_payable_account,
-                    //     'eobi' => $all_data[11],
-                    //     'eobi_employer' => $all_data[12],
+                    //     'eobi' => $all_data[10],
+                    //     'eobi_employer' => $all_data[11],
                     //     'eobi_payable_account' => $emp_account->eobi_payable_account,
-                    //     'pessi' => $all_data[13],
-                    //     'pessi_employer' => $all_data[14],
+                    //     'pessi' => 0,
+                    //     'pessi_employer' => 0,
                     //     'pessi_payable_account' => $emp_account->pessi_payable_account,
-                    //     'other_deduction' => $all_data[15],
+                    //     'other_deduction' => $all_data[14],
                     //     'other_dedu_payable_account' => $emp_account->other_dedu_payable_account,
-                    //     'advance' => $all_data[16],
+                    //     'advance' => $all_data[8],
                     //     'advance_payable_account' => $emp_account->advance_payable_account,
-                    //     'net' => round($all_data[17]),
+                    //     'net' => round($all_data[16]),
                     //     'net_payable_account' => $emp_account->net_payable_account,
                     // ]);
+                    
+                    // $employee->eobi = 1;
+                    // $employee->eobi_employer = 5;
+                    // $employee->security = 8;
+                    // $employee->save();
                     // dd($all_data, 'out',$emps);
 
                     // if ($employee) {
@@ -552,7 +577,7 @@ class HrDataImportController extends Controller
             }
         } catch (\Exception $e) {
             DB::rollBack();
-            dd($e);
+            dd($e,$all_data);
             return redirect()->back()->with('error', "An error occurred: " . $e->getMessage());
         }
     }
@@ -601,7 +626,7 @@ class HrDataImportController extends Controller
                         $count++;
                         continue;
                     }
-                    $salary_date = date('Y-m-d', strtotime('01-01-2021'));
+                    $salary_date = date('Y-m-d', strtotime('01-04-2026'));
                     $duplicate_salary = EmployeeMonthlySalary::where('employee_id', $employee->id)
                         ->where('salary_date', date('Y-m-d', strtotime($salary_date)))
                         ->first();
@@ -614,28 +639,49 @@ class HrDataImportController extends Controller
                     }
                     $employee_scale = EmployeeScale::where('scale_no', $all_data[2])->where('department_id', $department->id)->first();
                     if (!$employee_scale) {
+                        // dd($all_data, 'scale',$employee_scale,$all_data[2],$department);
                         $reason = 'Scale Not Found';
                         $error_counter++;
                         $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
                         $count++;
                         continue;
                     }
+                    $salaryMonthEnd = \Carbon\Carbon::parse($salary_date)->endOfMonth();
+                    $lastPayscaleDetail = EmployeePayscaleDetail::where('employee_id', $employee->id)
+                        ->where(function ($query) use ($salaryMonthEnd) {
+                            $query->whereNull('effect_from')
+                                ->orWhereDate('effect_from', '<=', $salaryMonthEnd->format('Y-m-d'));
+                        })
+                        ->orderBy('effect_from', 'desc')
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    if (!$lastPayscaleDetail) {
+                        $lastPayscaleDetail = EmployeePayscaleDetail::where('employee_id', $employee->id)
+                            ->orderBy('id', 'desc')
+                            ->first();
+                    }
                     $created_at = date('Y-m-d H:i:s', strtotime($salary_date));
                     $employee_salary = new EmployeeMonthlySalary();
                     $employee_salary->employee_id = $employee->id;
                     $employee_salary->department_id = $employee->department_id;
+                    $employee_salary->paymode = $lastPayscaleDetail->paymode ?? ($all_data[35] ?? null);
+                    $employee_salary->account_number = $lastPayscaleDetail->account_number ?? ($all_data[36] ?? $employee->account_number ?? null);
+                    $employee_salary->bank_from_id = $lastPayscaleDetail->account_id ?? ($all_data[37] ?? null);
                     $employee_salary->scale_id = $employee_scale->id;
                     $employee_salary->scale_no = $employee_scale->scale_no;
                     $employee_salary->sal_days = $all_data[34];
                     $employee_salary->salary_date = $salary_date;
                     $employee_salary->basics = $all_data[7];
                     $employee_salary->conv = $all_data[9];
+                    $employee_salary->other_add = $all_data[12];
                     $employee_salary->gross = $all_data[14];
                     $employee_salary->emp_sec = $all_data[15];
                     $employee_salary->it = $all_data[16];
                     $employee_salary->eobi = $all_data[17];
                     $employee_salary->pessi = $all_data[21];
+                    $employee_salary->loan = $all_data[22];
                     $employee_salary->dedu = $all_data[19];
+                    $employee_salary->emp_sec_loan = $all_data[18];
                     $employee_salary->net_pay = $all_data[23];
                     $employee_salary->pessi_employer = $all_data[24];
                     $employee_salary->eobi_employer = $all_data[25];
@@ -710,11 +756,7 @@ class HrDataImportController extends Controller
                             'sub_type' => 'Payroll Expenses',
                             'name' => 'Salary Expense (Basic + Med + Rent + Sec)',
                             'debit' =>
-                               (float) ($all_data[6] ?? 0) + // Initial Basic
-                               (float) ($all_data[8] ?? 0) + // House Rent
-                               (float) ($all_data[10] ?? 0) + // Medical Allowance
-                               (float) ($all_data[11] ?? 0) + // Special
-                               (float) ($employee_salary->dedu ?? 0) , 
+                               (float) ($all_data[14] ?? 0), // Other Addition, 
                             'credit' => 0,
                         ],
                         // Dr: Employer PASSI
@@ -740,6 +782,14 @@ class HrDataImportController extends Controller
                             'name' => 'Employee Security Payable',
                             'debit' => 0,
                             'credit' => $employee_salary->emp_sec,
+                        ],
+                        // Cr: Employee Security Payable Loan
+                        [
+                            'type' => 'Liabilities',
+                            'sub_type' => 'Payables',
+                            'name' => 'Employee Security Payable',
+                            'debit' => 0,
+                            'credit' => $employee_salary->emp_sec_loan,
                         ],
                         // Cr: Income Tax Payable
                         [
@@ -771,7 +821,15 @@ class HrDataImportController extends Controller
                             'sub_type' => 'Payables',
                             'name' => 'Loan Deduction Payable',
                             'debit' => 0,
-                            'credit' => $employee_salary->dedu_loan ?? 0, // or $all_data[?]
+                            'credit' => $employee_salary->loan ?? 0, // or $all_data[?]
+                        ],
+                        // Cr: Loan Advance Payable
+                        [
+                            'type' => 'Liabilities',
+                            'sub_type' => 'Payables',
+                            'name' => 'Loan Deduction Payable',
+                            'debit' => 0,
+                            'credit' => $employee_salary->sal_advance ?? 0, // or $all_data[?]
                         ],
                         // Cr: Other Deduction Payable
                         [
@@ -779,7 +837,7 @@ class HrDataImportController extends Controller
                             'sub_type' => 'Payables',
                             'name' => 'Other Deduction Payable',
                             'debit' => 0,
-                            'credit' => $employee_salary->dedu_other ?? 0, // or $all_data[?]
+                            'credit' => $employee_salary->dedu ?? 0, // or $all_data[?]
                         ],
                         // Cr: Net Salary Payable
                         [
@@ -1089,14 +1147,17 @@ class HrDataImportController extends Controller
 
                     $record_status = 'Error';
                     $reason = '';
-                    // $branch_id = 18; // SATELLITE TOWN SENIOR BRANCH RWP
-                    // $branch_id = 17; // SATELLITE TOWN NURSERY BRANCH RWP
+
+                    // $branch_id = 2; // Head Office
                     // $branch_id = 5; // I-8/4 DAYCARE BRANCH ISLAMABAD
-                    $branch_id = 2; // Head Office
                     // $branch_id = 6; // I-8/4 NURSERY BRANCH ISLAMABAD
                     // $branch_id = 7; // I-8/4 PRIMARY BRANCH ISLAMABAD
                     // $branch_id = 8; // I-8/4 SENIOR BRANCH ISLAMABAD
                     // $branch_id = 53; // PWD BRANCH ISLAMABAD
+                    // $branch_id = 1906; // I-8/4 JUNIOR BRANCH ISLAMABAD
+                    // $branch_id = 17; // SATELLITE TOWN NURSERY BRANCH RWP
+                    $branch_id = 18; // SATELLITE TOWN SENIOR BRANCH RWP
+
                     if (empty($all_data[0])) {
                         $reason = 'Empty employee ID';
                         $error_counter++;
@@ -1107,6 +1168,21 @@ class HrDataImportController extends Controller
 
                     $existingEmployee = Employee::where('employee_id', $all_data[0])->first();
                     if ($existingEmployee) {
+                        $existingEmployee->cnic = $all_data[5];
+                        $existingEmployee->eobi_id = $all_data[6];
+                        $existingEmployee->present_address = $all_data[13];
+                        $existingEmployee->phone = $all_data[12];
+                        $existingEmployee->company_doj = date('Y-m-d', strtotime($all_data[9]));
+                        $existingEmployee->is_res_ter = !empty($all_data[14]) ? 1 : 0;
+                        $existingEmployee->gender = $all_data[15];
+                        $existingEmployee->owned_by = $branch_id;
+                        $existingEmployee->save();
+
+                        $users = User::where('id', $existingEmployee->user_id)->first();
+                        if ($users) {
+                            $users->owned_by = $branch_id;
+                            $users->save();
+                        }
                         $reason = 'Employee already exists';
                         $duplication_counter++;
                         $skip_data[] = array_merge($all_data, ['Status' => $record_status, 'Reason' => $reason]);
@@ -1143,6 +1219,7 @@ class HrDataImportController extends Controller
                     $emp->phone = $all_data[12];
                     $emp->address = $all_data[13];
                     $emp->present_address = $all_data[13];
+                    $emp->eobi_id = $all_data[6];
                     $emp->category = 'Regular';
                     $emp->email = $all_data[11] ?? '';
                     $emp->password = Hash::make('123456');
@@ -1152,6 +1229,8 @@ class HrDataImportController extends Controller
                     $emp->company_doj = date('Y-m-d', strtotime($all_data[9]));
                     $emp->owned_by = $branch_id;
                     $emp->created_by = 2;
+                    $emp->is_res_ter = !empty($all_data[14]) ? 1 : 0;
+                    $emp->gender = $all_data[15];
                     $emp->save();
 
                     // Create user
@@ -1223,7 +1302,7 @@ class HrDataImportController extends Controller
             }
         } catch (\Exception $e) {
             DB::rollBack();
-            dd($e);
+            dd($e, $all_data);
             return redirect()->back()->with('error', "An error occurred: " . $e->getMessage());
         }
 

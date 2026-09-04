@@ -11,8 +11,8 @@
             {{ Form::date('apply_date', $loan->apply_date, ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
-            {!! Form::label('end_date', __('End Date'), ['class' => 'form-label']) !!}
-            {{ Form::date('end_date', $loan->loan_ended, ['class' => 'form-control', 'readonly' => 'readonly']) }}
+            {!! Form::label('end_date', __('End Month'), ['class' => 'form-label']) !!}
+            {{ Form::text('end_date', !empty($loan->loan_ended) ? \Carbon\Carbon::parse($loan->loan_ended)->format('M Y') : '-', ['class' => 'form-control', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('employee_name', __('Employee Name'), ['class' => 'form-label']) !!}
@@ -58,6 +58,35 @@
             'readonly' => 'readonly'
             ])
             !!}
+        </div>
+    </div>
+    <div class="mt-4">
+        <h6 class="mb-3">{{ __('Stop History') }}</h6>
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>{{ __('From') }}</th>
+                        <th>{{ __('To') }}</th>
+                        <th>{{ __('Months') }}</th>
+                        <th>{{ __('Reason') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($loan->stopHistories as $history)
+                        <tr>
+                            <td>{{ \Carbon\Carbon::parse($history->stop_from_month)->format('M Y') }}</td>
+                            <td>{{ \Carbon\Carbon::parse($history->stop_to_month)->format('M Y') }}</td>
+                            <td>{{ $history->months }}</td>
+                            <td>{{ !empty($history->reason) ? $history->reason : '-' }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4" class="text-center">{{ __('No stop history found.') }}</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

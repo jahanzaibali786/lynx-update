@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ __('Employee Salary History Report') }}
+    {{ __('Employee Payroll History Report') }}
 @endsection
 @push('script-page')
     <script src="{{ asset('js/jquery.min.js') }}"></script>
@@ -87,7 +87,7 @@
 @endpush
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
-    <li class="breadcrumb-item">{{ __('Employee Salary History Report') }}</li>
+    <li class="breadcrumb-item">{{ __('Employee Payroll History Report') }}</li>
 @endsection
 
 @section('content')
@@ -190,16 +190,15 @@
                 </div>
             </div>
         </div>
-        <div class="card mt-2 p-4" id="studentfeereceipt">
-            <div style="margin: 0 auto;">
-
-                <div class="mt-4" style="margin: 0 auto; padding: 30px;">
+        <div class="card mt-3" id="studentfeereceipt">
+            <div class="card-body p-0">
+                <div class="p-3 border-bottom">
                     <div style="width: 100%; text-align: center;">
                         <p style="font-family:Edwardian Script ITC; font-size:3rem; text-align: center;"><b>The Lynx School
                             </b></p>
                     </div>
                     <div style="width: 100%; text-align: center;">
-                        <p style="font-size:1rem; text-align: center; font-weight: 800;">Employee Salary History
+                        <p style="font-size:1rem; text-align: center; font-weight: 800;">Employee Payroll History
                         </p>
                     </div>
                     <div class="" style="width:100%">
@@ -210,7 +209,8 @@
                         <p style="width: 30%; float:left; padding-left:100px;"><b>To Date:
                             </b>{{ request()->get('to_date') ?? date('Y-M-d') }}</p>
                     </div>
-                    <div class="table-responsive" style="width: 80%; ">
+                </div>
+                <div class="table-responsive">
                         @php
                             // Collect all unique salary heads
                             $uniqueSalaryHeads = collect();
@@ -228,13 +228,46 @@
                             }
                             // Remove duplicates based on salary head ID
                             $uniqueSalaryHeads = $uniqueSalaryHeads->unique('id');
+                            $payrollHeadTotals = $uniqueSalaryHeads->mapWithKeys(fn($head) => [$head['id'] => 0])->all();
+                            $payrollTotals = [
+                                'rows' => 0,
+                                'basics' => 0,
+                                'conv' => 0,
+                                'sal_all' => 0,
+                                'other_add' => 0,
+                                'drns_misc' => 0,
+                                'stop_sal' => 0,
+                                'gross' => 0,
+                                'emp_sec' => 0,
+                                'it' => 0,
+                                'eobi' => 0,
+                                'loan' => 0,
+                                'dedu' => 0,
+                                'stop_sal_ded' => 0,
+                                'pessi' => 0,
+                                'loan_adj' => 0,
+                                'net' => 0,
+                                'pessi_employer' => 0,
+                                'eobi_employer' => 0,
+                                'total' => 0,
+                                'cost_to_company' => 0,
+                                'annual_op' => 0,
+                                'annual_lvs' => 0,
+                                'annual_bal' => 0,
+                                'casual_op' => 0,
+                                'casual_lvs' => 0,
+                                'casual_bal' => 0,
+                                'working_days' => 0,
+                            ];
                         @endphp
 
-                        <table class="">
+                        <table class="table table-bordered table-sm mb-0" style="font-size: 11px; white-space: nowrap;">
                             <thead>
                                 <tr class="table_heads" style="font-size:0.8rem;">
                                     <th>{{ __('Sr No.') }}</th>
                                     <th>{{ __('Branch') }}</th>
+                                    <th>{{ __('Emp No') }}</th>
+                                    <th>{{ __('Employee Name') }}</th>
                                     <th>{{ __('Date') }}</th>
                                     <th>{{ __('Pay Scale') }}</th>
                                     <th>{{ __('Desg.') }}</th>
@@ -245,16 +278,17 @@
                                     @endforeach
 
                                     <th>{{ __('Earned Basic') }}</th>
-                                    <th>{{ __('Conv') }}</th>
+                                    <th>{{ __('Other') }}</th>
                                     <th>{{ __('Sal') }}</th>
-                                    <th>{{ __('others.') }}</th>
+                                    <th>{{ __('Other Allowance') }}</th>
+                                    <th>{{ __('Drns & Misc') }}</th>
                                     <th>{{ __('stop_sal') }}</th>
                                     <th>{{ __('Gross') }}</th>
                                     <th>{{ __('Emp.sec') }}</th>
                                     <th>{{ __('Adv.Tax') }}</th>
                                     <th>{{ __('EOBI') }}</th>
                                     <th>{{ __('Loan E.s') }}</th>
-                                    <th>{{ __('Others') }}</th>
+                                    <th>{{ __('Other Deduction') }}</th>
                                     <th>{{ __('Stop_sal') }}</th>
                                     <th>{{ __('PESSI') }}</th>
                                     <th>{{ __('Loan Adj.') }}</th>
@@ -280,7 +314,9 @@
                                         @endphp
                                         <tr style="font-size:0.7rem;">
                                             <td>{{ $loop->iteration }}</td>
-                                            <td>{{ \Auth::user()->getBranch($emp->branch_id)->name }}</td>
+                                            <td>{{ optional($emp->userbranch)->name ?? optional(\Auth::user()->getBranch($emp->branch_id))->name }}</td>
+                                            <td>{{ $emp->employee_id ?? '' }}</td>
+                                            <td>{{ $emp->name ?? '' }}</td>
                                             <td>{!! \Carbon\Carbon::parse(@$salary->salary_date)->format('d-F-Y') !!}</td>
                                             <td>{{ @$salary->scale_no }}</td>
                                             <td>{!! @$emp->designation->name !!}</td>
@@ -298,46 +334,50 @@
                                                             break;
                                                         }
                                                     }
+                                                    $payrollHeadTotals[$uniqueHead['id']] += (float) ($headValue ?: 0);
                                                 @endphp
                                                 <td>{{ $headValue ?: '0' }}</td>
                                             @endforeach
 
-                                            <td>{{ !empty(@$salary->basics) ? $salary->basics : '0' }}</td>
-                                            <td>{{ !empty(@$salary->conv) ? @$salary->conv : '0' }}</td>
-                                            <td>{{ !empty(@$salary->sal_all) ? @$salary->sal_all : '0' }}</td>
-                                            <td>{{ !empty(@$salary->other) ? @$salary->other : '0' }}</td>
-                                            <td>{{ !empty(@$salary->stop_sal) ? @$salary->stop_sal : '0' }}</td>
-                                            <td>{{ !empty(@$salary->gross) ? @$salary->gross : '0' }}</td>
-                                            <td>{{ !empty(@$salary->emp_sec) ? @$salary->emp_sec : '0' }}</td>
-                                            <td>{{ !empty(@$salary->it) ? @$salary->it : '0' }}</td>
-                                            <td>{{ !empty(@$payscale->eobi) ? @$payscale->eobi : '0' }}</td>
-                                            <td>{{ !empty(@$salary->loan) ? @$salary->loan : '0' }}</td>
-                                            <td>{{ !empty(@$salary->other) ? @$salary->other : '0' }}</td>
-                                            <td>{{ !empty(@$salary->stop_sal) ? @$salary->stop_sal : '0' }}</td>
-                                            <td>{{ !empty(@$payscale->pessi) ? @$payscale->pessi : '0' }}</td>
-                                            <td>{{ !empty(@$salary->loan_adj) ? @$salary->loan_adj : '0' }}</td>
                                             @php
+                                                $basics = (float) (@$salary->basics ?? 0);
+                                                $conv = (float) (@$salary->conv ?? 0);
+                                                $salAll = (float) (@$salary->sal_all ?? 0);
+                                                $otherAdd = (float) (@$salary->other_add ?? @$salary->other ?? 0);
+                                                $drnsMisc = (float) (@$salary->drns ?? 0) + (float) (@$salary->misc ?? 0);
+                                                $stopSal = (float) (@$salary->stop_sal ?? 0);
+                                                $gross = (float) (@$salary->gross ?? 0) + $stopSal;
+                                                $empSec = (float) (@$salary->emp_sec ?? 0);
+                                                $it = (float) (@$salary->it ?? 0);
+                                                $eobi = (float) (@$payscale->eobi ?? 0);
+                                                $loan = (float) (@$salary->loan ?? 0);
+                                                $dedu = (float) (@$salary->dedu ?? @$salary->other ?? 0);
+                                                $pessi = (float) (@$payscale->pessi ?? 0);
+                                                $loanAdj = (float) (@$salary->loan_adj ?? 0);
                                                 $total_deduction =
-                                                    @$salary->gross -
-                                                    (@$salary->emp_sec +
-                                                        @$salary->it +
-                                                        @$payscale->eobi +
-                                                        @$salary->loan +
-                                                        @$salary->other +
-                                                        @$salary->stop_sal +
-                                                        @$salary->loan_adj +
-                                                        @$payscale->pessi);
+                                                    $gross -
+                                                    ($empSec + $it + $eobi + $loan + $dedu + $loanAdj + $pessi);
                                             @endphp
+                                            <td>{{ $basics }}</td>
+                                            <td>{{ $conv }}</td>
+                                            <td>{{ $salAll }}</td>
+                                            <td>{{ $otherAdd }}</td>
+                                            <td>{{ $drnsMisc }}</td>
+                                            <td>0</td>
+                                            <td>{{ $gross }}</td>
+                                            <td>{{ $empSec }}</td>
+                                            <td>{{ $it }}</td>
+                                            <td>{{ $eobi }}</td>
+                                            <td>{{ $loan }}</td>
+                                            <td>{{ $dedu }}</td>
+                                            <td>{{ $stopSal }}</td>
+                                            <td>{{ $pessi }}</td>
+                                            <td>{{ $loanAdj }}</td>
                                             <td>{{ $total_deduction }}</td>
-                                            <td>{{ !empty(@$payscale->eobi_employer) ? @$payscale->eobi_employer : '0' }}
-                                            </td>
-                                            <td>{{ !empty(@$payscale->pessi_employer) ? @$payscale->pessi_employer : '0' }}
-                                            </td>
                                             @php
-                                                $total_sum =
-                                                    @$salary->loan_adj +
-                                                    @$payscale->eobi_employer +
-                                                    @$payscale->pessi_employer;
+                                                $eobiEmployer = (float) (@$payscale->eobi_employer ?? 0);
+                                                $pessiEmployer = (float) (@$payscale->pessi_employer ?? 0);
+                                                $total_sum = $loanAdj + $eobiEmployer + $pessiEmployer;
                                                 $total_addition = @$total_deduction + @$total_sum;
                                                 
                                                 $targetMonth = \Carbon\Carbon::parse($salary->salary_date)->format('Y-m');
@@ -347,20 +387,68 @@
                                                         return \Illuminate\Support\Str::startsWith($att->for_month_of, $targetMonth);
                                                     })
                                                     ->first();
+                                                $annualOp = (float) (@$attendance->total_annual ?? 0);
+                                                $annualBal = (float) (@$attendance->bal_annual ?? 0);
+                                                $annualLvs = $annualOp - $annualBal;
+                                                $casualOp = (float) (@$attendance->total_casual ?? 0);
+                                                $casualBal = (float) (@$attendance->bal_casual ?? 0);
+                                                $casualLvs = $casualOp - $casualBal;
+                                                $workingDays = (float) (@$attendance->working_days ?? 0);
+                                                $payrollTotals['rows']++;
+                                                $payrollTotals['basics'] += $basics;
+                                                $payrollTotals['conv'] += $conv;
+                                                $payrollTotals['sal_all'] += $salAll;
+                                                $payrollTotals['other_add'] += $otherAdd;
+                                                $payrollTotals['drns_misc'] += $drnsMisc;
+                                                $payrollTotals['stop_sal'] += $stopSal;
+                                                $payrollTotals['gross'] += $gross;
+                                                $payrollTotals['emp_sec'] += $empSec;
+                                                $payrollTotals['it'] += $it;
+                                                $payrollTotals['eobi'] += $eobi;
+                                                $payrollTotals['loan'] += $loan;
+                                                $payrollTotals['dedu'] += $dedu;
+                                                $payrollTotals['stop_sal_ded'] += 0;
+                                                $payrollTotals['pessi'] += $pessi;
+                                                $payrollTotals['loan_adj'] += $loanAdj;
+                                                $payrollTotals['net'] += $total_deduction;
+                                                $payrollTotals['pessi_employer'] += $pessiEmployer;
+                                                $payrollTotals['eobi_employer'] += $eobiEmployer;
+                                                $payrollTotals['total'] += $total_sum;
+                                                $payrollTotals['cost_to_company'] += $total_addition;
+                                                $payrollTotals['annual_op'] += $annualOp;
+                                                $payrollTotals['annual_lvs'] += $annualLvs;
+                                                $payrollTotals['annual_bal'] += $annualBal;
+                                                $payrollTotals['casual_op'] += $casualOp;
+                                                $payrollTotals['casual_lvs'] += $casualLvs;
+                                                $payrollTotals['casual_bal'] += $casualBal;
+                                                $payrollTotals['working_days'] += $workingDays;
                                             @endphp
+                                            <td>{{ $pessiEmployer }}</td>
+                                            <td>{{ $eobiEmployer }}</td>
                                             <td>{{ !empty(@$total_sum) ? @$total_sum : '0' }}</td>
                                             <td>{{ !empty(@$total_addition) ? @$total_addition : '0' }}</td>
-                                            <td>{{ !empty(@$attendance->total_annual) ? @$attendance->total_annual : '0' }}</td>
-                                            <td>{{ (!empty(@$attendance->total_annual) ? @$attendance->total_annual : '0') - (!empty(@$attendance->bal_annual) ? @$attendance->bal_annual : '0') }}</td>
-                                            <td>{{ !empty(@$attendance->bal_annual) ? @$attendance->bal_annual : '0' }}</td>
-                                            <td>{{ !empty(@$attendance->total_casual) ? @$attendance->total_casual : '0' }}</td>
-                                            <td>{{ (!empty(@$attendance->total_casual) ? @$attendance->total_casual : '0') - (!empty(@$attendance->bal_casual) ? @$attendance->bal_casual : '0') }}</td>
-                                            <td>{{ !empty(@$attendance->bal_casual) ? @$attendance->bal_casual : '0' }}</td>
-                                            <td>{{ (!empty(@$attendance->working_days) ? @$attendance->working_days : '0')  }}</td>
+                                            <td>{{ $annualOp }}</td>
+                                            <td>{{ $annualLvs }}</td>
+                                            <td>{{ $annualBal }}</td>
+                                            <td>{{ $casualOp }}</td>
+                                            <td>{{ $casualLvs }}</td>
+                                            <td>{{ $casualBal }}</td>
+                                            <td>{{ $workingDays }}</td>
                                         </tr>
                                     @endforeach
                                 @endforeach
                             </tbody>
+                            <tfoot>
+                                <tr class="fw-bold table-secondary">
+                                    <td colspan="7" class="text-end">{{ __('GRAND TOTAL') }} ({{ $payrollTotals['rows'] }})</td>
+                                    @foreach ($uniqueSalaryHeads as $uniqueHead)
+                                        <td class="text-end">{{ number_format($payrollHeadTotals[$uniqueHead['id']] ?? 0, 0) }}</td>
+                                    @endforeach
+                                    @foreach (['basics','conv','sal_all','other_add','drns_misc','stop_sal','gross','emp_sec','it','eobi','loan','dedu','stop_sal_ded','pessi','loan_adj','net','pessi_employer','eobi_employer','total','cost_to_company','annual_op','annual_lvs','annual_bal','casual_op','casual_lvs','casual_bal','working_days'] as $totalKey)
+                                        <td class="text-end">{{ number_format($payrollTotals[$totalKey] ?? 0, 0) }}</td>
+                                    @endforeach
+                                </tr>
+                            </tfoot>
                         </table>
                         @if (is_object($employees) && method_exists($employees, 'hasPages') && $employees->hasPages())
                             <div class="pagination">
@@ -408,7 +496,6 @@
                                 </ul>
                             </div>
                         @endif
-                    </div>
                 </div>
             </div>
         </div>

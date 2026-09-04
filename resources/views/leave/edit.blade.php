@@ -1,4 +1,4 @@
-{{Form::model($leave, array('route' => array('leave.update', $leave->id), 'method' => 'PUT')) }}
+{{ Form::model($leave, ['route' => ['leave.update', $leave->id], 'method' => 'PUT', 'id' => 'leave-edit-form']) }}
 <div class="modal-body">
     <div class="row">
         <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
@@ -12,7 +12,7 @@
             <div class="form-group">
                 {{Form::label('employee_id', __('Employee'), ['class' => 'form-label'])}}<span style="color: red">
                     *</span>
-                {{Form::select('employee_id', $employees, null, array('class' => 'form-control select', 'required' => 'required', 'id' => 'employee_id'))}}
+                {{Form::select('employee_id', $employees, $leave->employee_id, array('class' => 'form-control select', 'required' => 'required', 'id' => 'employee_id'))}}
             </div>
         </div>
         @endif
@@ -54,21 +54,21 @@
             <div class="form-group">
                 {{ Form::label('applied_on', __('Applied On'), ['class' => 'form-label']) }}<span
                     style="color: red">*</span>
-                {{ Form::date('applied_on', null, ['class' => 'form-control', 'id' => 'applied_on', 'required' => 'required']) }}
+                {{ Form::date('applied_on', $leave->applied_on, ['class' => 'form-control', 'id' => 'applied_on', 'required' => 'required']) }}
             </div>
         </div>
         <div class="col-md-3">
             <div class="form-group">
                 {{ Form::label('start_date', __('Start Date'), ['class' => 'form-label']) }}<span
                     style="color: red">*</span>
-                {{ Form::date('start_date', null, ['class' => 'form-control', 'id' => 'start_date', 'required' => 'required']) }}
+                {{ Form::date('start_date', $leave->start_date, ['class' => 'form-control', 'id' => 'start_date', 'required' => 'required']) }}
             </div>
         </div>
         <div class="col-md-3">
             <div class="form-group">
                 {{ Form::label('end_date', __('End Date'), ['class' => 'form-label']) }}<span
                     style="color: red">*</span>
-                {{ Form::date('end_date', null, ['class' => 'form-control', 'id' => 'end_date', 'required' => 'required']) }}
+                {{ Form::date('end_date', $leave->end_date, ['class' => 'form-control', 'id' => 'end_date', 'required' => 'required']) }}
             </div>
         </div>
         <div class="col-md-3">
@@ -87,20 +87,20 @@
     'sick_leave' => __('Sick Leave'),
     'domestic_problem' => __('Domestic Problem'),
     'maternity' => __('Maternity')
-], null, ['class' => 'form-control', 'required' => 'required', 'placeholder' => __('Select Leave Reason')]) }}
+], $leave->leave_reason, ['class' => 'form-control', 'required' => 'required', 'placeholder' => __('Select Leave Reason')]) }}
             </div>
         </div>
         <div class="col-md-6">
             <div class="form-group">
                 {{Form::label('remark', __('Remark'), ['class' => 'form-label'])}}
-                {{Form::textarea('remark', null, array('class' => 'form-control grammer_textarea', 'rows' => 1, 'placeholder' => __('Leave Remark')))}}
+                {{Form::textarea('remark', $leave->remark, array('class' => 'form-control grammer_textarea', 'rows' => 1, 'placeholder' => __('Leave Remark')))}}
             </div>
         </div>
     </div>
 </div>
 <div class="modal-footer">
     <input type="button" value="{{__('Cancel')}}" class="btn  btn-outline-light" data-bs-dismiss="modal">
-    <input type="submit" value="{{__('Update')}}" class="btn  btn-outline-primary">
+    <input type="submit" value="{{__('Update')}}" class="btn  btn-outline-primary" id="leave-edit-submit">
 </div>
 {{Form::close()}}
 <script>
@@ -110,7 +110,7 @@
         var existingLeaveType = "{{ $leave->leave_type_id ?? '' }}";
 
         // 2. wire the change
-        $('#employee_id').on('change', function() {
+        $(document).off('change.leaveEditEmployee', '#employee_id').on('change.leaveEditEmployee', '#employee_id', function() {
             var emp = $(this).val();
             loadLeaveTypes(emp, null);
         });
@@ -156,6 +156,10 @@
                     }
 
                     var text = value.title + ' (' + value.total_leave + '/' + value.days + ')';
+                    if (selectTypeId && String(value.id) === String(selectTypeId)) {
+                        disabled = false;
+                    }
+
                     var $opt = $('<option>')
                         .val(value.id)
                         .html(text)
@@ -172,6 +176,29 @@
                 if (selectTypeId) {
                     $sel.val(selectTypeId);
                 }
+            }
+        });
+    }
+
+    if (window.jQuery && typeof ajaxModalForm === 'function') {
+        ajaxModalForm({
+            formSelector: '#leave-edit-form',
+            submitText: '{{ __('Processing...') }}',
+            closeOnSuccess: false,
+            showToast: false,
+            onSuccess: function(response) {
+                if (response && response.row_html && response.leave_id) {
+                    var oldRow = $('#leave-row-' + response.leave_id);
+                    var serial = oldRow.find('td:first').text();
+                    var newRow = $(response.row_html);
+
+                    newRow.find('td:first').text(serial);
+                    oldRow.replaceWith(newRow);
+                }
+
+                show_toastr('success', (response && response.message) || '{{ __('Leave successfully updated.') }}',
+                    'success');
+                closeActiveBootstrapModal();
             }
         });
     }

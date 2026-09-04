@@ -3,28 +3,19 @@
     {{ __('Fee Receipt Summary') }}
 @endsection
 
-
 @push('script-page')
     <script src="{{ asset('js/jquery.min.js') }}"></script>
-
     <script>
-                function branchcustomer(id) {
-            var customer = $('#customerselect').val();
+        function branchcustomer(id) {
             $.ajax({
-                headers: {
-                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                },
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
                 url: "{{ route('branch.session_class') }}",
                 type: "POST",
-                data: {
-                    id: id
-                },
+                data: { id: id },
                 dataType: 'json',
                 success: function(result) {
-                    
                     if (result.status == 'success') {
                         var $classSelect = $('#class_select');
-                        // Remove previous custom select wrapper and instance
                         if ($classSelect[0] && $classSelect[0].customSelectInstance) {
                             $classSelect[0].customSelectInstance.destroy();
                             delete $classSelect[0].customSelectInstance;
@@ -33,50 +24,25 @@
                             $classSelect.next('.custom-select-wrapper').remove();
                         }
                         $classSelect.removeClass('custom-select');
-
-                        // Clear and append new options
                         $classSelect.empty();
-                        $classSelect.append($('<option>', {
-                            value: 'all',
-                            text: 'All Class'
-                        }));
+                        $classSelect.append($('<option>', { value: 'all', text: 'All Class' }));
                         for (var j = 0; j < result.class.length; j++) {
-                            var cls = result.class[j];
-                            $classSelect.append($('<option>', {
-                                value: cls.id,
-                                text: cls.name
-                            }));
+                            $classSelect.append($('<option>', { value: result.class[j].id, text: result.class[j].name }));
                         }
-
-                        // Re-add class and re-init
-                        $classSelect.addClass('custom-select');
-                        $classSelect.show();
-                        // Directly create new CustomSelect instance for this select only
+                        $classSelect.addClass('custom-select').show();
                         if (window.CustomSelect && typeof window.CustomSelect.create == 'function') {
                             window.CustomSelect.create($classSelect[0]);
                         }
-
-                        // Session select update (unchanged)
                         $('#sessionselect').empty();
-                        $('#sessionselect').append($('<option>', {
-                            value: 'all',
-                            text: 'All Session'
-                        }));
+                        $('#sessionselect').append($('<option>', { value: 'all', text: 'All Session' }));
                         for (var i = 0; i < result.session.length; i++) {
-                            var session = result.session[i];
-                            $('#sessionselect').append($('<option>', {
-                                value: session.id,
-                                text: session.title
-                            }));
+                            $('#sessionselect').append($('<option>', { value: result.session[i].id, text: result.session[i].title }));
                         }
                     }
-                    if (result.status == 'error') {}
-
                 }
             });
         }
     </script>
-
 @endpush
 
 @section('breadcrumb')
@@ -97,50 +63,68 @@
     </style>
 
     @php
-        // Pre-calculate date range
-        $fromDate = request()->get('start_date') ?? date('Y-m-d', strtotime('-1 month'));
-        $toDate = request()->get('end_date') ?? date('Y-m-d');
+        $fromDate       = request()->get('start_date') ?? date('Y-m-d', strtotime('-1 month'));
+        $toDate         = request()->get('end_date')   ?? date('Y-m-d');
         $selectedBranch = request()->get('branches');
-        
-        // Prepare data structure for optimized rendering
+
         $dateRange = new \DatePeriod(
             \Carbon\Carbon::parse($fromDate),
             new \DateInterval('P1D'),
             \Carbon\Carbon::parse($toDate)->addDay()
         );
-        
-        $branchTotals = [];
+
+        // -------------------------------------------------------
+        // DEDUPLICATION: one voucher_id per branch per date
+        // Multiple StudentReceipt rows can share the same
+        // voucher_id (one row per journal line). Grouping by
+        // voucher_id ensures each payment is counted only once,
+        // mirroring the detail view's groupBy('voucher_id') logic.
+        // -------------------------------------------------------
+        $deduplicatedReceipts = $recipts
+            ->groupBy('owned_by')
+            ->flatMap(function ($branchReceipts) {
+                return $branchReceipts
+                    ->groupBy('voucher_id')
+                    ->map(function ($voucherGroup) {
+                        // Keep the first row as the representative record;
+                        // sum credit across all voucher lines for the amount.
+                        $first  = $voucherGroup->first();
+                        $amount = $first->voucher->sum('credit');
+
+                        // Clone-like stdClass so downstream code stays identical
+                        return (object) [
+                            'owned_by'    => $first->owned_by,
+                            'recipt_date' => $first->recipt_date,
+                            'voucher'     => $first->voucher,
+                            '_amount'     => $amount,   // pre-calculated, avoids re-summing
+                        ];
+                    });
+            });
+
+        $branchTotals       = [];
         $grandTotalReceipts = 0;
-        $grandTotalAmount = 0;
-        
-        // Pre-process receipt data
-        $processedReceipts = [];
-        foreach ($recipts as $receipt) {
-            $dateKey = \Carbon\Carbon::parse($receipt->recipt_date)->format('Y-m-d');
+        $grandTotalAmount   = 0;
+        $processedReceipts  = [];
+
+        foreach ($deduplicatedReceipts as $receipt) {
+            $dateKey   = \Carbon\Carbon::parse($receipt->recipt_date)->format('Y-m-d');
             $branchKey = $receipt->owned_by;
-            
-            if (!isset($processedReceipts[$dateKey])) {
-                $processedReceipts[$dateKey] = [];
-            }
-            
+            $amount    = $receipt->_amount;
+
+            // Build date → branch matrix
             if (!isset($processedReceipts[$dateKey][$branchKey])) {
-                $processedReceipts[$dateKey][$branchKey] = [
-                    'count' => 0,
-                    'amount' => 0
-                ];
+                $processedReceipts[$dateKey][$branchKey] = ['count' => 0, 'amount' => 0];
             }
-            
-            $amount = $receipt->voucher->sum('credit');
             $processedReceipts[$dateKey][$branchKey]['count']++;
             $processedReceipts[$dateKey][$branchKey]['amount'] += $amount;
-            
-            // Track branch totals
+
+            // Branch totals
             if (!isset($branchTotals[$branchKey])) {
                 $branchTotals[$branchKey] = ['receipts' => 0, 'amount' => 0];
             }
             $branchTotals[$branchKey]['receipts']++;
             $branchTotals[$branchKey]['amount'] += $amount;
-            
+
             // Grand totals
             $grandTotalReceipts++;
             $grandTotalAmount += $amount;
@@ -214,87 +198,85 @@
     </div>
 
     <div class="p-4 pt-0" id="studentfeereceipt">
-  
-            <div style="width: 100%; text-align: center;">
-                <p style="font-family:Edwardian Script ITC; font-size:3rem; text-align: center; margin-bottom: 0;">
-                    <b>The Lynx School</b>
-                </p>
-                <p style="font-size:1rem; text-align: center; font-weight: 800; margin-top: -10px;">
-                    Fee Receipt Summary
-                </p>
-                <p>{{ @$bank_accounts->holder_name ?? 'All Banks' }}</p>
-            </div>
-            <div class="d-flex justify-content-between">
-                <p><b>From Date: </b>{{ $fromDate }}</p>
-                <p style="padding-left:100px;"><b>To Date: </b>{{ $toDate }}</p>
-            </div>
-            <div class="table-responsive maximumHeightNew" >
-                <table class="table datatable">
-                    <thead class="sticky-headerNew">
-                        <tr class="table_heads thead2" style="font-size:0.8rem;">
-                            <th>{{ __('Date') }}</th>
-                            @foreach ($branches as $key => $branch)
-                                @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
-                                    <th colspan="2" class="text-center">{{ $branch }}</th>
-                                @endif
-                            @endforeach
-                            <th colspan="2" class="text-center">{{ __('Total') }}</th>
-                        </tr>
-                        <tr class="table_heads" style="font-size:0.8rem;">
-                            <th></th>
-                            @foreach ($branches as $key => $branch)
-                                @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
-                                    <th>{{ __('Receipts') }}</th>
-                                    <th>{{ __('Amount') }}</th>
-                                @endif
-                            @endforeach
-                            <th>{{ __('Receipts') }}</th>
-                            <th>{{ __('Amount') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($dateRange as $date)
-                            @php
-                                $dateKey = $date->format('Y-m-d');
-                                $hasData = isset($processedReceipts[$dateKey]);
-                                $dateTotalReceipts = 0;
-                                $dateTotalAmount = 0;
-                            @endphp
-
-                            @if ($hasData)
-                                <tr class="trNew" style="font-size:0.7rem;">
-                                    <td>{{ $date->format('d-M-Y') }}</td>
-                                    @foreach ($branches as $key => $branch)
-                                        @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
-                                            @php
-                                                $branchData = $processedReceipts[$dateKey][$key] ?? ['count' => 0, 'amount' => 0];
-                                                $dateTotalReceipts += $branchData['count'];
-                                                $dateTotalAmount += $branchData['amount'];
-                                            @endphp
-                                            <td>{{ $branchData['count'] }}</td>
-                                            <td>{{ number_format($branchData['amount'], 0) }}</td>
-                                        @endif
-                                    @endforeach
-                                    <td>{{ $dateTotalReceipts }}</td>
-                                    <td>{{ number_format($dateTotalAmount, 0) }}</td>
-                                </tr>
+        <div style="width: 100%; text-align: center;">
+            <p style="font-family:Edwardian Script ITC; font-size:3rem; text-align: center; margin-bottom: 0;">
+                <b>The Lynx School</b>
+            </p>
+            <p style="font-size:1rem; text-align: center; font-weight: 800; margin-top: -10px;">
+                Fee Receipt Summary
+            </p>
+            <p>{{ @$bank_accounts->holder_name ?? 'All Banks' }}</p>
+        </div>
+        <div class="d-flex justify-content-between">
+            <p><b>From Date: </b>{{ $fromDate }}</p>
+            <p style="padding-left:100px;"><b>To Date: </b>{{ $toDate }}</p>
+        </div>
+        <div class="table-responsive maximumHeightNew">
+            <table class="table datatable">
+                <thead class="sticky-headerNew">
+                    <tr class="table_heads thead2" style="font-size:0.8rem;">
+                        <th>{{ __('Date') }}</th>
+                        @foreach ($branches as $key => $branch)
+                            @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
+                                <th colspan="2" class="text-center">{{ $branch }}</th>
                             @endif
                         @endforeach
-                        
-                        <tr class="trNew" style="font-weight: bold; background-color: #f0f0f0; font-size: 0.8rem; border-top: 2px solid black;">
-                            <td>{{ __('TOTAL') }}</td>
-                            @foreach ($branches as $key => $branch)
-                                @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
-                                    <td>{{ $branchTotals[$key]['receipts'] ?? 0 }}</td>
-                                    <td>{{ number_format($branchTotals[$key]['amount'] ?? 0, 0) }}</td>
-                                @endif
-                            @endforeach
-                            <td>{{ $grandTotalReceipts }}</td>
-                            <td>{{ number_format($grandTotalAmount, 0) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-  
+                        <th colspan="2" class="text-center">{{ __('Total') }}</th>
+                    </tr>
+                    <tr class="table_heads" style="font-size:0.8rem;">
+                        <th></th>
+                        @foreach ($branches as $key => $branch)
+                            @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
+                                <th>{{ __('Receipts') }}</th>
+                                <th>{{ __('Amount') }}</th>
+                            @endif
+                        @endforeach
+                        <th>{{ __('Receipts') }}</th>
+                        <th>{{ __('Amount') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($dateRange as $date)
+                        @php
+                            $dateKey           = $date->format('Y-m-d');
+                            $hasData           = isset($processedReceipts[$dateKey]);
+                            $dateTotalReceipts = 0;
+                            $dateTotalAmount   = 0;
+                        @endphp
+
+                        @if ($hasData)
+                            <tr class="trNew" style="font-size:0.7rem;">
+                                <td>{{ $date->format('d-M-Y') }}</td>
+                                @foreach ($branches as $key => $branch)
+                                    @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
+                                        @php
+                                            $branchData         = $processedReceipts[$dateKey][$key] ?? ['count' => 0, 'amount' => 0];
+                                            $dateTotalReceipts += $branchData['count'];
+                                            $dateTotalAmount   += $branchData['amount'];
+                                        @endphp
+                                        <td>{{ $branchData['count'] }}</td>
+                                        <td>{{ number_format($branchData['amount'], 0) }}</td>
+                                    @endif
+                                @endforeach
+                                <td>{{ $dateTotalReceipts }}</td>
+                                <td>{{ number_format($dateTotalAmount, 0) }}</td>
+                            </tr>
+                        @endif
+                    @endforeach
+
+                    <tr class="trNew" style="font-weight: bold; background-color: #f0f0f0; font-size: 0.8rem; border-top: 2px solid black;">
+                        <td>{{ __('TOTAL') }}</td>
+                        @foreach ($branches as $key => $branch)
+                            @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
+                                <td>{{ $branchTotals[$key]['receipts'] ?? 0 }}</td>
+                                <td>{{ number_format($branchTotals[$key]['amount'] ?? 0, 0) }}</td>
+                            @endif
+                        @endforeach
+                        <td>{{ $grandTotalReceipts }}</td>
+                        <td>{{ number_format($grandTotalAmount, 0) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 @endsection

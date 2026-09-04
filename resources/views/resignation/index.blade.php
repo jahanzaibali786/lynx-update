@@ -175,9 +175,8 @@
         <thead>
             <tr class="table_heads">
                 <th>#</th>
-                @role('company')
-                    <th>{{ __('Employee Name') }}</th>
-                @endrole
+                <th>{{ __('Emp No.') }}</th>
+                <th>{{ __('Employee Name') }}</th>
                 <th>{{ __('Branch') }}</th>
                 <th>{{ __('Resignation Date') }}</th>
                 <th>{{ __('Last Working Date') }}</th>
@@ -193,9 +192,8 @@
             @foreach ($resignations as $resignation)
                 <tr>
                     <td>{{ $loop->iteration }}</td>
-                    @role('company')
-                        <td>{{ $resignation->employee->name ?? '' }}</td>
-                    @endrole
+                    <td>{{ $resignation->employee->employee_id ?? '' }}</td>
+                    <td>{{ $resignation->employee->name ?? '' }}</td>
                     <td>{{ \Auth::user()->getBranch(@$resignation->employee->owned_by)->name ?? '' }}</td>
                     <td>{{ \Auth::user()->dateFormat($resignation->notice_date) }}</td>
                     <td>{{ \Auth::user()->dateFormat($resignation->resignation_date) }}</td>

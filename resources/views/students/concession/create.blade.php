@@ -1,4 +1,17 @@
+@php
+    $isReadmissionPopup = !empty($readmissionContext['enabled']);
+    $prefillBranchId = $readmissionContext['branch_id'] ?? null;
+    $prefillClassId = $readmissionContext['class_id'] ?? null;
+    $prefillStudentId = $readmissionContext['student_id'] ?? null;
+    $prefillPeriodFrom = $readmissionContext['period_from'] ?? date('Y-m-d');
+    $prefillEffectiveFrom = $readmissionContext['effective_from']
+        ?? \Carbon\Carbon::parse($prefillPeriodFrom)->format('Y-m');
+@endphp
+
 {{ Form::open(['url' => 'concession', 'id' => 'concessionForm']) }}
+@if ($isReadmissionPopup)
+    <input type="hidden" name="from_readmission" value="1">
+@endif
 <div class="modal-body">
     <style>
         .custom-select-display{
@@ -64,12 +77,23 @@
         </div>
         <div class="col-4">
             <div class="form-group">
-                {{ Form::label('period_from', __('Period From'), ['class' => 'form-label']) }}<span style="color: red">
-                    *</span>
-                {{ Form::date('period_from', null, ['class' => 'form-control ', 'placeholder' => __('Enter Period From'), 'required' => 'required']) }}
+                {{ Form::label('effective_from', __('Billing Month (Effective From)'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
+                <input type="month"
+                       name="effective_from"
+                       id="effective_from"
+                       class="form-control"
+                       value="{{ old('effective_from', $prefillEffectiveFrom) }}"
+                       required>
             </div>
         </div>
-        <div class="col-4">
+        <div class="col-2">
+            <div class="form-group">
+                {{ Form::label('period_from', __('Period From'), ['class' => 'form-label']) }}<span style="color: red">
+                    *</span>
+                {{ Form::date('period_from', $isReadmissionPopup ? $prefillPeriodFrom : null, ['class' => 'form-control ', 'placeholder' => __('Enter Period From'), 'required' => 'required']) }}
+            </div>
+        </div>
+        <div class="col-2">
             <div class="form-group">
                 {{ Form::label('period_to', __('Period To'), ['class' => 'form-label']) }}
                 {{ Form::date('period_to', null, ['class' => 'form-control ', 'placeholder' => __('Enter Period To')]) }}
@@ -80,7 +104,12 @@
 
                 {{ Form::label('branch_id', __('Branch'), ['class' => 'form-label']) }}<span style="color: red">
                     *</span>
-                {{ Form::select('branch_id', $branches, null, ['class' => 'form-control select', 'required' => 'required', 'id' => 'branch']) }}
+                @if ($isReadmissionPopup)
+                    {{ Form::select('branch_id_display', $branches, $prefillBranchId, ['class' => 'form-control', 'id' => 'branch', 'disabled' => 'disabled']) }}
+                    {{ Form::hidden('branch_id', $prefillBranchId) }}
+                @else
+                    {{ Form::select('branch_id', $branches, null, ['class' => 'form-control select', 'required' => 'required', 'id' => 'branch']) }}
+                @endif
 
                 {{-- <!-- // {{ Form::label('student_id', __('Students'),['class'=>'form-label']) }}<span style="color: red"> *</span>
                // {{ Form::select('student_id', ['' => 'Select  a Student'], null, ['class' => 'form-control select','id' => 'class_students']) }}
@@ -90,21 +119,44 @@
         <div class="col-4">
             <div class="form-group">
                 {{ Form::label('class_id', __('Class'), ['class' => 'form-label']) }}<span style="color: red"> *</span>
-                {{ Form::select('class_id', $classes, null, ['class' => 'form-control select', 'id' => 'class_id', 'required' => 'required']) }}
+                @if ($isReadmissionPopup)
+                    {{ Form::select('class_id_display', $classes, $prefillClassId, ['class' => 'form-control', 'id' => 'class_id', 'disabled' => 'disabled']) }}
+                    {{ Form::hidden('class_id', $prefillClassId) }}
+                @else
+                    {{ Form::select('class_id', $classes, null, ['class' => 'form-control select', 'id' => 'class_id', 'required' => 'required']) }}
+                @endif
             </div>
         </div>
         <div class="col-4">
             <div class="form-group">
                 {{ Form::label('concession_type', __('Concession Type'), ['class' => 'form-label']) }}<span
                     style="color: red"> *</span>
-                {{ Form::select('concession_type', ['regular' => 'Regular Concession', 'registration' => 'Registration Concession'], null, ['class' => 'form-control select', 'id' => 'concession_type', 'required' => 'required']) }}
+                {{ Form::select(
+                    'concession_type',
+                    [
+                        'regular' => 'Regular Concession',
+                        'registration' => 'Registration Concession',
+                        'withdrawal' => 'Withdrawal Concession',
+                    ],
+                    $isReadmissionPopup ? 'withdrawal' : null,
+                    [
+                        'class' => 'form-control select',
+                        'id' => 'concession_type',
+                        'required' => 'required',
+                    ]
+                ) }}
             </div>
         </div>
         <div class="col-4">
             <div class="form-group" id="std_names">
                 {{ Form::label('student_id', __('Students'), ['class' => 'form-label']) }}<span style="color: red">
                     *</span>
-                {{ Form::select('student_id', $students ?? [], null, ['class' => 'form-control select', 'id' => 'student_select', 'required' => 'required']) }}
+                @if ($isReadmissionPopup)
+                    {{ Form::select('student_id_display', $students ?? [], $prefillStudentId, ['class' => 'form-control custom-select', 'id' => 'student_select', 'disabled' => 'disabled']) }}
+                    {{ Form::hidden('student_id', $prefillStudentId) }}
+                @else
+                    {{ Form::select('student_id', $students ?? [], null, ['class' => 'form-control custom-select', 'id' => 'student_select', 'required' => 'required']) }}
+                @endif
             </div>
         </div>
         <div class="col-8">
@@ -142,7 +194,12 @@
 {{ Form::close() }}
 
 <script>
-    document.getElementById('search').addEventListener('click', function() {
+    (function($) {
+        'use strict';
+
+        $(document)
+            .off('click.concessionCreateSearch', '#search')
+            .on('click.concessionCreateSearch', '#search', function() {
         console.log('search');
         
         var form = document.getElementById('concessionForm');
@@ -177,6 +234,13 @@
                 const exact = data.filter(p => p.is_exact);
                 const partial = data.filter(p => !p.is_exact);
 
+                // Always start with a placeholder so the browser never
+                // auto-selects the first (partial) option on its own.
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = 'Select Policy';
+                dropdown.appendChild(placeholder);
+
                 if (exact.length > 0) {
                     const eg = document.createElement('optgroup');
                     eg.label = '✔ Exact Match';
@@ -201,9 +265,13 @@
                     dropdown.appendChild(pg);
                 }
 
-                // Auto-select first exact match
+                // Auto-select an exact match only. When there is no exact match,
+                // keep the "Select Policy" placeholder selected so the user picks
+                // a partial policy explicitly — never silently auto-select one.
                 if (exact.length > 0) {
                     dropdown.value = exact[0].id;
+                } else {
+                    dropdown.value = '';
                 }
 
                 // ── Re-initialize your custom select plugin ──────────────────
@@ -237,10 +305,69 @@
                     $conc.selectpicker();
                 }
             });
-    });
+        });
+
+    })(jQuery);
 </script>
 
 <script>
+    (function($) {
+        'use strict';
+
+        /*
+         * IMPORTANT:
+         * Keep these values inside this modal instance.
+         * custom.js injects modal scripts dynamically; global `const`
+         * declarations caused:
+         *
+         * Identifier 'concessionFromReadmission' has already been declared
+         */
+        const concessionFromReadmission = @json($isReadmissionPopup);
+        const concessionPrefillStudentId = @json($prefillStudentId);
+
+    /**
+     * Safely initialize/re-initialize the project's CustomSelect component.
+     *
+     * Dynamic student dropdowns are rebuilt after Class / Concession Type
+     * changes, so any old wrapper/instance must be destroyed first.
+     */
+    function initConcessionCustomSelect(selector) {
+        const $select = $(selector);
+
+        if (!$select.length || !$select.is('select')) {
+            return;
+        }
+
+        $select.each(function() {
+            const select = this;
+            const $el = $(select);
+
+            if (select.customSelectInstance) {
+                try {
+                    select.customSelectInstance.destroy();
+                } catch (e) {}
+
+                delete select.customSelectInstance;
+            }
+
+            /*
+             * Remove stale UI generated by the previous instance.
+             */
+            if ($el.next('.custom-select-wrapper').length) {
+                $el.next('.custom-select-wrapper').remove();
+            }
+
+            $el.addClass('custom-select').show();
+
+            if (
+                window.CustomSelect &&
+                typeof window.CustomSelect.create === 'function'
+            ) {
+                window.CustomSelect.create(select);
+            }
+        });
+    }
+
     function classStudents(id) {
         var type = $('#concession_type').val();
         $.ajax({
@@ -258,8 +385,8 @@
                 console.log(result);
                 if (result.status == 'success') {
                     var s = ` {{ Form::label('student_id', __('Students'), ['class' => 'form-label']) }}<span style="color: red">
-                                    *</span><select name="student_id"  class="form-control select " id="student_select" required>
-                                    <option value="all" selected >All Students</option> `;
+                                    *</span><select name="student_id" class="form-control custom-select" id="student_select" required>
+                                    <option value="all" selected>All Students</option> `;
 
 
                     for (var id in result.students) {
@@ -271,19 +398,28 @@
                     s += `</select>`;
                     $('#std_names').empty();
                     $('#std_names').html(s);
-                    if (result.length != 0) {
-                        $('#student_select').addClass('js-searchBox');
-                        JsSearchBox();
-                        updateWidths();
-                    }
                     $('#student_select').val('all');
+
+                    /*
+                     * The dropdown was just replaced in the DOM, therefore
+                     * initialize the custom-select instance again.
+                     *
+                     * Do NOT call JsSearchBox()/updateWidths() here.
+                     * updateWidths() exists only inside the commented block
+                     * at the bottom of this view, which caused:
+                     * "Uncaught ReferenceError: updateWidths is not defined".
+                     */
+                    initConcessionCustomSelect('#student_select');
                 }
 
             }
         });
     }
 
-    $(document).on('change', '#class_id', function() {
+    $(document)
+        .off('change.concessionCreate', '#class_id')
+        .on('change.concessionCreate', '#class_id', function() {
+        if (concessionFromReadmission) return;
         var classId = $(this).val();
         $('.av').addClass('d-none');
         $('#student-details').empty('');
@@ -293,7 +429,10 @@
             $('#student_select').empty();
         }
     });
-    $(document).on('change', '#concession_type', function() {
+    $(document)
+        .off('change.concessionCreate', '#concession_type')
+        .on('change.concessionCreate', '#concession_type', function() {
+        if (concessionFromReadmission) return;
         var classId = $('#class_id').val();
         console.log(classId);
         if (classId) {
@@ -303,7 +442,10 @@
         }
     });
 
-    $(document).on('change', '#branch', function() {
+    $(document)
+        .off('change.concessionCreate', '#branch')
+        .on('change.concessionCreate', '#branch', function() {
+        if (concessionFromReadmission) return;
         var branch = $(this).val();
         $.ajax({
             url: '{{ route('branch.class') }}',
@@ -324,7 +466,9 @@
         });
     });
 
-    $(document).on('change', '#student_select', function() {
+    $(document)
+        .off('change.concessionCreate', '#student_select')
+        .on('change.concessionCreate', '#student_select', function() {
         var studentId = this.value;
         $('.av').addClass('d-none');
         $('#student-details').empty('');
@@ -348,14 +492,75 @@
         var detailsDiv = document.getElementById('student-details');
         if (data) {
             detailsDiv.innerHTML =
-                `<div style="display:grid; grid-template-columns:auto auto auto;"><p><strong>Student Name:</strong>${data.data.stdname}</p><p><strong>Father Name:</strong>${data.data.fathername}</p><p><strong>Father CNIC:</strong>${data.data.fathercnic}</p><p><strong>Email:</strong>${data.data.email}</p><p><strong>Roll No:</strong>${data.enroll.enrollId}</p><p><strong>Class:</strong>${data.class}</p><p><strong>Section:</strong>${data.section}</p><p><strong>Concession:</strong>${data.concession}</p></div>`;
-            if (data.concession != 'No Previous Concession') {
+                `<div style="display:grid; grid-template-columns:auto auto auto;"><p><strong>Student Name:</strong>${data.data.stdname}</p><p><strong>Father Name:</strong>${data.data.fathername}</p><p><strong>Father CNIC:</strong>${data.data.fathercnic}</p><p><strong>Email:</strong>${data.data.email}</p><p><strong>Roll No:</strong>${data.enroll ? data.enroll.enrollId : '-'}</p><p><strong>Class:</strong>${data.class}</p><p><strong>Section:</strong>${data.section}</p><p><strong>Concession:</strong>${data.concession && data.concession !== 'No Concession' ? (data.concession.status || 'Existing') : 'No Concession'}</p></div>`;
+            if (data.concession && data.concession !== 'No Concession') {
                 $('.av').removeClass('d-none');
             }
         } else {
             detailsDiv.innerHTML = '<p>No details available for this student.</p>';
         }
     }
+
+    /*
+     * Initialize the original server-rendered Student dropdown.
+     */
+    initConcessionCustomSelect('#student_select');
+
+    if (concessionFromReadmission && concessionPrefillStudentId) {
+        fetchStudentDetails(concessionPrefillStudentId);
+    }
+
+    $(document)
+        .off('submit.readmissionConcession', '#concessionForm')
+        .on('submit.readmissionConcession', '#concessionForm', function(e) {
+            if (!concessionFromReadmission) {
+                return true;
+            }
+
+            e.preventDefault();
+
+            const form = this;
+            const submitButton = $(form).find('[type="submit"]');
+            submitButton.prop('disabled', true);
+
+            $.ajax({
+                url: form.action,
+                type: 'POST',
+                data: new FormData(form),
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                success: function(response) {
+                    show_toastr('Success', response.message || 'Concession application created.', 'success');
+
+                    window.dispatchEvent(new CustomEvent('readmission:policy-updated', {
+                        detail: response.policy || {}
+                    }));
+
+                    const modalEl = document.getElementById('commonModal') ||
+                        document.querySelector('.modal.show');
+
+                    if (modalEl && window.bootstrap) {
+                        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                    } else if (modalEl) {
+                        $(modalEl).modal('hide');
+                    }
+                },
+                error: function(xhr) {
+                    const message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'Unable to create concession application.';
+                    show_toastr('Error', message, 'error');
+                },
+                complete: function() {
+                    submitButton.prop('disabled', false);
+                }
+            });
+
+            return false;
+        });
+
+    })(jQuery);
 </script>
 {{-- <script>
     JsSearchBox();

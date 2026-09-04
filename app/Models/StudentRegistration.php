@@ -24,9 +24,11 @@ class StudentRegistration extends Model
         'fatherphone',
         'fathercell',
         'fatherprofession',
+        'father_email',
         'mothername',
         'mothercnic',
         'motherprofession',
+        'mother_email',
         'email',
         'city',
         'birth_place',
@@ -46,9 +48,15 @@ class StudentRegistration extends Model
         'custody_name',
         'custody_cnic',
         'reg_type',
+	'fee_exempt_jun_jul',
         'remarks',
+        'reg_branch_id',
         'owned_by',
+        'added_by',
         'created_by',
+    ];
+	protected $casts = [
+        'fee_exempt_jun_jul' => 'boolean',
     ];
     public function enrollment()
     {
@@ -80,6 +88,10 @@ class StudentRegistration extends Model
     {
         return $this->belongsTo(User::class, 'branch', 'id');
     }
+    public function reg_branch()
+    {
+        return $this->belongsTo(User::class, 'reg_branch_id', 'id');
+    }
     public function withdrawal()
     {
         return $this->belongsTo(StudentWithdrawal::class, 'id', 'student_id');
@@ -101,5 +113,12 @@ class StudentRegistration extends Model
     }
     public function teacherChild(){
         return $this->hasOne(EmpChildrens::class, 'student_id', 'id');
+    }
+
+    public function registrationChallan()
+    {
+        return $this->hasOne(Challans::class, 'student_id', 'id')
+            ->whereRaw('LOWER(challan_type) LIKE ?', [strtolower('%registration%')])
+            ->latest('id');
     }
 }

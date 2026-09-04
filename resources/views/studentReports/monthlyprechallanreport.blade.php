@@ -47,7 +47,7 @@
                         window.CustomSelect.create($classSelect[0]);
                     }
 
-                    $('#student_select').html('<option value="">Select Student</option>');
+                    $('#student_select').html('<option value="all">All Students</option>');
                 }
             });
         });
@@ -77,15 +77,16 @@
                     // Clear and append new options
                     $studentSelect.empty();
                     $studentSelect.append($('<option>', {
-                        value: '',
-                        text: 'Select Student'
+                        value: 'all',
+                        text: 'All Students'
                     }));
-                    
+
                     for (var j = 0; j < data.student.length; j++) {
                         var std = data.student[j];
                         $studentSelect.append($('<option>', {
                             value: std.roll_no,
-                            text: std.roll_no + ' - ' + std.stdname + ' s/d/o ' + std.fathername
+                            text: std.roll_no + ' - ' + std.stdname + ' s/d/o ' + std
+                                .fathername
                         }));
                     }
 
@@ -138,7 +139,15 @@
         }
     </style>
 @endpush
+@section('action-btn')
+    <div class="float-end mb-2">
 
+        {{-- //pre challan reports list --}}
+        <a href="{{ route('prechallan.index') }}" class="btn btn-sm btn-outline-primary">
+            {{ __('Pre Challan List') }}
+        </a>
+    </div>
+@endsection
 @section('content')
     <div class="card">
         <div class="card-body">
@@ -154,7 +163,7 @@
                 </div>
                 <div class="col-xl-2 col-lg-2 col-md-3">
                     {{ Form::label('student', 'Student') }}
-                    {{ Form::select('student', $students, request('student'), ['class' => 'form-control custom-select', 'id' => 'student_select']) }}
+                    {{ Form::select('student', $students, request('student', 'all'), ['class' => 'form-control custom-select', 'id' => 'student_select']) }}
                 </div>
                 <div class="col-xl-2 col-lg-2 col-md-3">
                     {{ Form::label('date', 'Billing Month') }}
@@ -183,74 +192,79 @@
             {{ Form::close() }}
         </div>
     </div>
-@if ($report->isNotEmpty())
-    <div class="mt-4 report-start">
-        <div style="width: 100%; text-align: center;">
-            <p style="font-family:Edwardian Script ITC; font-size:3rem;"><b>The Lynx School</b></p>
-        </div>
-        <div style="width: 100%; text-align: center;">
-            <p style="font-size:1rem; font-weight: 800;">
-                Student Pre-Challan Report - {{ $month }}
-            </p>
-        </div>
-        <div class="table-container table-responsive" style="width: 100%;">
-            <table class="sticky-table datatable">
-                <thead class="table_heads">
-                    <tr>
-                        <th>Sr.</th>
-                        <th>Branch</th>
-                        <th>Roll No</th>
-                        <th>Name</th>
-                        <th>Reg Type</th>
-                        <th>Class</th>
-                        <th>Monthly Fee</th>
-                        @foreach ($heads as $head)
-                            <th>{{ $head->fee_head }}</th>
-                            <th>Disc</th>
+    @if ($report->isNotEmpty())
+        <div class="mt-4 report-start">
+            <div style="width: 100%; text-align: center;">
+                <p style="font-family:Edwardian Script ITC; font-size:3rem;"><b>The Lynx School</b></p>
+            </div>
+            <div style="width: 100%; text-align: center;">
+                <p style="font-size:1rem; font-weight: 800;">
+                    Student Pre-Challan Report - {{ $month }}
+                </p>
+            </div>
+            <div class="table-container table-responsive" style="width: 100%;">
+                <table class="sticky-table datatable">
+                    <thead class="table_heads">
+                        <tr>
+                            <th>Sr.</th>
+                            <th>Branch</th>
+                            <th>Roll No</th>
+                            <th>Name</th>
+                            <th>Admission Date</th>
+                            <th>Reg Type</th>
+                            <th>Class</th>
+                            <th>Section</th>
+                            <th>Monthly Fee</th>
+                            @foreach ($heads as $head)
+                                <th>{{ $head->fee_head }}</th>
+                                <th>Disc</th>
+                                <th>Net</th>
+                            @endforeach
+                            <th>Total</th>
+                            <th>Discount</th>
                             <th>Net</th>
-                        @endforeach
-                        <th>Total</th>
-                        <th>Discount</th>
-                        <th>Net</th>
-                        <th>Category</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php $i = 1; @endphp
-                    @foreach ($report as $branchId => $students)
-                        @foreach ($students as $stu)
-                            <tr>
-                                <td>{{ $i++ }}</td>
-                                <td>{{ $branches[$branchId] ?? '' }}</td>
-                                <td>{{ $stu['roll_no'] }}</td>
-                                <td>{{ $stu['student_name'] }}</td>
-                                <td>{{ $stu['registration_type'] }}</td>
-                                <td>{{ $stu['class_name'] }}</td>
-                                <td>{{ round($stu['total_amount']) }}</td>
+                            <th>Category</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @php $i = 1; @endphp
+                        @foreach ($report as $branchId => $students)
+                            @foreach ($students as $stu)
+                                <tr>
+                                    <td>{{ $i++ }}</td>
+                                    <td>{{ $branches[$branchId] ?? '' }}</td>
+                                    <td>{{ $stu['roll_no'] }}</td>
+                                    <td>{{ $stu['student_name'] }}</td>
+                                    <td>{{ $stu['adm_date'] ? \Carbon\Carbon::parse($stu['adm_date'])->format('d-M-Y') : '-' }}
+                                    </td>
+                                    <td>{{ $stu['registration_type'] }}</td>
+                                    <td>{{ $stu['class_name'] }}</td>
+                                    <td>{{ $stu['section_name'] }}</td>
+                                    <td>{{ round($stu['total_amount']) }}</td>
 
-                                @foreach ($heads as $head)
-                                    @php
-                                        $d = $stu['head_details'][$head->id] ?? [
-                                            'amount' => 0,
-                                            'discount_amount' => 0,
-                                            'net_amount' => 0,
-                                        ];
-                                    @endphp
-                                    <td>{{ round($d['amount']) }}</td>
-                                    <td>{{ round($d['discount_amount']) }}</td>
-                                    <td>{{ round($d['net_amount']) }}</td>
-                                @endforeach
+                                    @foreach ($heads as $head)
+                                        @php
+                                            $d = $stu['head_details'][$head->id] ?? [
+                                                'amount' => 0,
+                                                'discount_amount' => 0,
+                                                'net_amount' => 0,
+                                            ];
+                                        @endphp
+                                        <td>{{ round($d['amount']) }}</td>
+                                        <td>{{ round($d['discount_amount']) }}</td>
+                                        <td>{{ round($d['net_amount']) }}</td>
+                                    @endforeach
 
-                                <td>{{ round($stu['total_amount']) }}</td>
-                                <td>{{ round($stu['total_discount']) }}</td>
-                                <td>{{ round($stu['total_net']) }}</td>
-                                <td>{{ $stu['concession_category'] }}</td>
-                            </tr>
+                                    <td>{{ round($stu['total_amount']) }}</td>
+                                    <td>{{ round($stu['total_discount']) }}</td>
+                                    <td>{{ round($stu['total_net']) }}</td>
+                                    <td>{{ $stu['concession_category'] }}</td>
+                                </tr>
+                            @endforeach
                         @endforeach
-                    @endforeach
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
-@endif
+    @endif
 @endsection

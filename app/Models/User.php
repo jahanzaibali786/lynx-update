@@ -192,6 +192,18 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return $settings["purchase_prefix"] . sprintf("%05d", $number);
     }
+    public function stockTransferOrderNumberFormat($number)
+    {
+        $settings = Utility::settings();
+
+        return $settings["stock_transfer_order_prefix"] . sprintf("%05d", $number);
+    }
+    public function stockTransferNoteNumberFormat($number)
+    {
+        $settings = Utility::settings();
+
+        return $settings["stock_transfer_note_prefix"] . sprintf("%05d", $number);
+    }
     public function posNumberFormat($number)
     {
         $settings = Utility::settings();

@@ -1,63 +1,97 @@
 @php
-$options = ['DD', 'OL', 'CHQ', 'CD'];
+    $options = ['DD', 'OL', 'CHQ', 'CD'];
+
+    $totalFee = @$recipts->challan_amount + @$recipts->late_amount + @$recipts->arrears;
+
+    $remainingFee = $totalFee - @$recipts->recipt_amount;
 @endphp
+
 {{-- @foreach ($reciptss as $recipt) --}}
-    <tr style="  border-radius: 10px !important;">
-        <td>
-            <input type="text" value="{{ @$recipts->id }}" disabled style="width:50px; font-size: 11px;">
-        </td>
-        <td>
-            <input type="text" value="{{ date('d/m/Y', strtotime(@$recipts->recipt_date)) }}" disabled class="font_less"  style="width:63px; font-size: 11px;">
-        </td>
-        <td>
-            <input type="text" value="{{ @$recipts->challan->challanNo }}" disabled style="width:60px; ">
-        </td>
-        <td>
-            <input type="text" value="{{ @$recipts->recipt_amount }}" disabled style="width:60px; font-size: 13px;">
-        </td>
-        <td>
-            <input type="text" value="{{ @$recipts->challan_amount }}" disabled style="width:65px; font-size: 13px;">
-        </td>
-        <td>
-            <input type="text" value="{{ @$recipts->late_amount }}" disabled style="width:50px; font-size: 13px;">
-        </td>
-        <td>
-            <input type="text" value="{{ @$recipts->arrears }}" disabled style="width:50px; font-size: 13px;">
-        </td>
-        <td>
-            <input type="text" value="{{ @$recipts->challan_amount + @$recipts->late_amount + @$recipts->arrears }}"
-                disabled style="width:60px; font-size: 12px;">
-        </td>
-        <td>
-            <input type="text"
-                value="{{ @$recipts->challan_amount + @$recipts->late_amount + @$recipts->arrears - @$recipts->recipt_amount }}"
-                disabled style="width:65px; font-size: 12px;">
-        </td>
-        {{-- <td>
-            <input type="text" value="RV" disabled style="width:50px; font-size: 13px;">
-        </td> --}}
-        <td>
-            {{ Form::select('default_bank', $accounts, @$recipts->bank_id, ['style' => 'width:100px; font-size: 12px;', 'disabled' => 'disabled']) }}
-        </td>
-        <td>
-            <select class="input" disabled>
-                @foreach ($options as $option)
-                <option value="{{$option}}" {{ $option == @$recipts->receive_type ? 'selected' : '' }} > {{$option}}
-                </option>
-                @endforeach>
-            </select>
 
-        </td>
-        <td>
-            <input type="text" value="{{ @$recipts->referance }}" disabled style="width:80px; font-size: 11px;">
-        </td>
-        <td>
-            <input type="text" value="{{@$recipts->received->name}}" style="width:100px; font-size: 11px;" disabled>
-        </td>
-        
+<tr style="border-radius:10px !important;">
 
-    </tr>
+    <td>
+        <span style="font-size:11px;">
+            {{ @$recipts->id }}
+        </span>
+    </td>
+
+    <td>
+        <span class="font_less" style="font-size:11px;">
+            {{ date('d/m/Y', strtotime(@$recipts->recipt_date)) }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:12px;">
+            {{ @$recipts->challan->challanNo }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:13px;">
+            {{ @$recipts->recipt_amount }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:13px;">
+            {{ @$recipts->challan_amount }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:13px;">
+            {{ @$recipts->late_amount }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:13px;">
+            {{ @$recipts->arrears }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:12px;">
+            {{ $totalFee }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:12px;">
+            {{ $remainingFee }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:12px;">
+            {{ $accounts[@$recipts->bank_id] ?? '-' }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:12px;">
+            {{ @$recipts->receive_type }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:11px;">
+            {{ @$recipts->referance }}
+        </span>
+    </td>
+
+    <td>
+        <span style="font-size:11px;">
+            {{ @$recipts->received->name }}
+        </span>
+    </td>
+
+</tr>
+
 {{-- @endforeach --}}
+
 {{-- <tr id="focus_row" style="  border-radius: 10px !important;">
     <td>
         <input type="text" value="" disabled style="width:50px; font-size: 11px;">

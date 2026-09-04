@@ -15,23 +15,38 @@
         $selectedPaymode = collect($paymodes)->keys()->first(fn($key) => strtolower($key) === $normalizedPaymode);
         // Joining Date for min effect_from
         $joiningDate = \Carbon\Carbon::parse($employee->company_doj)->format('Y-m-d');
+        $payableAccountDefaults = [
+            'eobi_payable_account' => 'EOBI Payable (Employee)',
+            'pessi_payable_account' => 'Employer PESSI Payable',
+            'security_receive_account' => 'Employee Security Payable',
+            'other_dedu_payable_account' => 'Other Deduction Payable',
+            'advance_payable_account' => 'Employee Salary Advance',
+            'net_payable_account' => 'Net Salary Payable',
+        ];
+        $payableAccountIds = [];
+        foreach ($payableAccountDefaults as $field => $label) {
+            $matchedId = collect($payableaccounts)->search(function ($accountLabel) use ($label) {
+                return trim((string) $accountLabel) === $label;
+            });
+            $payableAccountIds[$field] = $matchedId === false ? '' : $matchedId;
+        }
     @endphp
 
     <div class="row">
         <div class="form-group col-md-4">
             {{ Form::label('paymode', __('Paymode'), ['class' => 'form-label']) }}
-            {{ Form::select('paymode', $paymodes, $hasPayscale ? $selectedPaymode : '', ['class' => 'form-control', 'required']) }}
+            {{ Form::select('paymode', $paymodes, $hasPayscale ? $selectedPaymode : '', ['class' => 'form-control select custom-select', 'required']) }}
         </div>
 
         <div class="form-group col-md-4">
             {{ Form::label('account_number', __('Bank A/C'), ['class' => 'form-label']) }}
             {{ Form::hidden('employee_id', $employee->id) }}
-            {{ Form::text('account_number', $hasPayscale ? $lastPayscaleDetail->account_number : '', ['class' => 'form-control', 'required']) }}
+            {{ Form::text('account_number', $hasPayscale ? $lastPayscaleDetail->account_number : '', ['class' => 'form-control', 'id' => 'account_number']) }}
         </div>
 
         <div class="form-group col-md-4">
             {{ Form::label('accounts', __('Bank'), ['class' => 'form-label']) }}
-            {{ Form::select('accounts', $accounts, $hasPayscale ? $lastPayscaleDetail->account_id : '', ['class' => 'form-control', 'required']) }}
+            {{ Form::select('accounts', $accounts->prepend('Select Account', ''), !empty($lastPayscaleDetail) ? $lastPayscaleDetail->account_id : '', ['class' => 'form-control select custom-select', 'required']) }}
         </div>
 
         <div class="form-group col-md-4">
@@ -41,9 +56,8 @@
                 $departments,
                 $hasPayscale ? $lastPayscaleDetail->department_id : $employee->department_id,
                 [
-                    'class' => 'form-control',
+                    'class' => 'form-control select custom-select',
                     'required',
-                    'onchange' => 'departmentfunc(this.value)',
                 ],
             ) }}
             {{ Form::hidden('departmentid', $hasPayscale ? $lastPayscaleDetail->department_id : $employee->department_id, [
@@ -56,22 +70,27 @@
             {{ Form::label('pay_scale', __('Pay Scale'), ['class' => 'form-label']) }}
             {{ Form::select('pay_scale', $payscales, $hasPayscale ? $lastPayscaleDetail->pay_scale_id : '', [
                 'id' => 'pay_scale',
-                'class' => 'form-control',
+                'class' => 'form-control select custom-select',
                 'required' => 'required',
-                'onchange' => 'payscalheads(this.value)',
             ]) }}
         </div>
-
-
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-2">
             {{ Form::label('effect_from', __('Effect From'), ['class' => 'form-label']) }}
-            {{ Form::date('effect_from', $hasPayscale ? $lastPayscaleDetail->effect_from : '', [
+            {{ Form::date('effect_from', $hasPayscale ? $lastPayscaleDetail->effect_from : date('Y-m-d', strtotime($joiningDate)), [
                 'class' => 'form-control',
                 'required',
                 'id' => 'effect_from',
                 'min' => $joiningDate,
+                ]) }}
+        </div>
+        <div class="form-group col-md-2">
+            {{ Form::label('company_doj_display', __('Date of Joining'), ['class' => 'form-label']) }}
+            {{ Form::text('company_doj_display', !empty($employee->company_doj) ? \Carbon\Carbon::parse($employee->company_doj)->format('d-M-Y') : '', [
+                'class' => 'form-control',
+                'disabled' => 'disabled',
             ]) }}
         </div>
+        
 
         {{-- Scale Heads & Gross --}}
         <div class="scale_heads_row row">
@@ -118,7 +137,7 @@
             {{-- Working Days & Per Day Salary --}}
             <div class="form-group col-md-2">
                 {{ Form::label('working_days', __('Working Days'), ['class' => 'form-label']) }}
-                {{ Form::number('working_days', $hasPayscale ? $lastPayscaleDetail->working_days : '', [
+                {{ Form::number('working_days', $hasPayscale ? $lastPayscaleDetail->working_days : '30', [
                     'class' => 'form-control working-days-input',
                     'id' => 'working_days',
                 ]) }}
@@ -139,7 +158,7 @@
             {{ Form::number('drns', $hasPayscale ? $lastPayscaleDetail->drns : '', ['class' => 'form-control addition-field']) }}
         </div>
         <div class="form-group col-md-2">
-            {{ Form::label('conv', __('Conv'), ['class' => 'form-label']) }}
+            {{ Form::label('conv', __('Other'), ['class' => 'form-label']) }}
             {{ Form::number('conv', $hasPayscale ? $lastPayscaleDetail->conv : '', ['class' => 'form-control addition-field']) }}
         </div>
         <div class="form-group col-md-2">
@@ -147,7 +166,7 @@
             {{ Form::number('misc', $hasPayscale ? $lastPayscaleDetail->misc : '', ['class' => 'form-control addition-field']) }}
         </div>
         <div class="form-group col-md-2">
-            {{ Form::label('other_add', __('Other Add.'), ['class' => 'form-label']) }}
+            {{ Form::label('other_add', __('Other Allowance'), ['class' => 'form-label']) }}
             {{ Form::number('other_add', $hasPayscale ? $lastPayscaleDetail->other_add : '', ['class' => 'form-control addition-field']) }}
         </div>
 
@@ -173,7 +192,7 @@
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('eobi_payable_account', __('EOBI Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('eobi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->eobi_payable_account : '', ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::select('eobi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->eobi_payable_account : $payableAccountIds['eobi_payable_account'], ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         <div class="form-group col-md-2">
             {!! Form::label('pessi_percentage', __('PESSI %'), ['class' => 'form-label']) !!}
@@ -193,7 +212,7 @@
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('pessi_payable_account', __('PESSI Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('pessi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->pessi_payable_account : '', ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::select('pessi_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->pessi_payable_account : $payableAccountIds['pessi_payable_account'], ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         {{-- //calculate tax button --}}
         <div class="form-group col-md-2">
@@ -206,27 +225,35 @@
         </div>
         <div class="form-group col-md-2">
             {!! Form::label('totaltax', __('Total Tax'), ['class' => 'form-label']) !!}
-            {{ Form::number('totaltax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->totaltax : '', ['class' => 'form-control deduction-field', 'id' => 'totaltax', 'readonly' => 'readonly']) }}
+            {{ Form::number('totaltax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->totaltax : '', ['class' => 'form-control', 'id' => 'totaltax', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-2">
             {!! Form::label('prevtax', __('Prev. Tax'), ['class' => 'form-label']) !!}
-            {{ Form::number('prevtax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->prevtax : '', ['class' => 'form-control deduction-field', 'id' => 'prevtax', 'readonly' => 'readonly']) }}
+            {{ Form::number('prevtax', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->prevtax : '', ['class' => 'form-control', 'id' => 'prevtax', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-2">
+            {!! Form::label('salary_tax_received', __('Salary Tax'), ['class' => 'form-label']) !!}
+            {{ Form::number('salary_tax_received', '', ['class' => 'form-control', 'id' => 'salary_tax_received', 'readonly' => 'readonly']) }}
+        </div>
+        <div class="form-group col-md-2">
+            {!! Form::label('advance_tax_collection', __('Advance Tax'), ['class' => 'form-label']) !!}
+            {{ Form::number('advance_tax_collection', '', ['class' => 'form-control', 'id' => 'advance_tax_collection', 'readonly' => 'readonly']) }}
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('tax_payable_account', __('I.Tax Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('tax_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->tax_payable_account : '', ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::select('tax_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->tax_payable_account : '', ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-2">
             {!! Form::label('emp_sec_percentage', __('Emp Sec %'), ['class' => 'form-label']) !!}
             {{ Form::number('emp_sec_percentage', !empty($employee) ? @$employee->security : '', ['class' => 'form-control', 'id' => 'security_percentage']) }}
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-2">
             {!! Form::label('emp_sec', __('Emp Sec.'), ['class' => 'form-label']) !!}
             {{ Form::number('emp_sec', !empty($lastPayscaleDetail) ? $lastPayscaleDetail->emp_sec : '0', ['class' => 'form-control', 'required' => 'required', 'readonly' => 'readonly', 'id' => 'emp_sec']) }}
         </div>
         <div class="form-group col-md-4">
             {!! Form::label('security_receive_account', __('Security Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('security_receive_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->security_receive_account : '', ['class' => 'form-control', 'required' => 'required']) }}
+            {{ Form::select('security_receive_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->security_receive_account : $payableAccountIds['security_receive_account'], ['class' => 'form-control select custom-select', 'required' => 'required']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_deduction', __('Other Deduction'), ['class' => 'form-label']) !!}
@@ -234,7 +261,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('other_dedu_payable_account', __('Deduction Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('other_dedu_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->other_dedu_payable_account : '', ['required' => 'required', 'class' => 'form-control']) }}
+            {{ Form::select('other_dedu_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->other_dedu_payable_account : $payableAccountIds['other_dedu_payable_account'], ['required' => 'required', 'class' => 'form-control select custom-select']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance', __('Advance'), ['class' => 'form-label']) !!}
@@ -242,7 +269,7 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('advance_payable_account', __('Advance Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('advance_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->advance_payable_account : '', ['required' => 'required', 'class' => 'form-control']) }}
+            {{ Form::select('advance_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->advance_payable_account : $payableAccountIds['advance_payable_account'], ['required' => 'required', 'class' => 'form-control select custom-select']) }}
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net', __('Net'), ['class' => 'form-label']) !!}
@@ -250,13 +277,15 @@
         </div>
         <div class="form-group col-md-6">
             {!! Form::label('net_payable_account', __('Net Payable Account'), ['class' => 'form-label']) !!}
-            {{ Form::select('net_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->net_payable_account : '', ['required' => 'required', 'class' => 'form-control', 'readonly' => 'readonly']) }}
+            {{ Form::select('net_payable_account', $payableaccounts, !empty($lastPayscaleDetail) ? $lastPayscaleDetail->net_payable_account : $payableAccountIds['net_payable_account'], ['required' => 'required', 'class' => 'form-control select custom-select', 'readonly' => 'readonly']) }}
         </div>
     </div>
 </div>
 <div class="modal-footer">
+    @if (Auth::user()->type == 'company')
     <input type="button" value="{{ __('Cancel') }}" class="btn  btn-outline-light" data-bs-dismiss="modal">
     <input type="submit" value="{{ __('Save') }}" class="btn  btn-outline-primary">
+    @endif
 </div>
 {{-- //sawl cdn  --}}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -271,22 +300,83 @@
 
 
     $(document).ready(function() {
+        initializeSalarySelectSearch();
+        toggleBankAccountRequirement();
+
         // Initialize event handlers once
         initializeEventHandlers();
 
-        // When modal is shown, only call payscalheads ONCE per open
-        $(document).on('shown.bs.modal', '.modal', function() {
-            departmentfunc(
-                {{ $hasPayscale ? $lastPayscaleDetail->department_id : $employee->department_id }});
-            // Call payscalheads only once per modal open
+        $(document).off('shown.bs.modal.salaryFormModal').on('shown.bs.modal.salaryFormModal', '.modal', function() {
+            if (!$(this).find('input[name="employee_id"]').length) {
+                return;
+            }
+
+            initializeSalarySelectSearch(this);
+            toggleBankAccountRequirement(this);
+
+            if ($(this).data('salaryScaleHeadsLoaded')) {
+                return;
+            }
+
+            $(this).data('salaryScaleHeadsLoaded', true);
             payscalheads({{ $lastPayscaleDetail->pay_scale_id ?? '' }});
         });
 
-        // Clean up when modal is hidden
-        $(document).on('hidden.bs.modal', '.modal', function() {
+        $(document).off('hidden.bs.modal.salaryFormModal').on('hidden.bs.modal.salaryFormModal', '.modal', function() {
             $(this).off('.salaryForm');
         });
     });
+
+    function initializeSalarySelectSearch(scope) {
+        const activeModal = getCurrentModal();
+        const container = scope ? $(scope) : (activeModal.is(document) ? $('select[name="paymode"]').last().closest('form') : activeModal);
+
+        if (!container.length) {
+            return;
+        }
+
+        container.find('select').each(function() {
+            const select = $(this);
+
+            if ($.fn.select2 && select.hasClass('select2-hidden-accessible')) {
+                select.select2('destroy');
+            }
+
+            if (this.customSelectInstance) {
+                try {
+                    this.customSelectInstance.destroy();
+                } catch (e) {}
+                delete this.customSelectInstance;
+            }
+
+            if (select.next('.custom-select-wrapper').length) {
+                select.next('.custom-select-wrapper').remove();
+            }
+
+            select.removeClass('js-searchBox custom-search').addClass('select custom-select').show();
+
+            if (window.CustomSelect && typeof window.CustomSelect.create === 'function') {
+                this.customSelectInstance = window.CustomSelect.create(this);
+            }
+        });
+    }
+
+    function toggleBankAccountRequirement(scope) {
+        const container = scope ? $(scope) : $(document);
+        const paymode = (container.find('select[name="paymode"]').val() || '').trim();
+        const isBankPaymode = ['Bank Deposit HBL', 'Bank Deposit AF', 'Bank'].includes(paymode);
+        const accountInput = container.find('input[name="account_number"]');
+
+        accountInput.prop('required', isBankPaymode);
+        accountInput.closest('.form-group').find('.bank-ac-required-mark').remove();
+
+        if (isBankPaymode) {
+            accountInput.closest('.form-group').find('label').append('<span class="text-danger bank-ac-required-mark"> *</span>');
+            accountInput.prop('readonly', false).removeClass('bg-light');
+        } else {
+            accountInput.prop('readonly', false).removeClass('is-invalid');
+        }
+    }
 
     // Main initialization function
     function initializeEventHandlers() {
@@ -355,6 +445,33 @@
         $(document).on('input.salaryFormGlobal', '#pessi_employer_percentage', function() {
             updatePessiEmployer();
         });
+
+        $(document).on('click.salaryFormGlobal', 'form input[type="submit"]', function(e) {
+            const form = $(this).closest('form');
+            if (form.find('input[name="employee_id"]').length && !validateRequiredSalaryDropdowns(form)) {
+                e.preventDefault();
+            }
+        });
+
+        $(document).on('submit.salaryFormGlobal', 'form', function(e) {
+            if ($(this).find('input[name="employee_id"]').length && !validateRequiredSalaryDropdowns($(this))) {
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        $(document).on('change.salaryFormGlobal', 'form select[required], form select[required="required"]', function() {
+            if ($(this).val()) {
+                $(this).next('.custom-select-wrapper').find('.custom-select-display').removeClass('is-invalid border border-danger');
+            }
+        });
+
+        $(document).on('change.salaryFormGlobal', 'select[name="paymode"]', function() {
+            toggleBankAccountRequirement($(this).closest('form'));
+        });
+
+        document.removeEventListener('invalid', handleSalaryDropdownInvalid, true);
+        document.addEventListener('invalid', handleSalaryDropdownInvalid, true);
         //tax 
         // calculateTax();
         // Initial calculations
@@ -381,6 +498,72 @@
         return element;
     }
 
+    function salaryDropdownLabel(select) {
+        const label = select.closest('.form-group, .btn-box').find('label').first().text().replace('*', '').trim();
+        return label || select.attr('name') || 'required dropdown';
+    }
+
+    function showSalaryDropdownError(select) {
+        const label = salaryDropdownLabel(select);
+        const wrapper = select.next('.custom-select-wrapper');
+        const message = 'Please select ' + label + '.';
+        wrapper.find('.custom-select-display').addClass('is-invalid border border-danger');
+
+        if (typeof show_toastr === 'function') {
+            show_toastr('error', message, 'error');
+        } else {
+            alert(message);
+        }
+
+        if (wrapper.length && wrapper[0].scrollIntoView) {
+            wrapper[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    function validateRequiredSalaryDropdowns(scope) {
+        const container = scope && $(scope).length ? $(scope) : getCurrentModal();
+        let invalidSelect = null;
+        toggleBankAccountRequirement(container);
+
+        container.find('select[required], select[required="required"]').each(function() {
+            const select = $(this);
+            if (!select.val()) {
+                invalidSelect = select;
+                return false;
+            }
+        });
+
+        if (invalidSelect) {
+            showSalaryDropdownError(invalidSelect);
+            return false;
+        }
+
+        const paymode = (container.find('select[name="paymode"]').val() || '').trim();
+        const bankAccount = container.find('input[name="account_number"]');
+        if (['Bank Deposit HBL', 'Bank Deposit AF', 'Bank'].includes(paymode) && !bankAccount.val()) {
+            if (typeof show_toastr === 'function') {
+                show_toastr('error', 'Please enter Bank A/C for bank paymode.', 'error');
+            }
+            bankAccount.addClass('is-invalid').focus();
+            return false;
+        }
+
+        return true;
+    }
+
+    function handleSalaryDropdownInvalid(e) {
+        const select = $(e.target);
+        if (!select.is('select[required], select[required="required"]')) {
+            return;
+        }
+        if (!select.closest('form').find('input[name="employee_id"]').length) {
+            return;
+        }
+
+        e.preventDefault();
+        showSalaryDropdownError(select);
+    }
+
     // Clear pay scale data
     function clearPayscaleData() {
         const modal = getCurrentModal();
@@ -390,7 +573,7 @@
         const HeadsInputs = findInModal('.headsInput');
         HeadsInputs.remove();
         findInModal('input[name="emp_sec"]').val('');
-        findInModal('#effect_from').val('');
+        // findInModal('#effect_from').val('');
         //working days and per day sal clearPayscaleData
     }
 
@@ -431,9 +614,12 @@
             dataType: 'json',
             beforeSend: function() {},
             success: function(data) {
+            console.log('Tax calculation response:', data);
                 findInModal('#itax').val(data.permonthtax || 0);
                 findInModal('#totaltax').val(data.totaltax || 0);
                 findInModal('#prevtax').val(data.prevTax || 0);
+                findInModal('#salary_tax_received').val(data.salaryTaxReceived || 0);
+                findInModal('#advance_tax_collection').val(data.advanceTaxCollection || 0);
                 updateNet();
             },
             error: function(xhr, status, error) {
@@ -459,6 +645,7 @@
         }, 0);
 
         const netValue = Math.round(gross - security - deductions);
+        console.log('Gross:', gross, 'Security:', security, 'Deductions:', deductions, 'Net:', netValue);
         const netElement = findInModal('input[name="net"]');
         netElement.val(netValue);
 
@@ -490,7 +677,7 @@
             return;
         }
         const securityPercentage = parseFloat(findInModal('#security_percentage').val()) || 0;
-        const securityValue = (basic_head_value * (securityPercentage / 100)).toFixed(2);
+        const securityValue = Math.round(basic_head_value * (securityPercentage / 100));
         findInModal('#emp_sec').val(securityValue);
 
         updateNet();
@@ -615,9 +802,9 @@
                     let initialBasicsValue = 0;
 
                     // Set effect from date
-                    if (data.payscale && data.payscale.effect_from) {
-                        effectfrom.val(data.payscale.effect_from);
-                    }
+                    // if (data.payscale && data.payscale.effect_from) {
+                    //     effectfrom.val(data.payscale.effect_from);
+                    // }
 
                     // Process each salary head
                     if (data.data && Array.isArray(data.data)) {
@@ -657,7 +844,7 @@
 
                     // Calculate and set security
                     const securityPercentage = parseFloat(findInModal('#security_percentage').val()) || 0;
-                    const securityValue = (initialBasicsValue * (securityPercentage / 100)).toFixed(2);
+                    const securityValue = Math.round(initialBasicsValue * (securityPercentage / 100));
                     securityElement.val(securityValue);
 
                     // Calculate net (gross - security - other deductions)
@@ -671,6 +858,7 @@
                     netInput.val(netValue);
                     // Recalculate dependent values
                     calculatePerDaySalary();
+                    updateGross();
                     updateNet();
 
                 } else {
@@ -736,6 +924,7 @@
                         payScaleSelect.append($('<option></option>').attr('value', scale.id).text(
                             scale.title));
                     });
+                    initializeSalarySelectSearch(getCurrentModal());
                 }
             },
             error: function(xhr, status, error) {

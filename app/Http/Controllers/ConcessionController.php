@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Classes;
+use App\Models\ClassWiseFee;
 use App\Models\Concession;
 use App\Models\ConcessionPolicy;
 use App\Models\ConcessionPolicyHead;
 use App\Models\EmpChildrens;
 use App\Models\FeeHead;
 use App\Models\StudentEnrollments;
+use App\Models\StudentFeeStructure;
 use App\Models\StudentRegistration;
 use App\Models\User;
 use Auth;
@@ -16,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use Carbon\Carbon;
 
 class ConcessionController extends Controller
 {
@@ -33,16 +36,66 @@ class ConcessionController extends Controller
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
             $branches->prepend('Select Branch', '');
             $query = Concession::with('student', 'concession')->where('created_by', Auth::user()->creatorId());
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         } else {
             $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             // $branches->prepend('Select Branch', '');
             $query = Concession::with('student', 'concession')->where('owned_by', '=', \Auth::user()->ownedId());
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('owned_by', '=', \Auth::user()->ownedId())
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         }
         if (!empty($request->branches)) {
             $query->where('owned_by', '=', $request->branches);
+
+            $students = StudentRegistration::select('id', 'roll_no', 'stdname', 'fathername', 'student_status')
+            ->where('owned_by', '=', $request->branches)
+            ->whereIn('student_status', ['Enrolled', 'Registered'])
+            ->where('active_status', 1)
+            ->get()
+            ->mapWithKeys(function ($student) {
+                if ($student->student_status == 'Enrolled') {
+                    return [$student->id => $student->roll_no . ' - ' . $student->stdname . ' s/d/o ' . $student->fathername];
+                } else {
+                    return [$student->id => $student->stdname . ' s/d/o ' . $student->fathername];
+                }
+            });
+
+            $students->prepend('All Students', 'all');
         }
         if (!empty($request->status)) {
             $query->where('status', '=', $request->status);
+        }else{
+            $query->whereIn('status', ['For Approval','Draft']);
+        }
+        if (!empty($request->student) && $request->student != 'all') {
+            $query->where('student_id', '=', $request->student);
         }
         if (!empty($request->start_date)) {
             $query->whereDate('start_date', '>', $request->start_date);
@@ -50,21 +103,27 @@ class ConcessionController extends Controller
         if (!empty($request->end_date)) {
             $query->whereDate('end_date', '<', $request->end_date);
         }
-        if (empty($request->start_date) || empty($request->end_date)) {
+        if (empty($request->start_date) && empty($request->end_date)) {
             $currentYear = date('Y');
             $currentMonth = date('m');
             $dateFrom = ($currentMonth >= 7) ? "$currentYear-07-01" : date('Y-07-01', strtotime('-1 year'));
             // $dateTo = ($currentMonth >= 7) ? date('Y-06-30', strtotime('+1 year')) : "$currentYear-06-30";
 
             $request->merge(['start_date' => $dateFrom]);
-            // $request->merge(['end_date' => $dateTo]);
-            // $query->whereBetween('start_date', [$dateFrom, $dateTo]);
             $query->whereDate('start_date', '>', $request->start_date);
         }
+        $concessions = $query->orderBy('id', 'Desc')->get();
 
-        $concessions = $query->orderBy('id', 'Desc')->paginate(25);
+        /*
+         * Presentation-only date format.
+         * Database values and filter inputs remain Y-m-d.
+         */
+        $concessions->each(function ($concession) {
+            $this->formatConcessionDatesForPresentation($concession);
+        });
+
         $status = [
-            '' => 'All',
+            '' => 'Select Status',
             'Draft' => 'Draft',
             'For Approval' => 'For Approval',
             'Approved' => 'Approved',
@@ -72,7 +131,8 @@ class ConcessionController extends Controller
             'Canceled' => 'Canceled',
             'Rejected' => 'Rejected',
         ];
-        return view('students.concession.index', compact('concessions', 'status', 'branches', 'request'));
+        
+        return view('students.concession.index', compact('concessions', 'status', 'branches', 'students', 'request'));
         // }
         // else
         // {
@@ -85,28 +145,108 @@ class ConcessionController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function create()
+    public function create(Request $request)
     {
-        // if(\Auth::user()->can('create session'))
-        // {
         if (\Auth::user()->type == 'company') {
-            $branches = User::where('type', '=', 'branch')->where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $branches = User::where('type', '=', 'branch')
+                ->where('created_by', '=', \Auth::user()->creatorId())
+                ->get()
+                ->pluck('name', 'id');
             $branches->prepend(\Auth::user()->name, \Auth::user()->id);
-            $classes = Classes::where('owned_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+
+            $classes = Classes::where('owned_by', '=', \Auth::user()->creatorId())
+                ->get()
+                ->pluck('name', 'id');
         } else {
-            $branches = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $classes = Classes::where('owned_by', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
+            $branches = User::where('id', '=', \Auth::user()->ownedId())
+                ->get()
+                ->pluck('name', 'id');
+
+            $classes = Classes::where('owned_by', '=', \Auth::user()->ownedId())
+                ->get()
+                ->pluck('name', 'id');
         }
-        $concession_policy = ConcessionPolicy::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('title', 'id');
+
+        $concession_policy = ConcessionPolicy::where(
+            'created_by',
+            '=',
+            \Auth::user()->creatorId()
+        )->get()->pluck('title', 'id');
+
         $concession_policy->prepend('Select Concession Policy', '');
         $classes->prepend('Select Class', '');
+
         $heads = FeeHead::where('created_by', \Auth::user()->creatorId())->get();
-        return view('students.concession.create', compact('branches', 'concession_policy', 'classes', 'heads'));
-        // }
-        // else
-        // {
-        //     return response()->json(['error' => __('Permission denied.')], 401);
-        // }
+
+        // Readmission popup can pre-fill and lock branch/class/student.
+        $fromReadmission = $request->boolean('from_readmission');
+        $selectedBranchId = $request->input('branch_id');
+        $selectedClassId = $request->input('class_id');
+        $selectedStudentId = $request->input('student_id');
+
+        if ($selectedBranchId && ! $branches->has($selectedBranchId)) {
+            $branch = User::find($selectedBranchId);
+            if ($branch) {
+                $branches->put($branch->id, $branch->name);
+            }
+        }
+
+        if ($selectedClassId && ! $classes->has($selectedClassId)) {
+            $class = Classes::find($selectedClassId);
+            if ($class) {
+                $classes->put($class->id, $class->name);
+            }
+        }
+
+        $students = collect();
+        if ($selectedStudentId) {
+            $student = StudentRegistration::find($selectedStudentId);
+            if ($student) {
+                $students->put(
+                    $student->id,
+                    ($student->roll_no ? $student->roll_no.' - ' : '')
+                    .$student->stdname
+                    .' s/d/o '
+                    .$student->fathername
+                );
+            }
+        }
+
+        $readmissionContext = [
+            'enabled' => $fromReadmission,
+            'branch_id' => $selectedBranchId,
+            'class_id' => $selectedClassId,
+            'student_id' => $selectedStudentId,
+            'roll_no' => $request->input('readmission_roll_no'),
+            'period_from' => $request->input('period_from') ?: date('Y-m-d'),
+
+            /*
+             * Billing Month (Effective From) is a month/year field in UI.
+             * Prefer an explicitly supplied effective_from; otherwise use the
+             * Period From month for Readmission, or the current month.
+             */
+            'effective_from' => $request->input('effective_from')
+                ?: Carbon::parse(
+                    $request->input('period_from') ?: date('Y-m-d')
+                )->format('Y-m'),
+
+            // Readmission concession applications default to Withdrawal type.
+            'concession_type' => $fromReadmission
+                ? 'withdrawal'
+                : $request->input('concession_type'),
+        ];
+
+        return view(
+            'students.concession.create',
+            compact(
+                'branches',
+                'concession_policy',
+                'classes',
+                'heads',
+                'students',
+                'readmissionContext'
+            )
+        );
     }
 
     /**
@@ -117,65 +257,155 @@ class ConcessionController extends Controller
      */
     public function store(Request $request)
     {
-        // if(\Auth::user()->can('create session'))
-        // {
         DB::beginTransaction();
+
         try {
+            /*
+             * Readmission popup:
+             * even if the frontend does not explicitly submit concession_type,
+             * backend will save this application as Withdrawal concession.
+             */
+            if (
+                $request->boolean('from_readmission')
+                && !$request->filled('concession_type')
+            ) {
+                $request->merge([
+                    'concession_type' => 'withdrawal',
+                ]);
+            }
+
             $validator = \Validator::make(
                 $request->all(),
                 [
                     'concession_id' => 'required',
                     'class_id' => 'required',
                     'student_id' => 'required',
-                    // 'date' => 'required|date',
+                    'concession_type' => 'required|in:regular,registration,withdrawal',
+                    'effective_from' => 'required|date_format:Y-m',
                     'period_from' => 'required|date',
                     'period_to' => 'nullable|date',
                 ]
             );
+
             if ($validator->fails()) {
+                DB::rollBack();
+
+                if ($request->boolean('from_readmission')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $validator->getMessageBag()->first(),
+                    ], 422);
+                }
+
                 $messages = $validator->getMessageBag();
                 return redirect()->back()->with('error', $messages->first());
             }
+
             $std = StudentEnrollments::where('regId', $request->student_id)->first();
-            // dd($request->all());
+
             $concession = new Concession();
             $concession->student_id = $request->student_id;
             $concession->class_id = $request->class_id;
             $concession->concession_order = $this->concession_order();
             $concession->concession_id = $request->concession_id;
             $concession->concession_by = \Auth::user()->name;
-            $concession->type = $request->concession_type;
-            $concession->session_id = @$std->session_id;
+            $concession->type = $this->concessionTypeToInt($request->concession_type);
+            $concession->session_id = optional($std)->session_id;
             $concession->apply_date = date('Y-m-d');
+
+            /*
+             * Store the selected billing month as the first day of that month.
+             * Example: 2026-09 -> 2026-09-01
+             */
+            $concession->effective_from =
+                $this->normalizeEffectiveMonth(
+                    $request->effective_from
+                );
+            
             $concession->start_date = $request->period_from;
             $concession->end_date = $request->period_to;
             $concession->remarks = $request->bill_remarks;
             $concession->owned_by = $request->branch_id;
             $concession->created_by = \Auth::user()->creatorId();
-            if($request->cancle_date != null || $request->cancle_remarks){
+
+            if ($request->cancle_date != null || $request->cancle_remarks) {
                 $prev_con = Concession::with('concession')
-                ->where('student_id', $request->student_id)
-                ->where('status', 'Approved')
-                ->orderByDesc('id')
-                ->first();
-                if($prev_con){
+                    ->where('student_id', $request->student_id)
+                    ->where('status', 'Approved')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($prev_con) {
                     $prev_con->cancel_date = $request->cancle_date;
                     $prev_con->cancel_remarks = $request->cancle_remarks;
                     $prev_con->save();
                 }
             }
+
+            if (Auth::user()->type == 'company') {
+                $concession->status = 'Approved';
+                $concession->active_status = 1;
+                $concession->approved_by = \Auth::user()->name;
+                $concession->approval_date = date('Y-m-d');
+            } elseif ($request->boolean('from_readmission')) {
+                // Readmission popup applications from branch go straight for approval.
+                $concession->status = 'For Approval';
+                $concession->active_status = 0;
+            }
+
             $concession->save();
+
+            /*
+             * Company-created concessions are approved immediately.
+             * Capture the historical applied fee snapshot once, after the
+             * concession has an ID. Never recalculate an existing snapshot.
+             */
+            if (
+                strtolower((string) $concession->status) === 'approved'
+                && empty($concession->approval_snapshot)
+            ) {
+                $concession->approval_snapshot =
+                    $this->buildConcessionApprovalSnapshot($concession);
+
+                $concession->save();
+            }
+
+            $concession->loadMissing('concession');
+
             DB::commit();
-            return redirect()->route('concession.index')->with('success', 'Concession has been created successfully.');
+
+            if ($request->boolean('from_readmission')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Concession application has been created successfully.',
+                    'policy' => [
+                        'id' => $concession->id,
+                        'policy_title' => optional($concession->concession)->title,
+                        'status' => $concession->status,
+                        'active_status' => $concession->active_status,
+                        'apply_date' => $this->displayDate($concession->apply_date),
+                        'effective_from' => $this->displayDate($concession->effective_from),
+                        'start_date' => $this->displayDate($concession->start_date),
+                        'end_date' => $this->displayDate($concession->end_date),
+                        'approval_date' => $this->displayDate($concession->approval_date),
+                    ],
+                ]);
+            }
+
+            return redirect()->route('concession.index')
+                ->with('success', 'Concession has been created successfully.');
         } catch (\Exception $e) {
             DB::rollback();
-            return redirect()->back()->with('error', $e);
+
+            if ($request->boolean('from_readmission')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 500);
+            }
+
+            return redirect()->back()->with('error', $e->getMessage());
         }
-        // }
-        // else
-        // {
-        //     return redirect()->back()->with('error', 'Permission denied.');
-        // }
     }
 
     /**
@@ -242,6 +472,8 @@ class ConcessionController extends Controller
                 'concession_id' => 'required',
                 'class_id' => 'required',
                 'student_id' => 'required',
+                'concession_type' => 'nullable|in:regular,registration,withdrawal,0,1,2',
+                'effective_from' => 'nullable|date_format:Y-m',
                 // 'date' => 'required|date',
                 'period_from' => 'required|date',
                 'period_to' => 'nullable|date',
@@ -254,7 +486,23 @@ class ConcessionController extends Controller
         $Concession->student_id = $request->student_id;
         $Concession->class_id = $request->class_id;
         $Concession->concession_id = $request->concession_id;
+
+        if ($request->filled('concession_type')) {
+            $Concession->type =
+                $this->concessionTypeToInt(
+                    $request->concession_type
+                );
+        }
+
         // $Concession->apply_date = $request->date;
+
+        if ($request->filled('effective_from')) {
+            $Concession->effective_from =
+                $this->normalizeEffectiveMonth(
+                    $request->effective_from
+                );
+        }
+
         $Concession->start_date = $request->period_from;
         $Concession->end_date = $request->period_to;
         $Concession->remarks = $request->bill_remarks;
@@ -291,7 +539,35 @@ class ConcessionController extends Controller
     {
         //
     }
+public function endconcession($id)
+    {
+        return view('students.concession.end_concession', compact('id'));
+    }
 
+    public function updateendconcession(Request $request, $id)
+    {
+        $validator = \Validator::make(
+            $request->all(),
+            [
+                'end_remarks' => 'required',
+                'end_date' => 'required|date',
+            ]
+        );
+
+        if ($validator->fails()) {
+            $messages = $validator->getMessageBag();
+            return redirect()->back()->with('error', $messages->first());
+        }
+
+        $concession = Concession::findOrFail($id);
+        $concession->end_date = $request->end_date;
+        $concession->cancel_remarks = $request->end_remarks;
+        $concession->status = 'Canceled';
+        $concession->active_status = 0;
+        $concession->save();
+
+        return redirect()->route('concession.index')->with('success', 'Concession ended successfully.');
+    }
     public function class_student(Request $request)
     {
         $student = StudentRegistration::where('class_id', $request->class_id)->get();
@@ -300,39 +576,100 @@ class ConcessionController extends Controller
         return $student;
     }
 
-    public function changeStatus($id, $status)
-    {
 
-        $concession = Concession::find($id);
-        $concession->status = $status;
-        $concession->active_status = 0;
-        $concession->save();
-        if ($status == 'Approved') {
-            $concession->active_status = 1;
-            $concession->approved_by = Auth::user()->name;
-            $concession->approval_date = date('Y-m-d');
-            $concession->save();
-            $prev_con = Concession::with('concession')
-                ->where('student_id', $concession->student_id)
-                ->where('id', '!=', $concession->id)
-                ->where('status', 'Approved')
-                ->orderByDesc('id')
-                ->first();
-            if($prev_con){
-                $prev_con->cancel_date = date('Y-m-d');
-                $prev_con->status = 'Canceled';
-                $prev_con->active_status = 0;
-                $prev_con->cancel_remarks = 'New Concession Approved';
-                $prev_con->save();
-            }
-            return redirect()->route('concession.index')->with('success', 'Concession Approved Successfully.');
-        }
-        else if ($status == 'Rejected') {
+    public function changeStatus(Request $request, $id, $status)
+    {
+        DB::beginTransaction();
+
+        try {
+            $concession = Concession::findOrFail($id);
+
+            $concession->status = $status;
             $concession->active_status = 0;
+
+            if ($status == 'Approved') {
+                $concession->active_status = 1;
+                $concession->approved_by = Auth::user()->name;
+                $concession->approval_date = date('Y-m-d');
+
+                if ($request->filled('effective_from')) {
+                    $concession->effective_from = $this->normalizeEffectiveMonth(
+                        $request->effective_from
+                    );
+                }
+
+                /*
+                 * Persist approval state first, then capture the exact applied
+                 * structure/policy snapshot. If a snapshot already exists,
+                 * NEVER rebuild it from today's fee structure.
+                 */
+                $concession->save();
+
+                if (empty($concession->approval_snapshot)) {
+                    $concession->approval_snapshot =
+                        $this->buildConcessionApprovalSnapshot(
+                            $concession
+                        );
+
+                    $concession->save();
+                }
+
+                $prev_con = Concession::with('concession')
+                    ->where('student_id', $concession->student_id)
+                    ->where('id', '!=', $concession->id)
+                    ->where('status', 'Approved')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($prev_con) {
+                    $prev_con->cancel_date = date('Y-m-d');
+                    $prev_con->status = 'Canceled';
+                    $prev_con->active_status = 0;
+                    $prev_con->cancel_remarks =
+                        'New Concession Approved';
+                    $prev_con->save();
+                }
+
+                DB::commit();
+
+                return redirect()
+                    ->route('concession.index')
+                    ->with(
+                        'success',
+                        'Concession Approved Successfully.'
+                    );
+            }
+
+            if ($status == 'Rejected') {
+                $concession->active_status = 0;
+                $concession->save();
+
+                DB::commit();
+
+                return redirect()
+                    ->route('concession.index')
+                    ->with(
+                        'success',
+                        'Concession Rejected Successfully.'
+                    );
+            }
+
             $concession->save();
-            return redirect()->route('concession.index')->with('success', 'Concession Rejected Successfully.');
-        }else{
-            return redirect()->route('concession.index')->with('success', 'Concession Send For Approval Successfully.');
+
+            DB::commit();
+
+            return redirect()
+                ->route('concession.index')
+                ->with(
+                    'success',
+                    'Concession Send For Approval Successfully.'
+                );
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return redirect()
+                ->back()
+                ->with('error', $e->getMessage());
         }
     }
 
@@ -394,13 +731,32 @@ class ConcessionController extends Controller
 
             $teacherCh->employee->ScaleNo = $empScaleNo?->scale ?? null;
         }
+        $concessionDisplay = $concession
+            ? [
+                'id' => $concession->id,
+                'status' => $concession->status,
+                'type' => $concession->type,
+                'policy_title' => optional($concession->concession)->title,
+                'apply_date' => $this->displayDate($concession->apply_date),
+                'start_date' => $this->displayDate($concession->start_date),
+                'end_date' => $this->displayDate($concession->end_date),
+                'approval_date' => $this->displayDate($concession->approval_date),
+                'cancel_date' => $this->displayDate($concession->cancel_date),
+            ]
+            : null;
+
         return response([
             'data' => $student,
             'tc' => $teacherCh,
             'enroll' => $enroll,
             'class' => $enroll?->class?->name ?? 'N/A',
             'section' => $enroll?->section?->name ?? 'N/A',
+
+            // Keep original payload for backward compatibility.
             'concession' => $concession ?? 'No Concession',
+
+            // Use this for presentation; all dates are d-M-y.
+            'concession_display' => $concessionDisplay,
         ]);
     }
 
@@ -442,14 +798,19 @@ class ConcessionController extends Controller
                     'concession_policies.order_no',
                     \DB::raw('SUM(CASE WHEN ' .
                         $this->buildMatchCase($filteredData) .
-                        ' THEN 1 ELSE 0 END) as match_count')
+                        ' THEN 1 ELSE 0 END) as match_count'),
+                    // Total non-zero heads defined on the policy. An exact match
+                    // requires the policy to have EXACTLY the searched heads —
+                    // i.e. every input head matched AND no extra non-zero head.
+                    \DB::raw('SUM(CASE WHEN concession_policy_heads.percentage <> 0 THEN 1 ELSE 0 END) as nonzero_head_count')
                 )
-                ->groupBy('concession_policies.id', 'concession_policies.title')
+                ->groupBy('concession_policies.id', 'concession_policies.title', 'concession_policies.order_no')
                 ->havingRaw('match_count > 0')
                 ->orderByRaw('match_count DESC')
                 ->get()
                 ->map(function ($policy) use ($totalInputHeads) {
-                    $policy->is_exact = ($policy->match_count == $totalInputHeads);
+                    $policy->is_exact = ($policy->match_count == $totalInputHeads
+                        && $policy->nonzero_head_count == $totalInputHeads);
                     return $policy;
                 });
 
@@ -476,29 +837,98 @@ class ConcessionController extends Controller
     }
 
 
+
     public function concessionstatus($id)
     {
-        $concession = Concession::with('student', 'class', 'concession', 'student.enrollment')->where('id', $id)->first();
+        $concession = Concession::with(
+            'student',
+            'class',
+            'concession',
+            'student.enrollment',
+            'branches'
+        )->where('id', $id)->first();
+
         if ($concession) {
-            $prev_concession = Concession::with('concession', 'student.enrollment')->where('student_id', $concession->student->id)->where('id', '!=', $concession->id)->where('status', 'Approved')->get();
-            return view('students.concession.status_concession', compact('concession', 'prev_concession'));
+            $prev_concession = Concession::with(
+                'concession',
+                'student.enrollment'
+            )
+                ->where(
+                    'student_id',
+                    $concession->student->id
+                )
+                ->where('id', '!=', $concession->id)
+                ->where('status', 'Approved')
+                ->get();
+
+            /*
+             * Historical snapshot saved at approval.
+             * Legacy records may not have one and will fall back in the view.
+             */
+            $concessionSnapshot =
+                $this->decodeConcessionSnapshot(
+                    $concession->approval_snapshot
+                );
+
+            // Presentation only: d-M-y.
+            $this->formatConcessionDatesForPresentation(
+                $concession
+            );
+
+            $prev_concession->each(function ($row) {
+                $this->formatConcessionDatesForPresentation(
+                    $row
+                );
+            });
+
+            return view(
+                'students.concession.status_concession',
+                compact(
+                    'concession',
+                    'prev_concession',
+                    'concessionSnapshot'
+                )
+            );
         }
-        return view('students.concession.status_concession', compact('concession'));
+
+        $concessionSnapshot = [];
+
+        return view(
+            'students.concession.status_concession',
+            compact(
+                'concession',
+                'concessionSnapshot'
+            )
+        );
     }
 
     public function concessionrejection(Request $request, $id)
     {
         $concession = Concession::findOrFail($id);
-        if ($request->reject_reason == '') {
-            return redirect()->back()->with('error', 'Please give remarks to reject !');
+
+        // Rollback and Rejection share this endpoint but submit different
+        // fields: the rollback form sends `rollback_reason` + type=Rollback,
+        // the rejection form sends `reject_reason` + type=Rejected.
+        $isRollback = ($request->type == 'Rollback');
+        $reason = $isRollback ? $request->rollback_reason : $request->reject_reason;
+
+        if (trim((string) $reason) === '') {
+            $action = $isRollback ? 'rollback' : 'reject';
+            return redirect()->back()->with('error', "Please give remarks to {$action} !");
         }
-        if ($request->type == 'Rollbacked') {
-            $concession->status = 'Rollbacked';
-        } else {
-            $concession->status = 'Rejected';
-        }
-        $concession->cancel_remarks = $request->reject_reason;
+
+        $concession->cancel_remarks = $reason;
         $concession->active_status = 0;
+
+        if ($isRollback) {
+            // Send the concession back to Draft so the branch can edit it and
+            // resubmit it for approval.
+            $concession->status = 'Draft';
+            $concession->save();
+            return redirect()->back()->with('success', 'Concession has been rolled back to Draft successfully');
+        }
+
+        $concession->status = 'Rejected';
         $concession->save();
         return redirect()->back()->with('success', 'Concession has been Rejected Successfully');
     }
@@ -533,6 +963,32 @@ class ConcessionController extends Controller
         }
 
         $concessions = $query->get()->groupBy('owned_by');
+
+        /*
+         * Report/PDF presentation only.
+         * All concession dates shown to users use d-M-y.
+         */
+        $concessions->each(function ($branchRows) {
+            $branchRows->each(function ($concession) {
+                $this->formatConcessionDatesForPresentation($concession);
+            });
+        });
+
+        /*
+         * Querying is already complete, so request date filters can now be
+         * converted for report/header presentation without affecting DB logic.
+         */
+        if (!empty($request->start_date)) {
+            $request->merge([
+                'start_date' => $this->displayDate($request->start_date),
+            ]);
+        }
+
+        if (!empty($request->end_date)) {
+            $request->merge([
+                'end_date' => $this->displayDate($request->end_date),
+            ]);
+        }
 
         $branches_name = User::where('type', 'branch')->where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
         $branches_name->prepend(\Auth::user()->name, \Auth::user()->id);
@@ -575,6 +1031,356 @@ class ConcessionController extends Controller
         $base64Pdf = base64_encode($pdfContent);
         return response()->json(['base64Pdf' => $base64Pdf]);
 
+    }
+
+    /**
+     * Database mapping for Concession.type integer column.
+     *
+     * 0 = Registration
+     * 1 = Regular
+     * 2 = Withdrawal
+     */
+    private function concessionTypeToInt($type): int
+    {
+        if (is_numeric($type)) {
+            $type = (int) $type;
+
+            if (in_array($type, [0, 1, 2], true)) {
+                return $type;
+            }
+        }
+
+        return match (
+            strtolower(trim((string) $type))
+        ) {
+            'registration' => 0,
+            'withdrawal' => 2,
+            'regular' => 1,
+            default => 1,
+        };
+    }
+
+    private function concessionTypeLabel($type): string
+    {
+        return match (
+            $this->concessionTypeToInt($type)
+        ) {
+            0 => 'Registration',
+            2 => 'Withdrawal',
+            default => 'Regular',
+        };
+    }
+
+    /**
+     * Capture the exact concession values at approval time.
+     *
+     * StudentFeeStructure is authoritative for the student's current base
+     * amount. ClassWiseFee is only a fallback when the student does not yet
+     * have a fee-structure row (common for Registration concessions).
+     */
+    private function buildConcessionApprovalSnapshot(
+        Concession $concession
+    ): array {
+        $concession->loadMissing(
+            'student',
+            'class',
+            'concession',
+            'branches'
+        );
+
+        $policyHeads = ConcessionPolicyHead::where(
+            'concession_id',
+            $concession->concession_id
+        )
+            ->where('percentage', '!=', 0)
+            ->get();
+
+        $heads = $policyHeads
+            ->map(function ($policyHead) use ($concession) {
+                $feeHead = FeeHead::find(
+                    $policyHead->head_id
+                );
+
+                $studentStructure =
+                    StudentFeeStructure::where(
+                        'reg_id',
+                        $concession->student_id
+                    )
+                        ->where(
+                            'head_id',
+                            $policyHead->head_id
+                        )
+                        ->orderByDesc('id')
+                        ->first();
+
+                $classWiseFee = null;
+
+                if (!$studentStructure) {
+                    $classWiseFee =
+                        ClassWiseFee::where(
+                            'class_id',
+                            $concession->class_id
+                        )
+                            ->where(
+                                'head_id',
+                                $policyHead->head_id
+                            )
+                            ->orderByDesc('id')
+                            ->first();
+                }
+
+                $baseAmount = (float) (
+                    optional($studentStructure)->amount
+                    ?? optional($classWiseFee)->amount
+                    ?? 0
+                );
+
+                $existingDiscountPercentage =
+                    (float) (
+                        optional($studentStructure)->discount
+                        ?? 0
+                    );
+
+                $existingDiscountAmount = round(
+                    $baseAmount
+                    * $existingDiscountPercentage
+                    / 100,
+                    2
+                );
+
+                $existingPayableAmount = round(
+                    $baseAmount
+                    - $existingDiscountAmount,
+                    2
+                );
+
+                $concessionPercentage = (float) (
+                    $policyHead->percentage
+                    ?? 0
+                );
+
+                $concessionAmount = round(
+                    $baseAmount
+                    * $concessionPercentage
+                    / 100,
+                    2
+                );
+
+                $payableAmount = round(
+                    $baseAmount
+                    - $concessionAmount,
+                    2
+                );
+
+                return [
+                    'head_id' =>
+                        (int) $policyHead->head_id,
+                    'head_name' =>
+                        optional($feeHead)->fee_head,
+                    'percentage' =>
+                        $concessionPercentage,
+
+                    /*
+                     * Keep both keys for clarity/backward display use.
+                     */
+                    'actual_amount' =>
+                        $baseAmount,
+                    'base_amount' =>
+                        $baseAmount,
+
+                    'existing_discount_percentage' =>
+                        $existingDiscountPercentage,
+                    'existing_discount_amount' =>
+                        $existingDiscountAmount,
+                    'existing_payable_amount' =>
+                        $existingPayableAmount,
+
+                    'concession_amount' =>
+                        $concessionAmount,
+                    'payable_amount' =>
+                        $payableAmount,
+
+                    'amount_source' =>
+                        $studentStructure
+                            ? 'student_fee_structure'
+                            : 'class_wise_fee',
+
+                    'student_fee_structure_id' =>
+                        optional($studentStructure)->id,
+                    'class_wise_fee_id' =>
+                        optional($classWiseFee)->id,
+                ];
+            })
+            ->values();
+
+        return [
+            'version' => 1,
+            'captured_at' => now()->toISOString(),
+            'approval_date' =>
+                $concession->approval_date
+                ?: date('Y-m-d'),
+
+            'concession' => [
+                'id' => (int) $concession->id,
+                'concession_order' =>
+                    $concession->concession_order,
+                'policy_id' =>
+                    (int) $concession->concession_id,
+                'policy_title' =>
+                    optional($concession->concession)->title,
+                'type' =>
+                    (int) $concession->type,
+                'type_label' =>
+                    $this->concessionTypeLabel(
+                        $concession->type
+                    ),
+                'apply_date' =>
+                    $concession->apply_date,
+                'effective_from' =>
+                    $concession->effective_from,
+                'start_date' =>
+                    $concession->start_date,
+                'end_date' =>
+                    $concession->end_date,
+            ],
+
+            'student' => [
+                'id' =>
+                    (int) $concession->student_id,
+                'roll_no' =>
+                    optional($concession->student)->roll_no,
+                'name' =>
+                    optional($concession->student)->stdname,
+                'father_name' =>
+                    optional($concession->student)->fathername,
+                'class_id' =>
+                    (int) $concession->class_id,
+                'class_name' =>
+                    optional($concession->class)->name,
+                'session_id' =>
+                    $concession->session_id,
+                'branch_id' =>
+                    (int) $concession->owned_by,
+                'branch_name' =>
+                    optional($concession->branches)->name,
+            ],
+
+            'heads' => $heads->all(),
+
+            'totals' => [
+                'base_amount' =>
+                    round(
+                        (float) $heads->sum('base_amount'),
+                        2
+                    ),
+                'concession_amount' =>
+                    round(
+                        (float) $heads->sum(
+                            'concession_amount'
+                        ),
+                        2
+                    ),
+                'payable_amount' =>
+                    round(
+                        (float) $heads->sum(
+                            'payable_amount'
+                        ),
+                        2
+                    ),
+            ],
+
+            'approved_by' => [
+                'id' => Auth::id(),
+                'name' => optional(Auth::user())->name,
+            ],
+        ];
+    }
+
+    private function decodeConcessionSnapshot($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (empty($value)) {
+            return [];
+        }
+
+        $decoded = json_decode(
+            (string) $value,
+            true
+        );
+
+        return is_array($decoded)
+            ? $decoded
+            : [];
+    }
+
+    /**
+     * Convert a month/year UI value (Y-m) to a DATE value representing the
+     * first day of that billing month.
+     */
+    private function normalizeEffectiveMonth($value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        return Carbon::createFromFormat(
+            '!Y-m',
+            (string) $value
+        )->toDateString();
+    }
+
+    /**
+     * Format a date strictly for user-facing presentation.
+     *
+     * Storage, validation and HTML date inputs remain Y-m-d.
+     */
+    private function displayDate($value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value)->format('d-M-y');
+        } catch (\Throwable $e) {
+            return (string) $value;
+        }
+    }
+
+    /**
+     * Mutate an already-loaded Concession model only for rendering.
+     * This method is never used before save/update/query conditions.
+     */
+    private function formatConcessionDatesForPresentation($concession)
+    {
+        if (!$concession) {
+            return $concession;
+        }
+
+        foreach ([
+            'apply_date',
+            'effective_from',
+            'start_date',
+            'end_date',
+            'approval_date',
+            'cancel_date',
+            'created_at',
+            'updated_at',
+        ] as $field) {
+            $value = $concession->getAttribute($field);
+
+            if (!empty($value)) {
+                $concession->setAttribute(
+                    $field,
+                    $this->displayDate($value)
+                );
+            }
+        }
+
+        return $concession;
     }
 
     public function concessionorder($id)

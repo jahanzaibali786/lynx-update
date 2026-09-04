@@ -65,12 +65,27 @@
         </thead>
         <tbody>
             @foreach ($emplsetlement as $settlment)
+                @php
+                    $settlementWorkingDays = $settlment->working_days;
+                    if (!empty($settlment->employee->resignation->last_attendance_date)) {
+                        $resignDate = \Carbon\Carbon::parse($settlment->employee->resignation->last_attendance_date);
+                        $existingSalaryForThisMonth = \App\Models\EmployeeMonthlySalary::where('employee_id', $settlment->employee->id)
+                            ->whereMonth('salary_date', $resignDate->month)
+                            ->whereYear('salary_date', $resignDate->year)
+                            ->first();
+                        if ($existingSalaryForThisMonth) {
+                            $settlementWorkingDays = 0;
+                        } else {
+                            $settlementWorkingDays = min((int) $resignDate->day, 30);
+                        }
+                    }
+                @endphp
                 <tr>
                     <td>{{$settlment->emp_id}}</td>
                     <td>{{@$settlment->employee->name}}</td>
                     <td>{{$settlment->tenure}}</td>
                     <td>{{$settlment->basic_sal}}</td>
-                    <td>{{$settlment->working_days}}</td>
+                    <td>{{$settlementWorkingDays}}</td>
                     <td>
                         <div class="action-btn ms-2">
                             @if($settlment->status != 1)

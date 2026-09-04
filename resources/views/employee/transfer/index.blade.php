@@ -22,42 +22,6 @@
 
 @push('script-page')
     <script>
-        function generateReport() {
-            var formData = $('#transfer_submit').serialize();
-
-            $.ajax({
-                url: '{{ route('transferreport') }}',
-                method: 'GET',
-                data: formData,
-                headers: {
-                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                },
-                success: function(response) {
-                    if (response.status == 'success') {
-                        const base64Pdf = response.base64Pdf;
-                        const byteCharacters = atob(base64Pdf);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                            byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], {
-                            type: 'application/pdf'
-                        });
-                        const blobUrl = URL.createObjectURL(blob);
-                        window.open(blobUrl, '_blank');
-                    } else {
-                        alert(response.message);
-                    }
-                },
-                error: function(xhr) {
-                    console.error('Error:', xhr.responseText);
-                    alert('An error occurred while generating the report.');
-                }
-            });
-        }
-    </script>
-    <script>
         function branchemployees(id) {
             $.ajax({
                 headers: {
@@ -111,9 +75,12 @@
                         //     text: 'Select Employee'
                         // }));
                         $('#exist_desig').val(result.employee.designation.name);
-                        $('#desig_id').val(result.employee.designation_id);
                         $('#exist_dept').val(result.employee.department.name);
-                        $('#dec_id').val(result.employee.department_id);
+                        $('#dec_id').val(result.employee.department_id).trigger('change.select2');
+                        getDesignation(
+                            result.employee.department_id,
+                            result.employee.designation_id
+                        );
                         $('#scale').val(result.scale.scale.scale_no);
                         $('#gross').val(result.scale.net);
                     }
@@ -133,11 +100,68 @@
             $('#is_print').val(0);
             $('#is_excel').val(0);
         }
+
+        function initializeEmployeeTransferTable() {
+            var table = document.querySelector('#employee-transfer-content .datatable');
+            if (table && window.simpleDatatables) {
+                new simpleDatatables.DataTable(table, {
+                    perPage: 50,
+                    paging: false,
+                    perPageSelect: false
+                });
+            }
+        }
+
+        window.refreshEmployeeTransferContent = function() {
+            return $.ajax({
+                url: window.location.href,
+                type: 'GET',
+                cache: false,
+                dataType: 'html',
+                success: function(html) {
+                    var documentHtml = new DOMParser().parseFromString(html, 'text/html');
+                    var nextContent = documentHtml.getElementById('employee-transfer-content');
+                    var currentContent = document.getElementById('employee-transfer-content');
+
+                    if (!nextContent || !currentContent) {
+                        show_toastr('error', '{{ __('Unable to refresh employee transfers.') }}');
+                        return;
+                    }
+
+                    currentContent.replaceWith(nextContent);
+                    initializeEmployeeTransferTable();
+                    common_bind();
+                    commonLoader();
+                },
+                error: function() {
+                    show_toastr('error', '{{ __('Unable to refresh employee transfers.') }}');
+                }
+            });
+        };
+
+        $(function() {
+            ajaxModalForm({
+                formSelector: '.employee-transfer-approval-form',
+                submitText: '{{ __('Approving...') }}',
+                closeOnSuccess: false,
+                onSuccess: function() {
+                    window.refreshEmployeeTransferContent();
+                }
+            });
+
+            ajaxDeleteForm({
+                selector: '.employee-transfer-ajax-delete',
+                defaultConfirm: '{{ __('Are you sure you want to delete this transfer?') }}',
+                onSuccess: function() {
+                    window.refreshEmployeeTransferContent();
+                }
+            });
+        });
     </script>
 @endpush
 @section('content')
-    @if (\Auth::user()->type == 'company')
-        <div class="row">
+    <div id="employee-transfer-content">
+    <div class="row">
             <div class="col-sm-12">
                 <div class="mt-2 " id="multiCollapseExample1">
                     <div class="card">
@@ -145,12 +169,14 @@
                             {{ Form::open(['route' => ['transferreport'], 'method' => 'GET', 'id' => 'transfer_submit']) }}
                             <div class="row d-flex">
 
-                                <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                    <div class="btn-box">
-                                        {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
-                                        {{ Form::select('branches', $branches, request('branches'), ['class' => 'form-control select']) }}
+                                @if (\Auth::user()->type == 'company')
+                                    <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                        <div class="btn-box">
+                                            {{ Form::label('branches', __('Branches'), ['class' => 'form-label']) }}
+                                            {{ Form::select('branches', $branches, request('branches'), ['class' => 'form-control select']) }}
+                                        </div>
                                     </div>
-                                </div>
+                                @endif
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                     <div class="btn-box">
                                         {{ Form::label('type', __('Transfer Type'), ['class' => 'form-label']) }}
@@ -163,41 +189,21 @@
                                         {{ Form::select('status', ['' => 'Select Status', '0' => 'Pending', '1' => 'Approve'], isset($_GET['status']) ? $_GET['status'] : '', ['class' => 'form-control select']) }}
                                     </div>
                                 </div>
-                                @php
-                                    $currentMonth = \Carbon\Carbon::now()->month;
-                                    $currentYear = \Carbon\Carbon::now()->year;
-                                    if ($currentMonth >= 7) {
-                                        $defaultDateFrom = \Carbon\Carbon::create($currentYear, 7, 1)->format('Y-m-d');
-                                        $defaultDateTo = \Carbon\Carbon::create($currentYear + 1, 6, 30)->format(
-                                            'Y-m-d',
-                                        );
-                                    } else {
-                                        $defaultDateFrom = \Carbon\Carbon::create($currentYear - 1, 7, 1)->format(
-                                            'Y-m-d',
-                                        );
-                                        $defaultDateTo = \Carbon\Carbon::create($currentYear, 6, 30)->format('Y-m-d');
-                                    }
-                                @endphp
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                     <div class="btn-box">
                                         {{ Form::label('datefrom', __('Date From'), ['class' => 'form-label']) }}
                                         <input type="date" class="form-control" name="datefrom"
-                                            value="">
+                                            value="{{ $datefrom ?? request('datefrom') }}">
                                     </div>
                                 </div>
                                 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                     <div class="btn-box">
                                         {{ Form::label('dateto', __('Date To'), ['class' => 'form-label']) }}
                                         <input type="date" class="form-control" name="dateto"
-                                            value="">
+                                            value="{{ $dateto ?? request('dateto') }}">
                                     </div>
                                 </div>
                                 <div class="col-auto float-end ms-2 mt-4">
-                                    <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
-                                        onclick="generateReport(); return false;"
-                                        data-bs-title="{{ __('Generate Report') }}">
-                                        <span class="btn-inner--icon">Generate</span>
-                                    </a>
                                     <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
                                         onclick="document.getElementById('transfer_submit').submit(); return false;"
                                         data-bs-title="{{ __('apply') }}">
@@ -246,14 +252,12 @@
                 </div>
             </div>
         </div>
-    @endif
-    <table class="datatable">
+    <table class="datatable" data-pagination="false">
         <thead>
             <tr class="table_heads">
                 <th>#</th>
-                @role('company')
-                    <th>{{ __('Employee Name') }}</th>
-                @endrole
+                <th>{{ __('Emp Id') }}</th>
+                <th>{{ __('Employee Name') }}</th>
                 <th>{{ __('Branch From') }}</th>
                 <th>{{ __('Branch To') }}</th>
                 <th>{{ __('Department From') }}</th>
@@ -269,9 +273,8 @@
             @foreach ($transfers as $transfer)
                 <tr>
                     <td>{{ $loop->iteration }}</td>
-                    @role('company')
-                        <td>{{ !empty($transfer->employee) ? $transfer->employee->name : '' }}</td>
-                    @endrole
+                    <td>{{ !empty($transfer->employee) ? $transfer->employee->employee_id : '' }}</td>
+                    <td>{{ !empty($transfer->employee) ? $transfer->employee->name : '' }}</td>
                     <td>{{ !empty($transfer->branch_from) ? $transfer->branch_from->name : '' }}</td>
                     <td>{{ !empty($transfer->branch_to) ? $transfer->branch_to->name : '' }}</td>
                     <td>{{ !empty($transfer->department_from) ? $transfer->department_from->name : '' }}</td>
@@ -286,31 +289,46 @@
                                     class="mx-1 btn mx-1 btn-sm btn-outline-success" data-bs-title="{{ __('Print') }}">
                                     <span class="btn-inner--icon"><i class="ti ti-printer"></i></span></a>
                                 @can('edit transfer')
-                                    <a href="#" data-size="lg"
-                                        data-url="{{ route('employee-transfer.edit', $transfer->id) }}" data-ajax-popup="true"
-                                        data-bs-title="{{ __('Edit Employee Transfer') }}"
-                                        class="btn mx-1 btn-sm btn-outline-primary">
-                                        <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
-                                    </a>
+                                    @if ((int) $transfer->status !== 1)
+                                        <a href="#" data-size="lg"
+                                            data-url="{{ route('employee-transfer.edit', $transfer->id) }}" data-ajax-popup="true"
+                                            data-bs-title="{{ __('Edit Employee Transfer') }}"
+                                            class="btn mx-1 btn-sm btn-outline-primary">
+                                            <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
+                                        </a>
+                                    @endif
                                 @endcan
                                 @can('delete transfer')
-                                    {!! Form::open([
-                                        'method' => 'DELETE',
-                                        'route' => ['employee-transfer.destroy', $transfer->id],
-                                        'id' => 'delete-form-' . $transfer->id,
-                                    ]) !!}
-
-                                    <a href="#"
-                                        class="mx-1 pt-2 btn mx-1 btn-sm btn-outline-danger align-items-center bs-pass-para"
-                                        data-original-title="{{ __('Delete') }}" title="{{ __('Delete') }}"
-                                        data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                                        data-confirm-yes="document.getElementById('delete-form-{{ $transfer->id }}').submit();">
-                                        <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
-                                    </a>
-                                    {!! Form::close() !!}
+                                    @if ((int) $transfer->status !== 1 || \Auth::user()->type === 'company')
+                                        {!! Form::open([
+                                            'method' => 'DELETE',
+                                            'route' => ['employee-transfer.destroy', $transfer->id],
+                                            'id' => 'delete-form-' . $transfer->id,
+                                            'class' => 'd-inline',
+                                        ]) !!}
+                                        <a type="button"
+                                            class="mx-1 btn btn-sm btn-outline-danger employee-transfer-ajax-delete"
+                                            data-form-id="delete-form-{{ $transfer->id }}"
+                                            data-confirm="{{ __('Are you sure you want to delete this transfer?') }}"
+                                            data-bs-title="{{ __('Delete') }}">
+                                            <span class="btn-inner--icon"><i class="ti ti-trash"></i></span>
+                                        </a>
+                                        {!! Form::close() !!}
+                                    @endif
                                 @endcan
-                                <a href="{{ route('employee-transfer.approve', $transfer->id) }}"
-                                    class="btn mx-1 btn-sm btn-outline-warning mx-3">Approve</a>
+                                @can('edit transfer')
+                                    @if ((int) $transfer->status !== 1)
+                                        {{ Form::open([
+                                            'route' => ['employee-transfer.approve', $transfer->id],
+                                            'method' => 'POST',
+                                            'class' => 'employee-transfer-approval-form d-inline',
+                                        ]) }}
+                                        <a href="#" class="btn mx-1 btn-sm btn-outline-warning mx-3" onclick="$(this).closest('form').submit(); return false;">
+                                            {{ __('Approve') }}
+                                        </a>
+                                        {{ Form::close() }}
+                                    @endif
+                                @endcan
                             </div>
                         </td>
                     @endif
@@ -318,6 +336,7 @@
             @endforeach
         </tbody>
     </table>
+    </div>
 
     {{-- @if ($transfers->hasPages())
         <div class="pagination">

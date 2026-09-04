@@ -8,11 +8,14 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use Maatwebsite\Excel\Concerns\WithDrawings;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use Illuminate\Contracts\View\View;
+use Carbon\Carbon;
 
 class StudentRegistrationExport implements FromView, WithEvents
 {
@@ -51,6 +54,8 @@ class StudentRegistrationExport implements FromView, WithEvents
             'is_period' => $is_period,
             'report_name' => $report_name,
             'params' => $this->params,
+            'date_from' => $this->params['date_from'] ?? null,
+            'date_to' => $this->params['date_to'] ?? null,
             'is_branch' => $is_branch,
             'branchTotals' => $this->branchTotals,
             'grandTotal' => $this->grandTotal,
@@ -189,6 +194,26 @@ class StudentRegistrationExport implements FromView, WithEvents
                 $sheet->getStyle("J10:J{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("N10:N{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                 $sheet->getStyle("A10:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
+
+                // Convert Reg Date (D) and DOB (J) from rendered text to real Excel dates.
+                for ($row = 10; $row <= $lastDataRow; $row++) {
+                    foreach (['D', 'J'] as $column) {
+                        $cellAddress = $column . $row;
+                        $cellValue = trim((string) $sheet->getCell($cellAddress)->getValue());
+
+                        if ($cellValue === '' || stripos($cellValue, 'Branch Total') !== false || stripos($cellValue, 'Grand Total') !== false) {
+                            continue;
+                        }
+
+                        try {
+                            $parsedDate = Carbon::createFromFormat('d-M-Y', $cellValue);
+                            $sheet->setCellValue($cellAddress, ExcelDate::dateTimeToExcel($parsedDate));
+                            $sheet->getStyle($cellAddress)->getNumberFormat()->setFormatCode('dd mmm yyyy');
+                        } catch (\Throwable $exception) {
+                            // Leave non-date rows as-is.
+                        }
+                    }
+                }
             },
         ];
     }

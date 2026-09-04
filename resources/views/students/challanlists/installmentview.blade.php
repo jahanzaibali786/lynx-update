@@ -71,6 +71,9 @@
                     <span>{{@$studentData->class->name ? $studentData->class->name : ''}}</span>
                 </div>
             </div>
+            @php
+                $installmentFeeRows = collect($classfee)->unique('head_id')->values();
+            @endphp
             <div>
                 <table class="datatable">
                     <thead>
@@ -82,7 +85,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($classfee as $fee)
+                        @foreach ($installmentFeeRows as $fee)
                             @if (in_array($fee->head_id, $headIds))
 
                                 @php
@@ -118,7 +121,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($classfee as $fee)
+                        @foreach ($installmentFeeRows as $fee)
                             @if (in_array($fee->head_id, $headIds))
 
                             @php
@@ -127,8 +130,16 @@
 
                                 if (isset($installmentChallans) && $installmentChallans->isNotEmpty() ) {
                                     $existingInst1 = $installmentChallans->firstWhere('challan_date', $challan->challan_date);
-                                    $existingInst2 = $installmentChallans->firstWhere('challan_date', \Carbon\Carbon::parse($challan->challan_date)->addMonth()->toDateString());
+                                    $nextMonth = \Carbon\Carbon::parse($challan->challan_date)
+                                        ->addMonth()
+                                        ->startOfMonth()
+                                        ->toDateString();
 
+                                    $existingInst2 = $installmentChallans->first(function ($item) use ($nextMonth) {
+                                        return $item->challan_date === $nextMonth
+                                            || $item->fee_month === $nextMonth;
+                                    });                    
+                                                    // dd($existingInst1,$existingInst2);
                                     if ($existingInst1 && optional($existingInst1->heads)->contains('head_id', $fee->feehead->id)) {
                                         $inst1Selected = '100';
                                     } else {
@@ -168,12 +179,13 @@
 
                     </tbody>
                 </table>
+                <br>
                 @if (isset($installmentChallans) && $installmentChallans->count() > 1)
                     <button class="btn btn-info" style=" float: right" id="save-btn">Update Installment</button>
                 @else
                     <button class="btn btn-info" style=" float: right" id="save-btn" >Save</button>
                 @endif
-                <button class="btn btn-info "  id="view"  style="margin-right:10px; float: right">Preview</button>
+                {{-- <button class="btn btn-info "  id="view"  style="margin-right:10px; float: right">Preview</button> --}}
             </form>
         </div>
     </div>

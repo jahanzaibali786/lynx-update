@@ -33,8 +33,7 @@
         {{--        </a> --}}
 
         @can('create purchase')
-            <a href="{{ route('purchase.create', 0) }}" class="btn mx-1 btn-sm btn-outline-primary" 
-                data-bs-title="{{ __('Create') }}">
+            <a href="#" data-url="{{ route('purchase.create', 0) }}" data-size="modal-fullscreen" data-ajax-popup="true" data-bs-title="{{ __('Create Purchase') }}" class="btn mx-1 btn-sm btn-outline-primary">
                 <span class="btn-inner--icon">Create</span>
             </a>
         @endcan
@@ -102,12 +101,16 @@
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td class="Id">
-                                    <a href="{{ route('purchase.show', \Crypt::encrypt($purchase->id)) }}"
-                                        class="btn btn-outline-primary btnpurchase1">{{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}</a>
+                                    @can('show purchase')
+                                        <a href="{{ route('purchase.show', \Crypt::encrypt($purchase->id)) }}"
+                                            class="btn btn-outline-primary btnpurchase1">{{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}</a>
+                                    @else
+                                        {{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}
+                                    @endcan
 
                                 </td>
 
-                                <td> {{ !empty($purchase->vender) ? $purchase->vender->name : '' }} </td>
+                                <td> {{ !empty($purchase->vender) ? $purchase->vender->display_name : '' }} </td>
 
                                 {{-- <td>{{ !empty($purchase->category) ? $purchase->category->name : '' }}</td> --}}
                                 <td>{{ Auth::user()->dateFormat($purchase->purchase_date) }}</td>
@@ -129,12 +132,21 @@
                                     @elseif($purchase->status == 4)
                                         <span
                                             class="purchase_status badge bg-primary p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                    @elseif($purchase->status == 5)
+                                        <span
+                                            class="purchase_status badge bg-info p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                    @elseif($purchase->status == 6)
+                                        <span
+                                            class="purchase_status badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
+                                    @elseif($purchase->status == 7)
+                                        <span
+                                            class="purchase_status badge bg-success p-2 px-3 rounded">{{ __(\App\Models\Purchase::$statues[$purchase->status]) }}</span>
                                     @endif
                                 </td>
 
 
 
-                                @if (Gate::check('edit purchase') || Gate::check('delete purchase') || Gate::check('show purchase'))
+                                @if (Gate::check('edit purchase') || Gate::check('delete purchase') || Gate::check('show purchase') || Gate::check('convert purchase to grn'))
                                     <td class="Action">
                                         <span>
 
@@ -148,12 +160,42 @@
                                                     </a>
                                                 @endcan
                                                 @can('edit purchase')
-                                                    <a href="{{ route('purchase.edit', \Crypt::encrypt($purchase->id)) }}"
+                                                    @if($purchase->status != 7)
+                                                    <a href="#"
+                                                        data-url="{{ route('purchase.edit', \Crypt::encrypt($purchase->id)) }}"
+                                                        data-size="modal-fullscreen" data-ajax-popup="true"
                                                         class="mx-1 btn btn-outline-primary btn-sm align-items-center"
-                                                         title="Edit"
                                                         data-bs-title="{{ __('Edit') }}">
                                                         <span class="btn-inner--icon"><i class="ti ti-pencil"></i></span>
                                                     </a>
+                                                    @endif
+                                                @endcan
+                                                @if($purchase->status == 5 )
+                                                    <a href="{{ route('purchase.finalize', $purchase->id) }}"
+                                                        class="mx-1 btn btn-outline-success btn-sm align-items-center"
+                                                        data-bs-title="{{ __('Approve') }}"
+                                                        onclick="return confirm('{{ __('Approve this purchase?') }}')">
+                                                        <span class="btn-inner--icon"><i class="ti ti-check"></i></span>
+                                                    </a>
+                                                    <a href="{{ route('purchase.reject', $purchase->id) }}"
+                                                        class="mx-1 btn btn-outline-danger btn-sm align-items-center"
+                                                        data-bs-title="{{ __('Reject') }}"
+                                                        onclick="return confirm('{{ __('Reject this purchase and send it back to draft?') }}')">
+                                                        <span class="btn-inner--icon"><i class="ti ti-x"></i></span>
+                                                    </a>
+                                                @endif
+                                                @can('convert purchase to grn')
+                                                @if($purchase->status == 6  && !$purchase->grn_converted)
+                                                    <a href="#"
+                                                        data-url="{{ route('purchase.convert_to_grn', $purchase->id) }}"
+                                                        data-size="modal-fullscreen"
+                                                        data-ajax-popup="true"
+                                                        class="mx-1 btn btn-outline-primary btn-sm align-items-center"
+                                                        title="Convert to GRN"
+                                                        data-bs-title="{{ __('Convert to GRN') }}">
+                                                        <span class="btn-inner--icon"><i class="ti ti-file-import"></i></span>
+                                                    </a>
+                                                @endif
                                                 @endcan
                                                 {{-- @can('delete purchase')
                                                     {!! Form::open([

@@ -166,40 +166,33 @@
                         <td>
                             @if ($employee->profile_img)
                                 <img id="profileImage" src="{{ Storage::url('emp_profile_images/' . $employee->profile_img) }}"
-                                    alt="" style="border:1px solid var(--primary); width:100%; height: 50px; border-radius:50%; object-fit: contain !important;">
+                                    alt="" style="border:1px solid var(--primary); width:100%; height: 50px; border-radius:10px; object-fit: contain !important;">
                             @else
-                                <img id="profileImage" src="{{ Storage::url('emp_profile_images/avatar_1751294680.png') }}" alt=""
-                                    style="border:1px solid var(--primary); width:100%; height: 50px; border-radius:50%; object-fit: contain !important;">
+                                <img id="profileImage" src="{{ Storage::url('emp_profile_images/avatar.png') }}" alt=""
+                                    style="border:1px solid var(--primary); width:100%; height: 50px; border-radius:10px; object-fit: contain !important;">
                             @endif
                         </td>
                         <td class="font-style">{{ $employee->name }}</td>
                         <td>{{ $employee->phone }}</td>
                         @if ($employee->branch_id)
                             <td class="font-style">
-                                {{ !empty(\Auth::user()->getBranch($employee->owned_by)) ? \Auth::user()->getBranch($employee->owned_by)->name : '' }}
+                                {{ !empty($employee->ownedBranch) ? $employee->ownedBranch->name : '' }}
                             </td>
                         @else
                             <td>-</td>
                         @endif
                         @if ($employee->department_id)
                             <td class="font-style">
-                                {{ !empty(\Auth::user()->getDepartment($employee->department_id)) ? \Auth::user()->getDepartment($employee->department_id)->name : '' }}
+                                {{ !empty($employee->department) ? $employee->department->name : '' }}
                             </td>
                         @else
                             <td>-</td>
                         @endif
-                        @if ($employee->designation_id)
-                            <td class="font-style">
-                                {{ !empty(\Auth::user()->getDesignation($employee->designation_id)) ? \Auth::user()->getDesignation($employee->designation_id)->name : '' }}
-                            </td>
-                        @else
-                            <td>-</td>
-                        @endif
-                        @if ($employee->company_doj)
-                            <td class="font-style">{{ \Auth::user()->dateFormat($employee->company_doj) }}</td>
-                        @else
-                            <td>-</td>
-                        @endif
+                    
+                        <td class="font-style">{!! $employee->designation_id ? $employee->designation_formatted : '-' !!} </td>
+
+                        <td class="font-style">{{ !empty($employee->company_doj) ? \Auth::user()->dateFormat($employee->company_doj) : '-' }}</td>
+                     
                         <td class="font-style">
                             {{ !empty($lastscale->scale) ? $lastscale->scale->scale_no : '' }}
                         </td>

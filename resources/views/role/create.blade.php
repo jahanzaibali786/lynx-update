@@ -34,6 +34,9 @@
                 <li class="nav-item">
                     <a class="nav-link" id="pills-workspace-tab" data-bs-toggle="pill" href="#workspace" role="tab" aria-controls="pills-contact" aria-selected="false">{{__('WorkSpace')}}</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="pills-custom-permission-tab" data-bs-toggle="pill" href="#custom_permission" role="tab" aria-controls="pills-contact" aria-selected="false">{{__('Custom')}}</a>
+                </li>
             </ul>
             <div class="tab-content" id="pills-tabContent">
                 <div class="tab-pane fade active" id="staff" role="tabpanel" aria-labelledby="pills-home-tab">
@@ -919,7 +922,7 @@
                 </div>
                 <div class="tab-pane fade " id="account" role="tabpanel" aria-labelledby="pills-contact-tab">
                     @php
-                        $modules=['account dashboard','proposal','invoice','bill','revenue','payment','proposal product','invoice product','bill product','goal','credit note','debit note','bank account','bank transfer','transaction','customer','vender','constant custom field','assets','chart of account','journal entry','report'];
+                        $modules=['account dashboard','proposal','invoice','bill','revenue','payment','proposal product','invoice product','bill product','goal','credit note','debit note','bank account','bank transfer','daily cash closing','transaction','customer','vender','constant custom field','assets','chart of account','journal entry','journal voucher','report'];
                     @endphp
                     <div class="col-md-12">
                         <div class="form-group">
@@ -1017,6 +1020,33 @@
                                                             <div class="col-md-3 custom-control custom-checkbox">
                                                                 {{Form::checkbox('permissions[]',$key,false, ['class'=>'form-check-input isscheck account_checkall isscheck_'.str_replace(' ', '', $module),'id' =>'permission'.$key])}}
                                                                 {{Form::label('permission'.$key,'Send',['class'=>'custom-control-label'])}}<br>
+                                                            </div>
+                                                        @endif
+                                                    @endif
+
+                                                    @if(in_array('print '.$module,(array) $permissions))
+                                                        @if($key = array_search('print '.$module,$permissions))
+                                                            <div class="col-md-3 custom-control custom-checkbox">
+                                                                {{Form::checkbox('permissions[]',$key,false, ['class'=>'form-check-input isscheck account_checkall isscheck_'.str_replace(' ', '', $module),'id' =>'permission'.$key])}}
+                                                                {{Form::label('permission'.$key,'Print',['class'=>'custom-control-label'])}}<br>
+                                                            </div>
+                                                        @endif
+                                                    @endif
+
+                                                    @if(in_array('submit '.$module,(array) $permissions))
+                                                        @if($key = array_search('submit '.$module,$permissions))
+                                                            <div class="col-md-3 custom-control custom-checkbox">
+                                                                {{Form::checkbox('permissions[]',$key,false, ['class'=>'form-check-input isscheck account_checkall isscheck_'.str_replace(' ', '', $module),'id' =>'permission'.$key])}}
+                                                                {{Form::label('permission'.$key,'Submit',['class'=>'custom-control-label'])}}<br>
+                                                            </div>
+                                                        @endif
+                                                    @endif
+
+                                                    @if(in_array('approve '.$module,(array) $permissions))
+                                                        @if($key = array_search('approve '.$module,$permissions))
+                                                            <div class="col-md-3 custom-control custom-checkbox">
+                                                                {{Form::checkbox('permissions[]',$key,false, ['class'=>'form-check-input isscheck account_checkall isscheck_'.str_replace(' ', '', $module),'id' =>'permission'.$key])}}
+                                                                {{Form::label('permission'.$key,'Approve',['class'=>'custom-control-label'])}}<br>
                                                             </div>
                                                         @endif
                                                     @endif
@@ -1381,6 +1411,9 @@
                         </div>
                     </div>
                 </div>
+                <div class="tab-pane fade" id="custom_permission" role="tabpanel" aria-labelledby="pills-contact-tab">
+                    @include('role.partials.custom_permissions')
+                </div>
             </div>
         </div>
 
@@ -1416,6 +1449,9 @@
         // });
         $("#workspace_checkall").click(function(){
             $('.workspace_checkall').not(this).prop('checked', this.checked);
+        });
+        $("#custom_checkall").click(function(){
+            $('.custom_checkall').not(this).prop('checked', this.checked);
         });
         $(".ischeck").click(function(){
             var ischeck = $(this).data('id');

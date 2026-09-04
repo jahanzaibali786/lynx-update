@@ -173,11 +173,14 @@
             @endphp
             @foreach ($class_wise_fee as $fee)
                 @php
-                    $student = \App\Models\StudentFeeStructure::with('student', 'student.enrollment')
-                        ->where('head_id', @$fee->head_id)
-                        ->where('class_id', @$fee->class_id)
-                        ->get();
-                @endphp
+                        $student = \App\Models\StudentFeeStructure::with(['student', 'student.enrollment'])
+                            ->where('head_id', @$fee->head_id)
+                            ->where('class_id', @$fee->class_id)
+                            ->whereHas('student.enrollment', function ($q) {
+                                $q->where('active_status', 1);
+                            })
+                            ->get();
+                    @endphp
                 @foreach ($student as $student_fee)
                     @php $rowCounter++; @endphp
                     <tr id="row_{{ $rowCounter }}" data-original-amount="{{ @$fee->amount }}" data-original-discount="{{ @$student_fee->discount }}">

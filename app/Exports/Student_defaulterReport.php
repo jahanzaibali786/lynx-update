@@ -66,6 +66,9 @@ class Student_defaulterReport implements FromView, WithEvents
 
                 // 🔁 Repeat heading row (row 5)
                 $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(9, 10);
+                // ❄️ Freeze the title + column-heading rows (1–10) so they stay
+                // visible on screen while the data rows (11+) scroll.
+                $sheet->freezePane('A11');
                 $sheet = $event->sheet->getDelegate();
                 $sheet->setShowGridlines(false);
                 // Optional: Margins
@@ -166,20 +169,35 @@ class Student_defaulterReport implements FromView, WithEvents
                     ],
                 ]);
 
+                // Convert Admission Date (column E) from text to real Excel dates
+                for ($row = 11; $row <= $lastDataRow; $row++) {
+                    $cellValue = $sheet->getCell("E{$row}")->getValue();
+                    if ($cellValue && $cellValue !== '-') {
+                        $date = \DateTime::createFromFormat('d-M-Y', $cellValue);
+                        if ($date) {
+                            $sheet->setCellValue("E{$row}", \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($date));
+                            $sheet->getStyle("E{$row}")->getNumberFormat()->setFormatCode('dd-mmm-yyyy');
+                        }
+                    }
+                }
+
                 $sheet->getColumnDimension('A')->setWidth(5);
                 $sheet->getColumnDimension('B')->setWidth(5);
                 $sheet->getColumnDimension('C')->setWidth(8);
                 $sheet->getColumnDimension('D')->setWidth(20);
-                $sheet->getColumnDimension('E')->setWidth(10);
+                $sheet->getColumnDimension('E')->setWidth(14);
                 $sheet->getColumnDimension('F')->setWidth(15);
                 $sheet->getColumnDimension('G')->setWidth(15);
+                $sheet->getColumnDimension('H')->setWidth(18);
 
                 // style col font size 8px and align center
                 $sheet->getStyle("A11:C{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("D11:D{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setWrapText(true);
                 $sheet->getStyle("E11:E{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("F11:F{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("G11:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("H11:H{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_TOP)->setWrapText(true);
+                $sheet->getStyle("G11:G{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("I11:{$highestColumnLetter}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                 $sheet->getStyle("A11:{$highestColumnLetter}{$lastDataRow}")->getFont()->setSize(8);
             },
         ];

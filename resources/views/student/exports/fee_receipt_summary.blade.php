@@ -1,40 +1,44 @@
 @php
+    // Deduplicate: group by branch → voucher_id, one entry per unique payment
+    $deduplicatedReceipts = $recipts
+        ->groupBy('owned_by')
+        ->flatMap(function ($branchReceipts) {
+            return $branchReceipts
+                ->groupBy('voucher_id')
+                ->map(function ($voucherGroup) {
+                    $first = $voucherGroup->first();
+                    return (object) [
+                        'owned_by'    => $first->owned_by,
+                        'recipt_date' => $first->recipt_date instanceof \Carbon\Carbon
+                            ? $first->recipt_date
+                            : \Carbon\Carbon::parse($first->recipt_date),
+                        '_amount'     => $first->voucher->sum('credit'),
+                    ];
+                });
+        });
 
-
-    // Pre-process receipt data for faster access
     $receiptsByDateBranch = [];
-    $branchTotals = [];
-    $grandTotalReceipts = 0;
-    $grandTotalAmount = 0;
+    $branchTotals         = [];
+    $grandTotalReceipts   = 0;
+    $grandTotalAmount     = 0;
 
-    foreach ($recipts as $receipt) {
-        $receiptDate = $receipt->recipt_date instanceof \Carbon\Carbon 
-            ? $receipt->recipt_date 
-            : \Carbon\Carbon::parse($receipt->recipt_date);
-        $dateKey = $receiptDate->format('Y-m-d');
+    foreach ($deduplicatedReceipts as $receipt) {
+        $dateKey   = $receipt->recipt_date->format('Y-m-d');
         $branchKey = $receipt->owned_by;
-        
-        if (!isset($receiptsByDateBranch[$dateKey])) {
-            $receiptsByDateBranch[$dateKey] = [];
-        }
-        
+        $amount    = $receipt->_amount;
+
         if (!isset($receiptsByDateBranch[$dateKey][$branchKey])) {
-            $receiptsByDateBranch[$dateKey][$branchKey] = [
-                'count' => 0,
-                'amount' => 0
-            ];
+            $receiptsByDateBranch[$dateKey][$branchKey] = ['count' => 0, 'amount' => 0];
         }
-        
-        $amount = $receipt->voucher->sum('credit');
         $receiptsByDateBranch[$dateKey][$branchKey]['count']++;
         $receiptsByDateBranch[$dateKey][$branchKey]['amount'] += $amount;
-        
+
         if (!isset($branchTotals[$branchKey])) {
             $branchTotals[$branchKey] = ['count' => 0, 'amount' => 0];
         }
         $branchTotals[$branchKey]['count']++;
         $branchTotals[$branchKey]['amount'] += $amount;
-        
+
         $grandTotalReceipts++;
         $grandTotalAmount += $amount;
     }
@@ -66,10 +70,10 @@
     <tbody>
         @for ($date = $params['date_from']; $date <= $params['date_to']; $date->addDay())
             @php
-                $dateKey = $date->format('Y-m-d');
-                $hasData = isset($receiptsByDateBranch[$dateKey]);
+                $dateKey           = $date->format('Y-m-d');
+                $hasData           = isset($receiptsByDateBranch[$dateKey]);
                 $dateTotalReceipts = 0;
-                $dateTotalAmount = 0;
+                $dateTotalAmount   = 0;
             @endphp
 
             @if ($hasData)
@@ -78,9 +82,9 @@
                     @foreach ($branches as $key => $branch)
                         @if ($key !== '' && ($selectedBranch === null || $selectedBranch == $key))
                             @php
-                                $branchData = $receiptsByDateBranch[$dateKey][$key] ?? ['count' => 0, 'amount' => 0];
+                                $branchData         = $receiptsByDateBranch[$dateKey][$key] ?? ['count' => 0, 'amount' => 0];
                                 $dateTotalReceipts += $branchData['count'];
-                                $dateTotalAmount += $branchData['amount'];
+                                $dateTotalAmount   += $branchData['amount'];
                             @endphp
                             <td>{{ $branchData['count'] }}</td>
                             <td>{{ number_format($branchData['amount'], 0) }}</td>
@@ -91,8 +95,7 @@
                 </tr>
             @endif
         @endfor
-        
-        <!-- Grand Total Row -->
+
         <tr>
             <td style="border: 2px solid black; background-color: gray; font-size: 8px; font-family: calibri; text-align: center; font-weight: bold;">TOTAL</td>
             @foreach ($branches as $key => $branch)

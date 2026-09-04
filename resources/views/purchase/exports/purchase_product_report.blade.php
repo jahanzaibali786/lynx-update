@@ -58,7 +58,7 @@
                 <tr>
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ Auth::user()->purchaseNumberFormat($purchase->id) }}</td>
-                    <td>{{ $purchase->vender->name }}</td>
+                    <td>{{ $purchase->vender->display_name }}</td>
                     <td>{{ $productCategory }}</td>
                     <td>{{ $productCode }}</td>
                     <td>{{ $productName }}</td>

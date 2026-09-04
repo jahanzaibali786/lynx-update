@@ -11,6 +11,9 @@ class Purchase extends Model
 {
     use HasFactory;
 
+    public const STATUS_FINALIZED = 6;
+    public const STATUS_FULLY_RECEIVED = 7;
+
     protected $fillable = [
         'purchase_id',
         'vender_id',
@@ -21,6 +24,7 @@ class Purchase extends Model
         'category_id',
         'created_by',
         'voucher_id',
+        'grn_converted',
     ];
     public static $statues = [
         'Draft',
@@ -28,6 +32,9 @@ class Purchase extends Model
         'Unpaid',
         'Partialy Paid',
         'Paid',
+        'Fw to Ho',
+        'Finalized',
+        'Fully Received',
     ];
     public function vender()
     {

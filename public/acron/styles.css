@@ -6194,11 +6194,11 @@ button {
   color: var(--warning) !important;
 }
 
-.btn-outline-warning:hover {
+/* .btn-outline-warning:hover {
   color: var(--light-text) !important;
   background-color: var(--warning) !important;
   box-shadow: initial !important;
-}
+} */
 
 .btn-outline-warning.disabled,
 .btn-outline-warning:disabled {
@@ -13001,7 +13001,7 @@ body.custom-scrollbar::-webkit-scrollbar-track-piece {
   color: var(--primary) !important;
 }
 
-/* 
+/*
 .w-100 .select2 {
   width: 100% !important;
 } */
@@ -15851,15 +15851,27 @@ html[data-placement=vertical] .nav-container.mobile-side-ready .nav-content .men
 html[data-placement=vertical] .nav-container .nav-content .menu-container .menu li a,
 html[data-placement=horizontal] .nav-container.mobile-side-ready .nav-content .menu-container .menu li a,
 html[data-placement=vertical] .nav-container.mobile-side-ready .nav-content .menu-container .menu li a {
-  border-radius: var(--border-radius-lg);
+   border-radius: var(--border-radius-lg);
   width: 100%;
   color: black;
   transition: color var(--transition-time);
   margin-bottom: 0.1rem;
   margin-top: 0.1rem;
-  background: #F3F3F3;
+  background: linear-gradient(45deg, #f10808, #052cdff7);
+  color: #fff;
+  font-weight: bolder !important;
+  
 }
-
+.menu-container 
+.menu li a 
+.dash-micon svg path {
+    stroke: #fff !important;
+}
+.menu-container 
+.menu li a 
+.dash-micon {
+    margin-right: -7px;
+}
 html[data-placement=vertical] .nav-container .nav-content .menu-container .menu li a svg,
 html[data-placement=horizontal] .nav-container.mobile-side-ready .nav-content .menu-container .menu li a svg,
 html[data-placement=vertical] .nav-container.mobile-side-ready .nav-content .menu-container .menu li a svg {
@@ -15885,8 +15897,8 @@ html[data-placement=vertical] .nav-container .nav-content .menu-container .menu 
 html[data-placement=horizontal] .nav-container.mobile-side-ready .nav-content .menu-container .menu li a:hover,
 html[data-placement=vertical] .nav-container.mobile-side-ready .nav-content .menu-container .menu li a:hover {
   background: #F3F3F3;
-  color: black;
-  /* color: white; */
+  /* color: black; */
+  color: white;
 }
 
 html[data-placement=vertical] .nav-container .nav-content .menu-container .menu li a.active,
@@ -15906,8 +15918,12 @@ html[data-placement=vertical] .nav-container .nav-content .menu-container .menu 
 html[data-placement=horizontal] .nav-container.mobile-side-ready .nav-content .menu-container .menu li.dash-item:not(.dash-hasmenu) a.dash-link,
 html[data-placement=vertical] .nav-container.mobile-side-ready .nav-content .menu-container .menu li.dash-item:not(.dash-hasmenu) a.dash-link {
   background: transparent !important;
-
-  /* color: white !important; */
+  color: #000 !important;
+}
+html[data-placement=vertical] .nav-container .nav-content .menu-container .menu li.dash-item:not(.dash-hasmenu) a.dash-link:hover,
+html[data-placement=horizontal] .nav-container.mobile-side-ready .nav-content .menu-container .menu li.dash-item:not(.dash-hasmenu) a.dash-link:hover,
+html[data-placement=vertical] .nav-container.mobile-side-ready .nav-content .menu-container .menu li.dash-item:not(.dash-hasmenu) a.dash-link:hover {
+  color: #fff !important;
 }
 
 html[data-placement=vertical] .nav-container .nav-content .menu-container .menu li.dash-item:not(.dash-hasmenu) a.dash-link:before,

@@ -65,7 +65,7 @@
                         @endphp
                         <tr>
                             <td></td>
-                            <td style="width:150px;">{{ $purchase->vender->name }}</td>
+                            <td style="width:150px;">{{ $purchase->vender->display_name }}</td>
                             <td>{{ $productCategory }}</td>
                             <td style="width:150px;">{{ $productName }}</td>
                             <td>{{ $itemQuantity }}</td>

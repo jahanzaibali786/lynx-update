@@ -1,5 +1,12 @@
 @if(!empty($vender))
     <div class="row">
+        <div class="col-12 mb-2">
+            <small>
+                <strong>{{ $vender->name }}</strong><br>
+                {{ $vender->email }}<br>
+                {{ $vender->contact ? $vender->contact : $vender->main_phone }}
+            </small>
+        </div>
         <div class="col-md-5">
             <h6>{{__('Bill to')}}</h6>
             <div class="bill-to">

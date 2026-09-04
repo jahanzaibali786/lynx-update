@@ -16,30 +16,65 @@
             cursor: not-allowed;
             pointer-events: none;
         }
-        
+
         .opening-balance {
             background-color: #e3f2fd;
             font-weight: bold;
         }
-        
+
         .closing-balance {
             background-color: #fff9c4;
             font-weight: bold;
         }
-        
+
         /* Color for negative values (payments) */
         .negative-value {
             color: red;
             font-weight: 500;
         }
-        
+
         /* Color for positive values (receivables) */
         .positive-value {
             color: green;
             font-weight: 500;
         }
+
+        .finalize-glow {
+            color: #dc3545 !important;
+            font-weight: 700;
+            animation: finalizeGlow 1.2s ease-in-out infinite;
+        }
+
+        .challan-wise-toggle {
+            min-width: 180px;
+        }
+
+        .challan-month-summary td {
+            background: #f3f4f6 !important;
+            font-weight: 700;
+        }
+
+        .challan-month-label td {
+            background: #e5e7eb !important;
+            font-weight: 700;
+        }
+        @keyframes finalizeGlow {
+            0%, 100% {
+                text-shadow: 0 0 0 rgba(220, 53, 69, 0);
+                transform: scale(1);
+            }
+            50% {
+                text-shadow: 0 0 8px rgba(220, 53, 69, 0.85);
+                transform: scale(1.04);
+            }
+        }
     </style>
     <script>
+        $(document).on('change', '#student_select, #class_select, #status_select, #branches', function() {
+            clearExportInput();
+            toggleExportButtons();
+        });
+
         function branchcustomer(id) {
             var customer = $('#customerselect').val();
             $.ajax({
@@ -101,7 +136,7 @@
             });
         }
 
-        function classStudents(classId, status) {
+        function classStudents(classId, status, selectedStudent) {
             $.ajax({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -138,7 +173,12 @@
                                 }));
                             }
                         }
-                        $('#student_select').val('all');
+                        if (selectedStudent && result.students.hasOwnProperty(selectedStudent)) {
+                            $('#student_select').val(selectedStudent);
+                        } else {
+                            $('#student_select').val('all');
+                        }
+                        CustomSelect.create(document.getElementById('student_select'));
                         toggleExportButtons();
                     }
                 }
@@ -146,17 +186,18 @@
         }
 
         $(document).on('change', '#class_select, #status_select', function() {
-            var classId = $('#class_select').val();
+            var classId = $('#class_select').val() ?? null;
             var status = $('#status_select').val();
-            if (classId && status) {
+            // if (classId && status) {
                 classStudents(classId, status);
-            }
+            // }
         });
 
         $(document).on('change', '#class_select', function() {
             var classId = $(this).val();
+            var status = $('#status_select').val();
             if (classId) {
-                classStudents(classId);
+                classStudents(classId, status);
             }
         });
 
@@ -167,8 +208,168 @@
                 alert('Please select a student before applying the filter.');
                 return false;
             }
+            clearExportInput();
             document.getElementById('student_single_account').submit();
         }
+
+        function formatStatementAmount(value) {
+            var amount = parseFloat(value || 0);
+            if (isNaN(amount)) {
+                amount = 0;
+            }
+            return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function restoreStatementRows() {
+            var tbody = document.getElementById('statementRowsBody');
+            if (!tbody || !tbody.dataset.originalRows) {
+                return;
+            }
+            tbody.innerHTML = tbody.dataset.originalRows;
+        }
+
+        function renderChallanWiseStatement() {
+            var tbody = document.getElementById('statementRowsBody');
+            if (!tbody) {
+                return;
+            }
+
+            if (!tbody.dataset.originalRows) {
+                tbody.dataset.originalRows = tbody.innerHTML;
+            }
+
+            var source = document.createElement('tbody');
+            source.innerHTML = tbody.dataset.originalRows;
+
+            var rows = Array.from(source.querySelectorAll('tr[data-statement-row="1"]')).filter(function(row) {
+                return !(row.classList.contains('opening-balance') || row.classList.contains('closing-balance'));
+            });
+
+            var grouped = {};
+            function parseBillingMonth(value) {
+                var raw = (value || '').trim();
+                if (!raw || raw === '-') {
+                    return null;
+                }
+
+                var parsed = Date.parse(raw);
+                if (!isNaN(parsed)) {
+                    return parsed;
+                }
+
+                var parts = raw.split(/[-,\/\s]+/).filter(Boolean);
+                if (parts.length >= 2) {
+                    var monthMap = {
+                        jan: 0, january: 0,
+                        feb: 1, february: 1,
+                        mar: 2, march: 2,
+                        apr: 3, april: 3,
+                        may: 4,
+                        jun: 5, june: 5,
+                        jul: 6, july: 6,
+                        aug: 7, august: 7,
+                        sep: 8, sept: 8, september: 8,
+                        oct: 9, october: 9,
+                        nov: 10, november: 10,
+                        dec: 11, december: 11
+                    };
+
+                    var first = parts[0].toLowerCase();
+                    var second = parts[1].toLowerCase();
+                    var monthIndex = monthMap[first] !== undefined ? monthMap[first] : monthMap[second];
+                    var yearPart = monthMap[first] !== undefined ? parts[1] : parts[0];
+                    var year = parseInt(yearPart, 10);
+
+                    if (!isNaN(monthIndex) && !isNaN(year)) {
+                        return new Date(year, monthIndex, 1).getTime();
+                    }
+                }
+
+                return raw.toLowerCase();
+            }
+
+            rows.forEach(function(row) {
+                var monthKey = (row.dataset.billingMonth || '-').trim();
+                var challanKey = (row.dataset.challanNo || '-').trim();
+                var groupKey = monthKey + '||' + challanKey;
+
+                if (!grouped[groupKey]) {
+                    grouped[groupKey] = {
+                        month: monthKey,
+                        challanNo: challanKey,
+                        rows: [],
+                        challanTotal: 0,
+                        receivingTotal: 0
+                    };
+                }
+
+                grouped[groupKey].rows.push(row.outerHTML);
+                grouped[groupKey].challanTotal += parseFloat(row.dataset.credit || 0);
+                grouped[groupKey].receivingTotal += parseFloat(row.dataset.debit || 0);
+            });
+
+            var groups = Object.values(grouped).sort(function(a, b) {
+                var aMonth = parseBillingMonth(a.month);
+                var bMonth = parseBillingMonth(b.month);
+
+                if (typeof aMonth === 'number' && typeof bMonth === 'number' && !isNaN(aMonth) && !isNaN(bMonth)) {
+                    if (aMonth !== bMonth) {
+                        return aMonth - bMonth;
+                    }
+                } else {
+                    var monthCompare = String(aMonth).localeCompare(String(bMonth));
+                    if (monthCompare !== 0) {
+                        return monthCompare;
+                    }
+                }
+
+                var aChallan = parseInt(a.challanNo, 10);
+                var bChallan = parseInt(b.challanNo, 10);
+                if (!isNaN(aChallan) && !isNaN(bChallan) && aChallan !== bChallan) {
+                    return aChallan - bChallan;
+                }
+
+                return String(a.challanNo).localeCompare(String(b.challanNo));
+            });
+
+            var html = '';
+            var runningOpening = 0;
+            groups.forEach(function(group) {
+                var closingBalance = runningOpening + group.challanTotal - group.receivingTotal;
+                var openingBalance = runningOpening;
+
+                html += '<tr class="challan-month-label">';
+                html += '<td colspan="13">Billing Month: ' + group.month + ' | Challan No: ' + group.challanNo + '</td>';
+                html += '</tr>';
+                html += '<tr class="challan-month-summary">';
+                html += '<td colspan="3" class="text-end">Opening Balance: ' + formatStatementAmount(openingBalance) + '</td>';
+                html += '<td colspan="3" class="text-end">Challan Total: ' + formatStatementAmount(group.challanTotal) + '</td>';
+                html += '<td colspan="3" class="text-end">Receiving Total: ' + formatStatementAmount(group.receivingTotal) + '</td>';
+                html += '<td colspan="4" class="text-end">Closing Balance: ' + formatStatementAmount(closingBalance) + '</td>';
+                html += '</tr>';
+
+                runningOpening = closingBalance;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function applyStatementViewMode() {
+            var mode = $('#statementViewMode').val();
+            if (mode === 'challan-wise') {
+                renderChallanWiseStatement();
+            } else {
+                restoreStatementRows();
+            }
+        }
+
+        $(document).on('change', '#statementViewMode', function() {
+            applyStatementViewMode();
+        });
+
+        $(function() {
+            applyStatementViewMode();
+        });
 
         function validateExport(exportType) {
             var studentSelect = document.getElementById('student_select');
@@ -179,13 +380,28 @@
             }
 
             var form = document.getElementById('student_single_account');
+
+            // IMPORTANT: remove old export first
+            clearExportInput();
+
+            // add fresh export flag
             var exportInput = document.createElement('input');
             exportInput.type = 'hidden';
             exportInput.name = 'export';
             exportInput.value = exportType;
+
             form.appendChild(exportInput);
+
             form.submit();
             return true;
+        }
+
+        function clearExportInput() {
+            let form = document.getElementById('student_single_account');
+            let existing = form.querySelector('input[name="export"]');
+            if (existing) {
+                existing.remove();
+            }
         }
 
         function toggleExportButtons() {
@@ -209,6 +425,7 @@
 
         $(document).ready(function() {
             toggleExportButtons();
+            classStudents($('#class_select').val(), $('#status_select').val() || 'active', '{{ $selected_student ?? '' }}');
         });
 
         $(document).on('change', '#student_select', function() {
@@ -248,13 +465,7 @@
                                     {{ Form::select('branches', $branches, $selected_branch, ['class' => 'form-control select custom-select', 'onchange' => 'branchcustomer(this.value)']) }}
                                 </div>
                             </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
-                                <div class="btn-box">
-                                    {{ Form::label('status', __('Student Status'), ['class' => 'form-label']) }}
-                                    {{ Form::select('status', ['active' => 'Active', 'withdraw' => 'Withdraw'], request()->get('status', 'active'), ['class' => 'form-control select', 'id' => 'status_select']) }}
-                                </div>
-                            </div>
-                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+							<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
                                     {{ Form::label('class', __('Class'), ['class' => 'form-label']) }}
                                     {{ Form::select('class', $class, $selected_class, ['class' => 'form-control select custom-select', 'id' => 'class_select', 'required' => 'required']) }}
@@ -262,12 +473,31 @@
                             </div>
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                 <div class="btn-box">
+                                    {{ Form::label('status', __('Student Status'), ['class' => 'form-label']) }}
+                                    {{ Form::select('status', ['active' => 'Active', 'withdraw' => 'Withdraw'], request()->get('status', 'active'), ['class' => 'form-control select', 'id' => 'status_select']) }}
+                                </div>
+                            </div>
+                            
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
                                     {{ Form::label('student', __('Students'), ['class' => 'form-label']) }}<span
                                         style="color: red"> *</span>
                                     {{ Form::select('student', $students, $selected_student, ['class' => 'form-control select custom-select', 'id' => 'student_select', 'required' => 'required']) }}
                                 </div>
                             </div>
-                            <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-4 d-flex justify-content-end gap-2 align-items-center">
+                            @if (\Auth::user()->type == 'company')
+                                <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
+                                    <div class="btn-box">
+                                        {{ Form::label('statement_view_mode', __('Statement View'), ['class' => 'form-label']) }}
+                                        <select id="statementViewMode" class="form-control select challan-wise-toggle">
+                                            <option value="default">{{ __('Default View') }}</option>
+                                            <option value="challan-wise">{{ __('Challan Wise') }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            @endif
+                            <div
+                                class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2 mt-4 d-flex justify-content-end gap-2 align-items-center">
                                 <a href="#" class="btn mx-1 btn-sm btn-outline-primary"
                                     onclick="validateForm(); return false;" data-bs-title="{{ __('Apply') }}">
                                     <span class="btn-inner--icon">Search</span>
@@ -304,7 +534,94 @@
             </div>
         </div>
     </div>
-    
+
+    @if (isset($std) && $std)
+    @php
+        $previousStatementFinalized = !empty($previousStatementFile) && !empty($previousStatementFile->finalized_at);
+    @endphp
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ __('Previous Data Sheet') }}</h5>
+                    @if (!empty($previousStatementFile))
+                        <small class="text-muted">
+                            @if ($previousStatementFinalized)
+                                {{ __('Finalized') }}:
+                                {{ optional($previousStatementFile->finalized_at)->format('d-M-Y h:i A') }}
+                            @else
+                                {{ __('Unfinalized') }}
+                            @endif
+                        </small>
+                    @endif
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-end">
+                        <div class="col-md-5 d-flex">
+                            @if (!empty($previousStatementFile))
+                                <p class="mb-1" style="width: fit-content;">
+                                    <strong>{{ __('Current Sheet') }}:</strong>
+                                    {{ $previousStatementFile->original_name }}
+                                    <a href="{{ route('student_single_account.previous_data.download', $previousStatementFile->id) }}"
+                                        class="ms-2 text-primary" title="{{ __('Download') }}">
+                                        <i class="ti ti-download"></i>
+                                    </a>
+                                    @if (!$previousStatementFinalized)
+                                        {{ Form::open(['route' => ['student_single_account.previous_data.finalize', $previousStatementFile->id], 'method' => 'POST', 'class' => 'd-inline']) }}
+                                            <button type="submit" class="border-0 bg-transparent p-0 ms-2 finalize-glow"
+                                                title="{{ __('Finalize') }}">
+                                                <i class="ti ti-check"></i> Finalize
+                                            </button>
+                                        {{ Form::close() }}
+                                    @elseif (\Auth::user()->type == 'company')
+                                        {{ Form::open(['route' => ['student_single_account.previous_data.rollback', $previousStatementFile->id], 'method' => 'POST', 'class' => 'd-inline']) }}
+                                            <button type="submit" class="border-0 bg-transparent p-0 ms-2 text-warning"
+                                                title="{{ __('Rollback') }}">
+                                                <i class="ti ti-rotate-2"></i> Rollback
+                                            </button>
+                                        {{ Form::close() }}
+                                    @endif
+                                </p>
+                            @else
+                                <p class="text-muted mb-0">
+                                    {{ __('No previous data sheet finalized yet.') }}
+                                </p>
+                            @endif
+                        </div>
+
+                        <div class="col-md-7">
+                            <div class="d-flex flex-wrap justify-content-end gap-2">
+                                @if (\Auth::user()->type == 'company')
+                                    {{ Form::open(['route' => 'student_single_account.previous_data.upload', 'method' => 'POST', 'files' => true, 'class' => 'd-flex flex-wrap justify-content-end gap-2', 'style' => 'width: 100%;']) }}
+                                        {{ Form::hidden('student_id', $std->id) }}
+                                        {{ Form::file('previous_data_file', ['class' => 'form-control form-control-sm', 'style' => 'max-width: 260px;', 'required' => 'required', 'accept' => '.xlsx,.xls,.csv']) }}
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            <i class="ti ti-upload me-1 text-light"></i>{{ !empty($previousStatementFile) ? __('Replace') : __('Upload') }}
+                                        </button>
+                                    {{ Form::close() }}
+                                @elseif (empty($previousStatementFile) || !$previousStatementFinalized)
+                                    {{ Form::open(['route' => 'student_single_account.previous_data.upload', 'method' => 'POST', 'files' => true, 'class' => 'd-flex flex-wrap justify-content-end gap-2', 'style' => 'width: 100%;']) }}
+                                        {{ Form::hidden('student_id', $std->id) }}
+                                        {{ Form::file('previous_data_file', ['class' => 'form-control form-control-sm', 'style' => 'max-width: 300px;', 'required' => 'required', 'accept' => '.xlsx,.xls,.csv']) }}
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            <i class="ti ti-upload me-1 text-light"></i>{{ __('Upload') }}
+                                        </button>
+                                    {{ Form::close() }}
+                                @endif
+                            </div>
+                            @if (\Auth::user()->type != 'company' && $previousStatementFinalized)
+                                <small class="text-muted d-block text-end mt-2">
+                                    {{ __('This sheet is finalized. Branch users can download only.') }}
+                                </small>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <div class="content" id="report-content">
         <div class="card p-4 table-responsive maximumHeightNew">
             <div style="width: 100%; text-align: center;">
@@ -317,24 +634,24 @@
             </div>
             <div class="d-flex justify-content-between">
                 <p><b>Period From :</b> {{ @$from_date }}</p>
-                @if(!empty($std))
-                <p><b>{{ @$std->branches ? $std->branches->name : '' }}</b></p>
+                @if (!empty($std))
+                    <p><b>{{ @$std->branches ? $std->branches->name : '' }}</b></p>
                 @else
-                <p><b>{{ @$branches[$selected_branch] ?? '' }}</b></p>
+                    <p><b>{{ @$branches[$selected_branch] ?? '' }}</b></p>
                 @endif
                 <p><b>Period To :</b> {{ @$to_date }}</p>
             </div>
-            @if(isset($std))
-            <div class="d-flex justify-content-between" style="flex-direction:column;">
-                <div class="d-flex justify-content-between">
-                    <p><b>Student Name: {{ @$std->stdname }}</b></p>
-                    <p><b>Class: {{ @$std->class->name }}</b></p>
-                    <p><b>Section: {{ @$std->enrollment->section->name }}</b></p>
-                    <p><b>Roll No: {{ @$std->enrollment->enrollId }}</b></p>
+            @if (isset($std))
+                <div class="d-flex justify-content-between" style="flex-direction:column;">
+                    <div class="d-flex justify-content-between">
+                        <p><b>Student Name: {{ @$std->stdname }}</b></p>
+                        <p><b>Class: {{ @$std->class->name }}</b></p>
+                        <p><b>Section: {{ @$std->enrollment->section->name }}</b></p>
+                        <p><b>Roll No: {{ @$std->enrollment->enrollId }}</b></p>
+                    </div>
                 </div>
-            </div>
             @endif
-            
+
             <table style="font-size:0.8rem;">
                 <thead>
                     <tr class="table_heads report_table">
@@ -343,6 +660,7 @@
                         <th>Description</th>
                         <th>Challan No</th>
                         <th>Billing Month</th>
+                        <th>class</th>
                         <th>Challan Type</th>
                         <th>Fee Head</th>
                         <th>Receipt Mode</th>
@@ -353,10 +671,10 @@
                         <th>Balance</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="statementRowsBody">
                     @php
                         $totalCredit = 0; // Total receivables
-                        $totalDebit = 0;  // Total payments
+                        $totalDebit = 0; // Total payments
                     @endphp
 
                     @foreach (@$accountStatement as $index => $item)
@@ -366,7 +684,7 @@
                                 $totalCredit += $item['credit'];
                                 $totalDebit += $item['debit'];
                             }
-                            
+
                             // Set row styling for opening/closing only
                             $rowClass = '';
                             if ($item['type'] == 'opening') {
@@ -376,28 +694,40 @@
                             }
                         @endphp
 
-                        <tr class="{{ $rowClass }}">
+                        <tr class="{{ $rowClass }}" data-statement-row="1" data-billing-month="{{ $item['billing_month'] ?? '-' }}" data-challan-no="{{ $item['challan_no'] ?? "-" }}" data-credit="{{ $item['credit'] ?? 0 }}" data-debit="{{ $item['debit'] ?? 0 }}" data-balance="{{ $item['balance'] ?? 0 }}">
                             <td>{{ $loop->iteration }}</td>
                             <td>{{ $item['date'] }}</td>
                             <td>{{ $item['description'] }}</td>
-                            <td>{{ $item['challan_no'] ?? '-' }}</td>
                             <td>
-                                {{ !empty($item['billing_month']) && $item['billing_month'] !== '-'
-                                    ? $item['billing_month']
-                                    : '-' }}
+                                
+                                @php
+                                    $challanId = $item['challanId'] ?? null;
+                                    
+                                @endphp
+                                @if (!empty($challanId))
+                                    <a href="{{ route('challan.show', $challanId) }}" target="_blank" rel="noopener">
+                                        {{ $item['challan_no'] ?? '-' }}
+                                    </a>
+                                @else
+                                    {{ $item['challan_no'] ?? '-' }}
+                                @endif
                             </td>
+                            <td>
+                                {{ !empty($item['billing_month']) && $item['billing_month'] !== '-' ? $item['billing_month'] : '-' }}
+                            </td>
+                            <td>{{ $item['class'] ?? '-' }}</td>
                             <td>{{ $item['challan_type'] ?? '-' }}</td>
                             <td>{{ $item['head_name'] ?? '-' }}</td>
                             <td>{{ $item['receipt_mode'] ?? '-' }}</td>
                             <td>{{ $item['receipt_ref'] ?? '-' }}</td>
                             <td>{{ $item['bank_name'] ?? '-' }}</td>
-                            
-                            @if($rowClass == 'closing-balance')
+
+                            @if ($rowClass == 'closing-balance')
                                 {{-- Closing Balance Row - Show totals --}}
-                                <td class="negative-value" style="color: #f44336 !important;">
+                                <td class="negative-value" style="color: red !important;">
                                     <b>{{ number_format($totalDebit, 2) }}</b>
                                 </td>
-                                 <td class="positive-value" style="color: #4caf50 !important;">
+                                <td class="positive-value" style="color: green !important;">
                                     <b>{{ number_format($totalCredit, 2) }}</b>
                                 </td>
                             @else
@@ -408,9 +738,8 @@
                                 <td class="{{ $item['credit'] > 0 ? 'positive-value' : '' }}">
                                     {{ $item['credit'] > 0 ? number_format($item['credit'], 2) : '-' }}
                                 </td>
-                                
                             @endif
-                            
+
                             <td><b>{{ number_format($item['balance'], 2) }}</b></td>
                         </tr>
                     @endforeach

@@ -22,6 +22,9 @@
                 <p id="counter-value"></p>
             </div>
         @endif
+        <div class="mb-4 d-flex gap-2 flex-wrap">
+            <a href="{{ route('data.import.registration.sample') }}" class="btn btn-outline-primary">{{ __('Download Registration Sample') }}</a>
+        </div>
         <form action="{{ route('data.import') }}" method="POST" enctype="multipart/form-data" style="width:100%;">
             @csrf
             <div class="mb-4 w-full">
@@ -34,6 +37,7 @@
                     <option value="enrollment_status">{{ __('Enrollmentstatus') }}</option>
                     <option value="registration">{{ __('Registration') }}</option>
                     <option value="registration2">{{ __('Registration 2') }}</option>
+                    <option value="registration_regdate">{{ __('Registration Date Update') }}</option>
                     <option value="enrollment">{{ __('Enrollment') }}</option>
                     <option value="enrollment2">{{ __('Enrollment 2') }}</option>
                     <option value="student_detail">{{ __('Student Detail') }}</option>

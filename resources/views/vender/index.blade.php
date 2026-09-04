@@ -81,6 +81,7 @@
                         <tr class="table_heads">
                             <th>{{ __('S.No.') }}</th>
                             <th>#</th>
+                            <th>{{ __('Company') }}</th>
                             <th>{{ __('Name') }}</th>
                             <th>{{ __('Contact') }}</th>
                             <th>{{ __('Email') }}</th>
@@ -105,7 +106,8 @@
                                         </a>
                                     @endcan
                                 </td>
-                                <td>{{ $Vender['name'] }}</td>
+                                <td>{{ $Vender->display_name }}</td>
+                                <td>{{ $Vender->name }}</td>
                                 <td>{{ $Vender['contact'] }}</td>
                                 <td>{{ $Vender['email'] }}</td>
                                 <td>{{ @$Vender->ChartAccount ? @$Vender->ChartAccount->name : '-' }}</td>

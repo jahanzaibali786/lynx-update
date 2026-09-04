@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 class EmployeePayscaleDetail extends Model
 {
@@ -14,6 +15,7 @@ class EmployeePayscaleDetail extends Model
         'itax', 'tax_payable_account', 'eobi', 'eobi_employer', 'eobi_payable_account', 'pessi', 'pessi_employer',
         'pessi_payable_account', 'other_deduction', 'other_dedu_payable_account', 'advance','other_add',
         'advance_payable_account', 'net', 'net_payable_account','owned_by','created_by',
+        'contract_id',
     ];
 
     public function scale(){
@@ -21,5 +23,42 @@ class EmployeePayscaleDetail extends Model
     }
     public function employee(){
         return $this->belongsTo(Employee::class,'employee_id','id');
+    }
+    public function contract(){
+        return $this->belongsTo(EmployeeContract::class,'contract_id','id');
+    }
+
+    public function getResolvedBasicSalaryAttribute(): float
+    {
+        return $this->resolveSalaryHeadValue(['Initial Basic', 'Basic Salary']);
+    }
+
+    public function getResolvedGrossSalaryAttribute(): float
+    {
+        return (float) $this->resolvedScaleHeads()->sum('head_value');
+    }
+
+    public function resolvedScaleHeads(): Collection
+    {
+        $this->loadMissing('scale.employeeScaleHeads.salaryHeads');
+
+        return collect(optional($this->scale)->employeeScaleHeads ?? []);
+    }
+
+    public function resolveSalaryHeadValue(array $headNames): float
+    {
+        $normalizedHeadNames = collect($headNames)
+            ->map(fn ($name) => strtolower(trim((string) $name)))
+            ->filter()
+            ->values()
+            ->all();
+
+        $matchingHead = $this->resolvedScaleHeads()->first(function ($scaleHead) use ($normalizedHeadNames) {
+            $headName = strtolower(trim(optional($scaleHead->salaryHeads)->head ?? ''));
+
+            return in_array($headName, $normalizedHeadNames, true);
+        });
+
+        return (float) optional($matchingHead)->head_value;
     }
 }

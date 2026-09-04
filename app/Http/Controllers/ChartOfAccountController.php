@@ -107,6 +107,11 @@ class ChartOfAccountController extends Controller
 
     public function create()
     {
+        if(!\Auth::user()->can('create chart of account'))
+        {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
         $types = ChartOfAccountType::where('created_by',\Auth::user()->creatorId())->get();
         // $types->prepend('Select Account Type', 0);
         $account_type = [];
@@ -136,6 +141,7 @@ class ChartOfAccountController extends Controller
             $validator = \Validator::make(
                 $request->all(), [
                                    'name' => 'required',
+                                   'code' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9._\/-]+$/'],
                                 //    'type' => 'required',
                                     'sub_type' => 'required',
                                ]
@@ -302,21 +308,63 @@ class ChartOfAccountController extends Controller
 
     public function edit(ChartOfAccount $chartOfAccount)
     {
-        $types = ChartOfAccountType::get()->pluck('name', 'id');
-        $types->prepend('Select Account Type', 0);
+        if(\Auth::user()->can('edit chart of account'))
+        {
+            $types = ChartOfAccountType::where('created_by',\Auth::user()->creatorId())->get();
+            $account_type = [];
 
-        return view('chartOfAccount.edit', compact('chartOfAccount', 'types'));
+            foreach ($types as $type) {
+                $accountTypes = ChartOfAccountSubType::where('type', $type->id)->where('created_by',\Auth::user()->creatorId())->get();
+
+                $temp = [];
+                foreach($accountTypes as $accountType)
+                {
+                    $temp[$accountType->id] = $accountType->name;
+                }
+                $account_type[$type->name] = $temp;
+            }
+            $selectAcc = [
+                null => "Select",
+            ];
+            $account_type = array_merge($selectAcc, $account_type);
+
+            $parentAccounts = [];
+            if ($chartOfAccount->parent > 0 && $chartOfAccount->parentAccount) {
+                $parentAccounts = $this->parentAccountOptions($chartOfAccount->sub_type, $chartOfAccount->id);
+            }
+
+            return view('chartOfAccount.edit', compact('chartOfAccount', 'account_type', 'parentAccounts'));
+        }
+        else
+        {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
     }
 
+public function updateCategory(Request $request)
+    {
+        if(!\Auth::user()->can('edit chart of account'))
+        {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
 
+        $account = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->find($request->account_id);
+        if ($account) {
+            $account->category = $request->category;
+            $account->save();
+            return response()->json(['success' => true]);
+        }
+        return response()->json(['success' => false]);
+    }
     public function update(Request $request, ChartOfAccount $chartOfAccount)
     {
-
         if(\Auth::user()->can('edit chart of account'))
         {
             $validator = \Validator::make(
                 $request->all(), [
                                    'name' => 'required',
+                                   'code' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9._\/-]+$/'],
+                                   'sub_type' => 'required',
                                ]
             );
             if($validator->fails())
@@ -326,11 +374,53 @@ class ChartOfAccountController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
+            $type = ChartOfAccountSubType::where('id',$request->sub_type)->where('created_by', '=', \Auth::user()->creatorId())->first();
 
             $chartOfAccount->name        = $request->name;
             $chartOfAccount->code        = $request->code;
             $chartOfAccount->description = $request->description;
             $chartOfAccount->is_enabled  = isset($request->is_enabled) ? 1 : 0;
+            if ($type) {
+                $chartOfAccount->type     = $type->type;
+                $chartOfAccount->sub_type = $request->sub_type;
+            }
+
+            // Handle parent account change
+            // If parent = 0 (no sub-account) or not checked
+            if ($request->parent == 0 || !$request->has('parent') || $request->parent == null) {
+                $chartOfAccount->parent = 0;
+            } else {
+                // It is a sub-account
+                $parentAcc = ChartOfAccount::where('id',$request->parent)->where('created_by', '=', \Auth::user()->creatorId())->first();
+                if(!empty($parentAcc->name)){
+                    $existingparentAccount = ChartOfAccountParent::where('name',$parentAcc->name)->where('created_by',\Auth::user()->creatorId())->first();
+
+                    if ($existingparentAccount) {
+                        $parentAccount = $existingparentAccount;
+                        $parentAccount->name        = $parentAcc->name;
+                        $parentAccount->sub_type    = $request->sub_type;
+                        if ($type) {
+                            $parentAccount->type    = $type->type;
+                        }
+                        $parentAccount->account      = $request->parent;
+                        $parentAccount->created_by  = \Auth::user()->creatorId();
+                        $parentAccount->save();
+                    } else {
+                        $parentAccount              = new ChartOfAccountParent();
+                        $parentAccount->name        = $parentAcc->name;
+                        $parentAccount->sub_type    = $request->sub_type;
+                        if ($type) {
+                            $parentAccount->type    = $type->type;
+                        }
+                        $parentAccount->account      = $request->parent;
+                        $parentAccount->created_by  = \Auth::user()->creatorId();
+                        $parentAccount->save();
+                    }
+
+                    $chartOfAccount->parent = $parentAccount->id;
+                }
+            }
+
             $chartOfAccount->save();
 
             return redirect()->route('chart-of-account.index')->with('success', __('Account successfully updated.'));
@@ -358,9 +448,138 @@ class ChartOfAccountController extends Controller
 
     public function getSubType(Request $request)
     {
-        $types = ChartOfAccount::where('sub_type', $request->type)->get()->pluck('name', 'id');
-        $types->prepend('Select an account', 0);
+        if(!\Auth::user()->can('create chart of account') && !\Auth::user()->can('edit chart of account'))
+        {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
 
-        return response()->json($types);
+        return response()->json($this->parentAccountOptions($request->type));
+    }
+
+    private function parentAccountOptions($subType, $excludeAccountId = null): array
+    {
+        $creatorId = \Auth::user()->creatorId();
+
+        $directAccountIds = ChartOfAccount::where('created_by', $creatorId)
+            ->where('sub_type', $subType)
+            ->when($excludeAccountId, function ($query) use ($excludeAccountId) {
+                $query->where('id', '!=', $excludeAccountId);
+            })
+            ->pluck('id')
+            ->toArray();
+
+        $allAccountIds = $directAccountIds;
+        $currentParentIds = $directAccountIds;
+
+        while (!empty($currentParentIds)) {
+            $parentRecordIds = ChartOfAccountParent::whereIn('account', $currentParentIds)
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($parentRecordIds)) {
+                break;
+            }
+
+            $childIds = ChartOfAccount::where('created_by', $creatorId)
+                ->whereIn('parent', $parentRecordIds)
+                ->when($excludeAccountId, function ($query) use ($excludeAccountId) {
+                    $query->where('id', '!=', $excludeAccountId);
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $newChildIds = array_diff($childIds, $allAccountIds);
+            if (empty($newChildIds)) {
+                break;
+            }
+
+            $allAccountIds = array_merge($allAccountIds, $newChildIds);
+            $currentParentIds = $newChildIds;
+        }
+
+        $accountsList = ChartOfAccount::select(['id', 'code', 'name', 'parent'])
+            ->whereIn('id', $allAccountIds)
+            ->orderBy('code')
+            ->orderBy('name')
+            ->get();
+
+        $parentRecordIds = $accountsList->pluck('parent')->filter()->unique()->toArray();
+        $parentRecords = ChartOfAccountParent::whereIn('id', $parentRecordIds)
+            ->pluck('account', 'id')
+            ->toArray();
+
+        $byParent = [];
+        foreach ($accountsList as $account) {
+            $parentCoaId = 0;
+            if ($account->parent > 0 && isset($parentRecords[$account->parent])) {
+                $parentCoaId = (int) $parentRecords[$account->parent];
+            }
+            $byParent[$parentCoaId][] = $account;
+        }
+
+        foreach ($byParent as $parentId => $children) {
+            usort($children, function ($firstAccount, $secondAccount) {
+                return strnatcasecmp(
+                    $firstAccount->code . ' ' . $firstAccount->name,
+                    $secondAccount->code . ' ' . $secondAccount->name
+                );
+            });
+            $byParent[$parentId] = $children;
+        }
+
+        $allAccountIdsSet = array_flip($allAccountIds);
+        $roots = [];
+        foreach ($accountsList as $account) {
+            $parentCoaId = 0;
+            if ($account->parent > 0 && isset($parentRecords[$account->parent])) {
+                $parentCoaId = (int) $parentRecords[$account->parent];
+            }
+
+            if ($parentCoaId == 0 || !isset($allAccountIdsSet[$parentCoaId])) {
+                $roots[] = $account;
+            }
+        }
+
+        usort($roots, function ($firstAccount, $secondAccount) {
+            return strnatcasecmp(
+                $firstAccount->code . ' ' . $firstAccount->name,
+                $secondAccount->code . ' ' . $secondAccount->name
+            );
+        });
+
+        $buildAccountTree = function ($accounts) use (&$buildAccountTree, $byParent) {
+            $tree = [];
+
+            foreach ($accounts as $account) {
+                $tree[] = [
+                    'account' => $account,
+                    'children' => !empty($byParent[$account->id])
+                        ? $buildAccountTree($byParent[$account->id])
+                        : [],
+                ];
+            }
+
+            return $tree;
+        };
+
+        $accountTree = $buildAccountTree($roots);
+        $options = [0 => __('Select Parent Account')];
+
+        $appendAccountTreeOptions = function ($nodes, $depth = 0) use (&$appendAccountTreeOptions, &$options) {
+            foreach ($nodes as $node) {
+                $account = $node['account'];
+                $indent = str_repeat('-- ', $depth);
+                $options[$account->id] = $indent . trim($account->code . ' - ' . $account->name);
+
+                if (!empty($node['children'])) {
+                    $appendAccountTreeOptions($node['children'], $depth + 1);
+                }
+            }
+        };
+
+        $appendAccountTreeOptions($accountTree);
+
+        return $options;
+
     }
 }

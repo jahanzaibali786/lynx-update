@@ -22,6 +22,7 @@ class StudentHistory extends Model
         'to_branch_id',
         'effective_date',
         'remarks',
+        'user_id',
         'owned_by',
         'created_by',
     ];

@@ -251,7 +251,7 @@ class AccountWiseFeeStructure extends Controller
                 ], 404);
             }
 
-             $record->checked_status = 0;
+		 	$record->checked_status = 0;
             $record->save();    // Hard delete — use softDelete() if you prefer a trash approach
 
             return response()->json([
@@ -270,47 +270,49 @@ class AccountWiseFeeStructure extends Controller
 
     // ─── METHOD 3: Bulk detach — all checked rows in one transaction ──────────────
     public function detach_student_fee_bulk(Request $request)
-    {
-        try {
-            $data = $request->all();
+{
+    try {
+        $data = $request->all();
 
-            if (empty($data) || !is_array($data)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No records provided.',
-                ], 422);
-            }
-
-            $deletedCount = 0;
-
-            // Wrap all deletes in a single DB transaction so it's all-or-nothing
-            \DB::transaction(function () use ($data, &$deletedCount) {
-                foreach ($data as $item) {
-                    $query = StudentFeeStructure::where('class_id', $item['classId'])
-                        ->where('branch_id', $item['branchId'])
-                        ->where('head_id', $item['headId']);
-
-                    // Support both enrolled students (student_id) and registered ones (reg_id)
-                    if (!empty($item['studentId']) && $item['studentId'] != '0') {
-                        $query->where('student_id', $item['studentId']);
-                    } else {
-                        $query->where('reg_id', $item['regId']);
-                    }
-
-                    $deletedCount += $query->delete();
-                }
-            });
-
-            return response()->json([
-                'status' => 'success',
-                'message' => $deletedCount . ' fee head(s) detached successfully.',
-            ]);
-
-        } catch (\Exception $e) {
+        if (empty($data) || !is_array($data)) {
             return response()->json([
                 'status' => 'error',
-                'message' => $e->getMessage(),
-            ], 500);
+                'message' => 'No records provided.',
+            ], 422);
         }
+
+        $updatedCount = 0;
+
+        \DB::transaction(function () use ($data, &$updatedCount) {
+            foreach ($data as $item) {
+
+                $query = StudentFeeStructure::where('class_id', $item['classId'])
+                    ->where('branch_id', $item['branchId'])
+                    ->where('head_id', $item['headId']);
+
+                if (!empty($item['studentId']) && $item['studentId'] != '0') {
+                    $query->where('student_id', $item['studentId']);
+                } else {
+                    $query->where('reg_id', $item['regId']);
+                }
+
+                // ✅ same behavior as single detach
+                $updatedCount += $query->update([
+                    'checked_status' => 0
+                ]);
+            }
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $updatedCount . ' fee head(s) detached successfully.',
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+        ], 500);
     }
+}
 }

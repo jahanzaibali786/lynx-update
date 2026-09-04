@@ -5,7 +5,11 @@
             <th>
                 Sr#</th>
             <th>
+                Employee Number</th>
+            <th>
                 Beneficiary Name</th>
+            <th>
+                Pay Mode</th>
             @if (isset($requestdata) &&
                     (strtolower($requestdata['paymode']) != 'cheque' && strtolower($requestdata['paymode']) != 'cash'))
                 <th>
@@ -34,18 +38,23 @@
         @php
             $gross = 0;
             $tot_pay = 0;
+            $referenceDate = now()->format('dM');
         @endphp
         @foreach ($datas as $key => $data)
             @php
                 $tot_pay += !empty($data->net_pay) ? $data->net_pay : '';
-                $gross += $data->gross;
+                $gross += ($data->gross ?? 0) + ($data->stop_sal ?? 0);
                 $payscale = $data->employee->employee_payscale_details->last();
 
             @endphp
             <tr>
                 <td>{{ $key + 1 }}</td>
                 <td>
+                    {{ !empty($data->employee->employee_id) ? @$data->employee->employee_id : '' }}</td>
+                <td>
                     {{ !empty($data->employee->name) ? @$data->employee->name : '' }}</td>
+                <td>
+                    {{ !empty($data->paymode) ? $data->paymode : ($payscale->paymode ?? '') }}</td>
                 @if (isset($requestdata) && strtolower($requestdata['paymode']) != 'cash')
                     <td>
                         {{ !empty($payscale->account_number) ? @$payscale->account_number : '' }}</td>
@@ -57,8 +66,7 @@
                     {{ !empty($data->net_pay) ? $data->net_pay : '' }}</td>
 
                 <td>
-                    {{ !empty($data->salary_date) ? date('d-M', strtotime($data->salary_date)) : '' }} -
-                    {{ !empty($data->id) ? $data->id : '' }}
+                    {{ $referenceDate }}{{ !empty($data->id) ? $data->id : '' }}
                 </td>
                 <td>
                     {{ !empty($data->employee->email) ? @$data->employee->email : '' }}</td>

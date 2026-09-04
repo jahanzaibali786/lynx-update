@@ -49,7 +49,7 @@
         @if (!empty($employeesquery) && $employeesquery->count())
             @php
                 $groupedEmployees = $employeesquery->groupBy(function ($emp) {
-                    return (\Auth::user()->getBranch($emp->owned_by)->name ?? 'Unknown Branch');
+                    return (!empty($emp->ownedBranch) ? $emp->ownedBranch->name : 'Unknown Branch');
                 });
             @endphp
 
@@ -62,7 +62,7 @@
                         <td>{{ $loop->iteration }}</td>
                         <td width="150px;">
                             @if (!empty($emp->owned_by))
-                                {{ !empty(\Auth::user()->getBranch($emp->owned_by)) ? \Auth::user()->getBranch($emp->owned_by)->name : '' }}
+                                {{ !empty($emp->ownedBranch) ? $emp->ownedBranch->name : '' }}
                             @else
                             -
                             @endif

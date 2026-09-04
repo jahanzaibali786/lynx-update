@@ -45,7 +45,7 @@
             
             {{-- Branch Header Row --}}
             <tr style="background-color: #f0f0f0; font-weight: bold; text-align: center;">
-                <td colspan="16">{{ $branchNames[$branchId] ?? 'Unknown Branch' }}</td>
+                <td colspan="15">{{ $branchNames[$branchId] ?? 'Unknown Branch' }}</td>
             </tr>
             
             {{-- Process each receipt and its heads --}}
@@ -55,7 +55,7 @@
                     $receiptId = $receipt->id;
                 @endphp
                 
-                {{-- Loop through each challan head to create separate rows --}}
+                {{-- Loop through each challan head/items to create separate rows --}}
                 @if($receipt->challan && $receipt->challan->heads)
                     @foreach($receipt->challan->heads as $challanHead)
                         @php
@@ -103,29 +103,43 @@
                             </tr>
                         @endif
                     @endforeach
-                @else
-                    {{-- Fallback: If no challan heads, try to match by amount --}}
+                @elseif($receipt->challan && $receipt->challan->items)
                     @php
-                        $receiptAmount = $receipt->recipt_amount;
-                        $matchedItem = null;
-                        
-                        foreach ($receipt->voucher as $voucherItem) {
-                            $itemKey = $voucherItem->journal . '_' . $voucherItem->id;
-                            
-                            if ($voucherItem->credit > 0 && 
-                                $voucherItem->credit == $receiptAmount &&
-                                $voucherItem->user_id == $studentId &&
-                                $voucherItem->head > 0 &&
-                                !in_array($itemKey, $usedVoucherItems)) {
-                                
-                                $matchedItem = $voucherItem;
-                                $usedVoucherItems[] = $itemKey;
-                                break;
-                            }
-                        }
+                        $studyPack = \App\Models\StudyPack::find($receipt->challan->studypack_id);
+                        $studyPackTitle = $studyPack ? $studyPack->title : '';
+                        $combinedAmount = $receipt->recipt_amount;
                     @endphp
-                    
-                    @if($matchedItem)
+                    <tr>
+                        <td>{{ $globalSr++ }}</td>
+                        <td>{{ $branchSr++ }}</td>
+                        <td>{{ \Carbon\Carbon::parse($receipt->recipt_date)->format('d-M-Y') }}</td>
+                        <td>{{ $receipt->challan?->challan_type }}</td>
+                        <td>{{ $receipt->challan?->enrollstudent?->enrollId ?? $receipt->challan?->student?->roll_no }}</td>
+                        <td>{{ $receipt->challan?->student?->stdname }}</td>
+                        <td>{{ $receipt->challan?->class?->name }}</td>
+                        <td>{{ $receipt->challan?->challanNo }}</td>
+                        <td>{{ $receipt->challan?->fee_month ? \Carbon\Carbon::parse($receipt->challan->fee_month)->format('F Y') : '' }}</td>
+                        <!-- <td>{{ $receipt->challan?->billing_cycle }}</td> -->
+                        <td>{{ $receipt->bank?->bank_name }}</td>
+                        <td>{{ $receipt->receive_type }}</td>
+                        <td>{{ $studyPackTitle }}</td>
+                        <td>{{ $receipt->referance }}</td>
+                        <td>{{ $combinedAmount }}</td>
+                        @php
+                            $branchTotal += $combinedAmount;
+                        @endphp
+                        <td>0.0</td>
+                    </tr>
+                @else
+                    {{-- Fallback: iterate voucher items directly --}}
+                    @foreach ($receipt->voucher as $voucherItem)
+                        @php
+                            $itemKey = $voucherItem->journal . '_' . $voucherItem->id;
+                            if ($voucherItem->credit <= 0 || in_array($itemKey, $usedVoucherItems)) {
+                                continue;
+                            }
+                            $usedVoucherItems[] = $itemKey;
+                        @endphp
                         <tr>
                             <td>{{ $globalSr++ }}</td>
                             <td>{{ $branchSr++ }}</td>
@@ -139,15 +153,15 @@
                             <!-- <td>{{ $receipt->challan?->billing_cycle }}</td> -->
                             <td>{{ $receipt->bank?->bank_name }}</td>
                             <td>{{ $receipt->receive_type }}</td>
-                            <td>{{ $matchedItem->heads?->fee_head ?? '' }}</td>
+                            <td>{{ $voucherItem->heads?->fee_head ?? '' }}</td>
                             <td>{{ $receipt->referance }}</td>
-                            <td>{{ $matchedItem->credit }}</td>
+                            <td>{{ $voucherItem->credit }}</td>
                             @php
-                                $branchTotal += $matchedItem->credit;
+                                $branchTotal += $voucherItem->credit;
                             @endphp
                             <td>0.0</td>
                         </tr>
-                    @endif
+                    @endforeach
                 @endif
             @endforeach
             
@@ -157,7 +171,7 @@
             
             {{-- Branch Total Row --}}
             <tr style="background-color: #f0f0f0;">
-                <td colspan="14" style="font-weight: bold;">Total</td>
+                <td colspan="13" style="font-weight: bold;">Total</td>
                 <td style="font-weight: bold;">{{ number_format($branchTotal, 2) }}</td>
                 <td>0.0</td>
             </tr>
@@ -165,7 +179,7 @@
         
         {{-- Grand Total Row --}}
         <tr style="background-color: #f0f0f0;">
-            <td colspan="14" style="font-weight: bold;">Grand Total</td>
+            <td colspan="13" style="font-weight: bold;">Grand Total</td>
             <td style="font-weight: bold;">{{ number_format($grandTotal, 2) }}</td>
             <td>0.0</td>
         </tr>

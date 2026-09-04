@@ -39,10 +39,10 @@
                 }
             });
         }
-        function printanexture(employeeId) {
+        function printanexture(scaleDetailId) {
             // alert('sss');
             $.ajax({
-                url: "{{ route('generate_anexture', ['id' => '__employeeId__']) }}".replace('__employeeId__', employeeId),
+                url: "{{ route('generate_anexture', ['id' => '__scaleDetailId__']) }}".replace('__scaleDetailId__', scaleDetailId),
                 method: 'GET',
                 data: {
                     title: 'Anexture',
@@ -98,8 +98,10 @@
                                     data-bs-title="{{ __('Reset') }}">
                                     <span class="btn-inner--icon">Clear</span>
                                 </a>
-                                {{-- <button type="submit" name="export"  title="excel" value="excel" class="btn mx-1 btn-sm btn-outline-warning"><span class="btn-inner--icon"><i
-                                    class="fas fa-print"></i></span></button> --}}
+                                <button type="submit" name="export" title="excel" value="excel"
+                                    class="btn mx-1 btn-sm btn-outline-secondary">
+                                    <span class="btn-inner--icon">{{ __('Excel') }}</span>
+                                </button>
                             </div>
                         </div>
                         {{ Form::close() }}
@@ -110,82 +112,74 @@
     </div>
 {{-- @endif --}}
 
-<table class="datatable">
-    <thead>
-        <tr class="table_heads">
-            <th>Sr.</th>
-            <th>{{__('Branch') }}</th>
-            <th>{{__('Name')}}</th>
-            <th>{{__('FatherName')}}</th>
-            <th>{{__('Designation') }}</th>
-            <th>{{__('Scale') }}</th>
-            <th>{{__('Effect From') }}</th>
-            <th> {{__('Gross')}}</th>
-            <th> {{__('Net')}}</th>
-            <th>{{__('Action')}}</th>
-        </tr>
-    </thead>
-    <tbody>
-        {{-- @dd($employeesscale->toArray()) --}}
-        @foreach ($employeesscale as $scale)
-                {{-- @dd($employeesscale); --}}
-                {{-- @php
-                    $lastPayscaleDetail = $employee->employee_payscale_details->last();
-                @endphp --}}
-                {{-- @foreach ($lastPayscaleDetail as $payscaleemp) --}}
-                <tr>
-                    <td>{{ $loop->iteration }}</td>
-                    @if(@$scale->employee->branch_id)
-                        <td class="font-style">
-                            {{!empty(\Auth::user()->getBranch(@$scale->employee->branch_id)) ? \Auth::user()->getBranch(@$scale->employee->branch_id)->name : ''}}
-                        </td>
-                    @else
-                        <td>-</td>
-                    @endif
-
-                    <td class="font-style">{{ @$scale->employee->name }}</td>
-                    <td class="font-style">{{ @$scale->employee->f_name }}</td>
-                    @if(@$scale->employee->designation_id)
-                        <td class="font-style">
-                            {{!empty(\Auth::user()->getDesignation(@$scale->employee->designation_id)) ? \Auth::user()->getDesignation(@$scale->employee->designation_id)->name : ''}}
-                        </td>
-                    @else
-                        <td>-</td>
-                    @endif
-
-                    <td class="font-style">{{!empty($scale->scale) ? $scale->scale->scale_no : '' }}
-                    </td>
-                    <td class="font-style">
-                        {{!empty($scale->scale) ? $scale->scale->effect_from : '' }}
-                    </td>
-                    <td class="font-style">
-                        {{!empty($scale) ? $scale->net + $scale->emp_sec : '0' }}
-                    </td>
-                    <td class="font-style">{{!empty($scale) ? $scale->net : '' }}</td>
-                    <td>
-                        <div class="action-btn">
-                            <a href="#!" data-size="lg" data-url="{{route('salary_history_detail', @$scale->employee->id)}}"
-                                data-ajax-popup="true" class="mx-1 btn mx-1 btn-sm btn-outline-primary"
-                                data-bs-toggle="tooltip" 
-                                data-bs-title="{{__('Employee salary Scale History')}}"><span class="btn-inner--icon"><i
-                                        class="ti ti-eye "></i></span></a>
-                            <a class="btn mx-1 btn-sm btn-outline-success"
-                                onclick="printappointmentletter('{{$scale->id}}')" data-bs-toggle="tooltip" data-bs-title="appointment letter"><span class="btn-inner--icon"><i
-                                        class="fas fa-print"></i></span></a>
-                            <a class="btn mx-1 btn-sm btn-outline-warning"
-                                data-bs-toggle="tooltip"
-                                 data-bs-title="print" onclick="printanexture('{{@$scale->employee->id}}')"><span class="btn-inner--icon"><i
-                                        class="fas fa-print"></i></span></a>
-                            <!-- <a class="btn mx-1 btn-sm btn-outline-success"
-                                                onclick="printappointmentletter('{{@$scale->employee->id}}')"><span class="btn-inner--icon"><i
-                                                        class="fas fa-print"></i></span></a> -->
-                        </div>
-                    </td>
-                </tr>
-                {{-- @endforeach --}}
-        @endforeach
-    </tbody>
-</table>
+<div class="card mt-3">
+    <div class="card-header">
+        <h6 class="mb-0">{{ __('Employee Salary History Report') }}</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="datatable">
+                <thead>
+                    <tr class="table_heads">
+                        <th>{{ __('Sr#') }}</th>
+                        <th>{{ __('Branch') }}</th>
+                        <th>{{ __('Emp No') }}</th>
+                        <th>{{ __('Employee Name') }}</th>
+                        <th>{{ __('Father Name') }}</th>
+                        <th>{{ __('Department') }}</th>
+                        <th>{{ __('Designation') }}</th>
+                        <th>{{ __('Scale') }}</th>
+                        <th>{{ __('Effect From') }}</th>
+                        <th>{{ __('Gross') }}</th>
+                        <th>{{ __('Net') }}</th>
+                        <th>{{ __('Action') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($employeesscale as $scale)
+                        @php
+                            $gross = (float) ($scale->net ?? 0) + (float) ($scale->emp_sec ?? 0);
+                        @endphp
+                        <tr>
+                            <td>{{ $loop->iteration }}</td>
+                            <td class="font-style">{{ optional(optional($scale->employee)->userbranch)->name ?? '-' }}</td>
+                            <td>{{ optional($scale->employee)->employee_id ?? '-' }}</td>
+                            <td class="font-style">{{ optional($scale->employee)->name ?? '-' }}</td>
+                            <td class="font-style">{{ optional($scale->employee)->f_name ?? '-' }}</td>
+                            <td class="font-style">{{ optional(optional($scale->employee)->department)->name ?? '-' }}</td>
+                            <td class="font-style">{{ optional(optional($scale->employee)->designation)->name ?? '-' }}</td>
+                            <td class="font-style">{{ optional($scale->scale)->scale_no ?? '-' }}</td>
+                            <td class="font-style">{{ !empty($scale->effect_from) ? date('d-M-Y', strtotime($scale->effect_from)) : '-' }}</td>
+                            <td class="text-end">{{ number_format($gross) }}</td>
+                            <td class="text-end">{{ number_format((float) ($scale->net ?? 0)) }}</td>
+                            <td>
+                                <div class="action-btn d-flex gap-1">
+                                    <a href="#!" data-size="lg" data-url="{{ route('salary_history_detail', optional($scale->employee)->id) }}"
+                                        data-ajax-popup="true" class="btn btn-sm btn-outline-primary"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-title="{{ __('Employee salary Scale History') }}">
+                                        <span class="btn-inner--icon"><i class="ti ti-eye"></i></span>
+                                    </a>
+                                    <a class="btn btn-sm btn-outline-success"
+                                        onclick="printappointmentletter('{{ $scale->id }}')" data-bs-toggle="tooltip"
+                                        data-bs-title="{{ __('Appointment Letter') }}">
+                                        <span class="btn-inner--icon"><i class="fas fa-print"></i></span>
+                                    </a>
+                                    <a class="btn btn-sm btn-outline-warning"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-title="{{ __('Print') }}"
+                                        onclick="printanexture('{{ $scale->id }}')">
+                                        <span class="btn-inner--icon"><i class="fas fa-print"></i></span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
   {{-- @if ($employeesscale->hasPages())
     <div class="pagination">

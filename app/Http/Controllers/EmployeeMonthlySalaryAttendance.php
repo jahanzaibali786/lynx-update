@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\SalaryAttendanceExport;
 use App\Exports\SalarySheetExport;
+use App\Models\AdvanceTaxCollection;
 use App\Models\BankAccount;
 use App\Models\Department;
 use App\Models\Designation;
@@ -13,7 +15,11 @@ use App\Models\EmployeeMonthlySalary;
 use App\Models\EmployeeMonthlySalaryAttendance as ModelsEmployeeMonthlySalaryAttendance;
 use App\Models\EmployeeMonthlySalaryHeads;
 use App\Models\EmployeePayscaleDetail;
+use App\Models\JournalEntry;
+use App\Models\JournalItem;
+use App\Models\Loan;
 use App\Models\SalaryHeads;
+use App\Models\SalaryDeductionDetail;
 use App\Models\TaxSlab;
 use App\Models\SalaryPayment;
 use App\Models\User;
@@ -25,6 +31,141 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeMonthlySalaryAttendance extends Controller
 {
+    private function isCashPaymode($paymode)
+    {
+        return strtolower(trim((string) $paymode)) === 'cash';
+    }
+
+    private function isTaxableSalaryHead($headName)
+    {
+        return !in_array(strtolower(trim((string) $headName)), [
+            'medical',
+            'medical allowance',
+        ], true);
+    }
+
+    private function normalizeMonthDate($value)
+    {
+        if (is_string($value) && preg_match('/^\d{4}-\d{2}$/', $value)) {
+            return $value . '-01';
+        }
+
+        return $value;
+    }
+
+    private function normalizeRequestMonthDate(Request $request): ?string
+    {
+        $date = $this->normalizeMonthDate($request->input('date'));
+
+        if ($date) {
+            $date = Carbon::parse($date)->startOfMonth()->format('Y-m-d');
+            $request->merge(['date' => $date]);
+        }
+
+        return $date;
+    }
+
+    private function approvedAdvanceTaxCollection($employeeId, Carbon $fromDate, Carbon $toDate)
+    {
+        return (float) AdvanceTaxCollection::where('employee_id', $employeeId)
+            ->where('status', 1)
+            ->whereBetween('tax_month', [
+                $fromDate->copy()->startOfMonth()->format('Y-m-d'),
+                $toDate->copy()->endOfMonth()->format('Y-m-d'),
+            ])
+            ->sum('amount');
+    }
+
+    private function firstSalaryEobiAmounts($employee, $lastPayscaleDetail, Carbon $salaryDate, $workingDays, $monthDays): array
+    {
+        $employeeEobi = (float) ($lastPayscaleDetail->eobi ?? 0);
+        $employerEobi = (float) ($lastPayscaleDetail->eobi_employer ?? 0);
+        $monthDays = (float) $monthDays;
+        $workingDays = (float) $workingDays;
+
+        if (empty($employee->company_doj) || $monthDays <= 0) {
+            return [
+                'employee' => round($employeeEobi),
+                'employer' => round($employerEobi),
+            ];
+        }
+
+        $joiningDate = Carbon::parse($employee->company_doj);
+        $salaryMonthStart = $salaryDate->copy()->startOfMonth();
+        $salaryMonthEnd = $salaryDate->copy()->endOfMonth();
+
+        $hasPreviousSalary = EmployeeMonthlySalary::where('employee_id', $employee->id)
+            ->whereDate('salary_date', '<', $salaryMonthStart->format('Y-m-d'))
+            ->exists();
+
+        $isJoiningMonthFirstSalary = !$hasPreviousSalary && $joiningDate->between($salaryMonthStart, $salaryMonthEnd);
+
+        if (!$isJoiningMonthFirstSalary) {
+            return [
+                'employee' => round($employeeEobi),
+                'employer' => round($employerEobi),
+            ];
+        }
+
+        $joiningMonthDays = min($monthDays, $joiningDate->copy()->startOfDay()->diffInDays($salaryMonthEnd) + 1);
+        $eligibleDays = min($workingDays, $joiningMonthDays);
+
+        if ($eligibleDays >= $monthDays) {
+            return [
+                'employee' => round($employeeEobi),
+                'employer' => round($employerEobi),
+            ];
+        }
+
+        $ratio = max(0, min(1, $eligibleDays / $monthDays));
+
+        return [
+            'employee' => round($employeeEobi * $ratio),
+            'employer' => round($employerEobi * $ratio),
+        ];
+    }
+
+    private function salaryAttendanceQuery(Request $request)
+    {
+        $date = $this->normalizeRequestMonthDate($request);
+        $department_id = $request->input('department_id');
+        $designation_id = $request->input('designation_id');
+        $branches = $request->input('branches');
+        $toDate = $date ? Carbon::parse($date)->endOfDay() : now()->endOfMonth();
+
+        $query = ModelsEmployeeMonthlySalaryAttendance::with([
+            'employee',
+            'employee.department',
+            'employee.designation',
+        ])
+            ->whereYear('for_month_of', $toDate->year)
+            ->whereMonth('for_month_of', $toDate->month);
+
+        if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
+            $query->where('created_by', '=', \Auth::user()->creatorId());
+        } else {
+            $query->where('owned_by', '=', \Auth::user()->ownedId());
+        }
+
+        if ($department_id && $department_id != 'all') {
+            $query->whereHas('employee', function ($query) use ($department_id) {
+                $query->where('department_id', $department_id);
+            });
+        }
+
+        if ($branches && $branches != null) {
+            $query->where('owned_by', $branches);
+        }
+
+        if ($designation_id && $designation_id != 'all') {
+            $query->whereHas('employee', function ($query) use ($designation_id) {
+                $query->where('designation_id', $designation_id);
+            });
+        }
+
+        return $query;
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -32,12 +173,12 @@ class EmployeeMonthlySalaryAttendance extends Controller
      */
     public function index(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : now()->endOfMonth();
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : now()->startOfMonth();
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : now()->startOfMonth();
         if (\Auth::user()->type == 'Employee') {
             $branchesList = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branchesList->prepend('Select Branch', '');
@@ -60,52 +201,33 @@ class EmployeeMonthlySalaryAttendance extends Controller
             $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $designations->prepend('All', 'all');
         }
-        if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
-            $query = ModelsEmployeeMonthlySalaryAttendance::with('employee')
-                ->whereHas('employee', function ($query) {
-                    $query->where('is_res_ter', 0);
-                })
-                ->whereYear('for_month_of', $toDate->year)
-                ->whereMonth('for_month_of', $toDate->month)
-                ->where('created_by', '=', \Auth::user()->creatorId());
-        } else {
-            $query = ModelsEmployeeMonthlySalaryAttendance::with('employee')
-                ->whereHas('employee', function ($query) {
-                    $query->where('is_res_ter', 0);
-                })
-                ->whereYear('for_month_of', $toDate->year)
-                ->whereMonth('for_month_of', $toDate->month)
-                ->where('owned_by', '=', \Auth::user()->ownedId());
-        }
-                // dd($query->where('employee_id',867)->get());
-        // dd($toDate,$fromDate,$query->get());
-        // $datas = collect();
-        if ($date || $department_id || $designation_id || $branches) {
-            // dd($branches);
-            if ($date) {
-                $query->whereYear('for_month_of', $toDate->year)
-                    ->whereMonth('for_month_of', $toDate->month);
-            }
-            if ($department_id && $department_id != 'all') {
-                $query->whereHas('employee', function ($query) use ($department_id) {
-                    $query->where('department_id', $department_id);
-                });
-            }
-
-            if ($branches && $branches != null) {
-                // $query->whereHas('employee', function ($query) use ($branches) {
-                    $query->where('owned_by', $branches);
-                // });
-            }
-            if ($designation_id && $designation_id != 'all') {
-                $query->whereHas('employee', function ($query) use ($designation_id) {
-                    $query->where('designation_id', $designation_id);
-                });
-            }
-        }
-        $datas = $query->get();
+        $datas = $this->salaryAttendanceQuery($request)
+            ->get()
+            ->sortBy(fn($row) => optional($row->employee)->name)
+            ->values();
 
         return view('employee.monthly_salary_attendance.index', compact('branchesList', 'date', 'datas', 'designations', 'departments'));
+    }
+
+    public function export_salary_attendance(Request $request)
+    {
+        $this->normalizeRequestMonthDate($request);
+        $reportType = $request->input('report_type') === 'details' ? 'details' : 'summary';
+        $datas = $this->salaryAttendanceQuery($request)->get();
+
+        if ($request->input('export_type') === 'pdf') {
+            return Excel::download(
+                new SalaryAttendanceExport($datas, $request->all(), $reportType),
+                'salary_attendance_' . $reportType . '.pdf',
+                \Maatwebsite\Excel\Excel::MPDF
+            );
+        }
+
+        return Excel::download(
+            new SalaryAttendanceExport($datas, $request->all(), $reportType),
+            'salary_attendance_' . $reportType . '.xlsx',
+            \Maatwebsite\Excel\Excel::XLSX
+        );
     }
 
 
@@ -130,10 +252,30 @@ class EmployeeMonthlySalaryAttendance extends Controller
      */
      public function store(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
+        if (!$date) {
+            return response()->json(['success' => false, 'message' => __('Please select month.')]);
+        }
         $inputDate = Carbon::parse($date);
-        $fromDate = $inputDate->copy()->startOfMonth();
-        $toDate = $inputDate->copy()->endOfMonth();
+        $day = $inputDate->day;
+        $base = Carbon::parse($date);
+
+        $fromDate = $base->copy()->day(26);
+
+        if ($base->day < 25) {
+            $fromDate->subMonth();
+        }
+
+        $toDate = $fromDate->copy()->addMonth()->day(25)->endOfDay();
+        if ($day >= 25) {
+            // current month 26th → next month 25th
+            $fromDate = $inputDate->copy()->day(26);
+            $toDate   = $inputDate->copy()->addMonth()->day(25)->endOfDay();
+        } else {
+            // previous month 26th → current month 25th
+            $fromDate = $inputDate->copy()->subMonth()->day(26);
+            $toDate   = $inputDate->copy()->day(25)->endOfDay();
+        }
 
         $skippedEmployees = []; // <-- Collect skipped entries
 
@@ -197,19 +339,18 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     continue;
                 }
 
-                $fromDate = Carbon::create($toDate->year, $toDate->month, 1);
                 $joiningDate = Carbon::parse($employee->company_doj);
                 $diffInDays = 0;
-                if (strtolower($employee->department->name) == 'academic') {
-                    $probationEnd = $employee->probation_end ? Carbon::parse($employee->probation_end) : null;
-                    if ($probationEnd && $probationEnd->isFuture()) {
-                        $skippedEmployees[] = [
-                            'employee_id' => $employee->employee_id,
-                            'reason' => 'Academic employee still under probation.'
-                        ];
-                        continue;
-                    }
-                }
+                // if (strtolower($employee->department->name) == 'academic') {
+                //     $probationEnd = $employee->probation_end ? Carbon::parse($employee->probation_end) : null;
+                //     if ($probationEnd && $probationEnd->isFuture()) {
+                //         $skippedEmployees[] = [
+                //             'employee_id' => $employee->employee_id,
+                //             'reason' => 'Academic employee still under probation.'
+                //         ];
+                //         continue;
+                //     }
+                // }
                 $employeeScale = \App\Models\EmployeePayscaleDetail::where('employee_id', $employee->id)->orderByDesc('id')->first();
                 if(!$employeeScale){
                     $skippedEmployees[] = [
@@ -218,13 +359,18 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     ];
                     continue; 
                 }
+                // $newda =carbon::date('Y-m-01',strtotime($inputDate));
+                $newda =$inputDate->copy()->day(1);
                 if ($joiningDate > $fromDate) {
                     if ($employeeScale && $employeeScale->effect_from) {
                         $effectFromDate = Carbon::parse($employeeScale->effect_from);
                         // dd($joiningDate, $fromDate, $effectFromDate);
+                        // dd($effectFromDate->month ,$fromDate->month , $effectFromDate->year ,$fromDate->year,$newda,$fromDate,$effectFromDate);
+                        if($effectFromDate->month == $fromDate->month && $effectFromDate->year == $fromDate->year){
+                            $diffInDays = '0';
                         
-                        if ($effectFromDate->month == $fromDate->month && $effectFromDate->year == $fromDate->year) {
-                            $diffInDays = $fromDate->diffInDays($effectFromDate, false);
+                        }elseif ($effectFromDate->month == $newda->month && $effectFromDate->year == $newda->year) {
+                            $diffInDays = $newda->diffInDays($effectFromDate, false);
                             // dd($diffInDays);
                             if ($diffInDays < 0 || $diffInDays > 31) {
                                 // dd($diffInDays);
@@ -295,7 +441,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $employeemonthlySlaryDetail->bal_casual = $employee->employee_leaves->casual_total - $employee->employee_leaves->casual_consumed;
                 $employeemonthlySlaryDetail->leave = $leaveDays;
                 $employeemonthlySlaryDetail->month_days = $monthDays;
-                $employeemonthlySlaryDetail->for_month_of = $request->input('date');
+                $employeemonthlySlaryDetail->for_month_of = $date;
                 $employeemonthlySlaryDetail->gm_final = 0;
                 $employeemonthlySlaryDetail->sal_final = 0;
                 $employeemonthlySlaryDetail->adm_final = 0;
@@ -336,23 +482,50 @@ class EmployeeMonthlySalaryAttendance extends Controller
         //     'employeemonthlysalary.salaryheads',
         //     'employeemonthlysalary.salaryheads.SalaryHead',
         // ])->where('adm_final', 1)->where('id', $id)->first();
-        $employeesalary = EmployeeMonthlySalary::with('employee', 'employee.designation', 'employee.department', 'employee.employee_payscale_details')->where('id', $id)->first();
-        $attendanceMonth = Carbon::parse($employeesalary->salary_date)->month;
+        $employeesalary = EmployeeMonthlySalary::with(
+            'employee',
+            'employee.designation',
+            'employee.department',
+            'employee.employee_payscale_details'
+        )->where('id', $id)->first();
         if (empty($employeesalary)) {
             return redirect()->route('emp-month-sal-attendance.index')->with('error', 'Salary not found.')->withInput();
         }
-        $arrears = \App\Models\EmployeeMonthlySalary::where('employee_id', $employeesalary->employee_id)->whereMonth('salary_date', '<', $attendanceMonth)
-            ->where('status', 'unpaid')->get();
-        return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears'));
+        $attendanceMonth = Carbon::parse($employeesalary->salary_date)->month;
+        $attendanceYear = Carbon::parse($employeesalary->salary_date)->year;
+        $salaryAttendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $employeesalary->employee_id)
+            ->whereMonth('for_month_of', $attendanceMonth)
+            ->whereYear('for_month_of', $attendanceYear)
+            ->first();
+        $deductionSalaryIds = array_values(array_unique(array_filter([
+            $employeesalary->id,
+            optional($salaryAttendance)->id,
+        ])));
+        $loanAdvanceDeductions = SalaryDeductionDetail::with('coa')
+            ->where('employee_id', $employeesalary->employee_id)
+            ->whereIn('salary_id', $deductionSalaryIds)
+            ->whereIn(\DB::raw('LOWER(type)'), ['loan', 'advance'])
+            ->orderByRaw('CASE WHEN salary_id = ? THEN 0 ELSE 1 END', [$employeesalary->id])
+            ->orderBy('id')
+            ->get();
+        $salaryEditable = trim(strtolower($employeesalary->status ?? 'unpaid')) === 'unpaid'
+            && (int) optional($salaryAttendance)->gm_final !== 1;
+        $arrears = \App\Models\EmployeeMonthlySalary::where('employee_id', $employeesalary->employee_id)
+            ->whereDate('salary_date', '<', Carbon::parse($employeesalary->salary_date)->startOfMonth()->format('Y-m-d'))
+            ->where('status', 'unpaid')
+            ->where('on_hold', 0)
+            ->whereNull('carried_to_salary_id')
+            ->get();
+        return view('employee.monthly_salary_attendance.detail_monthly_salary', compact('employeesalary', 'arrears', 'salaryEditable', 'salaryAttendance', 'loanAdvanceDeductions'));
     }
     public function final_attendance(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $branches = $request->input('branches');
         $toDate = $date ? Carbon::parse($date)->endOfDay() : now()->endOfMonth();
-        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(25)->startOfDay() : now()->startOfMonth();
+        $fromDate = $date ? Carbon::parse($date)->subMonth()->day(26)->startOfDay() : now()->startOfMonth();
         if (\Auth::user()->type == 'Employee') {
             $branchesList = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branchesList->prepend('Select Branch', '');
@@ -384,14 +557,14 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 })
                 ->whereYear('for_month_of', $toDate->year)
                 ->whereMonth('for_month_of', $toDate->month)
-                ->where('accountant_finalize', 1)->where('created_by', '=', \Auth::user()->creatorId());
+                ->where('created_by', '=', \Auth::user()->creatorId());
         } else {
             $query = ModelsEmployeeMonthlySalaryAttendance::with('employee', 'employee.user')
                 ->whereHas('employee', function ($query) {
                     $query->where('is_res_ter', 0);
                 })->whereYear('for_month_of', $toDate->year)
                 ->whereMonth('for_month_of', $toDate->month)
-                ->where('accountant_finalize', 1)->where('owned_by', '=', \Auth::user()->ownedId());
+                ->where('owned_by', '=', \Auth::user()->ownedId());
         }
         if ($date || $department_id || $designation_id || $branches) {
             if ($date) {
@@ -413,7 +586,11 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 });
             }
         }
-        $datas = $query->get();
+        $datas = $query->get()
+            ->sortBy(function ($attendance) {
+                return strtolower(optional($attendance->employee)->name ?? '');
+            })
+            ->values();
 
         return view('employee.monthly_salary_attendance.final_attendance', compact('branchesList', 'date', 'datas', 'designations', 'departments'));
 
@@ -450,14 +627,32 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 return response()->json(['success' => false, 'message' => 'Invalid data provided.'], 400);
             }
 
+            $attendances = ModelsEmployeeMonthlySalaryAttendance::with('employee')
+                ->whereIn('id', $rowIds)
+                ->get()
+                ->keyBy('id');
+            $errors = [];
+
             foreach ($rowIds as $id) {
-                $attendance = ModelsEmployeeMonthlySalaryAttendance::find($id);
-                if ($attendance) {
-                    $attendance->adm_final = 1;
-                    $attendance->save();
-                } else {
-                    return response()->json(['success' => false, 'message' => 'Attendance record not found for ID: ' . $id], 404);
+                $attendance = $attendances->get($id);
+                if (!$attendance) {
+                    $errors[] = 'Attendance record not found for ID: ' . $id;
+                    continue;
                 }
+
+                if ((int) $attendance->accountant_finalize !== 1) {
+                    $employeeName = optional($attendance->employee)->name ?: $attendance->employee_id;
+                    $errors[] = "Attendance is not accountant approved for {$employeeName}.";
+                }
+            }
+
+            if (!empty($errors)) {
+                return response()->json(['success' => false, 'message' => implode(' ', $errors)]);
+            }
+
+            foreach ($attendances as $attendance) {
+                $attendance->adm_final = 1;
+                $attendance->save();
             }
             return response()->json(['success' => true, 'message' => 'Attendance finalized And forwarded to Admin.']);
         } catch (\Exception $e) {
@@ -476,6 +671,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
             foreach ($rowIds as $id) {
                 $attendance = ModelsEmployeeMonthlySalaryAttendance::find($id);
+                if (!$attendance) {
+                    return response()->json(['error' => 'Attendance record not found for ID: ' . $id]);
+                }
+
                 $month = Carbon::parse($attendance->for_month_of)->month;
                 $year = Carbon::parse($attendance->for_month_of)->year;
                 $salary = EmployeeMonthlySalary::where('employee_id', $attendance->employee_id)
@@ -483,14 +682,24 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     ->whereYear('salary_date', $year)
                     ->first();
                 if ($salary) {
-                    return response()->json(['error' => 'Salary Generated For This Month. U can not unfinalize it.']);
+                    $employeeName = optional($attendance->employee)->name ?: $attendance->employee_id;
+                    $salaryMonth = Carbon::parse($salary->salary_date)->format('M-Y');
+                    if (in_array(trim(strtolower($salary->status ?? 'unpaid')), ['paid', 'fwd_to_account', 'account_approved'], true)) {
+                        return response()->json([
+                            'error' => "Salary already paid/forwarded/approved by accounts for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. It cannot be unfinalized.",
+                        ]);
+                    }
+
+                    if ((int) $salary->sal_final === 1 || (int) $attendance->gm_final === 1) {
+                        return response()->json([
+                            'error' => "Salary is finalized for {$employeeName} ({$salaryMonth}), salary no {$salary->id}. Please unfinalize salary first.",
+                        ]);
+                    }
                 }
-                if ($attendance) {
-                    $attendance->adm_final = 0;
-                    $attendance->save();
-                } else {
-                    return response()->json(['error' => 'Attendance record not found for ID: ' . $id]);
-                }
+
+                $attendance->accountant_finalize = 0;
+                $attendance->adm_final = 0;
+                $attendance->save();
             }
             return response()->json(['success' => true, 'message' => 'Attendance Unfinalized .']);
         } catch (\Exception $e) {
@@ -501,7 +710,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
     }
     public function month_salary(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $paymode = $request->input('paymode');
@@ -514,32 +723,26 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
             $fromDate = now()->firstOfMonth();
             $toDate = now()->lastOfMonth();
+            $date = $toDate->copy()->startOfMonth()->format('Y-m-d');
+            $request->merge(['date' => $date]);
         }
+             $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $departments->prepend('All', 'all');
+            $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $designations->prepend('All', 'all');
         // dd($fromDate,$toDate);
         if (\Auth::user()->type == 'Employee') {
             $branchesList = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branchesList->prepend('Select Branch', '');
-            $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $departments->prepend('All', 'all');
-            $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $designations->prepend('All', 'all');
             $salaryheads = SalaryHeads::where('owned_by', \Auth::user()->ownedId())->get();
         } elseif (\Auth::user()->type == 'company') {
             $branchesList = User::where('type', '=', 'branch')->get()->pluck('name', 'id');
             $branchesList->prepend(\Auth::user()->name, \Auth::user()->id);
             $branchesList->prepend('Select Branch', '');
-            $departments = Department::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $departments->prepend('All', 'all');
-            $designations = Designation::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $designations->prepend('All', 'all');
             $salaryheads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
         } else {
             $branchesList = User::where('id', '=', \Auth::user()->ownedId())->get()->pluck('name', 'id');
             $branchesList->prepend('Select Branch', '');
-            $departments = Department::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $departments->prepend('All', 'all');
-            $designations = Designation::where('owned_by', \Auth::user()->ownedId())->get()->pluck('name', 'id');
-            $designations->prepend('All', 'all');
             $salaryheads = SalaryHeads::where('owned_by', \Auth::user()->ownedId())->get();
         }
         // $datas = collect();
@@ -565,8 +768,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 //     $query->where('is_res_ter', 0);
                 // })
                 ->whereYear('for_month_of', $toDate->year)
-                ->whereMonth('for_month_of', $toDate->month)
-                ->where('adm_final', 1)->where('created_by', '=', \Auth::user()->creatorId());
+                ->whereMonth('for_month_of', $toDate->month)->where('created_by', '=', \Auth::user()->creatorId());
         } else {
             $query = ModelsEmployeeMonthlySalaryAttendance::with([
                 'employee',
@@ -590,8 +792,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 //     $query->where('is_res_ter', 0);
                 // })
                 ->whereYear('for_month_of', $toDate->year)
-                ->whereMonth('for_month_of', $toDate->month)
-                ->where('adm_final', 1)->where('owned_by', '=', \Auth::user()->ownedId());
+                ->whereMonth('for_month_of', $toDate->month)->where('owned_by', '=', \Auth::user()->ownedId());
         }
         if ($date || $department_id || $designation_id || $branches) {
             if ($date) {
@@ -599,8 +800,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     ->whereMonth('for_month_of', $toDate->month);
             }
             if ($paymode && $paymode != 'all') {
-                $query->whereHas('employeemonthlysalary', function ($query) use ($paymode) {
-                    $query->where('paymode', $paymode);
+                $query->whereHas('employeemonthlysalary', function ($query) use ($paymode, $toDate) {
+                    $query->whereYear('salary_date', $toDate->year)
+                        ->whereMonth('salary_date', $toDate->month)
+                        ->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
                 });
             }
             if ($department_id && $department_id != 'all') {
@@ -622,44 +825,56 @@ class EmployeeMonthlySalaryAttendance extends Controller
             // return Excel::download(new UserDataExport($salaryHeads, $datas), 'payroll.xlsx');
             // return Excel::download(new SalarySheetExport($salaryHeads, $datas), 'payroll.xlsx');
         }
-        $datas = $query->get();
+        $datas = $query->get()
+            ->sortBy(fn($row) => strtolower(optional($row->employee)->name ?? ''))
+            ->values();
         // dd($datas->last());
         return view('employee.monthly_salary_attendance.month_salary', compact('branchesList', 'salaryheads', 'date', 'datas', 'designations', 'departments'));
 
     }
     public function month_salary_generate(Request $request)
     {
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
         $employee_ids = $request->input('employee_ids', []);
         $department_id = $request->input('department_id');
         $designation_id = $request->input('designation_id');
         $paymodeFilter = $request->input('paymode');
         $branches = $request->input('branches');
        
-        if ($date) {
-            $inputDate = Carbon::parse($date);
-            $fromDate = $inputDate->copy()->startOfMonth();
-            $toDate = $inputDate->copy()->endOfMonth();
-
-            //previous month
-            $previousMonth = $inputDate->copy()->subMonth();
-            $previousMonthStart = $previousMonth->copy()->startOfMonth();
-            $previousMonthEnd = $previousMonth->copy()->endOfMonth();
-        } else {
-            $fromDate = null;
-            $toDate = null;
-            $previousMonthStart = null;
-            $previousMonthEnd = null;
+        if (!$date) {
+            return response()->json(['success' => false, 'message' => __('Please select month.')]);
         }
+
+        $inputDate = Carbon::parse($date);
+        $fromDate = $inputDate->copy()->startOfMonth();
+        $toDate = $inputDate->copy()->endOfMonth();
+
+        //previous month
+        $previousMonth = $inputDate->copy()->subMonth();
+        $previousMonthStart = $previousMonth->copy()->startOfMonth();
+        $previousMonthEnd = $previousMonth->copy()->endOfMonth();
 
         if (empty($employee_ids)) {
             return response()->json(['success' => false, 'message' => 'No employees selected.']);
         }
-        $currentMonth = date('n', strtotime($date));
-        $currentYear  = date('Y', strtotime($date));
-        $months = (12 - $currentMonth + 1) + 6;
-        // dd($months);
-        $taxYear = ($currentMonth <= 6) ? $currentYear - 1 : $currentYear;
+        $dateObj = \Carbon\Carbon::parse($date);
+
+        $currentMonth = $dateObj->month;
+        $currentYear  = $dateObj->year;
+
+        // remaining months in FY
+        if ($currentMonth <= 6) {
+            $months = 6 - $currentMonth + 1;
+        } else {
+            $months = (12 - $currentMonth + 1) + 6;
+        }
+
+        // tax year
+        $taxYear = ($currentMonth <= 6)
+            ? $currentYear - 1
+            : $currentYear;
+
+        // salary heads
         $salaryheads = SalaryHeads::where('created_by', \Auth::user()->creatorId())->get();
 
         $query = ModelsEmployeeMonthlySalaryAttendance::with([
@@ -668,7 +883,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
             },
             'employee.employee_loan',
             'employee.user',
-            'employee.employee_transfers',
+            // 'employee.employee_transfers',
             'employee.employee_payscale_details'
         ])->where('adm_final', 1);
         if ($department_id && $department_id != 'all') {
@@ -688,11 +903,12 @@ class EmployeeMonthlySalaryAttendance extends Controller
         }
         if (!empty($paymodeFilter)) {
             $query->whereHas('employee.employee_payscale_details', function ($query) use ($paymodeFilter) {
-                $query->where('id', function ($subquery) {
-                    $subquery->select('id')
-                        ->from('employee_payscale_details as epd')
-                        ->last();
-                })->where('paymode', $paymodeFilter);
+                $query->whereRaw('employee_payscale_details.id = (
+                        select max(epd.id)
+                        from employee_payscale_details as epd
+                        where epd.employee_id = employee_payscale_details.employee_id
+                    )')
+                    ->whereRaw('TRIM(paymode) = ?', [trim($paymodeFilter)]);
             });
         }
         if (\Auth::user()->type == 'Employee' || \Auth::user()->type == 'company') {
@@ -721,18 +937,18 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     continue;
                 }
 
-                $transferDate = $data->employee->employee_transfers()->whereMonth('transfer_date', $toDate->month)
-                    ->whereYear('transfer_date', $toDate->year)
-                    ->first();
+                // $transferDate = $data->employee->employee_transfers()->whereMonth('transfer_date', $toDate->month)
+                //     ->whereYear('transfer_date', $toDate->year)
+                //     ->first();
 
-                if ($transferDate) {
-                    $effectiveStartDate = Carbon::parse($transferDate->transfer_date);
-                    $daysInPeriod = $effectiveStartDate->diffInDays($toDate->endOfMonth()) + 1;
-                } else {
+                // if ($transferDate) {
+                //     $effectiveStartDate = Carbon::parse($transferDate->transfer_date);
+                //     $daysInPeriod = $effectiveStartDate->diffInDays($toDate->endOfMonth()) + 1;
+                // } else {
                     // dd($data);
                     $effectiveStartDate = $fromDate;
                     $daysInPeriod = $data->working_days;
-                }
+                // }
 
                 $lastPayscaleDetail = $data->employee->employee_payscale_details->last();
                 if (empty($lastPayscaleDetail)) {
@@ -750,42 +966,72 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $grossSalary = 0;
                 $basicSalary = 0;
                 $advanceAmount = 0;
-                $advances = EmployeeAdvance::where('employee_id', $data->employee_id)
-                    ->whereBetween('advance_date', [$previousMonthStart, $previousMonthEnd])
-                    ->where('status', 0)
+                $advanceMonthStart = $toDate->copy()->startOfMonth();
+                $advanceMonthEnd = $toDate->copy()->endOfMonth();
+                $salaryAdvances = EmployeeAdvance::where('employee_id', $data->employee_id)
+                    ->whereBetween('advance_date', [$advanceMonthStart, $advanceMonthEnd])
+                    ->where('status', 1)
                     ->get();
-                foreach ($advances as $advance) {
+                foreach ($salaryAdvances as $advance) {
                     $advanceAmount += $advance->advance_amount;
                 }
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {
                     if ($scale_head->SalaryHeads->head == 'Initial Basic') {
                         $initialBasicHeadValue = $scale_head->head_value;
-                        $basicSalary = ((round($initialBasicHeadValue / $data->month_days)) * ($daysInPeriod)) - $advanceAmount;
+                        $basicSalary = round(($initialBasicHeadValue / $data->month_days) * $daysInPeriod);
                     } else {
-                        $grossSalary += ((round($scale_head->head_value / $data->month_days)) * ($daysInPeriod));
+                        $grossSalary += round((($scale_head->head_value / $data->month_days) * ($daysInPeriod)));
                     }
                 }
                 $addition = $lastPayscaleDetail->other_add + $lastPayscaleDetail->conv + $lastPayscaleDetail->drns + $lastPayscaleDetail->misc + $lastPayscaleDetail->chaild_concession;
+                $taxableAddition = $lastPayscaleDetail->other_add + $lastPayscaleDetail->drns + $lastPayscaleDetail->misc;
                 $grossSalary += $basicSalary + $addition;
+                $eobiAmounts = $this->firstSalaryEobiAmounts(
+                    $data->employee,
+                    $lastPayscaleDetail,
+                    $toDate,
+                    $data->working_days,
+                    $data->month_days
+                );
+                $employeeEobiAmount = $eobiAmounts['employee'];
+                $employerEobiAmount = $eobiAmounts['employer'];
 
                 $loanAmount = 0;
-                // if ($data->employee->employee_loan) {
-                //     $loan = $data->employee->employee_loan;
-                //     dd($loan, $toDate);
-                //     $loanStartDate = Carbon::parse($loan->from_pay_month)->startOfMonth();
-                //     $loanEndDate = Carbon::parse($loan->loan_ended)->endOfMonth();
-                //     $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
-                //     if ($toDateStartOfMonth->between($loanStartDate, $loanEndDate)) {
-                //         $loanAmount = $loan->per_month_amount;
-                //     }
-                // }
-                if ($data->employee->employee_loan) {
-                    $loan = $data->employee->employee_loan;
+                $securityLoanAmount = 0;
+                $salaryLoanDeductions = [];
+                $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
+                $toDateEndOfMonth = $toDateStartOfMonth->copy()->endOfMonth();
+                $salaryLoans = Loan::where('employee_id', $data->employee_id)
+                    ->with('installments')
+                    ->where('status', 1)
+                    ->whereDate('from_pay_month', '<=', $toDateEndOfMonth->format('Y-m-d'))
+                    ->whereDate('loan_ended', '>=', $toDateStartOfMonth->format('Y-m-d'))
+                    ->get();
+
+                foreach ($salaryLoans as $loan) {
                     $loanStartDate = Carbon::parse($loan->from_pay_month)->startOfMonth();
                     $loanEndDate = Carbon::parse($loan->loan_ended)->endOfMonth();
-                    $toDateStartOfMonth = Carbon::parse($toDate)->startOfMonth();
-                    if ($toDateStartOfMonth->between($loanStartDate, $loanEndDate)) {
-                        $loanAmount = $loan->per_month_amount;
+
+                    if ($loan->status == 1 && $toDateStartOfMonth->between($loanStartDate, $loanEndDate) && !$loan->isStoppedForMonth($toDateStartOfMonth)) {
+                        $remainingLoanAmount = max(0, (float) $loan->amount - (float) $loan->received_amount);
+                        $installment = $loan->nextPayableInstallment($toDateStartOfMonth);
+                        $installmentAmount = $installment
+                            ? min((float) $installment->due_amount, $remainingLoanAmount)
+                            : min((float) $loan->per_month_amount, $remainingLoanAmount);
+
+                        if ($installmentAmount > 0 && $loan->emp_sec == 'security') {
+                            $securityLoanAmount += $installmentAmount;
+                        } elseif ($installmentAmount > 0) {
+                            $loanAmount += $installmentAmount;
+                        }
+
+                        if ($installmentAmount > 0) {
+                            $salaryLoanDeductions[] = [
+                                'loan' => $loan,
+                                'installment' => $installment,
+                                'amount' => $installmentAmount,
+                            ];
+                        }
                     }
                 }
 
@@ -793,21 +1039,31 @@ class EmployeeMonthlySalaryAttendance extends Controller
                 $monthTax = $this->calculateProratedTax(
                     employee_id:   $data->employee_id,
                     tax_year:      $taxYear,
-                    date          : $date,
+                    date:          $date,
                     scaleHeads:    $payscalesauto->employeeScaleHeads,
-                    otherAdds:     $addition,
-                    workingDays:  $data->working_days,
+                    otherAdds:     $taxableAddition,
+                    workingDays:   $data->working_days,
                     monthDays:     $data->month_days,
-                    months:        $months
+                    months:        $months,
+                    paymode:       $lastPayscaleDetail->paymode
                 );
                 if($monthTax == 'noslab'){
                     return response()->json(['success' => false, 'message' => 'Tax slab not found for the year '.$taxYear.'. Please contact admin.']);
                 }
                 // dd($monthTax, $data->employee_id, $taxYear, $daysInPeriod, $data->month_days, $payscalesauto->employeeScaleHeads, $addition);
 
-                $deduction = $loanAmount + $lastPayscaleDetail->itax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $lastPayscaleDetail->eobi + $lastPayscaleDetail->other_deduction + $lastPayscaleDetail->advance;
+                $heldSalariesToCarry = EmployeeMonthlySalary::where('employee_id', $data->employee_id)
+                    ->where('owned_by', $data->employee->owned_by)
+                    ->where('on_hold', 1)
+                    ->where('status', '!=', 'paid')
+                    ->whereNull('carried_to_salary_id')
+                    ->whereDate('salary_date', '<', $toDate->copy()->startOfMonth()->format('Y-m-d'))
+                    ->get();
+                $heldSalaryCarryAmount = round($heldSalariesToCarry->sum('net_pay'));
+
+                $deduction = $loanAmount + $securityLoanAmount + $advanceAmount + $monthTax + $lastPayscaleDetail->emp_sec + $lastPayscaleDetail->pessi + $employeeEobiAmount + $lastPayscaleDetail->other_deduction;
                 // dd($basicSalary, $grossSalary,$deduction);
-                $net_sal = $grossSalary - $deduction + $addition;
+                $net_sal = ($grossSalary + $heldSalaryCarryAmount - $deduction) > 0 ? ($grossSalary + $heldSalaryCarryAmount - $deduction) : 0;
 
 
                 $employeemonthlysal = EmployeeMonthlySalary::create([
@@ -820,37 +1076,104 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     'scale_id' => $lastPayscaleDetail->pay_scale_id,
                     'scale_no' => $payscalesauto->scale_no,
                     'sal_days' => $data->working_days,
-                    'basics' => $basicSalary,
+                    'basics' => $initialBasicHeadValue,
                     'conv' => $lastPayscaleDetail ? $lastPayscaleDetail->conv : '0',
                     'other_add' => $lastPayscaleDetail ? $lastPayscaleDetail->other_add : '0',
                     'chaild_con' => $lastPayscaleDetail ? $lastPayscaleDetail->chaild_concession : '0',
                     'drns' => $lastPayscaleDetail ? $lastPayscaleDetail->drns : '0',
                     'misc' => $lastPayscaleDetail ? $lastPayscaleDetail->misc : '0',
-                    'stop_sal' => 0,
-                    'other' => $lastPayscaleDetail ? $lastPayscaleDetail->other_deduction : '0',
+                    'stop_sal' => $heldSalaryCarryAmount,
+                    'other' => '0',
                     'gross' => round($grossSalary),
                     'loan' => $loanAmount ? $loanAmount : '0',
                     'emp_sec' => $lastPayscaleDetail ? $lastPayscaleDetail->emp_sec : '0',
                     'pessi_employer' => $lastPayscaleDetail ? $lastPayscaleDetail->pessi_employer : '0',
                     'pessi' => $lastPayscaleDetail ? $lastPayscaleDetail->pessi : '0',
                     'it' => $monthTax ? $monthTax : '0',
-                    'eobi' => $lastPayscaleDetail ? $lastPayscaleDetail->eobi : '0',
-                    'eobi_employer' => $lastPayscaleDetail ? $lastPayscaleDetail->eobi_employer : '0',
-                    'dedu' => $lastPayscaleDetail ? $lastPayscaleDetail->other_deduction : '0',
+                    'eobi' => $employeeEobiAmount,
+                    'eobi_employer' => $employerEobiAmount,
+                    'dedu' => $lastPayscaleDetail ? round($lastPayscaleDetail->other_deduction) : '0',
+				 	'emp_sec_loan' => $securityLoanAmount ? round($securityLoanAmount) : '0',
                     'tra_course' => 0,
-                    'sal_advance' => $advanceAmount ? $advanceAmount : '0',
+                    'sal_advance' => $advanceAmount ? round($advanceAmount) : '0',
                     'prc_final' => 0,
                     'net_pay' => round($net_sal),
                     'sal_final' => 0,
                     'on_hold' => 0,
+                    'remarks' => $heldSalaryCarryAmount > 0
+                        ? 'Held salary carried from: ' . $heldSalariesToCarry->map(fn($salary) => date('M Y', strtotime($salary->salary_date)))->implode(', ')
+                        : null,
                     'owned_by' => $data->employee->owned_by,
                     'created_by' => \Auth::user()->creatorId(),
                 ]);
-                // dd($employeemonthlysal);
+                $created_date = date('Y-m-d', strtotime($date)).' '.date('H:i:s');
+                $employeemonthlysal->created_at = $created_date ?? Carbon::now();
+                $employeemonthlysal->created_at = $created_date ?? Carbon::now();
+                $employeemonthlysal->save();
+
+                if ($heldSalariesToCarry->isNotEmpty()) {
+                    EmployeeMonthlySalary::whereIn('id', $heldSalariesToCarry->pluck('id'))
+                        ->update([
+                            'carried_to_salary_id' => $employeemonthlysal->id,
+                            'carried_at' => now(),
+                            'status' => 'carried',
+                        ]);
+                }
+
+                foreach ($salaryLoanDeductions as $loanDeduction) {
+                    $salaryLoan = $loanDeduction['loan'];
+                    $loanInstallment = $loanDeduction['installment'];
+                    $salaryLoanDeductionAmount = round($loanDeduction['amount']);
+                    if ($salaryLoanDeductionAmount <= 0) {
+                        continue;
+                    }
+
+                    $deductionDetail = SalaryDeductionDetail::create([
+                        'salary_id' => $employeemonthlysal->id,
+                        'employee_id' => $data->employee_id,
+                        'type' => 'loan',
+                        'sub_type' => $salaryLoan->emp_sec,
+                        'reference_id' => $salaryLoan->id,
+                        'amount' => round($salaryLoanDeductionAmount),
+                        'note' => 'Loan installment deduction - ' . $salaryLoan->title,
+                        'coa_id' => $salaryLoan->chartaccount_id,
+                    ]);
+
+                    if ($loanInstallment) {
+                        $loanInstallment->paid_amount = min((float) $loanInstallment->amount, (float) $loanInstallment->paid_amount + $salaryLoanDeductionAmount);
+                        if ((float) $loanInstallment->paid_amount >= (float) $loanInstallment->amount) {
+                            $loanInstallment->status = 1;
+                            $loanInstallment->paid_at = $employeemonthlysal->salary_date;
+                        }
+                        $loanInstallment->salary_id = $employeemonthlysal->id;
+                        $loanInstallment->salary_deduction_detail_id = $deductionDetail->id;
+                        $loanInstallment->save();
+                    }
+
+                    $salaryLoan->received_amount = ((float) $salaryLoan->received_amount) + round($salaryLoanDeductionAmount);
+                    $salaryLoan->save();
+                }
+
+                foreach ($salaryAdvances as $advance) {
+                    SalaryDeductionDetail::create([
+                        'salary_id' => $employeemonthlysal->id,
+                        'employee_id' => $data->employee_id,
+                        'type' => 'advance',
+                        'sub_type' => 'salary_advance',
+                        'reference_id' => $advance->id,
+                        'amount' => round($advance->advance_amount),
+                        'note' => 'Salary advance deduction',
+                        'coa_id' => $advance->chartaccount_id,
+                    ]);
+
+                    $advance->deducted_salary_id = $employeemonthlysal->id;
+                    $advance->save();
+                }
+
                 // $newitems = [];
                 $i = 0;
                 foreach ($payscalesauto->employeeScaleHeads as $scale_head) {
-                    $headValue = (round($scale_head->head_value / $data->month_days)) * ($daysInPeriod);
+                    $headValue = round((($scale_head->head_value / $data->month_days) * ($daysInPeriod)));
                     $salaryheadmonthly = EmployeeMonthlySalaryHeads::create([
                         'employee_id' => $data->employee_id,
                         'scale_id' => $employeemonthlysal->scale_id,
@@ -862,6 +1185,9 @@ class EmployeeMonthlySalaryAttendance extends Controller
                         'owned_by' => $employeemonthlysal->owned_by,
                         'created_by' => $employeemonthlysal->created_by,
                     ]);
+                    $salaryheadmonthly->created_at = $created_date ?? Carbon::now();
+                    $salaryheadmonthly->updated_at = $updated_date ?? Carbon::now();
+                    $salaryheadmonthly->save();
                     // $newitems[$i]['prod_id'] = $salaryheadmonthly->id;
                     $i++;
                 }
@@ -870,6 +1196,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
 
                 if ($data) {
                     $allAccounts = [];
+                    $deductionAccounts = $this->salaryDeductionVoucherAccounts($employeemonthlysal, $lastPayscaleDetail);
                     // dd($lastPayscaleDetail);
                     $allAccounts = [
                         [
@@ -879,51 +1206,59 @@ class EmployeeMonthlySalaryAttendance extends Controller
                                 (float) ($grossSalary ?? 0),
                             'credit' => 0,
                         ],
+                        // Dr: Employer PASSI
+                        [
+                            'account_id' => 258,
+                            'name' => 'Salary Expense - Employer PASSI',
+                            'debit' => round($employeemonthlysal->pessi_employer),
+                            'credit' => 0,
+                        ],
+                        // Dr: Employer EOBI
+                        [
+                            'account_id' => 217,
+                            'name' => 'Salary Expense - Employer EOBI',
+                            'debit' => round($employeemonthlysal->eobi_employer),
+                            'credit' => 0,
+                        ],
                         [
                             'account_id' => $lastPayscaleDetail->security_receive_account,
                             'name' => 'Employee Security Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->emp_sec,
+                            'credit' => round($employeemonthlysal->emp_sec),
                         ],
                         // Cr: Income Tax Payable
                         [
                             'account_id' => $lastPayscaleDetail->tax_payable_account,
                             'name' => 'Tax Payable (Income Tax)',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->it,
+                            'credit' => round($employeemonthlysal->it),
                         ],
                         // Cr: EOBI Payable (Employee)
                         [
                             'account_id' => $lastPayscaleDetail->eobi_payable_account,
                             'name' => 'EOBI Payable (Employee)',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->eobi,
+                            'credit' => round($employeemonthlysal->eobi),
                         ],
                         // Cr: PASSI Payable (Employee)
                         [
                             'account_id' => $lastPayscaleDetail->pessi_payable_account,
                             'name' => 'PASSI Payable (Employee)',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->pessi,
+                            'credit' => round($employeemonthlysal->pessi),
                         ],
                         [
                             'account_id' => $lastPayscaleDetail->other_dedu_payable_account,
                             'name' => 'Other Deduction Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->dedu ?? 0, // or $all_data[?]
+                            'credit' => round($employeemonthlysal->dedu ?? 0), // or $all_data[?]
                         ],
                         // Cr: Net Salary Payable
                         [
                             'account_id' => $lastPayscaleDetail->net_payable_account,
                             'name' => 'Net Salary Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->net_pay,
-                        ],
-                        [
-                            'account_id' => 216,
-                            'name' => 'Advance Salary',
-                            'debit' => 0,
-                            'credit' => $employeemonthlysal->sal_advance,
+                            'credit' => round(max(0, (float) $employeemonthlysal->net_pay - (float) $employeemonthlysal->stop_sal)),
                         ],
                         // Cr: Employer PASSI Payable
                         [
@@ -932,7 +1267,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'account_id' => 225,
                             'name' => 'Employer PASSI Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->pessi_employer,
+                            'credit' => round($employeemonthlysal->pessi_employer),
                         ],
                         // Cr: Employer EOBI Payable
                         [
@@ -941,9 +1276,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
                             'account_id' => 221,
                             'name' => 'Employer EOBI Payable',
                             'debit' => 0,
-                            'credit' => $employeemonthlysal->eobi_employer,
+                            'credit' => round($employeemonthlysal->eobi_employer),
                         ],
                     ];
+                    $allAccounts = array_merge($allAccounts, $deductionAccounts);
                     $filteredAccounts = array_filter($allAccounts, function ($item) {
                         return ($item['debit'] ?? 0) > 0 || ($item['credit'] ?? 0) > 0;
                     });
@@ -961,6 +1297,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
                         'owned_by' => $data->employee->owned_by,
                         'created_by' => $data->employee->created_by,
                         'accounts' => array_values($filteredAccounts),
+                        'created_at' => $created_date ?? Carbon::now(),
                     ];
                     // dd($filteredAccounts,$journal_data);
                     $journal = Utility::Salaryjrentryvoucher($journal_data);
@@ -990,78 +1327,152 @@ class EmployeeMonthlySalaryAttendance extends Controller
         float $otherAdds,
         int $workingDays,
         int $monthDays,
-        int $months
+        int $months,
+        $paymode = null
     ) {
-        // 1) YTD paid tax and amounts
-        $currentMonth = date('n', strtotime($date));
-        $startDate = ($currentMonth >= 7) ? date('Y-m-d', strtotime('first day of July this year')) : date('Y-m-d', strtotime('first day of July last year'));
-        $endDate = date('Y-m-d', strtotime('last day of previous month', strtotime($date)));
-        // dd($startDate,$endDate);
-        $prevPaid = EmployeeMonthlySalary::with('salary_heads')
-            ->where('employee_id', $employee_id)
-            // ->where('status', 'paid')
-            ->whereBetween('salary_date', [$startDate, $endDate])
-            ->get();
-        // dd($prevPaid);
-        $prevTaxPaid   = $prevPaid->sum('it');
-        $prevOtherAdds = $prevPaid->sum(fn($s)=>
-            $s->conv + $s->misc + $s->drns + $s->other_add + $s->chaild_con
-        );
-
-        $prevBasicHouse = $prevPaid
-            ->flatMap(function ($month) {
-                return $month->salary_heads;
-            })
-            ->filter(function ($head) {
-                return in_array($head->SalaryHead->head ?? null, ['Initial Basic', 'House Rent']);
-            })
-            ->sum('head_value');
-        // dd($prevTaxPaid,$prevOtherAdds,$prevBasicHouse);
-        $prevSalAmnt = $prevBasicHouse + $prevOtherAdds;
-
-        // 2) annualize current heads
-        // $thisBasicHouse = collect($scaleHeads)
-        //     ->filter(fn($sh) => $sh->SalaryHead && in_array($sh->SalaryHead->head, ['Initial Basic', 'House Rent']))
-        //     ->sum('head_value');
-            
-        $totalCharges = 0;
-            foreach ($scaleHeads as $head) {
-                //initali basic + house rent
-                if ($head->SalaryHeads->head == 'Initial Basic' || $head->SalaryHeads->head == 'House Rent') {
-                    $totalCharges += $head->head_value;
-                }
-            }
-        $totalCharges   = $totalCharges + $otherAdds;
-        // dd($totalCharges,$months,$prevSalAmnt);
-        $yearlySal = ($totalCharges * $months) + $prevSalAmnt;
-
-        // 3) find slab
-        $slab = TaxSlab::where('year',$tax_year)
-            ->where(fn($q)=>
-                $q->where(fn($q2)=>
-                    $q2->where('lower_limit','<=',$yearlySal)
-                       ->where('upper_limit','>=',$yearlySal)
-                )->orWhere(fn($q2)=>
-                    $q2->where('lower_limit','<=',$yearlySal)
-                       ->whereNull('upper_limit')
-                )
-            )->firstOrFail();
-        if(!$slab){
-            return 'noslab';
-        }
-        // 4) compute prorated
-        $taxableOver  = $yearlySal - ($slab->lower_limit - 1);
-        // dd($taxableOver,$yearlySal,$tax_year);
-        $annualBase   = ($taxableOver / 100) * $slab->prev_limit_percentage;
-        $annualTax    = $annualBase + $slab->fixed_tax_amount;
-        $fullMonthTax = ($annualTax - $prevTaxPaid) / $months;
-        // dd($months,$annualTax,$fullMonthTax,$prevTaxPaid,$prevSalAmnt,round(($fullMonthTax / $monthDays) * $workingDays));
-        // prorate by days
-        $mtax = round(($fullMonthTax / $monthDays) * $workingDays);
-        if($mtax < 0){
+        if ($this->isCashPaymode($paymode)) {
             return 0;
         }
-        return $mtax;
+
+        // -----------------------------
+        // 1. FISCAL YEAR SETUP
+        // -----------------------------
+        $currentMonth = (int) date('n', strtotime($date));
+
+        $fyStart = $currentMonth >= 7
+            ? \Carbon\Carbon::create(date('Y'), 7, 1)
+            : \Carbon\Carbon::create(date('Y') - 1, 7, 1);
+
+        $fyEnd = \Carbon\Carbon::parse($date)->subMonth()->endOfMonth();
+
+        // -----------------------------
+        // 2. PREVIOUS SALARY (YTD)
+        // -----------------------------
+        $prevPaid = EmployeeMonthlySalary::with('scaleHeads.salaryHeads')
+            ->where('employee_id', $employee_id)
+            ->whereBetween('salary_date', [$fyStart, $fyEnd])
+            ->where(function ($query) {
+                $query->whereNull('paymode')
+                    ->orWhereRaw('LOWER(TRIM(paymode)) != ?', ['cash']);
+            })
+            ->get();
+
+        $prevTaxPaid = (float) $prevPaid->sum('it');
+        $prevTaxPaid += $this->approvedAdvanceTaxCollection($employee_id, $fyStart, \Carbon\Carbon::parse($date));
+
+        $prevOtherAdds = $prevPaid->sum(function ($s) {
+            return
+                ($s->misc ?? 0) +
+                ($s->drns ?? 0) +
+                ($s->other_add ?? 0) ;
+        });
+		$prevSalAmnt = 0;
+
+        foreach ($prevPaid as $sal) {
+
+                 foreach ($sal->scaleHeads as $head) {
+
+                // foreach ($sal->salary_heads as $head) {
+                //     if (
+                //         $head->SalaryHead &&
+                //         in_array($head->SalaryHead->head, ['Initial Basic', 'House Rent'])
+                //     ) {
+                //         $prevSalAmnt += $head->head_value;
+                //     }
+                // }
+                 if (
+                        $head->salaryHeads &&
+                        $this->isTaxableSalaryHead($head->salaryHeads->head)
+                    ) {
+                        $prevSalAmnt += $head->head_value;
+                    }
+                }
+
+                $prevSalAmnt +=
+                    ($sal->misc ?? 0) +
+                    ($sal->drns ?? 0) +
+                    ($sal->other_add ?? 0);
+            }
+
+        // -----------------------------
+        // 3. CURRENT SCALE SALARY
+        // -----------------------------
+        $monthlyBase = 0;
+
+        foreach ($scaleHeads as $head) {
+            if (
+                $head->SalaryHeads &&
+                $this->isTaxableSalaryHead($head->SalaryHeads->head)
+            ) {
+                $monthlyBase += $head->head_value;
+            }
+        }
+
+        $monthlyBase += $otherAdds;
+
+        // -----------------------------
+        // 4. PROJECTED INCOME (IMPORTANT FIX)
+        // -----------------------------
+        $projectedIncome = $monthlyBase * $months;
+
+        $yearlySal = $prevSalAmnt + $projectedIncome;
+        // -----------------------------
+        // 6. TAX YEAR
+        // -----------------------------
+        $currentYear = date('Y');
+        if ($currentMonth <= 6) {
+            $currentYear--;
+        }
+
+        // -----------------------------
+        // 5. TAX SLAB
+        // -----------------------------
+        $slab = TaxSlab::where('year', $currentYear)
+            ->where(function ($query) use ($yearlySal) {
+                $query->where(function ($q) use ($yearlySal) {
+                    $q->where('lower_limit', '<=', $yearlySal)
+                        ->where('upper_limit', '>=', $yearlySal);
+                })
+                ->orWhere(function ($q) use ($yearlySal) {
+                    $q->where('lower_limit', '<=', $yearlySal)
+                        ->whereNull('upper_limit');
+                });
+            })
+            ->first();
+
+        if (!$slab) {
+            return 0;
+        }
+
+        // -----------------------------
+        // 6. TAX CALCULATION (CORRECT METHOD)
+        // -----------------------------
+        $taxableAmount = $yearlySal - ($slab->lower_limit - 1);
+
+        $annualTax = ($taxableAmount * $slab->prev_limit_percentage) / 100
+                    + $slab->fixed_tax_amount;
+
+        $remainingTax = max($annualTax - $prevTaxPaid, 0);
+
+        // -----------------------------
+        // 7. MONTHLY TAX DISTRIBUTION
+        // -----------------------------
+        $monthlyTax = $months > 0 ? $remainingTax / $months : 0;
+
+        $monthlyTax = max($monthlyTax, 0);
+
+        // -----------------------------
+        // 8. DAILY PRORATION (FINAL STEP)
+        // -----------------------------
+        if ($monthDays <= 0) {
+            return 0;
+        }
+
+        // $dailyTax = $monthlyTax / $monthDays;
+
+        // $finalTax = round($dailyTax * $workingDays);
+        $finalTax = round($monthlyTax);
+        return max($finalTax, 0);
     }
     // return response()->json([
     //     'success' => true,
@@ -1087,20 +1498,91 @@ class EmployeeMonthlySalaryAttendance extends Controller
      */
     public function update(Request $request, $id)
     {
-        $emp_sal = EmployeeMonthlySalary::findOrFail($id);
-        $emp_sal->conv = $request->conv ? $request->conv : '0';
-        $emp_sal->chaild_con = $request->chaild_concession ? $request->chaild_concession : '0';
-        $emp_sal->drns = $request->drns ? $request->drns : '0';
-        $emp_sal->misc = $request->misc ? $request->misc : '0';
-        $emp_sal->stop_sal = 0;
-        $emp_sal->it = $request->itax ? $request->itax : '0';
-        $emp_sal->dedu = $request->other_deduction ? $request->other_deduction : '0';
-        $emp_sal->tra_course = 0;
-        $emp_sal->sal_advance = $request->advance ? $request->advance : '0';
-        $emp_sal->prc_final = 0;
-        $emp_sal->net_pay = $request->net ? $request->net : '0';
-        $emp_sal->save();
-        return redirect()->back()->with('success', 'Employee Salary Updated Successfully !');
+        \DB::beginTransaction();
+        try {
+            $emp_sal = EmployeeMonthlySalary::with('employee')->findOrFail($id);
+            $salaryDate = Carbon::parse($emp_sal->salary_date);
+            $salaryAttendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $emp_sal->employee_id)
+                ->whereMonth('for_month_of', $salaryDate->month)
+                ->whereYear('for_month_of', $salaryDate->year)
+                ->first();
+
+            if (!in_array(trim(strtolower($emp_sal->status ?? 'unpaid')), ['unpaid', 'returned_to_hr'], true)) {
+                \DB::rollBack();
+                return redirect()->back()->with('error', 'Paid, approved or forwarded salary can not be edited.');
+            }
+
+            if ((int) optional($salaryAttendance)->gm_final === 1) {
+                \DB::rollBack();
+                return redirect()->back()->with('error', 'GM finalized salary can not be edited. Please unfinalize salary first.');
+            }
+
+            $oldEarnings = (float) $emp_sal->conv
+                + (float) $emp_sal->other_add
+                + (float) $emp_sal->chaild_con
+                + (float) $emp_sal->drns
+                + (float) $emp_sal->misc;
+            $emp_sal->conv = (float) ($request->conv ?? 0);
+            $emp_sal->other_add = (float) ($request->other_add ?? 0);
+            $emp_sal->chaild_con = (float) ($request->chaild_concession ?? 0);
+            $emp_sal->drns = (float) ($request->drns ?? 0);
+            $emp_sal->misc = (float) ($request->misc ?? 0);
+            $emp_sal->remarks = $request->remarks;
+            $emp_sal->it = (float) ($request->itax ?? 0);
+            $emp_sal->dedu = (float) ($request->other_deduction ?? 0);
+            $emp_sal->tra_course = 0;
+            $emp_sal->sal_advance = (float) ($request->advance ?? 0);
+            $emp_sal->prc_final = 0;
+
+            $newEarnings = (float) $emp_sal->conv
+                + (float) $emp_sal->other_add
+                + (float) $emp_sal->chaild_con
+                + (float) $emp_sal->drns
+                + (float) $emp_sal->misc;
+            $newEditableDeductions = (float) $emp_sal->it
+                + (float) $emp_sal->dedu
+                + (float) $emp_sal->sal_advance;
+            $earningDifference = $newEarnings - $oldEarnings;
+
+            $emp_sal->gross = round((float) $emp_sal->gross + $earningDifference);
+            $totalDeductions = (float) $emp_sal->loan
+                + (float) $emp_sal->emp_sec_loan
+                + (float) $emp_sal->emp_sec
+                + (float) $emp_sal->pessi
+                + (float) $emp_sal->eobi
+                + $newEditableDeductions
+                + (float) $emp_sal->tra_course;
+            $emp_sal->net_pay = round(max(0, (float) $emp_sal->gross + (float) $emp_sal->stop_sal - $totalDeductions));
+            $emp_sal->save();
+
+            $lastPayscaleDetail = EmployeePayscaleDetail::where('employee_id', $emp_sal->employee_id)
+                ->whereDate('effect_from', '<=', $salaryDate->copy()->endOfMonth()->format('Y-m-d'))
+                ->orderByDesc('effect_from')
+                ->orderByDesc('id')
+                ->first();
+
+            if (!$lastPayscaleDetail) {
+                throw new \RuntimeException('Employee payscale detail not found for salary month.');
+            }
+
+            $accounts = $this->salaryJournalAccounts($emp_sal, $lastPayscaleDetail);
+            $totalDebit = collect($accounts)->sum('debit');
+            $totalCredit = collect($accounts)->sum('credit');
+            if (round($totalDebit, 2) !== round($totalCredit, 2)) {
+                throw new \RuntimeException(
+                    'Salary voucher is not balanced. Debit: ' . round($totalDebit, 2)
+                    . ', Credit: ' . round($totalCredit, 2)
+                );
+            }
+
+            $this->updateSalaryJournalVoucher($emp_sal, $accounts);
+
+            \DB::commit();
+            return redirect()->back()->with('success', 'Employee Salary and Voucher Updated Successfully!');
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return redirect()->back()->with('error', $e->getMessage());
+        }
     }
 
     /**
@@ -1155,7 +1637,10 @@ class EmployeeMonthlySalaryAttendance extends Controller
         // {
         // dd($request->all());
         $ids = $request->input('employee_ids');
-        $date = $request->input('date');
+        $date = $this->normalizeRequestMonthDate($request);
+        if (!$date) {
+            return response()->json(['success' => false, 'message' => __('Please select month.')]);
+        }
         $month = date('m', strtotime($date));
         $year = date('Y', strtotime($date));
 
@@ -1163,6 +1648,7 @@ class EmployeeMonthlySalaryAttendance extends Controller
             return response()->json(['success' => false, 'message' => __('No entries selected for Paid.')]);
         }
         $errors = [];
+        $paidIds = [];
         \DB::beginTransaction();
 
         try {
@@ -1172,14 +1658,32 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     ->whereYear('salary_date', $year)
                     ->where('status', '!=', 'paid')
                     ->first();
-                    if($salary->sal_final == 0){
-                        $errors[] = "Salary not finalized for employee with ID: " . $id;
-                        continue;
-                    }
-                    if($salary->on_hold == 1){
-                        $errors[] = "Salary On_Hold u can not paid: " . $id;
-                        continue;
-                    }
+
+                if (!$salary) {
+                    $errors[] = __('Salary not found or already paid for employee ID: ' . $id);
+                    continue;
+                }
+
+                $attendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $id)
+                    ->whereMonth('for_month_of', $month)
+                    ->whereYear('for_month_of', $year)
+                    ->first();
+
+                if (!$attendance || (int) $attendance->adm_final !== 1) {
+                    $errors[] = "Salary not admin approved for employee with ID: " . $id;
+                    continue;
+                }
+
+                if ($salary->sal_final == 0) {
+                    $errors[] = "Salary not finalized for employee with ID: " . $id;
+                    continue;
+                }
+
+                if ($salary->on_hold == 1) {
+                    $errors[] = "Salary On_Hold u can not paid: " . $id;
+                    continue;
+                }
+
                 if ($salary) {
                     //voucher 
 
@@ -1249,20 +1753,711 @@ class EmployeeMonthlySalaryAttendance extends Controller
                     $salary->save();
                     $payment->journal_id = $voucher;
                     $payment->save();
-                } else {
-                    $errors[] = __('Employee not found with ID: ' . $id);
-                    continue;
+                    $paidIds[] = $salary->id;
                 }
-                \DB::commit();
             }
+
+            if (empty($paidIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was paid.'),
+                ]);
+            }
+
+            \DB::commit();
             return response()->json([
                 'success' => true,
                 'message' => 'Salary Paid successfully.',
                 'error' => $errors
             ]);
-            } catch (\Exception $e) {
+        } catch (\Exception $e) {
             \DB::rollback();
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function forwardToAccounts(Request $request)
+    {
+        $ids = $request->input('employee_ids');
+        $date = $this->normalizeRequestMonthDate($request);
+
+        if (!$date) {
+            return response()->json(['success' => false, 'message' => __('Please select month.')]);
+        }
+
+        if (!$ids) {
+            return response()->json(['success' => false, 'message' => __('No entries selected for forward to accounts.')]);
+        }
+
+        $month = date('m', strtotime($date));
+        $year = date('Y', strtotime($date));
+        $errors = [];
+        $forwardedIds = [];
+
+        \DB::beginTransaction();
+        try {
+            foreach ($ids as $id) {
+                $salary = EmployeeMonthlySalary::with('employee')
+                    ->where('employee_id', $id)
+                    ->whereMonth('salary_date', $month)
+                    ->whereYear('salary_date', $year)
+                    ->first();
+
+                if (!$salary) {
+                    $errors[] = __('Salary not found for employee ID: ' . $id);
+                    continue;
+                }
+
+                $attendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $id)
+                    ->whereMonth('for_month_of', $month)
+                    ->whereYear('for_month_of', $year)
+                    ->first();
+
+                $employeeName = optional($salary->employee)->name ?: $id;
+                $salaryStatus = trim(strtolower((string) ($salary->status ?? 'unpaid')));
+
+                if ($salaryStatus === 'fwd_to_account') {
+                    $errors[] = __('Salary already forwarded to accounts for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ($salaryStatus === 'account_approved') {
+                    $errors[] = __('Account manager approved salary cannot be forwarded again for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ($salaryStatus === 'paid') {
+                    $errors[] = __('Paid salary cannot be forwarded again for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if (!$attendance || (int) $attendance->gm_final !== 1) {
+                    $errors[] = __('Salary must be HR Final before forwarding to accounts for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ((int) $salary->sal_final !== 1) {
+                    $errors[] = __('Salary must be finalized before forwarding to accounts for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ((int) $salary->on_hold === 1) {
+                    $errors[] = __('On hold salary cannot be forwarded to accounts for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salary->status = 'fwd_to_account';
+                $salary->save();
+                $forwardedIds[] = $salary->id;
+            }
+
+            if (empty($forwardedIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was forwarded to accounts.'),
+                ]);
+            }
+
+            \DB::commit();
+            $message = __('Salary forwarded to accounts successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function accountingSalary(Request $request)
+    {
+        $date = $this->normalizeRequestMonthDate($request);
+        if (!$date) {
+            $date = now()->startOfMonth()->format('Y-m-d');
+            $request->merge(['date' => $date]);
+        }
+
+        $monthDate = Carbon::parse($date)->startOfMonth();
+        $branches = $request->input('branches');
+        $departmentId = $request->input('department_id');
+        $designationId = $request->input('designation_id');
+        $paymode = $request->input('paymode');
+
+        $departments = Department::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+        $departments->prepend('All', 'all');
+        $designations = Designation::where('created_by', \Auth::user()->creatorId())->pluck('name', 'id');
+        $designations->prepend('All', 'all');
+
+        if (\Auth::user()->type == 'company') {
+            $branchesList = User::where('type', 'branch')->pluck('name', 'id');
+            $branchesList->prepend(\Auth::user()->name, \Auth::user()->id);
+            $branchesList->prepend('Select Branch', '');
+        } else {
+            $branchesList = User::where('id', \Auth::user()->ownedId())->pluck('name', 'id');
+            $branchesList->prepend('Select Branch', '');
+        }
+
+        $query = EmployeeMonthlySalary::with([
+            'employee',
+            'employee.userbranch',
+            'employee.department',
+            'employee.designation',
+        ])
+            ->whereIn('status', ['fwd_to_account', 'account_approved'])
+            ->where('on_hold', 0)
+            ->whereYear('salary_date', $monthDate->year)
+            ->whereMonth('salary_date', $monthDate->month);
+
+        if (\Auth::user()->type == 'company') {
+            $query->where('created_by', \Auth::user()->creatorId());
+        } else {
+            $query->where('owned_by', \Auth::user()->ownedId());
+        }
+
+        if ($branches) {
+            $query->where('owned_by', $branches);
+        }
+
+        if ($paymode && $paymode != 'all') {
+            $query->whereRaw('TRIM(paymode) = ?', [trim($paymode)]);
+        }
+
+        if ($departmentId && $departmentId != 'all') {
+            $query->whereHas('employee', function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId);
+            });
+        }
+
+        if ($designationId && $designationId != 'all') {
+            $query->whereHas('employee', function ($q) use ($designationId) {
+                $q->where('designation_id', $designationId);
+            });
+        }
+
+        $salaries = $query->get()
+            ->sortBy(fn($salary) => strtolower(optional($salary->employee)->name ?? ''))
+            ->values();
+
+        return view('employee.monthly_salary_attendance.accounting_salary', compact(
+            'branchesList',
+            'departments',
+            'designations',
+            'date',
+            'salaries'
+        ));
+    }
+
+    public function accountingSalaryApprove(Request $request)
+    {
+        $ids = array_filter((array) $request->input('salary_ids', []));
+
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => __('Please select at least one salary.')]);
+        }
+
+        $errors = [];
+        $approvedIds = [];
+
+        \DB::beginTransaction();
+        try {
+            $salaries = EmployeeMonthlySalary::with('employee')
+                ->whereIn('id', $ids)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($salaries as $salary) {
+                $employeeName = optional($salary->employee)->name ?: $salary->employee_id;
+                $salaryStatus = trim(strtolower((string) ($salary->status ?? 'unpaid')));
+
+                if ($salaryStatus !== 'fwd_to_account') {
+                    $errors[] = __('Salary is not pending accounts approval for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ((int) $salary->on_hold === 1) {
+                    $errors[] = __('On hold salary cannot be approved for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salaryDate = Carbon::parse($salary->salary_date);
+                $attendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $salary->employee_id)
+                    ->whereYear('for_month_of', $salaryDate->year)
+                    ->whereMonth('for_month_of', $salaryDate->month)
+                    ->first();
+
+                if (!$attendance || (int) $attendance->gm_final !== 1 || (int) $salary->sal_final !== 1) {
+                    $errors[] = __('Salary must be HR Final and Salary Final before accounts approval for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salary->status = 'account_approved';
+                $salary->save();
+                $approvedIds[] = $salary->id;
+            }
+
+            if (empty($approvedIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was approved.'),
+                ]);
+            }
+
+            \DB::commit();
+            $message = __('Salary approved by accounts manager successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function accountingSalaryReturn(Request $request)
+    {
+        $ids = array_filter((array) $request->input('salary_ids', []));
+
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => __('Please select at least one salary.')]);
+        }
+
+        $errors = [];
+        $returnedIds = [];
+
+        \DB::beginTransaction();
+        try {
+            $salaries = EmployeeMonthlySalary::with('employee')
+                ->whereIn('id', $ids)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($salaries as $salary) {
+                $employeeName = optional($salary->employee)->name ?: $salary->employee_id;
+                $salaryStatus = trim(strtolower((string) ($salary->status ?? 'unpaid')));
+
+                if (!in_array($salaryStatus, ['fwd_to_account', 'account_approved'], true)) {
+                    $errors[] = __('Only forwarded or accounts approved salary can be returned for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salaryDate = Carbon::parse($salary->salary_date);
+                ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $salary->employee_id)
+                    ->whereYear('for_month_of', $salaryDate->year)
+                    ->whereMonth('for_month_of', $salaryDate->month)
+                    ->update(['gm_final' => 0]);
+
+                $salary->status = 'returned_to_hr';
+                $salary->sal_final = 0;
+                $salary->save();
+                $returnedIds[] = $salary->id;
+            }
+
+            if (empty($returnedIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was returned to HR.'),
+                ]);
+            }
+
+            \DB::commit();
+            $message = __('Salary returned to HR Admin successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function accountingSalaryPayModal(Request $request)
+    {
+        $ids = array_filter((array) $request->input('salary_ids', []));
+
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => __('Please select at least one salary.')], 422);
+        }
+
+        $selectedCount = count($ids);
+        $salaries = EmployeeMonthlySalary::with('employee')
+            ->whereIn('id', $ids)
+            ->where('status', 'account_approved')
+            ->where('on_hold', 0)
+            ->get();
+
+        if ($salaries->isEmpty() || $salaries->count() !== $selectedCount) {
+            return response()->json(['success' => false, 'message' => __('Only accounts approved salaries can be paid.')], 422);
+        }
+
+        $bankAccounts = BankAccount::where(function ($q) {
+                $q->where('created_by', \Auth::user()->creatorId())
+                    ->orWhere('owned_by', \Auth::user()->ownedId());
+            })
+            ->orderBy('bank_name')
+            ->get()
+            ->mapWithKeys(function ($bank) {
+                $label = trim($bank->bank_name . ' - ' . $bank->holder_name . ' (' . $bank->account_number . ')');
+                return [$bank->id => $label];
+            });
+        $bankAccounts->prepend('Select Bank Account', '');
+
+        return view('employee.monthly_salary_attendance.accounting_salary_pay_modal', [
+            'salaries' => $salaries,
+            'bankAccounts' => $bankAccounts,
+            'salaryIds' => $salaries->pluck('id')->all(),
+            'totalAmount' => $salaries->sum('net_pay'),
+        ]);
+    }
+
+    public function accountingSalaryPay(Request $request)
+    {
+        $request->validate([
+            'salary_ids' => 'required|array|min:1',
+            'salary_ids.*' => 'integer',
+            'bank_id' => 'required|integer',
+            'payment_date' => 'required|date',
+            'reference' => 'nullable|string|max:191',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $bank = BankAccount::where('id', $request->bank_id)
+            ->where(function ($q) {
+                $q->where('created_by', \Auth::user()->creatorId())
+                    ->orWhere('owned_by', \Auth::user()->ownedId());
+            })
+            ->first();
+
+        if (!$bank || empty($bank->chart_account_id)) {
+            return response()->json(['success' => false, 'message' => __('Please select a valid bank account with chart account.')]);
+        }
+
+        $errors = [];
+        $paidIds = [];
+
+        \DB::beginTransaction();
+        try {
+            $salaries = EmployeeMonthlySalary::with('employee')
+                ->whereIn('id', $request->salary_ids)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($salaries as $salary) {
+                $employeeName = optional($salary->employee)->name ?: $salary->employee_id;
+
+                if (trim(strtolower((string) $salary->status)) !== 'account_approved') {
+                    $errors[] = __('Salary is not approved by accounts manager for ') . $employeeName . '.';
+                    continue;
+                }
+
+                if ((int) $salary->on_hold === 1) {
+                    $errors[] = __('On hold salary cannot be paid for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $attendance = ModelsEmployeeMonthlySalaryAttendance::where('employee_id', $salary->employee_id)
+                    ->whereYear('for_month_of', Carbon::parse($salary->salary_date)->year)
+                    ->whereMonth('for_month_of', Carbon::parse($salary->salary_date)->month)
+                    ->first();
+
+                if (!$attendance || (int) $attendance->gm_final !== 1) {
+                    $errors[] = __('Salary must be HR Final before payment for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $salarydetail = EmployeePayscaleDetail::where('employee_id', $salary->employee_id)->latest()->first();
+                if (!$salarydetail || empty($salarydetail->net_payable_account)) {
+                    $errors[] = __('Net payable account not found for ') . $employeeName . '.';
+                    continue;
+                }
+
+                $reference = $request->reference ?: 'SAL-' . $salary->id;
+
+                $payment = SalaryPayment::create([
+                    'employee_id' => $salary->employee_id,
+                    'salary_id' => $salary->id,
+                    'net_pay' => round($salary->net_pay),
+                    'bank_id' => $bank->id,
+                    'account_number' => $salary->account_number ?: $salarydetail->account_number,
+                    'payment_method' => $salary->paymode ?: $salarydetail->paymode,
+                    'reference' => $reference,
+                    'description' => $request->description ?: 'Salary paid for ' . $employeeName . ' (Salary ID: ' . $salary->id . ') for the month of ' . date('F Y', strtotime($salary->salary_date)),
+                    'owned_by' => optional($salary->employee)->owned_by ?: $salary->owned_by,
+                    'created_by' => optional($salary->employee)->created_by ?: $salary->created_by,
+                ]);
+
+                $journalData = [
+                    'date' => $request->payment_date,
+                    'reference' => $reference,
+                    'employee_name' => $employeeName,
+                    'no' => $salary->id,
+                    'salary_month' => date('F Y', strtotime($salary->salary_date)),
+                    'id' => $salary->id,
+                    'category' => 'salary',
+                    'user_id' => optional($salary->employee)->user_id,
+                    'user_type' => 'employee',
+                    'owned_by' => optional($salary->employee)->owned_by ?: $salary->owned_by,
+                    'created_by' => optional($salary->employee)->created_by ?: $salary->created_by,
+                    'accounts' => [
+                        [
+                            'account_id' => $bank->chart_account_id,
+                            'name' => 'Bank Account Credit against salary ' . $salary->id . ' of ' . $employeeName,
+                            'debit' => 0,
+                            'credit' => round($salary->net_pay),
+                        ],
+                        [
+                            'account_id' => $salarydetail->net_payable_account,
+                            'name' => 'Net Salary Payable',
+                            'debit' => round($salary->net_pay),
+                            'credit' => 0,
+                        ],
+                    ],
+                ];
+
+                $voucher = Utility::Salarybrvvoucher($journalData);
+
+                $salary->status = 'paid';
+                $salary->paid_date = $request->payment_date;
+                $salary->save();
+
+                $payment->journal_id = $voucher;
+                $payment->save();
+                $paidIds[] = $salary->id;
+            }
+
+            if (empty($paidIds)) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' ', $errors) ?: __('No salary was paid.'),
+                ]);
+            }
+
+            \DB::commit();
+            $message = __('Salary paid successfully.');
+            if (!empty($errors)) {
+                $message .= ' ' . implode(' ', $errors);
+            }
+
+            return response()->json(['success' => true, 'message' => $message]);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    private function salaryDeductionVoucherAccounts($salary, $lastPayscaleDetail): array
+    {
+        $details = SalaryDeductionDetail::where('salary_id', $salary->id)
+            ->whereIn('type', ['loan', 'advance'])
+            ->get();
+
+        $accounts = [];
+        foreach ($details as $detail) {
+            $accountId = $detail->coa_id;
+            if (!$accountId && $detail->type == 'loan' && $detail->sub_type == 'security') {
+                $accountId = $lastPayscaleDetail->security_receive_account ?? null;
+            } elseif (!$accountId && $detail->type == 'loan') {
+                $accountId = $lastPayscaleDetail->other_dedu_payable_account ?? null;
+            } elseif (!$accountId && $detail->type == 'advance') {
+                $accountId = 216;
+            }
+
+            if (!$accountId) {
+                continue;
+            }
+
+            if ($detail->type == 'advance') {
+                $name = 'Advance Salary';
+            } elseif ($detail->sub_type == 'security') {
+                $name = 'Employee Security Payable';
+            } else {
+                $name = 'Loan Deduction Payable';
+            }
+
+            $key = $detail->type . '-' . $detail->sub_type . '-' . $accountId;
+            if (!isset($accounts[$key])) {
+                $accounts[$key] = [
+                    'account_id' => $accountId,
+                    'name' => $name,
+                    'debit' => 0,
+                    'credit' => 0,
+                ];
+            }
+
+            $accounts[$key]['credit'] += round($detail->amount);
+        }
+
+        return array_values($accounts);
+    }
+
+    private function salaryJournalAccounts(EmployeeMonthlySalary $salary, EmployeePayscaleDetail $payscale): array
+    {
+        $accounts = [
+            [
+                'account_id' => 216,
+                'name' => 'Salary Expense (Basic + Med + Rent + Sec)',
+                'debit' => round((float) $salary->gross),
+                'credit' => 0,
+            ],
+            [
+                'account_id' => 258,
+                'name' => 'Salary Expense - Employer PASSI',
+                'debit' => round((float) $salary->pessi_employer),
+                'credit' => 0,
+            ],
+            [
+                'account_id' => 217,
+                'name' => 'Salary Expense - Employer EOBI',
+                'debit' => round((float) $salary->eobi_employer),
+                'credit' => 0,
+            ],
+            [
+                'account_id' => $payscale->security_receive_account,
+                'name' => 'Employee Security Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->emp_sec),
+            ],
+            [
+                'account_id' => $payscale->tax_payable_account,
+                'name' => 'Tax Payable (Income Tax)',
+                'debit' => 0,
+                'credit' => round((float) $salary->it),
+            ],
+            [
+                'account_id' => $payscale->eobi_payable_account,
+                'name' => 'EOBI Payable (Employee)',
+                'debit' => 0,
+                'credit' => round((float) $salary->eobi),
+            ],
+            [
+                'account_id' => $payscale->pessi_payable_account,
+                'name' => 'PASSI Payable (Employee)',
+                'debit' => 0,
+                'credit' => round((float) $salary->pessi),
+            ],
+            [
+                'account_id' => $payscale->other_dedu_payable_account,
+                'name' => 'Other Deduction Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->dedu),
+            ],
+            [
+                'account_id' => $payscale->net_payable_account,
+                'name' => 'Net Salary Payable',
+                'debit' => 0,
+                'credit' => round(max(0, (float) $salary->net_pay - (float) $salary->stop_sal)),
+            ],
+            [
+                'account_id' => 225,
+                'name' => 'Employer PASSI Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->pessi_employer),
+            ],
+            [
+                'account_id' => 221,
+                'name' => 'Employer EOBI Payable',
+                'debit' => 0,
+                'credit' => round((float) $salary->eobi_employer),
+            ],
+        ];
+
+        $deductionAccounts = $this->salaryDeductionVoucherAccounts($salary, $payscale);
+        $recordedAdvance = SalaryDeductionDetail::where('salary_id', $salary->id)
+            ->where('type', 'advance')
+            ->sum('amount');
+        $advanceDifference = round((float) $salary->sal_advance - (float) $recordedAdvance);
+
+        if ($advanceDifference != 0) {
+            $deductionAccounts[] = [
+                'account_id' => $payscale->advance_payable_account ?: 216,
+                'name' => 'Advance Salary Adjustment',
+                'debit' => $advanceDifference < 0 ? abs($advanceDifference) : 0,
+                'credit' => $advanceDifference > 0 ? $advanceDifference : 0,
+            ];
+        }
+
+        return array_values(array_filter(
+            array_merge($accounts, $deductionAccounts),
+            fn($account) => !empty($account['account_id'])
+                && ((float) ($account['debit'] ?? 0) != 0 || (float) ($account['credit'] ?? 0) != 0)
+        ));
+    }
+
+    private function updateSalaryJournalVoucher(EmployeeMonthlySalary $salary, array $accounts): void
+    {
+        $employee = $salary->employee;
+        if (!$employee) {
+            throw new \RuntimeException('Employee not found for salary voucher.');
+        }
+
+        $journal = $salary->voucher_id
+            ? JournalEntry::where('id', $salary->voucher_id)
+                ->where('voucher_type', 'JV')
+                ->first()
+            : null;
+
+        if (!$journal) {
+            $journalId = Utility::Salaryjrentryvoucher([
+                'date' => $salary->salary_date,
+                'reference' => 'SAL-' . $salary->id,
+                'employee_name' => $employee->name,
+                'no' => $salary->id,
+                'salary_month' => date('F Y', strtotime($salary->salary_date)),
+                'id' => $salary->id,
+                'category' => 'salary',
+                'user_id' => $employee->user_id,
+                'user_type' => 'employee',
+                'owned_by' => $employee->owned_by,
+                'created_by' => $employee->created_by,
+                'accounts' => $accounts,
+                'created_at' => $salary->created_at,
+                'updated_at' => now(),
+            ]);
+
+            if (!is_numeric($journalId)) {
+                throw new \RuntimeException('Unable to create salary voucher.');
+            }
+
+            $salary->voucher_id = $journalId;
+            $salary->save();
+            return;
+        }
+
+        $journal->date = $salary->salary_date;
+        $journal->reference = 'SAL-' . $salary->id;
+        $journal->description = 'Salary for ' . $employee->name
+            . ' (Salary ID: ' . $salary->id . ') for the month of '
+            . date('F Y', strtotime($salary->salary_date));
+        $journal->reference_id = $salary->id;
+        $journal->category = 'salary';
+        $journal->user_id = $employee->user_id;
+        $journal->user_type = 'employee';
+        $journal->owned_by = $employee->owned_by;
+        $journal->created_by = $employee->created_by;
+        $journal->save();
+
+        JournalItem::where('journal', $journal->id)->delete();
+
+        foreach ($accounts as $account) {
+            JournalItem::create([
+                'journal' => $journal->id,
+                'account' => $account['account_id'],
+                'description' => $account['name'] . ' against the salary no '
+                    . $salary->id . ' for the month of '
+                    . date('F Y', strtotime($salary->salary_date)),
+                'debit' => $account['debit'],
+                'credit' => $account['credit'],
+            ]);
         }
     }
 

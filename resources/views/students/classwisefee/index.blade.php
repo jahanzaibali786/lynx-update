@@ -122,6 +122,12 @@
                                     {{ Form::select('class', $class, isset($_GET['class']) ? $_GET['class'] : '', ['class' => 'form-control select', 'id' => 'class_select', 'required' => 'required']) }}
                                 </div>
                             </div>
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
+                                    {{ Form::label('type', __('Structure Type'), ['class' => 'form-label']) }}
+                                    {{ Form::select('type', $structureTypes, isset($_GET['type']) ? $_GET['type'] : 'regular', ['class' => 'form-control select']) }}
+                                </div>
+                            </div>
 
                             <div class="col-auto float-end ms-2 mt-4">
                                 <button type="submit" class="btn mx-1 btn-sm btn-outline-primary"
@@ -158,7 +164,8 @@
                 <thead>
                     <tr class="table_heads" style="background-color:grey; font-size:0.6rem;">
                         <th style="width:5%;">{{ __('No.') }}</th>
-                        <th style="width:75%;">{{ __('Account Fee Head') }}</th>
+                        <th style="width:10%;">{{ __('Type') }}</th>
+                        <th style="width:65%;">{{ __('Account Fee Head') }}</th>
                         <th style="width:20%;">{{ __('Amount') }}</th>
                     </tr>
                 </thead>
@@ -167,6 +174,7 @@
                         @foreach ($heads as $account)
                             <tr style="font-size:0.8rem;">
                                 <td style="text-align: center;">{{ $loop->iteration }}</td>
+                                <td>{{ isset($_GET['type']) && $_GET['type'] === 'teacher_child' ? 'Teacher Child' : 'Regular' }}</td>
                                 <td>{{ !empty($account->fee_head) ? @$account->fee_head : '-' }}</td>
                                 <td>
                                     <input type="number" name="account_value[]" id="" style="max-width: 200px"
@@ -189,6 +197,7 @@
             value="{{ isset($_GET['branches']) ? $_GET['branches'] : '' }}">
         <input type="hidden" name="session" id="" value="{{ isset($_GET['session']) ? $_GET['session'] : '' }}">
         <input type="hidden" name="class" id="" value="{{ isset($_GET['class']) ? $_GET['class'] : '' }}">
+        <input type="hidden" name="type" id="" value="{{ isset($_GET['type']) ? $_GET['type'] : 'regular' }}">
 
         @if (!empty($classfee))
             <div class="modal-footer p-3">

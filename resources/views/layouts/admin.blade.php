@@ -18,6 +18,7 @@
     $meta_image = \App\Models\Utility::get_file('uploads/meta/');
     $meta_logo = isset($getseo['meta_image']) ? $getseo['meta_image'] : '';
     $get_cookie = \App\Models\Utility::getCookieSetting();
+    $useCustomSidebar = request()->query('sidebar') === 'acrn' ? false : true;
 
 @endphp
 <!DOCTYPE html>
@@ -113,9 +114,7 @@
         
     </style>
 
-    <title>
-        {{ Utility::getValByName('title_text') ? Utility::getValByName('title_text') : config('app.name', 'ERPGO') }}
-        - @yield('page-title')</title>
+    <title>@yield('page-title')</title>
 
     <meta name="title" content="{{ $metatitle }}">
     <meta name="description" content="{{ $metsdesc }}">
@@ -193,10 +192,11 @@
 
 
     <!-- Vendor Scripts Start -->
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
-    {{-- /  fontawesome cdn/    --}}
-    {{-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/fontawesome.min.css" integrity="sha512-v8QQ0YQ3H4K6Ic3PJkym91KoeNT5S3PnDKvqnwqFD1oiqIl653crGZplPdU5KKtHjO0QKcQ2aUlQZYjHczkmGw==" crossorigin="anonymous" referrerpolicy="no-referrer" /> --}}
+    <!--<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>-->
+    <!--<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>-->
+    <!--{{-- /  fontawesome cdn/    --}}-->
+    <!--{{-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/fontawesome.min.css" integrity="sha512-v8QQ0YQ3H4K6Ic3PJkym91KoeNT5S3PnDKvqnwqFD1oiqIl653crGZplPdU5KKtHjO0QKcQ2aUlQZYjHczkmGw==" crossorigin="anonymous" referrerpolicy="no-referrer" /> --}}-->
+    
     <script src="{{ asset('public/acron/jquery-3.5.1.min.js') }}"></script>
     <script src="{{ asset('public/acron/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('public/acron/OverlayScrollbars.min.js') }}"></script>
@@ -248,11 +248,67 @@
         <link rel="stylesheet" href="{{ asset('css/custom-dark.css') }}">
     @endif
 
-    @stack('css-page')
-</head>
-{{-- <body class="{{ $color }}" class="rtl" data-bs-padding="21px"> --}}
+    @if ($useCustomSidebar)
+        <link rel="stylesheet" href="{{ asset('css/custom-sidebar.css') }}">
+        <script defer src="{{ asset('js/custom-sidebar.js') }}"></script>
+    @endif
 
-<body class="{{ $color }}" class="rtl" data-bs-padding="21px">
+    @stack('css-page')
+	<style>
+        #commonModal .modal-dialog.modal-fullscreen,
+        #commonModal .modal-dialog.modal-modal-fullscreen,
+        #commonModalOver .modal-dialog.modal-fullscreen,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen {
+            position: fixed !important;
+            top: 8px !important;
+            right: 8px !important;
+            bottom: 8px !important;
+            left: 8px !important;
+            width: auto !important;
+            max-width: none !important;
+            height: auto !important;
+            max-height: none !important;
+            margin: 0 !important;
+            transform: none !important;
+            zoom: 1 !important;
+        }
+
+        #commonModal .modal-dialog.modal-fullscreen .modal-content,
+        #commonModal .modal-dialog.modal-modal-fullscreen .modal-content,
+        #commonModalOver .modal-dialog.modal-fullscreen .modal-content,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen .modal-content {
+            height: 100% !important;
+            max-height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        #commonModal .modal-dialog.modal-fullscreen .modal-header,
+        #commonModal .modal-dialog.modal-modal-fullscreen .modal-header,
+        #commonModalOver .modal-dialog.modal-fullscreen .modal-header,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen .modal-header {
+            flex: 0 0 auto !important;
+        }
+
+        #commonModal .modal-dialog.modal-fullscreen .modal-body,
+        #commonModal .modal-dialog.modal-fullscreen .body,
+        #commonModal .modal-dialog.modal-modal-fullscreen .modal-body,
+        #commonModal .modal-dialog.modal-modal-fullscreen .body,
+        #commonModalOver .modal-dialog.modal-fullscreen .modal-body,
+        #commonModalOver .modal-dialog.modal-fullscreen .body,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen .modal-body,
+        #commonModalOver .modal-dialog.modal-modal-fullscreen .body {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow-y: auto !important;
+        }
+    </style>
+</head>
+{{-- <body class="{{ $color }} rtl" data-bs-padding="21px" data-sidebar="{{ $useCustomSidebar ? 'custom' : 'acrn' }}"> --}}
+
+<body class="{{ $color }} rtl" data-bs-padding="21px" data-sidebar="{{ $useCustomSidebar ? 'custom' : 'acrn' }}">
 
 
     <!-- [ Pre-loader ] start -->
@@ -262,7 +318,11 @@
         </div>
     </div>
 
-    @include('partials.admin.menu')
+    @if ($useCustomSidebar)
+        @include('layouts.custom-sidebar')
+    @else
+        @include('partials.admin.menu')
+    @endif
     <!-- [ navigation menu ] end -->
     <!-- [ Header ] start -->
     @include('partials.admin.header')
@@ -334,7 +394,7 @@
     <main>
         <div class="dash-container m-3">
             <div class="dash-content">
-                <div class="page-header">
+                <div class="page-header pe-4">
                     <div class="page-block">
                         <div class="row align-items-center">
                             <div class="col-auto">
@@ -354,7 +414,9 @@
                         </div>
                     </div>
                 </div>
-                @yield('content')
+                <div id="content-area">
+                    @yield('content')
+                </div>
                 <!-- [ Main Content ] end -->
             </div>
         </div>
@@ -411,6 +473,10 @@
                 const menuAnimateValue = htmlElement.getAttribute('data-menu-animate');
                 const dataBehaviour = htmlElement.getAttribute('data-behaviour');
 
+                if (!logo) {
+                    return;
+                }
+
                 if (menuAnimateValue === 'show' || dataBehaviour === 'pinned') {
                     logo.style.display = 'block';
                 } else if (menuAnimateValue === 'hidden' || dataBehaviour === 'unpinned') {
@@ -465,7 +531,10 @@
         // });
         
     </script>
-
+  @stack('script-page')
 </body>
 
 </html>
+
+
+

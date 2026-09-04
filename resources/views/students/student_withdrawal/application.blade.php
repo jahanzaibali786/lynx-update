@@ -2,11 +2,14 @@
 @section('page-title')
     {{ __('Withdrawl Application') }}
 @endsection
+@php
+    $isHO = \Auth::user()->type == 'company' || \Auth::user()->type == 'super admin';
+@endphp
 @push('script-page')
     <script src="{{ asset('js/jquery.min.js') }}"></script>
     <script src="{{ asset('js/jquery.repeater.min.js') }}"></script>
     <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
-    
+
     <script>
         $(document).ready(function() {
 
@@ -22,11 +25,14 @@
                         student_id: studentId
                     },
                     success: function(response) {
-                        if (response.error) {
-                            alert(response.error);
-                            return;
+                        if (response.admission_error) {
+                            $('#error_ch')
+                                .text(response.admission_error)
+                                .css('color', 'red')
+                                .show();
+                        } else {
+                            $('#error_ch').text('').hide();
                         }
-                        console.log(response);
 
                         $('#actual_fee').val(response.actual_fee);
                         $('#security_deposit').val(Number(response.security_deposit).toFixed(
@@ -51,7 +57,6 @@
             });
 
             $('.adj_put').on('input', function() {
-                console.log($(this).data('max'));
                 var max = parseFloat($(this).data('max')) || 0;
                 var val = parseFloat($(this).val());
                 if (isNaN(val) || val < 0) {
@@ -71,7 +76,6 @@
             let py = parseFloat($('#pya').val()) || 0; // Total available
             let originalMax = parseFloat($(this).attr('data-original-max')) || parseFloat($(this).attr('max')) || 0;
             var val = parseFloat($(this).val());
-            console.log(originalMax, py)
             // Adjust max based on py
             let currentMax = (py < originalMax) ? py : originalMax;
             $(this).attr('max', currentMax); // Set max attribute to the new max
@@ -110,8 +114,6 @@
             var headIds = [];
             var amounts = [];
             var valid = true;
-
-            console.log(challanNo);
 
             // const adjAmount = document.getElementById(challanNo).value;
 
@@ -153,36 +155,45 @@
 
 
 
-    function deleteAdjustment(id) {
-        console.log(id);
+        function deleteAdjustment(id) {
 
-            // Ensure the value is valid before proceeding
-            // if (adjAmount === "" || adjAmount < 0) {
-            //     alert("Please enter a valid adjustment amount.");
-            //     return;
-            // }
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "This adjustment will be permanently deleted!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ff3a6e', //red color for delete action
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Rollback!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
 
-            // AJAX request to submit the data
-            $.ajax({
-                url: '{{ route('delete_adjustment') }}',
-                type: 'POST',
-                data: {
-                    id: id,
-                    // adjAmount: adjAmount,
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        show_toastr('success', 'Adjustment delete successfully!', 'success');
-                        location.reload();
-                    } else {
-                        show_toastr('error', 'Failed to submit adjustment', 'error');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error("AJAX Error:", error);
-                    alert("An error occurred. Please try again.");
+                if (!result.isConfirmed) {
+                    return;
                 }
+
+                $.ajax({
+                    url: '{{ route('delete_adjustment') }}',
+                    type: 'POST',
+                    data: {
+                        id: id,
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+
+                        if (response.success) {
+                            show_toastr('success', 'Adjustment deleted successfully!', 'success');
+                            location.reload();
+                        } else {
+                            show_toastr('error', 'Failed to delete adjustment', 'error');
+                        }
+
+                    },
+                    error: function() {
+                        show_toastr('error', 'Something went wrong', 'error');
+                    }
+                });
+
             });
         }
         $(document).on('click', '.challan-detail-link', function() {
@@ -190,6 +201,8 @@
             var challanNo = $(this).data('challan_id');
 
             var py = parseFloat($('#pya').val()) || 0; // Previously stored amount
+            // console.log(py,payable,challanNo);
+            console.log(py);
 
             if (py > 0) { // ✅ If previously stored amount is greater than zero
 
@@ -253,8 +266,71 @@
         $(document).ready(function() {
             // Automatically trigger the click event
             $('#calculateBalance').trigger('click');
-            
         });
+
+        var branchSnapshot = {!! json_encode($studentwithdrawal->branch_snapshot ?? []) !!};
+        var hoSnapshot = {!! json_encode($studentwithdrawal->ho_snapshot ?? []) !!};
+
+        function applySnapshot(snapshot) {
+            if (!snapshot) return;
+            if (snapshot.actual_fee !== undefined) $('#actual_fee').val(snapshot.actual_fee);
+            if (snapshot.security_deposit !== undefined) $('#security_deposit').val(Number(snapshot.security_deposit)
+                .toFixed(2));
+            if (snapshot.security_payable !== undefined) $('#security_payable').val(snapshot.security_payable);
+            if (snapshot.other_fee !== undefined) $('#other_fee').val(snapshot.other_fee);
+            if (snapshot.other_account !== undefined) $('[name="other_account"]').val(snapshot.other_account);
+            if (snapshot.refund !== undefined) $('#refund').val(snapshot.refund);
+            if (snapshot.notice_fee !== undefined) $('#notice_fee').val(snapshot.notice_fee);
+            if (snapshot.other_deduction !== undefined) $('#other_deduction').val(snapshot.other_deduction);
+            if (snapshot.total_payables !== undefined) $('#total_payables').val(snapshot.total_payables);
+            if (snapshot.total_receivables !== undefined) $('#total_receivables').val(snapshot.total_receivables);
+            if (snapshot.net_balance !== undefined) $('#net_balance').val(snapshot.net_balance);
+            if (snapshot.beneficiary_name !== undefined) $('[name="beneficiary_name"]').val(snapshot.beneficiary_name);
+            if (snapshot.bank_name !== undefined) $('[name="bank_name"]').val(snapshot.bank_name);
+            if (snapshot.cheque_no !== undefined) $('[name="cheque_no"]').val(snapshot.cheque_no);
+            if (snapshot.cheque_date !== undefined) $('[name="cheque_date"]').val(snapshot.cheque_date);
+        }
+
+        @if (!$isHO)
+            $(document).on('click', '#sendToHoBtn', function() {
+                var formData = new FormData();
+                formData.append('_token', '{{ csrf_token() }}');
+                formData.append('actual_fee', $('#actual_fee').val());
+                formData.append('security_deposit', $('#security_deposit').val());
+                formData.append('security_payable', $('#security_payable').val());
+                formData.append('other_fee', $('#other_fee').val());
+                formData.append('other_account', $('[name="other_account"]').val());
+                formData.append('refund', $('#refund').val());
+                formData.append('notice_fee', $('#notice_fee').val());
+                formData.append('other_deduction', $('#other_deduction').val());
+                formData.append('total_payables', $('#total_payables').val());
+                formData.append('total_receivables', $('#total_receivables').val());
+                formData.append('net_balance', $('#net_balance').val());
+                formData.append('remarks', $('#remarks').val());
+                formData.append('beneficiary_name', $('[name="beneficiary_name"]').val());
+                formData.append('bank_name', $('[name="bank_name"]').val());
+                formData.append('cheque_no', $('[name="cheque_no"]').val());
+                formData.append('cheque_date', $('[name="cheque_date"]').val());
+
+                $.ajax({
+                    url: '{{ route('fwdtoho', $studentwithdrawal->id) }}',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        show_toastr('success', 'Forwarded to HO successfully.');
+                        setTimeout(function() {
+                            window.location.href = '{{ route('withdrawlstudent.index') }}';
+                        }, 1000);
+                    },
+                    error: function(xhr) {
+                        show_toastr('error', xhr.responseJSON ? xhr.responseJSON.error :
+                            'Error forwarding to HO');
+                    }
+                });
+            });
+        @endif
     </script>
 @endpush
 @section('breadcrumb')
@@ -263,12 +339,33 @@
 @endsection
 @section('action-btn')
     <div class="float-end">
-        {{-- //fwd to ho --}}
-        @if (@$studentwithdrawal->fwd_to_ho == 0 || @$studentwithdrawal->status == 'pending')
-            <a href="{{ route('fwdtoho', @$studentwithdrawal->id) }}" title="Send to Head Office"
-                class="btn btn-sm btn-outline-warning">Send to HO</a>
+        @if (!$isHO && @$studentwithdrawal->fwd_to_ho == 0)
+            <button type="button" id="sendToHoBtn" class="btn btn-sm btn-outline-warning">Send to HO</button>
         @endif
-        @if(@$withdrawal_challan)
+        @if ($isHO)
+            @if (@$studentwithdrawal->branch_snapshot)
+                <button type="button" class="btn btn-sm btn-outline-info" onclick="applySnapshot(branchSnapshot)"
+                    data-bs-title="{{ __('Branch Calculation') }}">
+                    Branch Calc
+                </button>
+            @endif
+            @if (@$studentwithdrawal->ho_snapshot)
+                <button type="button" class="btn btn-sm btn-outline-warning" onclick="applySnapshot(hoSnapshot)"
+                    data-bs-title="{{ __('Company Calculation') }}">
+                    Company Calc
+                </button>
+            @endif
+            <a href="{{ route('student_withdrawal.settlement_certificate', $studentwithdrawal->id) }}" target="_blank"
+                class="btn btn-sm btn-outline-success" data-bs-title="{{ __('Clearance Certificate') }}">
+                Clearance Certificate </a>
+            @if ($studentwithdrawal->status == 'approved')
+                <a href="{{ route('student_withdrawal.certificate_print', $studentwithdrawal->id) }}" target="_blank"
+                    class="btn btn-sm btn-outline-secondary" data-bs-title="{{ __('School Leaving Certificate') }}">
+                    SLC
+                </a>
+            @endif
+        @endif
+        @if (@$withdrawal_challan)
             <button type="button" class="btn btn-sm btn-primary"
                 onclick="window.open('{{ route('challan.show', $withdrawal_challan->id) }}', '_blank')"
                 data-bs-title="{{ __('Challan') }}">
@@ -302,7 +399,7 @@
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('expected_readmission_date', __('Expected Re-admission Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('expected_readmission_date', date('Y-m-d', strtotime('+3 months')), ['class' => 'form-control', 'readonly' => 'readonly']) }}
+                    {{ Form::date('expected_readmission_date', old('expected_readmission_date', optional($studentwithdrawal->expected_readmission_date)->format('Y-m-d') ?? date('Y-m-d', strtotime('+3 months'))), ['class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
 
@@ -348,15 +445,23 @@
                 </div>
             </div>
             <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12 mr-2">
-                {{ Form::label('remarks', __('Remarks'), ['class' => 'form-label']) }}
-                {{ Form::text('remarks', @$studentwithdrawal->remark, ['class' => 'form-control']) }}
+                {{ Form::label('remarks', __('Branch Remarks'), ['class' => 'form-label']) }}
+                {{ Form::text('remarks', @$studentwithdrawal->remark, $isHO || @$studentwithdrawal->fwd_to_ho == 1 ? ['class' => 'form-control', 'readonly' => 'readonly'] : ['class' => 'form-control']) }}
             </div>
 
         </div>
+        @if ($isHO)
+            <div class="row d-flex justify-content-start mt-1 ">
+                <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12 mr-2">
+                    {{ Form::label('ho_remarks', __('HO Remarks'), ['class' => 'form-label']) }}
+                    {{ Form::textarea('ho_remarks', @$studentwithdrawal->ho_remarks, ['class' => 'form-control', 'rows' => 3]) }}
+                </div>
+            </div>
+        @endif
         <hr>
         <div class="row d-flex justify-content-start mt-1 ">
             @if ($PrevChallan->isNotEmpty())
-                <h4>Un Paid Challans</h4>
+                <h4>Unpaid Challans</h4>
                 <table class="">
                     <thead class="table_heads">
                         <tr>
@@ -384,17 +489,18 @@
                                         onclick="deleteAdjustment('{{ $prev->challanNo }}')">Rollback</button> --}}
                                     <button type="button" class="btn btn-sm btn-primary"
                                         id="submit_{{ $prev->challanNo }}"
-                                        onclick="window.open('{{ route('challan.show', $prev->id) }}', '_blank')" data-bs-toggle="Print Challan"
-                                        data-bs-title="Send to Head Office" data-bs-title="{{ __('Preview') }}">
+                                        onclick="window.open('{{ route('challan.show', $prev->id) }}', '_blank')"
+                                        data-bs-toggle="Print Challan" data-bs-title="Send to Head Office"
+                                        data-bs-title="{{ __('Preview') }}">
                                         Preview
                                     </button>
                                 </td>
                                 <!-- <td>
-                                        <input type="number" name="form-control adj_amount{{ $prev->challanNo }}"
-                                            id="{{ $prev->challanNo }}" data-ids="{{ $prev->challanNo }}"
-                                            data-max="{{ $payable }}" class="adj_put" min="0"
-                                            max='{{ $payable }}' />
-                                    </td> -->
+                                                                <input type="number" name="form-control adj_amount{{ $prev->challanNo }}"
+                                                                    id="{{ $prev->challanNo }}" data-ids="{{ $prev->challanNo }}"
+                                                                    data-max="{{ $payable }}" class="adj_put" min="0"
+                                                                    max='{{ $payable }}' />
+                                                            </td> -->
 
                                 <td>
                                     <a href="javascript:void(0);" class="challan-detail-link btn-sm btn-primary"
@@ -415,22 +521,23 @@
                                 <td id="tot_{{ $prev->challanNo }}">
                                     {{ $prev->total_amount - $prev->concession_amount }}</td>
                                 @php
-                                    $tot = $prev->total_amount - ($prev->paid_amount + $prev->concession_amount);
-                                    $rec = $prev->total_amount - $prev->concession_amount;
+                                    $tot += $prev->total_amount - ($prev->paid_amount + $prev->concession_amount);
+                                    $rec += $prev->total_amount - $prev->concession_amount;
                                 @endphp
                             </tr>
                         @endforeach
                         <tr>
-                            <td colspan="4" style="text-align: center;"><strong> Total </strong></td>
+                            <td colspan="5" style="text-align:right;"><strong> Total </strong></td>
                             <td><strong>{{ $tot }} </strong></td>
                             <td><strong>{{ $rec }} </strong></td>
                         </tr>
                     </tbody>
                 </table>
             @else
-                <p>No previous challans available.</p>
+                <p>No pending challan All challans are paid.</p>
             @endif
         </div>
+        <hr>
         <div class="row d-flex justify-content-start mt-1 ">
             @if ($adj_entry->isNotEmpty())
                 <h4>Previous Adjustments</h4>
@@ -440,9 +547,9 @@
                             <th>#</th>
                             <th>Action</th>
                             <th>Challan No</th>
-                            <th>Adjusted Amount</th>
                             <th>Billing Month</th>
                             <th>Adjusted Date</th>
+                            <th>Adjusted Amount</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -452,7 +559,7 @@
                         @foreach ($adj_entry as $pre)
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
-                                <td> <button id="rollback_{{ $pre->id }}" class="btn btn-sm btn-danger"
+                                <td> <button type="button" id="rollback_{{ $pre->id }}" class="btn btn-sm btn-danger"
                                         onclick="deleteAdjustment('{{ $pre->id }}')">Rollback</button>
                                 </td>
 
@@ -462,20 +569,21 @@
                                         Challan No: {{ $pre->challan->challanNo }}
                                     </a>
                                 </td>
+                                <td>{{ date('M-Y', strtotime($pre->challan->fee_month)) }}</td>
+                                <td>{{ date('d-M-Y', strtotime($pre->date)) }}</td>
                                 <td>
-                                    Adjusted Amount : {{ $pre->amount }}
+                                    {{ $pre->amount }}
                                 </td>
 
-                                <td>{{ date('M-Y', strtotime($pre->challan->fee_month)) }}</td>
-                                <td>{{ date('M-Y', strtotime($pre->date)) }}</td>
+
                                 {{-- <td id="pay_{{ $pre->challan_id }}"> {{ $pre }}</td> --}}
                                 @php
-                                    $rel = $pre->amount;
+                                    $rel += $pre->amount;
                                 @endphp
                             </tr>
                         @endforeach
                         <tr>
-                            <td colspan="4" style="text-align: center;"><strong> Total Adjusted Amount </strong></td>
+                            <td colspan="5" style="text-align: right;"><strong> Total Adjusted Amount </strong></td>
                             <td><strong>{{ $rel }} </strong></td>
                         </tr>
                     </tbody>
@@ -488,13 +596,14 @@
         <div class="row d-flex justify-content-end mt-1 ">
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
-                    {{ Form::label('actual_fee', __('Actual Fee'), ['class' => 'form-label']) }}
+                    {{ Form::label('actual_fee', __('Outstanding Dues'), ['class' => 'form-label']) }}
                     {{ Form::text('actual_fee', '', ['id' => 'actual_fee', 'class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
-                    {{ Form::label('security_deposit', __('Security Deposit'), ['class' => 'form-label']) }}
+                    {{ Form::label('security_deposit', __('Security Deposit'), ['class' => 'form-label']) }} <span
+                        id="error_ch" style="font-size:12px;"></span>
                     {{ Form::text('security_deposit', '', ['id' => 'security_deposit', 'class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
@@ -507,13 +616,14 @@
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('other_fee', __('Other Fee'), ['class' => 'form-label']) }}
-                    {{ Form::text('other_fee', '0', ['id' => 'other_fee', 'class' => 'form-control', ]) }}
+                    {{ Form::text('other_fee', '0', array_merge(['id' => 'other_fee', 'class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('other_account', __('Other Account'), ['class' => 'form-label']) }}
-                    <select name="other_account" class="form-control selectbox" required="required">
+                    <select name="other_account" class="form-control selectbox" required="required"
+                        {{ !$isHO ? 'disabled' : '' }}>
                         @foreach ($all_accounts as $chartAccount)
                             <option value="{{ $chartAccount['id'] }}" class="subAccount">
                                 {{ $chartAccount['code'] . ' - ' . $chartAccount['name'] }}
@@ -529,7 +639,7 @@
                     {{ Form::text('refund', '0', ['id' => 'refund', 'class' => 'form-control', 'readonly' => 'readonly']) }}
                 </div>
             </div>
-      
+
         </div>
         <div class="row d-flex justify-content-end mt-1 ">
             <div class="col-xl-2 col-lg-2 col-md-6 col-sm-12 col-12 mr-2">
@@ -568,7 +678,7 @@
                 </div>
             </div>
         </div>
-        <div class="modal fade"  id="challanDetailModal" tabindex="-1" aria-labelledby="challanDetailModalLabel"
+        <div class="modal fade" id="challanDetailModal" tabindex="-1" aria-labelledby="challanDetailModalLabel"
             aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -588,13 +698,13 @@
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('challan_date', __('Challan Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('challan_date', '', ['class' => 'form-control', 'required' => 'required']) }}
+                    {{ Form::date('challan_date', '', array_merge(['class' => 'form-control', 'readonly' => 'readonly'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('due_date', __('Due Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('due_date', '', ['class' => 'form-control', 'required' => 'required']) }}
+                    {{ Form::date('due_date', '', array_merge(['class' => 'form-control', 'readonly' => 'readonly'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
@@ -606,41 +716,43 @@
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('invoice_date', __('Invoice Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('invoice_date', '', ['class' => 'form-control']) }}
+                    {{ Form::date('invoice_date', '', array_merge(['class' => 'form-control', 'readonly' => 'readonly'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
         </div>
         <div class="row d-flex justify-content-end mt-1 ">
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
-                    {{ Form::label('beneficiary_name', __('Beneficiary Name'), ['class' => 'form-label']) }}
-                    {{ Form::text('beneficiary_name', '', ['class' => 'form-control']) }}
+                    {{ Form::label('beneficiary_name', __('Cheque infavor of'), ['class' => 'form-label']) }}
+                    {{ Form::text('beneficiary_name', @$studentwithdrawal->beneficiary_name, array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('bank_name', __('Bank Name'), ['class' => 'form-label']) }}
-                    {{ Form::text('bank_name', '', ['class' => 'form-control']) }}
+                    {{ Form::text('bank_name', @$studentwithdrawal->bank_name, array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('cheque_no', __('Cheque No'), ['class' => 'form-label']) }}
-                    {{ Form::text('cheque_no', '', ['class' => 'form-control']) }}
+                    {{ Form::text('cheque_no', @$studentwithdrawal->cheque_no, array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                 <div class="btn-box">
                     {{ Form::label('cheque_date', __('Cheque Date'), ['class' => 'form-label']) }}
-                    {{ Form::date('cheque_date', '', ['class' => 'form-control']) }}
+                    {{ Form::date('cheque_date', @$studentwithdrawal->cheque_date, array_merge(['class' => 'form-control'], !$isHO ? ['readonly' => 'readonly'] : [])) }}
                 </div>
             </div>
-            <div class="row mt-4">
-                <div class="col text-end">
+            @if ($isHO)
+                <div class="row mt-4">
+                    <div class="col text-end">
 
-                    {{ Form::submit(__('Submit Withdrawal'), ['class' => 'btn btn-primary']) }}
+                        {{ Form::submit(__('Submit Withdrawal'), ['class' => 'btn btn-primary']) }}
+                    </div>
                 </div>
-            </div>
+            @endif
             {!! Form::close() !!}
         </div>
     @endsection

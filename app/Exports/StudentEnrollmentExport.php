@@ -11,6 +11,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use Illuminate\Contracts\View\View;
+
 class StudentEnrollmentExport implements FromView, WithEvents
 {
     protected $enrollments;
@@ -18,13 +19,14 @@ class StudentEnrollmentExport implements FromView, WithEvents
     protected $branch;
     protected $is_period;
     protected $branches;
+    protected $request;
 
-    public function __construct($enrollments,$branch,$branches)
+    public function __construct($enrollments, $branch, $branches, $request)
     {
         $this->enrollments = $enrollments;
         $this->branch = $branch;
         $this->branches = $branches;
-
+        $this->request = $request;
     }
     /**
      * Export the employee data to an Excel view.
@@ -32,20 +34,35 @@ class StudentEnrollmentExport implements FromView, WithEvents
     public function view(): View
     {
         $branch = @$this->branch;
+        
         $is_signature = false;
         $is_period = false;
-        $report_name = __('Student Enrollment Report');
-        // Pass
-        //  only the table-related data to the export view
-        return view('student.exports.enrollment', [
-            'enrollments' => $this->enrollments,
-            'branch' => $branch,
-            'branches' => $this->branches,
-            'is_signature' => $is_signature,
-            'is_period' => $is_period,
-            'report_name' => $report_name,
-        ]);
+        if (!empty($this->request->class_list_export) && $this->request->class_list_export == 'excel') {
+            $report_name = __('Classwise Student Enrollment Report');
+            // Pass
+            //  only the table-related data to the export view
+            return view('student.exports.classwise_enrollment', [
+                'enrollments' => $this->enrollments,
+                'branch' => $branch,
+                'branches' => $this->branches,
+                'is_signature' => $is_signature,
+                'is_period' => $is_period,
+                'report_name' => $report_name,
+            ]);
+        }
+        else{
+            $report_name = __('Student Enrollment Report');
+            return view('student.exports.enrollment', [
+                'enrollments' => $this->enrollments,
+                'branch' => $branch,
+                'branches' => $this->branches,
+                'is_signature' => $is_signature,
+                'is_period' => $is_period,
+                'report_name' => $report_name,
+            ]);
+        }
     }
+
 
     // public function drawings()
     // {
@@ -73,7 +90,7 @@ class StudentEnrollmentExport implements FromView, WithEvents
                 $sheet->getPageSetup()->setFitToPage(true);
                 $sheet->getPageSetup()->setFitToWidth(1);
                 $sheet->getPageSetup()->setFitToHeight(0); // unlimited height
-    
+
                 // 🔁 Repeat heading row (row 5)
                 $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(8, 8);
                 $sheet = $event->sheet->getDelegate();
@@ -132,5 +149,4 @@ class StudentEnrollmentExport implements FromView, WithEvents
             },
         ];
     }
-
 }

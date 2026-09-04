@@ -134,6 +134,22 @@
                                         <input type="radio" id="g_adhoc" value="Adhoc" name="category" class="custom-control-input">
                                         <label class="custom-control-label" for="g_adhoc">{{__('Adhoc')}}</label>
                                     </div>
+									<div class="custom-control custom-radio custom-control-inline">
+                                        <input type="radio" id="g_visiting" value="Visiting" name="category" class="custom-control-input">
+                                        <label class="custom-control-label" for="g_visiting">{{__('Visiting')}}</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group col-md-12 d-none" id="visiting_contract_fields">
+                            <div class="row">
+                                <div class="form-group col-md-6">
+                                    {!! Form::label('from_date', __('Contract From Date'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
+                                    {!! Form::date('from_date', null, ['class' => 'form-control', 'id' => 'contract_from_date']) !!}
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {!! Form::label('to_date', __('Contract To Date'), ['class' => 'form-label']) !!}<span class="text-danger pl-1">*</span>
+                                    {!! Form::date('to_date', null, ['class' => 'form-control', 'id' => 'contract_to_date']) !!}
                                 </div>
                             </div>
                         </div>
@@ -143,11 +159,19 @@
                         </div>
                         <div class="form-group col-md-6 ">
                             {!! Form::label('probation_period', __('Probation Period Month'),['class'=>'form-label']) !!}<span class="text-danger pl-1">*</span>
-                            {!! Form::number('probation_period', null, ['class' => 'form-control ','id'=>'pro_date','required' => 'required', 'min' => '1']) !!}
+                            {!! Form::number('probation_period', null, ['class' => 'form-control ','id'=>'pro_date','required' => 'required', 'min' => '1', 'readonly' => 'readonly']) !!}
                         </div>
                         <div class="form-group col-md-6 ">
                             {!! Form::label('probation_end', __('Probation End Date'),['class'=>'form-label']) !!}<span class="text-danger pl-1">*</span>
                             {!! Form::date('probation_end', null, ['class' => 'form-control ','id'=>'pro_end_date','required' => 'required','readonly' => 'readonly']) !!}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {!! Form::label('application_date', __('Application Date'), ['class' => 'form-label']) !!}
+                            {!! Form::date('application_date', null, ['class' => 'form-control']) !!}
+                        </div>
+                        <div class="form-group col-md-6">
+                            {!! Form::label('interview_date', __('Interview Date'), ['class' => 'form-label']) !!}
+                            {!! Form::date('interview_date', null, ['class' => 'form-control']) !!}
                         </div>
                     </div>
                 </div>
@@ -201,14 +225,54 @@ dateInput.setAttribute('max', nowFormatted);
             }
             input.value = value;
         }
+        function updateProbationMonths() {
+            var deptName = $('#department_id option:selected').text().trim().toLowerCase();
+            var probationMonths = (deptName === 'academic') ? 12 : 6;
+            $('#pro_date').val(probationMonths);
+            updateProbationEndDate();
+        }
+
         $(document).ready(function () {
             var d_id = $('#department_id').val();
             getDesignation(d_id);
+
+            function toggleVisitingFields() {
+                var cat = $('input[name="category"]:checked').val();
+                if (cat === 'Visiting' || cat === 'Adhoc') {
+                    $('#visiting_contract_fields').removeClass('d-none');
+                    $('#contract_from_date').prop('required', true);
+                    $('#contract_to_date').prop('required', true);
+                } else {
+                    $('#visiting_contract_fields').addClass('d-none');
+                    $('#contract_from_date').prop('required', false).val('');
+                    $('#contract_to_date').prop('required', false).val('');
+                }
+            }
+
+            $('input[name="category"]').change(function() {
+                toggleVisitingFields();
+            });
+
+            toggleVisitingFields();
+            updateProbationMonths();
+
+            $('#contract_from_date').change(function() {
+                var fromVal = $(this).val();
+                if (fromVal) {
+                    var nextDay = new Date(fromVal);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    var minFormatted = nextDay.toISOString().slice(0, 10);
+                    $('#contract_to_date').attr('min', minFormatted);
+                } else {
+                    $('#contract_to_date').removeAttr('min');
+                }
+            });
         });
 
         $(document).on('change', 'select[name=department_id]', function () {
             var department_id = $(this).val();
             getDesignation(department_id);
+            updateProbationMonths();
         });
 
         function getDesignation(did) {
